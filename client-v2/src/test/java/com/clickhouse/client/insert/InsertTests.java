@@ -50,7 +50,8 @@ public class InsertTests extends BaseIntegrationTest {
 
         client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
         List<Object> simplePOJOs = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
+
+        for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
         InsertResponse response = client.insert(tableName, simplePOJOs, settings);

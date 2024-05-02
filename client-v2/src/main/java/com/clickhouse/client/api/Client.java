@@ -236,6 +236,8 @@ public class Client {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
+        long s1 = System.currentTimeMillis();
+
         //Add format to the settings
         if (settings == null) {
             settings = new InsertSettings();
@@ -251,13 +253,16 @@ public class Client {
             throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
         }
 
+        long s2 = System.currentTimeMillis();
         //Call the static .serialize method on the POJOSerializer for each object in the list
         for (Object obj : data) {
             for (POJOSerializer serializer : serializers) {
                 serializer.serialize(obj, stream);
             }
         }
+        long s3 = System.currentTimeMillis();
 
+        LOG.debug("Total serialization time: {}", s3 - s1);
         return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
     }
 
@@ -267,6 +272,7 @@ public class Client {
     public InsertResponse insert(String tableName,
                                      InputStream data,
                                      InsertSettings settings) throws IOException, ExecutionException, InterruptedException {
+        long s1 = System.currentTimeMillis();
         InsertResponse response;
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
@@ -277,7 +283,7 @@ public class Client {
                 future = request.data(stream.getInputStream()).execute();
 
                 //Copy the data from the input stream to the output stream
-                byte[] buffer = new byte[4096];
+                byte[] buffer = new byte[256000];
                 int bytesRead;
                 while ((bytesRead = data.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
@@ -286,6 +292,8 @@ public class Client {
             response = new InsertResponse(client, future.get());
         }
 
+        long s2 = System.currentTimeMillis();
+        LOG.debug("Total insert (InputStream) time: {}", s2 - s1);
         return response;
     }
 
