@@ -9,6 +9,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.util.TimeZone;
 
 public class BinaryStreamReaderTests {
 
@@ -21,7 +22,7 @@ public class BinaryStreamReaderTests {
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
         LocalDate outValue = new BinaryStreamReader(ClickHouseInputStream.of(in), null)
-                .readValue(ClickHouseDataType.Date);
+                .readValue(ClickHouseDataType.Date, TimeZone.getDefault());
         Assert.assertEquals(outValue, inValue);
     }
 }

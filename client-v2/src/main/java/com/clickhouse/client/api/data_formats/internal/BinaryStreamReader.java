@@ -4,13 +4,14 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.time.LocalDate;
-import java.util.Date;
+import java.math.BigInteger;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.TimeZone;
 
 public class BinaryStreamReader {
@@ -24,11 +25,11 @@ public class BinaryStreamReader {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
     }
 
-    public <T> T readValue(ClickHouseDataType dataType) throws IOException {
-        return readValueImpl(dataType);
+    public <T> T readValue(ClickHouseDataType dataType, TimeZone timeZone) throws IOException {
+        return readValueImpl(dataType, timeZone);
     }
 
-    private <T> T readValueImpl(ClickHouseDataType dataType) throws IOException {
+    private <T> T readValueImpl(ClickHouseDataType dataType, TimeZone timeZone) throws IOException {
         try {
             switch (dataType) {
                 // Primitives
@@ -85,28 +86,29 @@ public class BinaryStreamReader {
                 case Enum16:
                     return (T) Short.valueOf(BinaryStreamUtils.readEnum16(chInputStream));
 
-                // TODO: check settings what timezone should be used
                 case Date:
-                    return (T) BinaryStreamUtils.readDate(chInputStream);
+                    return (T) BinaryStreamUtils.readDate(chInputStream, timeZone);
                 case Date32:
-                    return (T) BinaryStreamUtils.readDate32(chInputStream);
+                    return (T) BinaryStreamUtils.readDate32(chInputStream, timeZone);
                 case DateTime:
-                    return (T) BinaryStreamUtils.readDateTime(chInputStream, TimeZone.getDefault());
+                    return (T) BinaryStreamUtils.readDateTime(chInputStream, timeZone);
                 case DateTime32:
-                    return (T) BinaryStreamUtils.readDateTime32(chInputStream, TimeZone.getDefault());
+                    return (T) BinaryStreamUtils.readDateTime32(chInputStream, timeZone);
                 case DateTime64:
-                    return (T) BinaryStreamUtils.readDateTime64(chInputStream, TimeZone.getDefault());
-//                case IntervalYear:
-//                case IntervalQuarter:
-//                case IntervalMonth:
-//                case IntervalWeek:
-//                case IntervalDay:
-//                case IntervalHour:
-//                case IntervalMinute:
-//                case IntervalSecond:
-//                case IntervalMicrosecond:
-//                case IntervalMillisecond:
-//                case IntervalNanosecond:
+                    return (T) BinaryStreamUtils.readDateTime64(chInputStream, timeZone);
+
+                case IntervalYear:
+                case IntervalQuarter:
+                case IntervalMonth:
+                case IntervalWeek:
+                case IntervalDay:
+                case IntervalHour:
+                case IntervalMinute:
+                case IntervalSecond:
+                case IntervalMicrosecond:
+                case IntervalMillisecond:
+                case IntervalNanosecond:
+                    return (T) BinaryStreamUtils.readUnsignedInt64(chInputStream);
 
                 case IPv4:
                     return (T) BinaryStreamUtils.readInet4Address(chInputStream);
@@ -123,15 +125,18 @@ public class BinaryStreamReader {
                 case Ring:
                     return (T) BinaryStreamUtils.readGeoRing(chInputStream);
 
-//                case JSON:
+//                case JSON: // obsolete https://clickhouse.com/docs/en/sql-reference/data-types/json#displaying-json-column
 //                case Object:
-//                case Array:
+                case Array:
+                    int len = chInputStream.readVarInt();
+                    Object[] array = new Object[len];
+                    return (T) array;
 //                case Map:
 //                case Nested:
 //                case Tuple:
 
-                case Nothing:
-                    return null;
+//                case Nothing:
+//                    return null;
 //                case SimpleAggregateFunction:
 //                case AggregateFunction:
                 default:

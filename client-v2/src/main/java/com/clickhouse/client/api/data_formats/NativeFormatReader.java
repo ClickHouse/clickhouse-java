@@ -3,6 +3,7 @@ package com.clickhouse.client.api.data_formats;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
@@ -12,7 +13,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * For the backward compatibility server will not send TZ id in column type. Client should send version to a server
+ * to get the correct column type.
+ * (see: https://github.com/ClickHouse/ClickHouse/issues/38209)
+ */
 public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     private Block currentBlock;
@@ -41,13 +46,13 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         List<String> types = new ArrayList<>(nColumns);
         currentBlock = new Block(names, types, nRows);
         for (int i = 0; i < nColumns; i++) {
-            names.add(chInputStream.readUnicodeString());
-            types.add(chInputStream.readUnicodeString());
+            ClickHouseColumn column = ClickHouseColumn.of(chInputStream.readUnicodeString(), chInputStream.readUnicodeString());
+            names.add(column.getColumnName());
+            types.add(column.getDataType().name());
 
-            ClickHouseDataType dataType = ClickHouseDataType.of(types.get(i));
             List<Object> values = new ArrayList<>(nRows);
             for (int j = 0; j < nRows; j++) {
-                Object value = binaryStreamReader.readValue(dataType);
+                Object value = binaryStreamReader.readValue(column.getDataType(), column.getTimeZone());
                 values.add(value);
             }
             currentBlock.add(values);

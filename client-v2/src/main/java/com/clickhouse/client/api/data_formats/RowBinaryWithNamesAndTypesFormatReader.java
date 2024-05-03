@@ -49,7 +49,7 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
     @Override
     public void readRecord(Map<String, Object> record) throws IOException {
         for (ClickHouseColumn column : getSchema().getColumns()) {
-            record.put(column.getColumnName(), binaryStreamReader.readValue(column.getDataType()));
+            record.put(column.getColumnName(), binaryStreamReader.readValue(column.getDataType(), column.getTimeZone()));
         }
     }
 
