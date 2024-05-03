@@ -2,6 +2,8 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -20,6 +22,8 @@ import java.util.UUID;
 import static com.clickhouse.data.ClickHouseDataType.*;
 
 public class SerializerUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
+
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
@@ -31,6 +35,9 @@ public class SerializerUtils {
                 break;
             case Map:
                 serializeMapData(stream, value, column);
+                break;
+            case Nested:
+                LOG.error("Nested data type is not supported.");
                 break;
             default:
                 serializePrimitiveData(stream, value, column);

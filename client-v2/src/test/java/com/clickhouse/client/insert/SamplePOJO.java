@@ -445,6 +445,8 @@ public class SamplePOJO {
         schema.addColumn("tuple", "Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32)");
         schema.addColumn("map", "Map(String, Int32)");
 
+        //schema.addColumn("inner", "Nested (innerInt Int32, innerString String)");
+
         return schema;
     }
 
@@ -469,6 +471,15 @@ public class SamplePOJO {
         public SamplePOJOInner() {
             innerInt = RandomGenerator.getDefault().nextInt();
             innerString = "inner" + RandomGenerator.getDefault().nextInt();
+        }
+
+        public static TableSchema generateTableSchema(String tableName) {
+            TableSchema schema = new TableSchema();
+            schema.setDatabaseName("default");
+            schema.setTableName(tableName);
+            schema.addColumn("innerInt", "Int32");
+            schema.addColumn("innerString", "String");
+            return schema;
         }
 
         public int getInnerInt() {
