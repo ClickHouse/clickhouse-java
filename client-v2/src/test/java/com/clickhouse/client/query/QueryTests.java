@@ -10,11 +10,11 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.Protocol;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryStreamReader;
-import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.NativeStreamReader;
-import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesAndTypesReader;
-import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesStreamReader;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.NativeFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -53,12 +53,17 @@ public class QueryTests extends BaseIntegrationTest {
                 .addUsername("default")
                 .addPassword("")
                 .build();
+
+        delayForProfiler(0);
+        System.out.println("Real port: " + node.getPort());
+    }
+
+    private static void delayForProfiler(long millis) {
         try {
-            Thread.sleep(100);
+            Thread.sleep(millis);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        System.out.println(node.getPort());
     }
 
     @Test(groups = {"integration"})
@@ -116,27 +121,19 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testAsyncResponse() {
-
-    }
-
-    @Test(groups = {"integration"})
-    public void testBlockingResponse() {
-
-    }
-
     @DataProvider(name = "rowBinaryFormats")
     ClickHouseFormat[] getRowBinaryFormats() {
-
         return new ClickHouseFormat[]{
                 ClickHouseFormat.RowBinaryWithNamesAndTypes,
-                ClickHouseFormat.Native
+                ClickHouseFormat.Native,
+                ClickHouseFormat.RowBinaryWithNames,
+                ClickHouseFormat.RowBinary
         };
     }
 
     @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
-    public void testRowBinaryQueries(ClickHouseFormat format) throws ExecutionException, InterruptedException {
+    public void testRowBinaryQueries(ClickHouseFormat format)
+            throws ExecutionException, InterruptedException {
         final int rows = 10;
         // TODO: replace with dataset with all primitive types of data
         // TODO: reusing same table name may lead to a conflict in tests?
@@ -149,28 +146,40 @@ public class QueryTests extends BaseIntegrationTest {
 
         Map<String, Object> record = new HashMap<>();
         TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
-        ClickHouseRowBinaryStreamReader reader = null;
-        switch (format) {
-            case Native:
-                reader = new NativeStreamReader(queryResponse.getInputStream(), settings);
-                break;
-            case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
-                break;
-            default:
-                Assert.fail("unsupported format: " + format.name());
-        }
+        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, tableSchema);
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
         try {
             while (dataIterator.hasNext()) {
                 Map<String, Object> expectedRecord = dataIterator.next();
-                reader.readToMap(record);
+                reader.readRecord(record);
                 Assert.assertEquals(record, expectedRecord);
             }
         } catch (IOException e) {
             Assert.fail("failed to read response", e);
         }
+    }
+
+    private static ClickHouseBinaryFormatReader createBinaryFormatReader(QueryResponse response, QuerySettings settings,
+                                                                         TableSchema schema) {
+        ClickHouseBinaryFormatReader reader = null;
+        switch (response.getFormat()) {
+            case Native:
+                reader = new NativeFormatReader(response.getInputStream(), settings);
+                break;
+            case RowBinaryWithNamesAndTypes:
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), settings);
+                break;
+            case RowBinaryWithNames:
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), settings, schema);
+                break;
+            case RowBinary:
+                reader = new RowBinaryFormatReader(response.getInputStream(), settings, schema);
+                break;
+            default:
+                Assert.fail("unsupported format: " + response.getFormat().name());
+        }
+        return reader;
     }
 
     @Test(groups = {"integration"})
@@ -179,24 +188,24 @@ public class QueryTests extends BaseIntegrationTest {
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS,
                 DATASET_VALUE_GENERATORS, 10);
         QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT param1, param3, hostname() as host FROM " + table, null, settings);
+        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, null, settings);
         QueryResponse queryResponse = response.get();
 
         TableSchema schema = new TableSchema();
-        schema.addColumn("param1", "UInt32");
-        schema.addColumn("param3", "String");
+        schema.addColumn("col1", "UInt32");
+        schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
-        ClickHouseBinaryStreamReader reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
+        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
         while (reader.hasNext()) {
             Assert.assertTrue(reader.next());
             String hostName = reader.readValue("host");
-            Long param1 = reader.readValue("param1");
-            String param3 = reader.readValue("param3");
+            Long col1 = reader.readValue("col1");
+            String col3 = reader.readValue("col3");
 
-            System.out.println("host: " + hostName + ", param1: " + param1 + ", param3: " + param3);
+            System.out.println("host: " + hostName + ", col1: " + col1 + ", col3: " + col3);
 
-            Assert.assertEquals(reader.readValue(1), param1);
-            Assert.assertEquals(reader.readValue(2), param3);
+            Assert.assertEquals(reader.readValue(1), col1);
+            Assert.assertEquals(reader.readValue(2), col3);
             Assert.assertEquals(reader.readValue(3), hostName);
         }
 
@@ -209,21 +218,23 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 10;
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
         QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT param1, param3, hostname() as host FROM " + table, null, settings);
+        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, null, settings);
 
         QueryResponse queryResponse = response.get();
         TableSchema schema = new TableSchema();
-        schema.addColumn("param1", "UInt32");
-        schema.addColumn("param3", "String");
+        schema.addColumn("col1", "UInt32");
+        schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
-        ClickHouseRowBinaryStreamReader reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
+        ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(queryResponse.getInputStream(), settings);
 
         Map<String, Object> record = new HashMap<>();
         for (int i = 0; i < rows; i++) {
             record.clear();
-            reader.readToMap(record);
+            reader.readRecord(record);
         }
     }
+
+
 
     @Test(groups = {"integration"})
     public void testQueryExceptionHandling() {
@@ -233,11 +244,12 @@ public class QueryTests extends BaseIntegrationTest {
     private final static Random RANDOM = new Random();
 
     private final static List<String> DATASET_COLUMNS = List.of(
-            "param1 UInt32",
-            "param2 Int32",
-            "param3 String",
-            "param4 Int64");
-
+            "col1 UInt32",
+            "col2 Int32",
+            "col3 String",
+            "col4 Int64",
+            "col5 String"
+    );
 
     private final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = List.of(
             c -> RANDOM.nextLong(0xFFFFFFFFL),

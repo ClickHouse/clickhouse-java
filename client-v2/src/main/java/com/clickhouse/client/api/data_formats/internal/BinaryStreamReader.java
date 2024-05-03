@@ -9,31 +9,26 @@ import org.slf4j.helpers.NOPLogger;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.Date;
 import java.util.TimeZone;
 
 public class BinaryStreamReader {
 
     private final ClickHouseInputStream chInputStream;
 
-    private final boolean useBinaryUtils;
-
     private final Logger log;
 
-    BinaryStreamReader(ClickHouseInputStream chInputStream, boolean useBinaryUtils, Logger log) {
+    BinaryStreamReader(ClickHouseInputStream chInputStream, Logger log) {
         this.chInputStream = chInputStream;
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
-        this.useBinaryUtils = useBinaryUtils;
     }
 
-    protected <T> T readValue(ClickHouseDataType dataType) throws IOException {
-        if (useBinaryUtils) {
-            return readValueWithBinaryUtils(dataType);
-        } else {
-            return readValueImpl(dataType);
-        }
+    public <T> T readValue(ClickHouseDataType dataType) throws IOException {
+        return readValueImpl(dataType);
     }
 
-    private <T> T readValueWithBinaryUtils(ClickHouseDataType dataType) throws IOException {
+    private <T> T readValueImpl(ClickHouseDataType dataType) throws IOException {
         try {
             switch (dataType) {
                 // Primitives
@@ -149,9 +144,5 @@ public class BinaryStreamReader {
             log.error("Failed to read value of type: {}", dataType, e);
             throw new RuntimeException(e);
         }
-    }
-
-    private <T> T readValueImpl(ClickHouseDataType dataType) {
-        return null;
     }
 }

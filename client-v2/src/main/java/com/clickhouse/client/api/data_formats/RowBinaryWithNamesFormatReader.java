@@ -1,7 +1,7 @@
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
@@ -14,16 +14,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RowBinaryWithNamesStreamReader extends AbstractRowBinaryReader implements ClickHouseRowBinaryStreamReader {
+public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
 
     private List<String> columns = null;
 
-    public RowBinaryWithNamesStreamReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
+    public RowBinaryWithNamesFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         super(inputStream, querySettings, schema);
     }
 
     @Override
-    public void readToMap(Map<String, Object> record) throws IOException {
+    public void readRecord(Map<String, Object> record) throws IOException {
         if (columns == null) {
             columns = new ArrayList<>();
             int nCol = chInputStream.readVarInt();
@@ -46,7 +46,7 @@ public class RowBinaryWithNamesStreamReader extends AbstractRowBinaryReader impl
     @Override
     public boolean next() {
         try {
-            readToMap(currentRecord);
+            readRecord(currentRecord);
             return true;
         } catch (EOFException e) {
             return false;

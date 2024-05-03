@@ -1,28 +1,30 @@
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
-import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class NativeStreamReader extends AbstractRowBinaryReader implements ClickHouseRowBinaryStreamReader {
+
+public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     private Block currentBlock;
 
     private int blockRowIndex;
 
-    public NativeStreamReader(InputStream inputStream, QuerySettings settings) {
+    public NativeFormatReader(InputStream inputStream, QuerySettings settings) {
         super(inputStream, settings, null);
     }
 
     @Override
-    public void readToMap(Map<String, Object> record) throws IOException {
+    public void readRecord(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
             readBlock();
         }
@@ -50,25 +52,31 @@ public class NativeStreamReader extends AbstractRowBinaryReader implements Click
             }
             currentBlock.add(values);
         }
+        blockRowIndex = 0;
     }
 
     @Override
-    public <T> T readValue(int colIndex) throws IOException {
-        return null;
+    public <T> T readValue(int colIndex) {
+        return (T) currentRecord.get(getSchema().indexToName(colIndex));
     }
 
     @Override
-    public <T> T readValue(String colName) throws IOException {
-        return null;
-    }
-
-    @Override
-    public boolean hasNext() {
-        return false;
+    public <T> T readValue(String colName) {
+        return (T) currentRecord.get(colName);
     }
 
     @Override
     public boolean next() {
+        if (hasNext) {
+            try {
+                readRecord(currentRecord);
+            } catch (EOFException e) {
+                hasNext = false;
+                return false;
+            } catch (IOException e) {
+                throw new ClientException("Failed to read next block", e);
+            }
+        }
         return false;
     }
 
@@ -78,6 +86,7 @@ public class NativeStreamReader extends AbstractRowBinaryReader implements Click
 
         final List<List<Object>> values = new ArrayList<>();
         final int nRows;
+
         Block(List<String> names, List<String> types, int nRows) {
             this.names = names;
             this.types = types;

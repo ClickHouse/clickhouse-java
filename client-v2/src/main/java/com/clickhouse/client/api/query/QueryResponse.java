@@ -2,9 +2,6 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesAndTypesReader;
-import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesStreamReader;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
