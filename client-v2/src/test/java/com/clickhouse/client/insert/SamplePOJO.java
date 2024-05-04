@@ -1,6 +1,7 @@
 package com.clickhouse.client.insert;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseEnum;
 import org.apache.commons.lang3.RandomStringUtils;
 
@@ -19,11 +20,17 @@ import java.util.random.RandomGenerator;
 
 public class SamplePOJO {
     private int int8;
+    private int int8_default;
     private int int16;
+    private int int16_default;
     private int int32;
+    private int int32_default;
     private long int64;
+    private long int64_default;
     private BigInteger int128;
+    private BigInteger int128_default;
     private BigInteger int256;
+    private BigInteger int256_default;
 
     private int uint8;
     private int uint16;
@@ -132,6 +139,10 @@ public class SamplePOJO {
         this.int8 = int8;
     }
 
+    public int getInt8Default() {
+        return int8_default;
+    }
+
     public int getInt16() {
         return int16;
     }
@@ -140,8 +151,16 @@ public class SamplePOJO {
         this.int16 = int16;
     }
 
+    public int getInt16Default() {
+        return int16_default;
+    }
+
     public int getInt32() {
         return int32;
+    }
+
+    public int getInt32Default() {
+        return int32_default;
     }
 
     public void setInt32(int int32) {
@@ -152,6 +171,10 @@ public class SamplePOJO {
         return int64;
     }
 
+    public long getInt64Default() {
+        return int64_default;
+    }
+
     public void setInt64(long int64) {
         this.int64 = int64;
     }
@@ -160,12 +183,20 @@ public class SamplePOJO {
         return int128;
     }
 
+    public BigInteger getInt128Default() {
+        return int128_default;
+    }
+
     public void setInt128(BigInteger int128) {
         this.int128 = int128;
     }
 
     public BigInteger getInt256() {
         return int256;
+    }
+
+    public BigInteger getInt256Default() {
+        return int256_default;
     }
 
     public void setInt256(BigInteger int256) {
@@ -401,11 +432,17 @@ public class SamplePOJO {
         schema.setDatabaseName("default");
         schema.setTableName(tableName);
         schema.addColumn("int8", "Int8");
+        schema.addColumn("int8_default", "Int8 DEFAULT 0");
         schema.addColumn("int16", "Int16");
+        schema.addColumn("int16_default", "Int16 DEFAULT 0");
         schema.addColumn("int32", "Int32");
+        schema.addColumn("int32_default", "Int32 DEFAULT 0");
         schema.addColumn("int64", "Int64");
+        schema.addColumn("int64_default", "Int64 DEFAULT 0");
         schema.addColumn("int128", "Int128");
+        schema.addColumn("int128_default", "Int128 DEFAULT 0");
         schema.addColumn("int256", "Int256");
+        schema.addColumn("int256_default", "Int256 DEFAULT 0");
 
         schema.addColumn("uint8", "UInt8");
         schema.addColumn("uint16", "UInt16");
@@ -458,7 +495,8 @@ public class SamplePOJO {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(schema.getColumns().get(i).getColumnName()).append(" ").append(schema.getColumns().get(i).getOriginalTypeName());
+            ClickHouseColumn column = schema.getColumns().get(i);
+            sb.append(column.getColumnName()).append(" ").append(column.getOriginalTypeName()).append(column.hasDefault() ? 0 : "");
         }
         sb.append(") ENGINE = Memory");
         return sb.toString();

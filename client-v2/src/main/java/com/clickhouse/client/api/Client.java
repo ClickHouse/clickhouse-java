@@ -48,6 +48,7 @@ public class Client {
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
     private Map<Class<?>, List<POJOSerializer>> serializers;//Order is important to preserve for RowBinary
     private Map<Class<?>, Map<String, Method>> getterMethods;
+    private Map<Class<?>, Boolean> hasDefaults;
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
@@ -58,6 +59,7 @@ public class Client {
         });
         this.serializers = new HashMap<>();
         this.getterMethods = new HashMap<>();
+        this.hasDefaults = new HashMap<>();
     }
 
     public static class Builder {
@@ -206,15 +208,25 @@ public class Client {
                 }
                 Method getterMethod = this.getterMethods.get(clazz).get(columnName);
                 Object value = getterMethod.invoke(obj);
+                boolean hasDefaults = this.hasDefaults.get(clazz);
 
                 //Handle null values
                 if (value == null) {
-                    BinaryStreamUtils.writeNull(stream);
-                    return;
-                } else {//If nullable, we have to specify that the value is not null
-                    if (column.isNullable()) {
+                    if (hasDefaults && !column.hasDefault()) {//Send this only if there is no default
                         BinaryStreamUtils.writeNonNull(stream);
                     }
+                    BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
+                    return;
+                }
+
+                //Handle default
+                if (hasDefaults) {
+                    BinaryStreamUtils.writeNonNull(stream);//Write 0
+                }
+
+                //Handle nullable
+                if (column.isNullable()) {
+                    BinaryStreamUtils.writeNonNull(stream);//Write 0
                 }
 
                 //Handle the different types
@@ -222,6 +234,7 @@ public class Client {
             });
         }
         this.serializers.put(clazz, serializers);
+        this.hasDefaults.put(clazz, schema.hasDefaults());
     }
 
     /**
@@ -239,7 +252,14 @@ public class Client {
         if (settings == null) {
             settings = new InsertSettings();
         }
-        settings.setFormat(ClickHouseFormat.RowBinary);
+
+        boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
+        if (hasDefaults) {
+            settings.setFormat(ClickHouseFormat.RowBinaryWithDefaults);
+        } else {
+            settings.setFormat(ClickHouseFormat.RowBinary);
+        }
+
 
         //Create an output stream to write the data to
         ByteArrayOutputStream stream = new ByteArrayOutputStream();

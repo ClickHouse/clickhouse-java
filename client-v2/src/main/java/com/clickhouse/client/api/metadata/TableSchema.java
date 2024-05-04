@@ -18,6 +18,8 @@ public class TableSchema {
 
     private Map<String, Map<String, Object>> metadata;
 
+    private boolean hasDefaults = false;
+
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
@@ -48,8 +50,15 @@ public class TableSchema {
         this.databaseName = databaseName;
     }
 
+    public boolean hasDefaults() {
+        return hasDefaults;
+    }
+
     public void addColumn(String name, String type) {
         columns.add(ClickHouseColumn.of(name, type));
+        if (type.toUpperCase().contains("DEFAULT")) {
+            hasDefaults = true;
+        }
         metadata.computeIfAbsent(name, k -> new HashMap<>()).put("type", type);
     }
 
