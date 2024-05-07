@@ -19,7 +19,10 @@ public class InsertResponse implements AutoCloseable {
 
     @Override
     public void close() {
-        responseRef.close();
-        client.close();
+        try {
+            responseRef.close();
+        } finally {
+            client.close();
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
@@ -242,7 +243,7 @@ public class Client {
      */
     public InsertResponse insert(String tableName,
                                          List<Object> data,
-                                         InsertSettings settings) throws IOException, InvocationTargetException, IllegalAccessException, ExecutionException, InterruptedException {
+                                         InsertSettings settings) throws ClientException, IOException {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
@@ -274,7 +275,11 @@ public class Client {
         //Call the static .serialize method on the POJOSerializer for each object in the list
         for (Object obj : data) {
             for (POJOSerializer serializer : serializers) {
-                serializer.serialize(obj, stream);
+                try {
+                    serializer.serialize(obj, stream);
+                } catch (InvocationTargetException | IllegalAccessException | IOException  e) {
+                    throw new ClientException(e);
+                }
             }
         }
         long s3 = System.currentTimeMillis();
@@ -288,7 +293,7 @@ public class Client {
      */
     public InsertResponse insert(String tableName,
                                      InputStream data,
-                                     InsertSettings settings) throws IOException, ExecutionException, InterruptedException {
+                                     InsertSettings settings) throws IOException, ClientException {
         long s1 = System.currentTimeMillis();
         InsertResponse response;
         try (ClickHouseClient client = createClient()) {
@@ -306,7 +311,11 @@ public class Client {
                     stream.write(buffer, 0, bytesRead);
                 }
             }
-            response = new InsertResponse(client, future.get());
+            try {
+                response = new InsertResponse(client, future.get());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new ClientException("Operation has likely timed out.", e);
+            }
         }
 
         long s2 = System.currentTimeMillis();

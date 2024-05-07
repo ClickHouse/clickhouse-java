@@ -2,6 +2,7 @@ package com.clickhouse.client.insert;
 
 import com.clickhouse.client.*;
 import com.clickhouse.client.api.Protocol;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.Client;
@@ -10,9 +11,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import static org.testng.Assert.*;
 
@@ -42,7 +41,7 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "unit" }, enabled = true)
-    public void insertSimplePOJOs() throws ClickHouseException, IOException, ExecutionException, InterruptedException, InvocationTargetException, IllegalAccessException {
+    public void insertSimplePOJOs() throws ClickHouseException, ClientException, IOException {
         String tableName = "simple_pojo_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
