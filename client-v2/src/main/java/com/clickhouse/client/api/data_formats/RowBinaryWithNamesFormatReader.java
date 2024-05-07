@@ -35,7 +35,8 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
         }
 
         for (ClickHouseColumn column : getSchema().getColumns()) {
-            record.put(column.getColumnName(), binaryStreamReader.readValue(column.getDataType(), column.getTimeZone()));
+            record.put(column.getColumnName(), binaryStreamReader
+                    .readValue(column));
         }
     }
 

@@ -40,6 +40,8 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.random.RandomGenerator;
+import java.util.stream.BaseStream;
 
 public class QueryTests extends BaseIntegrationTest {
 
@@ -152,7 +154,8 @@ public class QueryTests extends BaseIntegrationTest {
         try {
             while (dataIterator.hasNext()) {
                 Map<String, Object> expectedRecord = dataIterator.next();
-                reader.readRecord(record);
+                reader.next();
+                reader.copyRecord(record);
                 Assert.assertEquals(record, expectedRecord);
             }
         } catch (IOException e) {
@@ -230,11 +233,49 @@ public class QueryTests extends BaseIntegrationTest {
         Map<String, Object> record = new HashMap<>();
         for (int i = 0; i < rows; i++) {
             record.clear();
-            reader.readRecord(record);
+            reader.next();
+            reader.copyRecord(record);
         }
     }
 
+    private final static List<String> ARRAY_COLUMNS = List.of(
+            "col1 Array(UInt32)",
+            "col2 Array(Array(Int32))"
+    );
 
+    private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = List.of(
+            c ->
+                RandomGenerator.getDefault().ints(10, 0, 100),
+            c -> {
+                List<List<Integer>> values = new ArrayList<>();
+                for (int i = 0; i < 10; i++) {
+                    values.add(Arrays.asList(1, 2, 3));
+                }
+                return values;
+            }
+    );
+
+
+    @Test
+    public void testArrayValues() throws Exception {
+        final String table = "array_values_test_table";
+        final int rows = 1;
+        List<Map<String, Object>> data = prepareDataSet(table, ARRAY_COLUMNS, ARRAY_VALUE_GENERATORS, rows);
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        TableSchema schema = client.getTableSchema(table);
+
+        QueryResponse queryResponse = response.get();
+        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+
+        Assert.assertTrue(reader.next());
+        Map<String, Object> record = new HashMap<>();
+        reader.copyRecord(record);
+        long[] col1Values = reader.getLongArray("col1");
+        System.out.println("col1: " + Arrays.toString(col1Values));
+        System.out.println("Record: " + record);
+    }
 
     @Test(groups = {"integration"})
     public void testQueryExceptionHandling() {
@@ -255,8 +296,9 @@ public class QueryTests extends BaseIntegrationTest {
             c -> RANDOM.nextLong(0xFFFFFFFFL),
             c -> RANDOM.nextInt(Integer.MAX_VALUE),
             c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE),
-            c -> RANDOM.nextLong()
-    );
+            c -> RANDOM.nextLong(),
+            c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE)
+            );
 
     private final static String DATASET_TABLE = "query_test_table";
 
@@ -296,6 +338,14 @@ public class QueryTests extends BaseIntegrationTest {
                     Object value = valueGenerator.apply(null);
                     if (value instanceof String) {
                         insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
+                    } else if (value instanceof BaseStream<?,?>) {
+                        insertStmtBuilder.append('[');
+                        BaseStream stream = ((BaseStream<?, ?>) value);
+                        for (Iterator it = stream.iterator(); it.hasNext(); ) {
+                            insertStmtBuilder.append(it.next()).append(", ");
+                        }
+                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                        insertStmtBuilder.append("], ");
                     } else {
                         insertStmtBuilder.append(value).append(", ");
                     }
@@ -306,6 +356,7 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
+            System.out.println("Insert statement: " + insertStmtBuilder);
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
             request.executeAndWait();
@@ -313,5 +364,22 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("failed to prepare data set", e);
         }
         return data;
+    }
+
+    void writeArrayValues(StringBuilder sb, Iterator<?> values) {
+        sb.append('[');
+        while (values.hasNext()) {
+            Object value = values.next();
+            if (value instanceof List<?>) {
+                writeArrayValues(sb, ((List<?>) value).iterator());
+            } else if (value instanceof String) {
+                sb.append('\'').append(value).append('\'');
+            } else {
+                sb.append(value);
+            }
+            sb.append(", ");
+        }
+        sb.setLength(sb.length() - 2);
+        sb.append(']');
     }
 }

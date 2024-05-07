@@ -13,6 +13,7 @@ import java.net.Inet6Address;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,39 +46,39 @@ public interface ClickHouseBinaryFormatReader {
     boolean hasNext();
 
     /**
-     * Moves cursor to next row.
+     * Moves cursor to the next row. Must be called before reading the first row.
      *
-     * @return
+     * @return true if there are more rows to read, false otherwise
      */
     boolean next();
 
     /**
-     * Read a record from the stream and write it to the given map.
+     * Copies current record to a map.
      *
-     * @param destination - map to which the record will be written
+     * @param destination - map to which the record will be copied
      * @throws IOException
      */
-    void readRecord(Map<String, Object> destination) throws IOException;
+    void copyRecord(Map<String, Object> destination) throws IOException;
 
-    String asString(String colName);
+    String getString(String colName);
 
-    Byte asByte(String colName);
+    Byte getByte(String colName);
 
-    Short asShort(String colName);
+    Short getShort(String colName);
 
-    Integer asInteger(String colName);
+    Integer getInteger(String colName);
 
-    Long asLong(String colName);
+    Long getLong(String colName);
 
-    Float asFloat(String colName);
+    Float getFloat(String colName);
 
-    Double asDouble(String colName);
+    Double getDouble(String colName);
 
-    Boolean asBoolean(String colName);
+    Boolean getBoolean(String colName);
 
-    BigInteger asBigInteger(String colName);
+    BigInteger getBigInteger(String colName);
 
-    BigDecimal asBigDecimal(String colName);
+    BigDecimal getBigDecimal(String colName);
 
     /**
      * Returns the value of the specified column as an Instant. Timezone is derived from the column definition.
@@ -89,7 +90,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @return
      */
-    Instant asInstant(String colName);
+    Instant getInstant(String colName);
 
     /**
      * Returns the value of the specified column as a ZonedDateTime. Timezone is derived from the column definition.
@@ -101,7 +102,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @return
      */
-    ZonedDateTime asZonedDateTime(String colName);
+    ZonedDateTime getZonedDateTime(String colName);
 
     /**
      * Returns the value of the specified column as a Duration.
@@ -114,20 +115,36 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @return Duration in the unit of column type.
      */
-    Duration asDuration(String colName);
+    Duration getDuration(String colName);
 
 
-    Inet4Address asInet4Address(String colName);
+    Inet4Address getInet4Address(String colName);
 
-    Inet6Address asInet6Address(String colName);
+    Inet6Address getInet6Address(String colName);
 
-    UUID asUUID(String colName);
+    UUID getUUID(String colName);
 
-    ClickHouseGeoPointValue asGeoPoint(String colName);
+    ClickHouseGeoPointValue getGeoPoint(String colName);
 
-    ClickHouseGeoRingValue asGeoRing(String colName);
+    ClickHouseGeoRingValue getGeoRing(String colName);
 
     ClickHouseGeoPolygonValue  asGeoPolygon(String colName);
 
     ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(String colName);
+
+    <T> List<T> getList(String colName);
+
+    <T> List<List<T>> getTwoDimensionalList(String colName);
+
+    <T> List<List<List<T>>> getThreeDimensionalList(String colName);
+
+    byte[] getByteArray(String colName);
+
+    int[] getIntArray(String colName);
+
+    long[] getLongArray(String colName);
+
+    float[] getFloatArray(String colName);
+
+    double[] getDoubleArray(String colName);
 }

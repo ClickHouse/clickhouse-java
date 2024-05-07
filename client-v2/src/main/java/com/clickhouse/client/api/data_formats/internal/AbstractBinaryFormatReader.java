@@ -4,9 +4,11 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseArraySequence;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -63,6 +65,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
 
+    protected abstract void readRecord(Map<String, Object> record) throws IOException;
+
+    @Override
+    public void copyRecord(Map<String, Object> destination) throws IOException {
+        destination.putAll(currentRecord);
+    }
+
     @Override
     public <T> T readValue(int colIndex) throws IOException {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
@@ -100,57 +109,57 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public String asString(String colName) {
+    public String getString(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Byte asByte(String colName) {
+    public Byte getByte(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Short asShort(String colName) {
+    public Short getShort(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Integer asInteger(String colName) {
+    public Integer getInteger(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Long asLong(String colName) {
+    public Long getLong(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Float asFloat(String colName) {
+    public Float getFloat(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Double asDouble(String colName) {
+    public Double getDouble(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Boolean asBoolean(String colName) {
+    public Boolean getBoolean(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public BigInteger asBigInteger(String colName) {
+    public BigInteger getBigInteger(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public BigDecimal asBigDecimal(String colName) {
+    public BigDecimal getBigDecimal(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Instant asInstant(String colName) {
+    public Instant getInstant(String colName) {
         int colIndex = schema.nameToIndex(colName);
         ClickHouseColumn column = schema.getColumns().get(colIndex);
         switch (column.getDataType()) {
@@ -168,7 +177,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public ZonedDateTime asZonedDateTime(String colName) {
+    public ZonedDateTime getZonedDateTime(String colName) {
         int colIndex = schema.nameToIndex(colName);
         ClickHouseColumn column = schema.getColumns().get(colIndex);
         switch (column.getDataType()) {
@@ -186,7 +195,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public Duration asDuration(String colName) {
+    public Duration getDuration(String colName) {
         int colIndex = schema.nameToIndex(colName);
         ClickHouseColumn column = schema.getColumns().get(colIndex);
         BigInteger value = readValue(colName);
@@ -222,27 +231,27 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public Inet4Address asInet4Address(String colName) {
+    public Inet4Address getInet4Address(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public Inet6Address asInet6Address(String colName) {
+    public Inet6Address getInet6Address(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public UUID asUUID(String colName) {
+    public UUID getUUID(String colName) {
         return readValue(colName);
     }
 
     @Override
-    public ClickHouseGeoPointValue asGeoPoint(String colName) {
+    public ClickHouseGeoPointValue getGeoPoint(String colName) {
         return ClickHouseGeoPointValue.of(readValue(colName));
     }
 
     @Override
-    public ClickHouseGeoRingValue asGeoRing(String colName) {
+    public ClickHouseGeoRingValue getGeoRing(String colName) {
         return ClickHouseGeoRingValue.of(readValue(colName));
     }
 
@@ -254,5 +263,56 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(String colName) {
         return ClickHouseGeoMultiPolygonValue.of(readValue(colName));
+    }
+
+
+    @Override
+    public <T> List<T> getList(String colName) {
+        ClickHouseArrayValue<?> array = readValue(colName);
+        return null;
+    }
+
+    @Override
+    public <T> List<List<T>> getTwoDimensionalList(String colName) {
+        return null;
+    }
+
+    @Override
+    public <T> List<List<List<T>>> getThreeDimensionalList(String colName) {
+        return null;
+    }
+
+
+    private <T> T getPrimitiveArray(String colName) {
+        BinaryStreamReader.ArrayValue array = readValue(colName);
+        if (array.itemType.isPrimitive()) {
+            return (T) array.array;
+        } else {
+            throw new ClientException("Array is not of primitive type");
+        }
+    }
+    @Override
+    public byte[] getByteArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public int[] getIntArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public long[] getLongArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public float[] getFloatArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public double[] getDoubleArray(String colName) {
+        return getPrimitiveArray(colName);
     }
 }

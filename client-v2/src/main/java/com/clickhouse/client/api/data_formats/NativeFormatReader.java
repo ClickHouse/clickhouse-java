@@ -29,7 +29,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     }
 
     @Override
-    public void readRecord(Map<String, Object> record) throws IOException {
+    protected void readRecord(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
             readBlock();
         }
@@ -52,7 +52,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
             List<Object> values = new ArrayList<>(nRows);
             for (int j = 0; j < nRows; j++) {
-                Object value = binaryStreamReader.readValue(column.getDataType(), column.getTimeZone());
+                Object value = binaryStreamReader.readValue(column);
                 values.add(value);
             }
             currentBlock.add(values);
