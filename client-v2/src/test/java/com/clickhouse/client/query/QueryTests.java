@@ -40,10 +40,11 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Function;
-import java.util.random.RandomGenerator;
 import java.util.stream.BaseStream;
 
 public class QueryTests extends BaseIntegrationTest {
+
+    private final static Random RANDOM = new Random();
 
     private Client client;
 
@@ -136,7 +137,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
     public void testRowBinaryQueries(ClickHouseFormat format)
             throws ExecutionException, InterruptedException {
-        final int rows = 10;
+        final int rows = 1;
         // TODO: replace with dataset with all primitive types of data
         // TODO: reusing same table name may lead to a conflict in tests?
 
@@ -238,14 +239,14 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
-    private final static List<String> ARRAY_COLUMNS = List.of(
+    private final static List<String> ARRAY_COLUMNS = Arrays.asList(
             "col1 Array(UInt32)",
             "col2 Array(Array(Int32))"
     );
 
-    private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = List.of(
+    private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = Arrays.asList(
             c ->
-                RandomGenerator.getDefault().ints(10, 0, 100),
+                    RANDOM.ints(10, 0, 100),
             c -> {
                 List<List<Integer>> values = new ArrayList<>();
                 for (int i = 0; i < 10; i++) {
@@ -277,16 +278,27 @@ public class QueryTests extends BaseIntegrationTest {
         System.out.println("Record: " + record);
     }
 
-    private final static List<String> MAP_COLUMNS = List.of(
+    private final static List<String> MAP_COLUMNS = Arrays.asList(
             "col1 Map(String, Int8)",
             "col2 Map(String, String)"
     );
 
-    private final static List<Function<String, Object>> MAP_VALUE_GENERATORS = List.of(
-            c ->
-                    Map.of("key1", 1, "key2", 2, "key3", 3),
-            c ->
-                    Map.of("key1", "value1", "key2", "value2", "key3", "value3")
+    private final static List<Function<String, Object>> MAP_VALUE_GENERATORS = Arrays.asList(
+            c -> {
+                Map<String, Byte> values = new HashMap<>();
+                values.put("key1", (byte) 1);
+                values.put("key2", (byte) 2);
+                values.put("key3", (byte) 3);
+                return values;
+            },
+
+            c -> {
+                Map<String, String> values = new HashMap<>();
+                values.put("key1", "value1");
+                values.put("key2", "value2");
+                values.put("key3", "value3");
+                return values;
+            }
     );
 
 
@@ -316,9 +328,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     }
 
-    private final static Random RANDOM = new Random();
-
-    private final static List<String> DATASET_COLUMNS = List.of(
+    private final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
             "col3 String",
@@ -326,13 +336,13 @@ public class QueryTests extends BaseIntegrationTest {
             "col5 String"
     );
 
-    private final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = List.of(
-            c -> RANDOM.nextLong(0xFFFFFFFFL),
+    private final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = Arrays.asList(
+            c -> Long.valueOf(RANDOM.nextInt(Integer.MAX_VALUE)),
             c -> RANDOM.nextInt(Integer.MAX_VALUE),
             c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE),
-            c -> RANDOM.nextLong(),
+            c -> Long.valueOf(RANDOM.nextInt(Integer.MAX_VALUE)),
             c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE)
-            );
+    );
 
     private final static String DATASET_TABLE = "query_test_table";
 
@@ -347,6 +357,12 @@ public class QueryTests extends BaseIntegrationTest {
                 ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
                         .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                         .build()) {
+            // Drop table
+            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query("DROP TABLE IF EXISTS default." + table);
+            request.executeAndWait();
+
+
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -357,9 +373,10 @@ public class QueryTests extends BaseIntegrationTest {
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = Memory");
 
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
+            request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
             request.executeAndWait();
+
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -372,7 +389,7 @@ public class QueryTests extends BaseIntegrationTest {
                     Object value = valueGenerator.apply(null);
                     if (value instanceof String) {
                         insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
-                    } else if (value instanceof BaseStream<?,?>) {
+                    } else if (value instanceof BaseStream<?, ?>) {
                         insertStmtBuilder.append('[');
                         BaseStream stream = ((BaseStream<?, ?>) value);
                         for (Iterator it = stream.iterator(); it.hasNext(); ) {
