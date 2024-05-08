@@ -32,6 +32,7 @@ import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -247,7 +248,7 @@ public class Client {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
-        long s1 = System.currentTimeMillis();
+        StopWatch watch = StopWatch.createStarted();
 
         //Add format to the settings
         if (settings == null) {
@@ -271,7 +272,6 @@ public class Client {
             throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
         }
 
-        long s2 = System.currentTimeMillis();
         //Call the static .serialize method on the POJOSerializer for each object in the list
         for (Object obj : data) {
             for (POJOSerializer serializer : serializers) {
@@ -282,9 +282,9 @@ public class Client {
                 }
             }
         }
-        long s3 = System.currentTimeMillis();
 
-        LOG.debug("Total serialization time: {}", s3 - s1);
+        watch.stop();
+        LOG.debug("Total serialization time: {}", watch.getTime());
         return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
     }
 
@@ -294,18 +294,18 @@ public class Client {
     public InsertResponse insert(String tableName,
                                      InputStream data,
                                      InsertSettings settings) throws IOException, ClientException {
-        long s1 = System.currentTimeMillis();
+        StopWatch watch = StopWatch.createStarted();
         InsertResponse response;
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
-                    .format((ClickHouseFormat) settings.getSetting(ClickHouseClientOption.FORMAT.getKey()));
+                    .format(settings.getFormat());
 
             Future<ClickHouseResponse> future;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
 
                 //Copy the data from the input stream to the output stream
-                byte[] buffer = new byte[8196];
+                byte[] buffer = new byte[settings.getInputStreamBatchSize()];
                 int bytesRead;
                 while ((bytesRead = data.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
@@ -318,8 +318,8 @@ public class Client {
             }
         }
 
-        long s2 = System.currentTimeMillis();
-        LOG.debug("Total insert (InputStream) time: {}", s2 - s1);
+        watch.stop();
+        LOG.debug("Total insert (InputStream) time: {}", watch.getTime());
         return response;
     }
 
