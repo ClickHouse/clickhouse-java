@@ -14,6 +14,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.TimeZone;
 
 public class BinaryStreamReader {
@@ -131,7 +134,8 @@ public class BinaryStreamReader {
 //                case Object:
                 case Array:
                     return (T) readArray(column);
-//                case Map:
+                case Map:
+                    return (T) readMap(column);
 //                case Nested:
 //                case Tuple:
 
@@ -206,5 +210,24 @@ public class BinaryStreamReader {
                         " value " + value + " of class " + value.getClass().getName(), e);
             }
         }
+    }
+
+    private Map<?,?> readMap(ClickHouseColumn column) throws IOException {
+        int len = chInputStream.readVarInt();
+
+        if (len == 0) {
+            return Collections.emptyMap();
+        }
+
+        ClickHouseColumn keyType = column.getKeyInfo();
+        ClickHouseColumn valueType = column.getValueInfo();
+        LinkedHashMap<Object, Object> map = new LinkedHashMap<>(len);
+        for (int i = 0; i < len; i++) {
+            Object key = readValueImpl(keyType);
+            Object value = readValueImpl(valueType);
+            map.put(key, value);
+        }
+
+        return map;
     }
 }

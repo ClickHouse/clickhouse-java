@@ -277,6 +277,40 @@ public class QueryTests extends BaseIntegrationTest {
         System.out.println("Record: " + record);
     }
 
+    private final static List<String> MAP_COLUMNS = List.of(
+            "col1 Map(String, Int8)",
+            "col2 Map(String, String)"
+    );
+
+    private final static List<Function<String, Object>> MAP_VALUE_GENERATORS = List.of(
+            c ->
+                    Map.of("key1", 1, "key2", 2, "key3", 3),
+            c ->
+                    Map.of("key1", "value1", "key2", "value2", "key3", "value3")
+    );
+
+
+    @Test
+    public void testMapValues() throws Exception {
+        final String table = "map_values_test_table";
+        final int rows = 1;
+        List<Map<String, Object>> data = prepareDataSet(table, MAP_COLUMNS, MAP_VALUE_GENERATORS, rows);
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        TableSchema schema = client.getTableSchema(table);
+
+        QueryResponse queryResponse = response.get();
+        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+
+        Assert.assertTrue(reader.next());
+        Map<String, Object> record = new HashMap<>();
+        reader.copyRecord(record);
+//        System.out.println("col1: " + Arrays.toString(col1Values));
+        System.out.println("Record: " + record);
+    }
+
+
     @Test(groups = {"integration"})
     public void testQueryExceptionHandling() {
 
@@ -342,10 +376,19 @@ public class QueryTests extends BaseIntegrationTest {
                         insertStmtBuilder.append('[');
                         BaseStream stream = ((BaseStream<?, ?>) value);
                         for (Iterator it = stream.iterator(); it.hasNext(); ) {
-                            insertStmtBuilder.append(it.next()).append(", ");
+                            insertStmtBuilder.append(quoteValue(it.next())).append(", ");
                         }
                         insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
                         insertStmtBuilder.append("], ");
+                    } else if (value instanceof Map) {
+                        insertStmtBuilder.append("{");
+                        Map<String, Object> map = (Map<String, Object>) value;
+                        for (Map.Entry<String, Object> entry : map.entrySet()) {
+                            insertStmtBuilder.append(quoteValue(entry.getKey())).append(" : ")
+                                    .append(quoteValue(entry.getValue())).append(", ");
+                        }
+                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                        insertStmtBuilder.append("}, ");
                     } else {
                         insertStmtBuilder.append(value).append(", ");
                     }
@@ -364,6 +407,13 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("failed to prepare data set", e);
         }
         return data;
+    }
+
+    private String quoteValue(Object value) {
+        if (value instanceof String) {
+            return '\'' + value.toString() + '\'';
+        }
+        return value.toString();
     }
 
     void writeArrayValues(StringBuilder sb, Iterator<?> values) {
