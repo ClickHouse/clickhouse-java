@@ -123,5 +123,6 @@ public class Main {
         } catch (ClickHouseException e) {
             e.printStackTrace();
         }
+        System.out.println("Done!");
     }
 }
