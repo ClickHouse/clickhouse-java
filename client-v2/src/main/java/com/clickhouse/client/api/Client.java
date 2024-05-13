@@ -1,26 +1,44 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
+import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.insert.POJOSerializer;
+import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.ValidationUtils;
-import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.SocketException;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.slf4j.helpers.BasicMDCAdapter;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -30,7 +48,10 @@ public class Client {
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
+    private Map<Class<?>, List<POJOSerializer>> serializers;//Order is important to preserve for RowBinary
+    private Map<Class<?>, Map<String, Method>> getterMethods;
+    private Map<Class<?>, Boolean> hasDefaults;
+    private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
         this.endpoints = endpoints;
@@ -38,6 +59,9 @@ public class Client {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
+        this.serializers = new HashMap<>();
+        this.getterMethods = new HashMap<>();
+        this.hasDefaults = new HashMap<>();
     }
 
     public static class Builder {
@@ -159,29 +183,144 @@ public class Client {
      * Register the POJO
      */
     public void register(Class<?> clazz, TableSchema schema) {
-        //This is just a placeholder
+        LOG.debug("Registering POJO: {}", clazz.getName());
+
         //Create a new POJOSerializer with static .serialize(object, columns) methods
+        List<POJOSerializer> serializers = new ArrayList<>();
+        Map<String, Method> getterMethods = new HashMap<>();
+
+        for (Method method: clazz.getMethods()) {//Clean up the method names
+            String methodName = method.getName();
+            if (methodName.startsWith("get") || methodName.startsWith("has")) {
+                methodName = methodName.substring(3).toLowerCase();
+                getterMethods.put(methodName, method);
+            } if (methodName.startsWith("is")) {
+                methodName = methodName.substring(2).toLowerCase();
+                getterMethods.put(methodName, method);
+            }
+        }
+        this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
+
+        for (ClickHouseColumn column : schema.getColumns()) {
+            String columnName = column.getColumnName().toLowerCase().replace("_", "");
+            serializers.add((obj, stream) -> {
+                if (!getterMethods.containsKey(columnName)) {
+                    LOG.warn("No getter method found for column: {}", columnName);
+                    return;
+                }
+                Method getterMethod = this.getterMethods.get(clazz).get(columnName);
+                Object value = getterMethod.invoke(obj);
+                boolean hasDefaults = this.hasDefaults.get(clazz);
+
+                //Handle null values
+                if (value == null) {
+                    if (hasDefaults && !column.hasDefault()) {//Send this only if there is no default
+                        BinaryStreamUtils.writeNonNull(stream);
+                    }
+                    BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
+                    return;
+                }
+
+                //Handle default
+                if (hasDefaults) {
+                    BinaryStreamUtils.writeNonNull(stream);//Write 0
+                }
+
+                //Handle nullable
+                if (column.isNullable()) {
+                    BinaryStreamUtils.writeNonNull(stream);//Write 0
+                }
+
+                //Handle the different types
+                SerializerUtils.serializeData(stream, value, column);
+            });
+        }
+        this.serializers.put(clazz, serializers);
+        this.hasDefaults.put(clazz, schema.hasDefaults());
     }
 
     /**
      * Insert data into ClickHouse using a POJO
      */
-    public Future<InsertResponse> insert(String tableName,
-                                     List<Object> data,
-                                     InsertSettings settings,
-                                     List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+    public InsertResponse insert(String tableName,
+                                         List<Object> data,
+                                         InsertSettings settings) throws ClientException, IOException {
+        if (data == null || data.isEmpty()) {
+            throw new IllegalArgumentException("Data cannot be empty");
+        }
+        StopWatch watch = StopWatch.createStarted();
+
+        //Add format to the settings
+        if (settings == null) {
+            settings = new InsertSettings();
+        }
+
+        boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
+        if (hasDefaults) {
+            settings.setFormat(ClickHouseFormat.RowBinaryWithDefaults);
+        } else {
+            settings.setFormat(ClickHouseFormat.RowBinary);
+        }
+
+
+        //Create an output stream to write the data to
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+
         //Lookup the Serializer for the POJO
+        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+        if (serializers == null || serializers.isEmpty()) {
+            throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
+        }
+
         //Call the static .serialize method on the POJOSerializer for each object in the list
-        return null;//This is just a placeholder
+        for (Object obj : data) {
+            for (POJOSerializer serializer : serializers) {
+                try {
+                    serializer.serialize(obj, stream);
+                } catch (InvocationTargetException | IllegalAccessException | IOException  e) {
+                    throw new ClientException(e);
+                }
+            }
+        }
+
+        watch.stop();
+        LOG.debug("Total serialization time: {}", watch.getTime());
+        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
     }
 
     /**
      * Insert data into ClickHouse using a binary stream
      */
-    public Future<InsertResponse> insert(String tableName,
+    public InsertResponse insert(String tableName,
                                      InputStream data,
-                                     InsertSettings settings) throws ClickHouseException, SocketException {
-        return null;//This is just a placeholder
+                                     InsertSettings settings) throws IOException, ClientException {
+        StopWatch watch = StopWatch.createStarted();
+        InsertResponse response;
+        try (ClickHouseClient client = createClient()) {
+            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
+                    .format(settings.getFormat());
+
+            Future<ClickHouseResponse> future;
+            try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
+                future = request.data(stream.getInputStream()).execute();
+
+                //Copy the data from the input stream to the output stream
+                byte[] buffer = new byte[settings.getInputStreamBatchSize()];
+                int bytesRead;
+                while ((bytesRead = data.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
+                }
+            }
+            try {
+                response = new InsertResponse(client, future.get());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new ClientException("Operation has likely timed out.", e);
+            }
+        }
+
+        watch.stop();
+        LOG.debug("Total insert (InputStream) time: {}", watch.getTime());
+        return response;
     }
 
 
@@ -228,9 +367,25 @@ public class Client {
 
     private ClickHouseClient createClient() {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
-        return ClickHouseClient.builder().config(clientConfig)
+        return ClickHouseClient.builder()
+                .config(clientConfig)
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                 .build();
+    }
+
+    private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
+        if (settings == null) return request.table(tableName);
+
+        if (settings.getSetting("query_id") != null) {
+            request.table(tableName, settings.getSetting("query_id").toString());
+        } else {
+            request.table(tableName);
+        }
+
+        if (settings.getSetting("insert_deduplication_token") != null) {
+            request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
+        }
+        return request;
     }
 
     private static final Set<String> COMPRESS_ALGORITHMS = ValidationUtils.whiteList("LZ4", "LZ4HC", "ZSTD", "ZSTDHC", "NONE");
