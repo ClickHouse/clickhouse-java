@@ -174,10 +174,12 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         if (f1.exists()) {
             f1.delete();
         }
+        f1.deleteOnExit();
         File f2 = new File("a2.csv");
         if (f2.exists()) {
             f2.delete();
         }
+        f2.deleteOnExit();
 
         try (ClickHouseConnection conn = newConnection(props)) {
             String sql1 = "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'";
