@@ -12,11 +12,13 @@ import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-import java.util.random.RandomGenerator;
+import java.util.stream.IntStream;
 
 public class SamplePOJO {
     private int int8;
@@ -72,29 +74,41 @@ public class SamplePOJO {
     private SamplePOJOInner inner;
 
     public SamplePOJO() {
-        int8 = RandomGenerator.getDefault().nextInt(-127, 128);
-        int16 = RandomGenerator.getDefault().nextInt(-32767,32768);
-        int32 = RandomGenerator.getDefault().nextInt();
-        int64 = RandomGenerator.getDefault().nextLong(9223372036854775807L);
-        int128 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong());
-        int256 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong());
+        final Random random = new Random();
+        int8 = random.nextInt(128);
+        int16 = random.nextInt(32768);
+        int32 = random.nextInt();
+        int64 = random.nextLong();
+        BigInteger upper = BigInteger.valueOf(random.nextLong()).shiftLeft(64);
+        BigInteger lower = BigInteger.valueOf(random.nextLong()).and(BigInteger.valueOf(Long.MAX_VALUE));
 
-        uint8 = RandomGenerator.getDefault().nextInt(0, 256);
-        uint16 = RandomGenerator.getDefault().nextInt(0, 65536);
-        uint32 = RandomGenerator.getDefault().nextLong(0, 4294967296L);
-        uint64 = RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE);
-        uint128 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE));
-        uint256 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE));
+        int128 = upper.or(lower);
 
-        float32 = RandomGenerator.getDefault().nextFloat();
-        float64 = RandomGenerator.getDefault().nextDouble();
+        BigInteger upper1 = BigInteger.valueOf(random.nextLong()).shiftLeft(192);
+        BigInteger upper2 = BigInteger.valueOf(random.nextLong()).shiftLeft(128);
+        BigInteger lower1 = BigInteger.valueOf(random.nextLong()).shiftLeft(64);
+        BigInteger lower2 = BigInteger.valueOf(random.nextLong()).and(BigInteger.valueOf(Long.MAX_VALUE));
 
-        decimal32 = BigDecimal.valueOf(RandomGenerator.getDefault().nextDouble());
-        decimal64 = BigDecimal.valueOf(RandomGenerator.getDefault().nextDouble());
-        decimal128 = BigDecimal.valueOf(RandomGenerator.getDefault().nextDouble());
-        decimal256 = BigDecimal.valueOf(RandomGenerator.getDefault().nextDouble());
+        int256 = upper1.or(upper2).or(lower1).or(lower2);
 
-        bool = RandomGenerator.getDefault().nextBoolean();
+        uint8 = random.nextInt(255);
+        uint16 = random.nextInt(32768);
+        uint32 = (long) (random.nextDouble() * 4294967295L);
+        uint64 = (long) (random.nextDouble() * 18446744073709615L);
+
+
+        uint128 = upper.or(lower).abs();
+        uint256 = upper1.or(upper2).or(lower1).or(lower2).abs();
+
+        float32 = random.nextFloat();
+        float64 = random.nextDouble();
+
+        decimal32 = BigDecimal.valueOf(random.nextDouble());
+        decimal64 = BigDecimal.valueOf(random.nextDouble());
+        decimal128 = BigDecimal.valueOf(random.nextDouble());
+        decimal256 = BigDecimal.valueOf(random.nextDouble());
+
+        bool = random.nextBoolean();
 
         string = RandomStringUtils.randomAlphabetic(1, 512);
         fixedString = RandomStringUtils.randomAlphabetic(3);
@@ -107,11 +121,10 @@ public class SamplePOJO {
 
         uuid = UUID.randomUUID();
 
-        enum8 = (byte) RandomGenerator.getDefault().nextInt(0, 27);
-        enum16 = RandomGenerator.getDefault().nextInt(0, 27);
+        enum8 = (byte) random.nextInt(27);
+        enum16 = random.nextInt(27);
 
         try {
-            Random random = new Random();
             byte[] addr4 = new byte[4];
             random.nextBytes(addr4);
             ipv4 = (Inet4Address) Inet4Address.getByAddress(addr4);
@@ -124,10 +137,12 @@ public class SamplePOJO {
             ipv6 = null;
         }
 
-        array = List.of("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
-        tuple = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-        map = Map.of("a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h", 8, "i", 9, "j", 10);
-
+        array = Arrays.asList("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
+        tuple = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        map = new HashMap<>();
+        for (int i = 0; i < 10; i++) {
+            map.put(String.valueOf((char) ('a' + i)), i + 1);
+        }
         inner = new SamplePOJOInner();
     }
 
@@ -507,8 +522,9 @@ public class SamplePOJO {
         private String innerString;
 
         public SamplePOJOInner() {
-            innerInt = RandomGenerator.getDefault().nextInt();
-            innerString = "inner" + RandomGenerator.getDefault().nextInt();
+            final Random random = new Random();
+            innerInt = random.nextInt();
+            innerString = "inner" + random.nextInt();
         }
 
         public static TableSchema generateTableSchema(String tableName) {
