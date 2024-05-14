@@ -19,7 +19,7 @@ public class InsertTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;
 
-    @BeforeMethod(groups = { "unit" }, enabled = true)
+    @BeforeMethod(groups = { "integration" }, enabled = true)
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
@@ -40,7 +40,7 @@ public class InsertTests extends BaseIntegrationTest {
         }
     }
 
-    @Test(groups = { "unit" }, enabled = true)
+    @Test(groups = { "integration" }, enabled = true)
     public void insertSimplePOJOs() throws ClickHouseException, ClientException, IOException {
         String tableName = "simple_pojo_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
