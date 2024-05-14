@@ -1329,6 +1329,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         if (f.exists()) {
             f.delete();
         }
+        f.deleteOnExit();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_load_infile_with_params;"
                     + "create table test_load_infile_with_params(n Int32, s String) engine=Memory");

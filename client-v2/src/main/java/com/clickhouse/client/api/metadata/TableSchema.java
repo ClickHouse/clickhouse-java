@@ -20,6 +20,8 @@ public class TableSchema {
 
     private Map<String, Integer> colIndex;
 
+    private boolean hasDefaults = false;
+
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
@@ -51,12 +53,28 @@ public class TableSchema {
         this.databaseName = databaseName;
     }
 
+    public boolean hasDefaults() {
+        return hasDefaults;
+    }
+
     public void addColumn(String name, String type) {
         columns.add(ClickHouseColumn.of(name, type));
-        Map<String, Object> columnMetadata = new HashMap<>();
-        columnMetadata.put("type", type);
-        metadata.put(name, columnMetadata);
+        if (type.toUpperCase().contains("DEFAULT")) {
+            hasDefaults = true;
+        }
+        Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
+            columnMetadata.put("type", type);
         colIndex.put(name, columns.size() - 1);
+    }
+
+    public ClickHouseColumn getColumnByName(String name) {
+        for (ClickHouseColumn column : columns) {
+            if (column.getColumnName().equalsIgnoreCase(name)) {
+                return column;//TODO: Try to deep clone the column rather than reference pass
+            }
+        }
+
+        return null;
     }
 
     public String indexToName(int index) {
