@@ -134,6 +134,7 @@
                             <version>1.18.32</version>
                         </path>
                     </annotationProcessorPaths>
+                    <release>8</release>
                 </configuration>
             </plugin>
             <plugin>
