@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
@@ -328,6 +329,53 @@ public class QueryTests extends BaseIntegrationTest {
 
     }
 
+    @Test(groups = {"integration"})
+    public void testQueryMetrics() throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.TabSeparated.name());
+
+        QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3",
+                Collections.emptyMap(), settings).get();
+
+        // Stats should be available after the query is done
+        OperationStatistics stats = response.getOperationStatistics();
+        OperationStatistics.ServerStatistics serverStats = stats.statsByServer;
+        System.out.println("Server stats: " + serverStats);
+
+        Assert.assertTrue(serverStats.numBytesRead > 0);
+        Assert.assertEquals(serverStats.numBytesWritten, 0);
+        Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
+        Assert.assertEquals(serverStats.numRowsWritten, 0);
+        Assert.assertEquals(serverStats.totalRowsToRead, 0);
+        Assert.assertEquals(serverStats.resultRows, 3);
+        Assert.assertTrue(serverStats.elapsedTime > 1);
+
+        StringBuilder insertStmtBuilder = new StringBuilder();
+        insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
+        final int rowsToInsert = 5;
+        for (int i = 0; i < rowsToInsert; i++) {
+            insertStmtBuilder.append("(");
+            Map<String, Object> values = writeValuesRow(insertStmtBuilder, DATASET_COLUMNS, DATASET_VALUE_GENERATORS);
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            insertStmtBuilder.append("), ");
+        }
+        response = client.query(insertStmtBuilder.toString(),
+                Collections.emptyMap(), settings).get();
+
+        serverStats = response.getOperationStatistics().statsByServer;
+        System.out.println("Server stats: " + serverStats);
+        // Server stats: ServerStatistics{"numRowsRead"=10, "numRowsWritten"=10, "totalRowsToRead"=0, "numBytesRead"=651, "numBytesWritten"=651}
+        Assert.assertTrue(serverStats.numBytesRead > 0);
+        Assert.assertTrue(serverStats.numBytesWritten > 0);
+        Assert.assertEquals(serverStats.numRowsRead, rowsToInsert); // 10 rows in the table
+        Assert.assertEquals(serverStats.numRowsWritten, rowsToInsert); // 10 rows inserted
+        Assert.assertEquals(serverStats.totalRowsToRead, 0);
+        Assert.assertEquals(serverStats.resultRows, rowsToInsert);
+        Assert.assertTrue(serverStats.elapsedTime > 1);
+    }
+
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
@@ -382,35 +430,7 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
             for (int i = 0; i < rows; i++) {
                 insertStmtBuilder.append("(");
-                Map<String, Object> values = new HashMap<>();
-                Iterator<String> columnIterator = columns.iterator();
-                for (Function<String, Object> valueGenerator : valueGenerators) {
-                    Object value = valueGenerator.apply(null);
-                    if (value instanceof String) {
-                        insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
-                    } else if (value instanceof BaseStream<?, ?>) {
-                        insertStmtBuilder.append('[');
-                        BaseStream stream = ((BaseStream<?, ?>) value);
-                        for (Iterator it = stream.iterator(); it.hasNext(); ) {
-                            insertStmtBuilder.append(quoteValue(it.next())).append(", ");
-                        }
-                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-                        insertStmtBuilder.append("], ");
-                    } else if (value instanceof Map) {
-                        insertStmtBuilder.append("{");
-                        Map<String, Object> map = (Map<String, Object>) value;
-                        for (Map.Entry<String, Object> entry : map.entrySet()) {
-                            insertStmtBuilder.append(quoteValue(entry.getKey())).append(" : ")
-                                    .append(quoteValue(entry.getValue())).append(", ");
-                        }
-                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-                        insertStmtBuilder.append("}, ");
-                    } else {
-                        insertStmtBuilder.append(value).append(", ");
-                    }
-                    values.put(columnIterator.next().split(" ")[0], value);
-
-                }
+                Map<String, Object> values = writeValuesRow(insertStmtBuilder, columns, valueGenerators);
                 insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
                 insertStmtBuilder.append("), ");
                 data.add(values);
@@ -423,6 +443,39 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("failed to prepare data set", e);
         }
         return data;
+    }
+
+    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators ) {
+        Map<String, Object> values = new HashMap<>();
+        Iterator<String> columnIterator = columns.iterator();
+        for (Function<String, Object> valueGenerator : valueGenerators) {
+            Object value = valueGenerator.apply(null);
+            if (value instanceof String) {
+                insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
+            } else if (value instanceof BaseStream<?, ?>) {
+                insertStmtBuilder.append('[');
+                BaseStream stream = ((BaseStream<?, ?>) value);
+                for (Iterator it = stream.iterator(); it.hasNext(); ) {
+                    insertStmtBuilder.append(quoteValue(it.next())).append(", ");
+                }
+                insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                insertStmtBuilder.append("], ");
+            } else if (value instanceof Map) {
+                insertStmtBuilder.append("{");
+                Map<String, Object> map = (Map<String, Object>) value;
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    insertStmtBuilder.append(quoteValue(entry.getKey())).append(" : ")
+                            .append(quoteValue(entry.getValue())).append(", ");
+                }
+                insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                insertStmtBuilder.append("}, ");
+            } else {
+                insertStmtBuilder.append(value).append(", ");
+            }
+            values.put(columnIterator.next().split(" ")[0], value);
+
+        }
+        return values;
     }
 
     private String quoteValue(Object value) {

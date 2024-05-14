@@ -2,6 +2,8 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
@@ -34,12 +36,15 @@ public class QueryResponse implements AutoCloseable {
 
     private QuerySettings settings;
 
+    private OperationStatistics operationStatistics;
+
     public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef,
                          QuerySettings settings, ClickHouseFormat format) {
         this.client = client;
         this.responseRef = responseRef;
         this.format = format;
         this.settings = settings;
+
     }
 
     public boolean isDone() {
@@ -76,5 +81,18 @@ public class QueryResponse implements AutoCloseable {
 
     public ClickHouseFormat getFormat() {
         return format;
+    }
+
+    public OperationStatistics getOperationStatistics() {
+        if (operationStatistics == null) {
+            try {
+                ensureDone();
+                ClickHouseResponse response = responseRef.get();
+                this.operationStatistics = new OperationStatistics(response.getSummary());
+            } catch (Exception e) {
+                throw new ClientException("Failed to load statistics", e);
+            }
+        }
+        return operationStatistics;
     }
 }

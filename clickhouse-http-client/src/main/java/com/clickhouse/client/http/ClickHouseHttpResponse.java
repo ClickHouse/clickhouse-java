@@ -69,7 +69,7 @@ public class ClickHouseHttpResponse {
         this.summary = new ClickHouseResponseSummary(
                 new ClickHouseResponseSummary.Progress(getLongValue(map, "read_rows"), getLongValue(map, "read_bytes"),
                         getLongValue(map, "total_rows_to_read"), getLongValue(map, "written_rows"),
-                        getLongValue(map, "written_bytes"), getLongValue(map, "elapsed_time"),
+                        getLongValue(map, "written_bytes"), getLongValue(map, "elapsed_ns"),
                 getLongValue(map, "result_rows")),
                 null);
 
