@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.ClickHouseTransaction.XID;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseBufferingMode;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.config.ClickHouseRenameMethod;
@@ -71,6 +72,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -2023,26 +2025,21 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testErrorDuringQuery() throws ClickHouseException {
+        // Note: server may return no records but only error
         ClickHouseNode server = getServer();
-        String query = "select number, throwIf(number>=10000000) from numbers(500000000)";
-        long count = 0L;
+        String query = "select number, throwIf(number>=10000) from numbers(12000)";
+        Map<ClickHouseOption, Object> options = new HashMap<>();
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = newRequest(client, server)
-                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .format(ClickHouseFormat.TabSeparated)
                         .query(query).executeAndWait()) {
-            for (ClickHouseRecord r : resp.records()) {
-                // does not work which may relate to deserialization failure
-                // java.lang.AssertionError: expected [99764115] but found [4121673519155408707]
-                // Assert.assertEquals(r.getValue(0).asLong(), count++);
-                Assert.assertTrue((count = r.getValue(0).asLong()) >= 0);
-            }
             Assert.fail("Query should be terminated before all rows returned");
         } catch (UncheckedIOException e) {
             Assert.assertTrue(e.getCause() instanceof IOException,
                     "Should end up with IOException due to deserialization failure");
+        } catch (ClickHouseException e) {
+            Assert.assertEquals(e.getErrorCode(), 395, "Expected error code 395 but we got: " + e.getErrorCode());
         }
-
-        Assert.assertNotEquals(count, 0L, "Should have read at least one record");
     }
 
     @Test(groups = "integration")
