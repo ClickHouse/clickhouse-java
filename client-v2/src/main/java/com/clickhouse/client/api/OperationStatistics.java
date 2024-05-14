@@ -11,26 +11,33 @@ public class OperationStatistics {
 
     public static final ServerStatistics EMPTY_SERVER_STATS = new ServerStatistics(-1, -1, -1, -1, -1, -1, -1);
 
-    public final ServerStatistics statsByServer;
+    public ServerStatistics statsByServer;
 
+    public ClientStatistics statsByClient;
 
-    public OperationStatistics(ClickHouseResponseSummary summaryFromServer) {
-        this.statsByServer = parseServerStats(summaryFromServer);
+    public OperationStatistics(long startTimestamp) {
+        this.statsByServer = EMPTY_SERVER_STATS;
+        this.statsByClient = new ClientStatistics(startTimestamp);
     }
 
-    private ServerStatistics parseServerStats(ClickHouseResponseSummary summaryFromServer) {
-        if (summaryFromServer == null || summaryFromServer.equals(ClickHouseResponseSummary.EMPTY)) {
-            return EMPTY_SERVER_STATS;
+    public void setStatsByClient(ClientStatistics statsByClient) {
+        this.statsByClient = statsByClient;
+    }
+
+    public void updateServerStats(ClickHouseResponseSummary summary) {
+        if (summary == null || summary.equals(ClickHouseResponseSummary.EMPTY)) {
+            this.statsByServer = EMPTY_SERVER_STATS;
+            return;
         }
 
-        return new ServerStatistics(
-                summaryFromServer.getReadRows(),
-                summaryFromServer.getReadBytes(),
-                summaryFromServer.getTotalRowsToRead(),
-                summaryFromServer.getWrittenRows(),
-                summaryFromServer.getWrittenBytes(),
-                summaryFromServer.getResultRows(),
-                summaryFromServer.getElapsedTime()
+        this.statsByServer = new ServerStatistics(
+                summary.getReadRows(),
+                summary.getReadBytes(),
+                summary.getTotalRowsToRead(),
+                summary.getWrittenRows(),
+                summary.getWrittenBytes(),
+                summary.getResultRows(),
+                summary.getElapsedTime()
         );
     }
 
@@ -102,5 +109,30 @@ public class OperationStatistics {
         }
     }
 
+
+    public static class ClientStatistics {
+
+        private final long startTimestamp;
+        public long elapsedTime;
+
+        public ClientStatistics(long startTimestamp) {
+            this.startTimestamp = startTimestamp;
+        }
+
+        public void setEndTimestamp() {
+            elapsedTime = System.nanoTime() - startTimestamp;
+        }
+
+        public long getElapsedTime() {
+            return elapsedTime;
+        }
+
+        @Override
+        public String toString() {
+            return "ClientStatistics{" +
+                    "\"elapsedTime\"=\"" + elapsedTime + "ns\"" +
+                    '}';
+        }
+    }
 
 }

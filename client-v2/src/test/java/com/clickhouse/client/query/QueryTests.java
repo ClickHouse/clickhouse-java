@@ -343,6 +343,7 @@ public class QueryTests extends BaseIntegrationTest {
         OperationStatistics stats = response.getOperationStatistics();
         OperationStatistics.ServerStatistics serverStats = stats.statsByServer;
         System.out.println("Server stats: " + serverStats);
+        System.out.println("Client stats: " + stats.statsByClient);
 
         Assert.assertTrue(serverStats.numBytesRead > 0);
         Assert.assertEquals(serverStats.numBytesWritten, 0);
@@ -366,6 +367,8 @@ public class QueryTests extends BaseIntegrationTest {
 
         serverStats = response.getOperationStatistics().statsByServer;
         System.out.println("Server stats: " + serverStats);
+        System.out.println("Client stats: " + stats.statsByClient);
+
         // Server stats: ServerStatistics{"numRowsRead"=10, "numRowsWritten"=10, "totalRowsToRead"=0, "numBytesRead"=651, "numBytesWritten"=651}
         Assert.assertTrue(serverStats.numBytesRead > 0);
         Assert.assertTrue(serverStats.numBytesWritten > 0);

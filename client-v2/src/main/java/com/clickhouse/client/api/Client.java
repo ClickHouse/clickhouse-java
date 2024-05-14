@@ -360,6 +360,7 @@ public class Client {
      * @return
      */
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
+        final long opStartTimestamp = System.nanoTime();
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
@@ -382,7 +383,9 @@ public class Client {
             MDC.put("queryId", settings.getQueryID());
             LOG.debug("Executing request: {}", request);
             try {
-                future.complete(new QueryResponse(client, request.execute(), settings, format));
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format,
+                        opStartTimestamp);
+                future.complete(queryResponse);
             } catch (Exception e) {
                 future.completeExceptionally(e);
             } finally {
