@@ -371,8 +371,7 @@ public class QueryTests extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = Memory");
-
+            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
             request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
             request.executeAndWait();
