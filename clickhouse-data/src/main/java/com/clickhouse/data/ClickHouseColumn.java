@@ -74,6 +74,7 @@ public final class ClickHouseColumn implements Serializable {
     private ClickHouseAggregateFunction aggFuncType;
     private ClickHouseDataType dataType;
     private boolean nullable;
+    private boolean hasDefault;
     private boolean lowCardinality;
     private boolean lowCardinalityDisabled;
     private TimeZone timeZone;
@@ -588,6 +589,7 @@ public final class ClickHouseColumn implements Serializable {
         this.originalTypeName = originalTypeName == null ? dataType.name() : originalTypeName;
         this.nullable = nullable;
         this.lowCardinality = lowCardinality;
+        this.hasDefault = originalTypeName != null && originalTypeName.toUpperCase().contains("DEFAULT");
 
         if (parameters == null || parameters.isEmpty()) {
             this.parameters = Collections.emptyList();
@@ -726,6 +728,10 @@ public final class ClickHouseColumn implements Serializable {
 
     public boolean isNullable() {
         return nullable;
+    }
+
+    public boolean hasDefault() {
+        return hasDefault;
     }
 
     public boolean isLowCardinality() {
