@@ -312,13 +312,16 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.connectionTimeout = getIntOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
-        this.maxBufferSize = ClickHouseDataConfig.getBufferSize(getIntOption(ClickHouseClientOption.MAX_BUFFER_SIZE),
-                -1, -1);
-        this.bufferSize = getIntOption(ClickHouseClientOption.BUFFER_SIZE);
+        this.maxBufferSize = getIntOption(ClickHouseClientOption.MAX_BUFFER_SIZE);
+        int size = getIntOption(ClickHouseClientOption.BUFFER_SIZE);
+        this.bufferSize = Math.min(size < 1? DEFAULT_BUFFER_SIZE: size, this.maxBufferSize);
+        size = getIntOption(ClickHouseClientOption.READ_BUFFER_SIZE);
+        this.readBufferSize = Math.min(size < 1? this.bufferSize : size, this.maxBufferSize);
+        size = getIntOption(ClickHouseClientOption.WRITE_BUFFER_SIZE);
+        this.writeBufferSize = Math.min(size < 1 ? this.bufferSize : size , this.maxBufferSize);
         this.bufferQueueVariation = getIntOption(ClickHouseClientOption.BUFFER_QUEUE_VARIATION);
-        this.readBufferSize = getIntOption(ClickHouseClientOption.READ_BUFFER_SIZE);
-        this.writeBufferSize = getIntOption(ClickHouseClientOption.WRITE_BUFFER_SIZE);
-        this.requestChunkSize = getIntOption(ClickHouseClientOption.REQUEST_CHUNK_SIZE);
+        int chunkSize = getIntOption(ClickHouseClientOption.REQUEST_CHUNK_SIZE);
+        this.requestChunkSize = chunkSize < 1 ? this.writeBufferSize : chunkSize;
         this.requestBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.REQUEST_BUFFERING,
                 ClickHouseDefaults.BUFFERING);
         this.responseBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.RESPONSE_BUFFERING,
@@ -504,12 +507,12 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
     @Override
     public int getReadBufferSize() {
-        return ClickHouseDataConfig.getBufferSize(readBufferSize, getBufferSize(), getMaxBufferSize());
+        return readBufferSize;
     }
 
     @Override
     public int getWriteBufferSize() {
-        return ClickHouseDataConfig.getBufferSize(writeBufferSize, getBufferSize(), getMaxBufferSize());
+        return writeBufferSize;
     }
 
     /**

@@ -1,16 +1,17 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.config.ClickHouseOption;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.config.ClickHouseOption;
 
 public class ClickHouseConfigTest {
     @Test(groups = { "unit" })
@@ -105,5 +106,38 @@ public class ClickHouseConfigTest {
                 "Should have at least one sensitive option");
         Assert.assertEquals(ClickHouseConfig.ClientOptions.INSTANCE.sensitiveOptions.get("sslkey"),
                 ClickHouseClientOption.SSL_KEY);
+    }
+
+
+    @Test
+    public void testCustomBufferSizes() {
+        final int writeBuffSize = 5 * ClickHouseConfig.DEFAULT_MAX_BUFFER_SIZE;
+        final int readBuffSize = 6 * ClickHouseConfig.DEFAULT_MAX_BUFFER_SIZE;
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        options.put(ClickHouseClientOption.WRITE_BUFFER_SIZE, writeBuffSize);
+        options.put(ClickHouseClientOption.READ_BUFFER_SIZE, readBuffSize);
+        options.put(ClickHouseClientOption.REQUEST_CHUNK_SIZE, writeBuffSize);
+        ClickHouseConfig configWithDefaultMax = new ClickHouseConfig(options);
+
+        Assert.assertEquals(configWithDefaultMax.getWriteBufferSize(), ClickHouseConfig.DEFAULT_MAX_BUFFER_SIZE);
+        Assert.assertEquals(configWithDefaultMax.getReadBufferSize(), ClickHouseConfig.DEFAULT_MAX_BUFFER_SIZE);
+
+        final int customMaxBufferSize = 100 * ClickHouseConfig.DEFAULT_MAX_BUFFER_SIZE;
+        options.put(ClickHouseClientOption.MAX_BUFFER_SIZE, customMaxBufferSize);
+        ClickHouseConfig configWithCustomMax = new ClickHouseConfig(options);
+
+        Assert.assertEquals(configWithCustomMax.getWriteBufferSize(), writeBuffSize);
+        Assert.assertEquals(configWithCustomMax.getReadBufferSize(), readBuffSize);
+        Assert.assertEquals(configWithCustomMax.getMaxBufferSize(), customMaxBufferSize);
+
+        // Test defaults
+        options.clear();
+        options.put(ClickHouseClientOption.WRITE_BUFFER_SIZE, -1);
+        options.put(ClickHouseClientOption.READ_BUFFER_SIZE, -1);
+        options.put(ClickHouseClientOption.REQUEST_CHUNK_SIZE, -1);
+        ClickHouseConfig config = new ClickHouseConfig(options);
+
+        Assert.assertEquals(config.getWriteBufferSize(), config.getBufferSize());
+        Assert.assertEquals(config.getReadBufferSize(), config.getBufferSize());
     }
 }
