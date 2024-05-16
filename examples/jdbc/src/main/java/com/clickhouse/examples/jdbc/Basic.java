@@ -141,7 +141,7 @@ public class Basic {
 
     static int connectWithCustomSettings(String url) throws SQLException {
         // comma separated settings
-        String customSettings = "session_check=0,max_query_size=1000";
+        String customSettings = "session_check=0,max_query_size=3000";
         Properties properties = new Properties();
         // properties.setProperty(ClickHouseClientOption.CUSTOM_SETTINGS.getKey(),
         // customSettings);
@@ -248,8 +248,10 @@ public class Basic {
             System.out.println("Update Count: " + dropAndCreateTable(conn));
             System.out.println("Inserted Rows: " + batchInsert(conn));
             System.out.println("Result Rows: " + query(conn));
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        System.out.println("Done!");
     }
 }

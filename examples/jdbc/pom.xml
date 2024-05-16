@@ -66,8 +66,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.4.6</clickhouse-java.version>
+        <clickhouse-java.version>0.6.0</clickhouse-java.version>
         <hikaricp.version>4.0.3</hikaricp.version>
+        <apache-httpclient.version>5.2.1</apache-httpclient.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
@@ -85,6 +86,13 @@
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>${hikaricp.version}</version>
+        </dependency>
+
+        <!-- Recommended to communicate with ClickHouse server over http -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>${apache-httpclient.version}</version>
         </dependency>
     </dependencies>
 
