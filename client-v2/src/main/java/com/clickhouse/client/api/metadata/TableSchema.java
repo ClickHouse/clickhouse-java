@@ -18,11 +18,14 @@ public class TableSchema {
 
     private Map<String, Map<String, Object>> metadata;
 
+    private Map<String, Integer> colIndex;
+
     private boolean hasDefaults = false;
 
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
+        this.colIndex = new HashMap<>();
     }
 
     /**
@@ -59,7 +62,9 @@ public class TableSchema {
         if (type.toUpperCase().contains("DEFAULT")) {
             hasDefaults = true;
         }
-        metadata.computeIfAbsent(name, k -> new HashMap<>()).put("type", type);
+        Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
+            columnMetadata.put("type", type);
+        colIndex.put(name, columns.size() - 1);
     }
 
     public ClickHouseColumn getColumnByName(String name) {
@@ -70,6 +75,14 @@ public class TableSchema {
         }
 
         return null;
+    }
+
+    public String indexToName(int index) {
+        return columns.get(index).getColumnName();
+    }
+
+    public int nameToIndex(String name) {
+        return colIndex.get(name).intValue();
     }
 }
 

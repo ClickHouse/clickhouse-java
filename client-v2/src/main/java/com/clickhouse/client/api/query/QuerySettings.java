@@ -6,10 +6,13 @@ import com.clickhouse.client.api.internal.ValidationUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 public class QuerySettings {
 
     private Map<String, Object> rawSettings;
+
+    private ExecutorService executorService;
 
     public QuerySettings() {
         this.rawSettings = new HashMap<>();
@@ -36,8 +39,24 @@ public class QuerySettings {
         rawSettings.put("query_id", queryID);
         return this;
     }
+
     public String getQueryID() {
         return (String) rawSettings.get("query_id");
+    }
+
+    /**
+     * Sets executor service that will be used for asynchronous calls (ex. waiting for query result).
+     * If not set, single thread executor will be used.
+     * @param executorService
+     * @return
+     */
+    public QuerySettings setExecutorService(ExecutorService executorService) {
+        this.executorService = executorService;
+        return this;
+    }
+
+    public ExecutorService getExecutorService() {
+        return executorService;
     }
 
     /**
