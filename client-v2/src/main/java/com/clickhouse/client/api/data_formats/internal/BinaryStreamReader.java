@@ -35,6 +35,12 @@ public class BinaryStreamReader {
     }
 
     private <T> T readValueImpl(ClickHouseColumn column) throws IOException {
+        if (column.isNullable()) {
+            if (BinaryStreamUtils.readNull(chInputStream)) {
+                return (T) null;
+            }
+        }
+
         try {
             switch (column.getDataType()) {
                 // Primitives

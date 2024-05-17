@@ -16,6 +16,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
@@ -328,6 +329,66 @@ public class QueryTests extends BaseIntegrationTest {
 
     }
 
+
+    private final static List<String> NULL_DATASET_COLUMNS = Arrays.asList(
+            "id UInt32",
+            "col1 UInt32 NULL",
+            "col2 Int32 NULL DEFAULT 1000",
+            "col3 String NULL",
+            "col5 String NULL DEFAULT 'default_value'"
+    );
+
+
+    private final static List<Function<String, Object>> NULL_DATASET_VALUE_GENERATORS = Arrays.asList(
+            c -> 1,
+            c -> null,
+            c -> null,
+            c -> null,
+            c -> null
+    );
+
+    @Test(groups = {"integration"})
+    public void testNullValues() throws Exception {
+        final String table = "null_values_test_table";
+        final int rows = 1;
+        List<Map<String, Object>> data = prepareDataSet(table, NULL_DATASET_COLUMNS, NULL_DATASET_VALUE_GENERATORS, 1);
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        TableSchema schema = client.getTableSchema(table);
+
+        QueryResponse queryResponse = response.get();
+        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+
+        Assert.assertTrue(reader.next());
+        Map<String, Object> record = new HashMap<>();
+        reader.copyRecord(record);
+        System.out.println("Record: " + record);
+        int i = 0;
+        for (String columns : NULL_DATASET_COLUMNS) {
+            String columnName = columns.split(" ")[0];
+
+            if (columnName.equals("id")) {
+                Assert.assertTrue(record.containsKey(columnName));
+                Assert.assertEquals(record.get(columnName), 1L);
+                Assert.assertTrue(reader.hasValue("id"));
+                Assert.assertTrue(reader.hasValue(i), "No value for column " + i);
+
+            } else {
+                Assert.assertFalse(record.containsKey(columnName));
+                Assert.assertNull(record.get(columnName));
+                Assert.assertFalse(reader.hasValue(columnName));
+                Assert.assertFalse(reader.hasValue(i));
+
+                if (columnName.equals("col1") || columnName.equals("col2")) {
+                    Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
+                }
+            }
+
+            i++;
+        }
+    }
+
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
@@ -405,6 +466,8 @@ public class QueryTests extends BaseIntegrationTest {
                         }
                         insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
                         insertStmtBuilder.append("}, ");
+                    } else if (value == null) {
+                        insertStmtBuilder.append("NULL, ");
                     } else {
                         insertStmtBuilder.append(value).append(", ");
                     }
