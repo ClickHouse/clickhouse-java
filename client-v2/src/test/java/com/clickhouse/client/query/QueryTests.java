@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -15,6 +16,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -30,6 +32,7 @@ import org.testng.annotations.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,7 +43,10 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.BaseStream;
 
 public class QueryTests extends BaseIntegrationTest {
@@ -258,7 +264,7 @@ public class QueryTests extends BaseIntegrationTest {
     );
 
 
-    @Test
+    @Test(groups = {"integration"})
     public void testArrayValues() throws Exception {
         final String table = "array_values_test_table";
         final int rows = 1;
@@ -389,6 +395,120 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+
+    @Test
+    public void testStringDataTypes() {
+        final List<String> columns = Arrays.asList(
+                "col1 String",
+                "col2 FixedString(10)",
+                "col3 String NULL",
+                "col4 String NULL"
+
+        );
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> sq("utf8 string с кириллицей そして他のホイッスル"),
+                () -> sq("ten chars"),
+                () -> "NULL",
+                () -> sq("not null string")
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = Arrays.asList(
+                r -> {
+                    for (int i = 0; i < columns.size(); i++) {
+                        String columnName = columns.get(i).split(" ")[0];
+                        int colIndex = i + 1;
+                        String value = valueGenerators.get(i).get();
+                        if (value.equals("NULL")) {
+                            Assert.assertFalse(r.hasValue(columnName), "No value for column " + columnName + " expected");
+                            Assert.assertNull(r.getString(columnName));
+                            Assert.assertNull(r.getString(colIndex));
+                        } else {
+                            value = value.substring(1, value.length() - 1);
+                            Assert.assertTrue(r.hasValue(columnName), "No value for column " + columnName + " found");
+                            Assert.assertEquals(r.getString(columnName), value);
+                            Assert.assertEquals(r.getString(colIndex), value);
+                        }
+                    }
+                }
+        );
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+    private static String sq(String str) {
+        return "\'" + str + "\'";
+    }
+
+    public void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
+        final String table = "data_types_test_table";
+
+        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .build()) {
+            // Drop table
+            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query("DROP TABLE IF EXISTS default." + table);
+            request.executeAndWait();
+
+            // Create table
+            StringBuilder createStmtBuilder = new StringBuilder();
+            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS default.").append(table).append(" (");
+            for (String column : columns) {
+                createStmtBuilder.append(column).append(", ");
+            }
+            createStmtBuilder.setLength(createStmtBuilder.length() - 2);
+            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            request = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query(createStmtBuilder.toString());
+            request.executeAndWait();
+
+
+            // Insert data
+            StringBuilder insertStmtBuilder = new StringBuilder();
+            insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
+            insertStmtBuilder.append("(");
+            for (Supplier<String> valueSupplier : valueGenerators) {
+                insertStmtBuilder.append(valueSupplier.get()).append(", ");
+            }
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            insertStmtBuilder.append("), ");
+
+            System.out.println("Insert statement: " + insertStmtBuilder);
+
+            request = client.write(getServer(ClickHouseProtocol.HTTP))
+                    .query(insertStmtBuilder.toString());
+            ClickHouseResponse response = request.executeAndWait();
+            Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
+        } catch (Exception e) {
+            Assert.fail("Failed at prepare stage", e);
+        }
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        StringBuilder selectStmtBuilder = new StringBuilder();
+        selectStmtBuilder.append("SELECT ");
+        for (String column : columns) {
+            String columnName = column.split(" ")[0];
+            selectStmtBuilder.append(columnName).append(", ");
+        }
+        selectStmtBuilder.setLength(selectStmtBuilder.length() - 2);
+        selectStmtBuilder.append(" FROM ").append(table);
+        Future<QueryResponse> response = client.query(selectStmtBuilder.toString(), null, settings);
+        TableSchema schema = client.getTableSchema(table);
+
+        try {
+            QueryResponse queryResponse = response.get();
+            ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+            Assert.assertTrue(reader.next());
+            for (Consumer<ClickHouseBinaryFormatReader> verifier : verifiers) {
+                verifier.accept(reader);
+            }
+
+        } catch (Exception e) {
+            Assert.fail("Failed at verification stage", e);
+        }
+    }
+
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
@@ -422,7 +542,6 @@ public class QueryTests extends BaseIntegrationTest {
             ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query("DROP TABLE IF EXISTS default." + table);
             request.executeAndWait();
-
 
 
             // Create table

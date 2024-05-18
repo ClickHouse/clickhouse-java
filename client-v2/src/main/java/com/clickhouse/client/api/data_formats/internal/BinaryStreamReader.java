@@ -13,6 +13,7 @@ import org.slf4j.helpers.NOPLogger;
 import java.io.EOFException;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -44,8 +45,10 @@ public class BinaryStreamReader {
         try {
             switch (column.getDataType()) {
                 // Primitives
-                case FixedString:
-                    return (T) BinaryStreamUtils.readFixedString(chInputStream, column.getDataType().getByteLength());
+                case FixedString: {
+
+                    return (T) BinaryStreamUtils.readFixedString(chInputStream, column.getEstimatedLength(), StandardCharsets.UTF_8).trim();
+                }
                 case String: {
                     // TODO: BinaryStreamUtils.readString() - requires reader that may be causing EOF exception
                     int len = chInputStream.readVarInt();
@@ -143,10 +146,10 @@ public class BinaryStreamReader {
                 case Map:
                     return (T) readMap(column);
 //                case Nested:
-//                case Tuple:
-
-//                case Nothing:
-//                    return null;
+                case Tuple:
+                    return (T) readTuple(column);
+                case Nothing:
+                    return null;
 //                case SimpleAggregateFunction:
 //                case AggregateFunction:
                 default:
@@ -235,5 +238,15 @@ public class BinaryStreamReader {
         }
 
         return map;
+    }
+
+    private Object[] readTuple(ClickHouseColumn column) throws IOException {
+        int len = column.getNestedColumns().size();
+        Object[] tuple = new Object[len];
+        for (int i = 0; i < len; i++) {
+            tuple[i] = readValueImpl(column.getNestedColumns().get(i));
+        }
+
+        return tuple;
     }
 }
