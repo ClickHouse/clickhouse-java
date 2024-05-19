@@ -24,6 +24,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -32,6 +33,8 @@ import org.testng.annotations.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -395,8 +398,89 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    private Consumer<ClickHouseBinaryFormatReader> createNumberVerifier(String columnName, int columnIndex,
+                                                                        int bits, boolean isSigned,
+                                                                        BigInteger expectedValue) {
+        return r -> {
+            Assert.assertTrue(r.hasValue(columnName), "No value for column " + columnName + " found");
+            if (bits == 8 && isSigned) {
+                Assert.assertEquals(r.getByte(columnName), expectedValue.byteValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getByte(columnIndex), expectedValue.byteValueExact(), "Failed for column " + columnIndex);
+            } else if (bits == 8) {
+                Assert.assertEquals(r.getShort(columnName), expectedValue.shortValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getShort(columnIndex), expectedValue.shortValueExact(), "Failed for column " + columnIndex);
+            }
+            if (bits == 16 && isSigned) {
+                Assert.assertEquals(r.getShort(columnName), expectedValue.shortValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getShort(columnIndex), expectedValue.shortValueExact(), "Failed for column " + columnIndex);
+            } else if (bits == 16) {
+                Assert.assertEquals(r.getInteger(columnName), expectedValue.intValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getInteger(columnIndex), expectedValue.intValueExact(), "Failed for column " + columnIndex);
+            }
 
-    @Test
+            if (bits == 32 && isSigned) {
+                Assert.assertEquals(r.getInteger(columnName), expectedValue.intValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getInteger(columnIndex), expectedValue.intValueExact(), "Failed for column " + columnIndex);
+            } else if (bits == 32) {
+                Assert.assertEquals(r.getLong(columnName), expectedValue.longValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getLong(columnIndex), expectedValue.longValueExact(), "Failed for column " + columnIndex);
+            }
+
+            if (bits == 64 && isSigned) {
+                Assert.assertEquals(r.getLong(columnName), expectedValue.longValueExact(), "Failed for column " + columnName);
+                Assert.assertEquals(r.getLong(columnIndex), expectedValue.longValueExact(), "Failed for column " + columnIndex);
+            } else if (bits == 64) {
+                Assert.assertEquals(r.getBigInteger(columnName), expectedValue, "Failed for column " + columnName);
+                Assert.assertEquals(r.getBigInteger(columnIndex), expectedValue, "Failed for column " + columnIndex);
+            }
+
+            if (bits >= 128) {
+                Assert.assertEquals(r.getBigInteger(columnName), expectedValue, "Failed for column " + columnName);
+                Assert.assertEquals(r.getBigInteger(columnIndex), expectedValue, "Failed for column " + columnIndex);
+            }
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testIntegerDataTypes() {
+        final List<String> columns = new ArrayList<>();
+        List<Supplier<String>> valueGenerators = new ArrayList<>();
+        List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+
+        for (int i = 3; i < 9; i++) {
+            int bits = (int) Math.pow(2, i);
+            columns.add("min_int" + bits + " Int" + bits);
+            columns.add("min_uint" + bits + " UInt" + bits);
+            columns.add("max_int" + bits + " Int" + bits);
+            columns.add("max_uint" + bits + " UInt" + bits);
+
+            final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
+            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
+            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+
+            valueGenerators.add(() -> String.valueOf(minInt));
+            valueGenerators.add(() -> String.valueOf(0));
+            valueGenerators.add(() -> String.valueOf(maxInt));
+            valueGenerators.add(() -> String.valueOf(maxUInt));
+
+            final int index = i - 3;
+            verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
+                    minInt));
+            verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
+                    BigInteger.ZERO));
+            verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
+                    maxInt));
+            verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
+                    maxUInt));
+        }
+
+//        valueGenerators.forEach(r -> System.out.println(r.get()));
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+
+    @Test(groups = {"integration"})
     public void testStringDataTypes() {
         final List<String> columns = Arrays.asList(
                 "col1 String",
@@ -413,28 +497,33 @@ public class QueryTests extends BaseIntegrationTest {
                 () -> sq("not null string")
         );
 
-        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = Arrays.asList(
-                r -> {
-                    for (int i = 0; i < columns.size(); i++) {
-                        String columnName = columns.get(i).split(" ")[0];
-                        int colIndex = i + 1;
-                        String value = valueGenerators.get(i).get();
-                        if (value.equals("NULL")) {
-                            Assert.assertFalse(r.hasValue(columnName), "No value for column " + columnName + " expected");
-                            Assert.assertNull(r.getString(columnName));
-                            Assert.assertNull(r.getString(colIndex));
-                        } else {
-                            value = value.substring(1, value.length() - 1);
-                            Assert.assertTrue(r.hasValue(columnName), "No value for column " + columnName + " found");
-                            Assert.assertEquals(r.getString(columnName), value);
-                            Assert.assertEquals(r.getString(colIndex), value);
-                        }
-                    }
-                }
-        );
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        for (int i = 0; i < columns.size(); i++) {
+            final int index = i;
+            String tmpVal = valueGenerators.get(index).get();
+            if (tmpVal.startsWith("'") && tmpVal.endsWith("'")) {
+                tmpVal = tmpVal.substring(1, tmpVal.length() - 1);
+            }
+            final String val = tmpVal;
+            String columnName = columns.get(index).split(" ")[0];
 
+            if (val.equals("NULL")) {
+                verifiers.add(r -> {
+                    Assert.assertFalse(r.hasValue(columnName), "No value for column " + columnName + " expected");
+                    Assert.assertNull(r.getString(columnName));
+                    Assert.assertNull(r.getString(index + 1));
+                });
+            } else {
+                verifiers.add(r -> {
+                    Assert.assertTrue(r.hasValue(columnName), "No value for column " + columnName + " found");
+                    Assert.assertEquals(r.getString(columnName), val);
+                    Assert.assertEquals(r.getString(index + 1), val);
+                });
+            }
+        }
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
 
     private static String sq(String str) {
         return "\'" + str + "\'";
@@ -500,8 +589,15 @@ public class QueryTests extends BaseIntegrationTest {
             QueryResponse queryResponse = response.get();
             ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
             Assert.assertTrue(reader.next());
+            Assert.assertEquals(verifiers.size(), columns.size(), "Number of verifiers should match number of columns");
+            int colIndex = 0;
             for (Consumer<ClickHouseBinaryFormatReader> verifier : verifiers) {
-                verifier.accept(reader);
+                colIndex++;
+                try {
+                    verifier.accept(reader);
+                } catch (Exception e) {
+                    Assert.fail("Failed to verify " + columns.get(colIndex), e);
+                }
             }
 
         } catch (Exception e) {
