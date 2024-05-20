@@ -35,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -552,36 +553,36 @@ public class QueryTests extends BaseIntegrationTest {
         List<Supplier<String>> valueGenerators = new ArrayList<>();
         List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
 
-        for (int i = 3; i < 9; i++) {
+        for (int i = 5; i < 9; i++) {
             int bits = (int) Math.pow(2, i);
-            columns.add("min_decimal" + bits + " Decimal" + bits);
-            columns.add("max_decimal" + bits + " Decimal" + bits);
+            int scale = 4;
+            columns.add("min_decimal" + bits + " Decimal" + (bits == 5 ? "" : bits) + "(" + scale + ")");
+            columns.add("max_decimal" + bits + " Decimal" + (bits == 5 ? "" : bits) + "(" + scale + ")");
 
-            final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
-            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
-            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+            BigDecimal minDecimal = BigDecimal.valueOf(-1).multiply(BigDecimal.valueOf(10).pow(9 - scale)).add(BigDecimal.ONE).setScale(scale);
+            BigDecimal maxDecimal = BigDecimal.valueOf(1).multiply(BigDecimal.valueOf(10).pow(9 - scale)).subtract(BigDecimal.ONE).setScale(scale);
 
-            valueGenerators.add(() -> String.valueOf(minInt));
-            valueGenerators.add(() -> String.valueOf(0));
-            valueGenerators.add(() -> String.valueOf(maxInt));
-            valueGenerators.add(() -> String.valueOf(maxUInt));
+            valueGenerators.add(() -> String.valueOf(minDecimal));
+            valueGenerators.add(() -> String.valueOf(maxDecimal));
 
-            final int index = i - 3;
-            verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
-                    minInt));
-            verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
-                    BigInteger.ZERO));
-            verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
-                    maxInt));
-            verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
-                    maxUInt));
+            final int index = i - 5;
+
+            verifiers.add(r -> {
+                Assert.assertTrue(r.hasValue("min_decimal" + bits), "No value for column min_decimal" + bits + " found");
+                Assert.assertEquals(r.getBigDecimal("min_decimal" + bits), minDecimal, "Failed for column min_decimal" + bits);
+                Assert.assertEquals(r.getBigDecimal(index * 2 + 1), minDecimal, "Failed for column " + index * 2 + 1);
+            });
+            verifiers.add(r -> {
+                Assert.assertTrue(r.hasValue("max_decimal" + bits), "No value for column max_decimal" + bits + " found");
+                Assert.assertEquals(r.getBigDecimal("max_decimal" + bits), maxDecimal, "Failed for column max_decimal" + bits);
+                Assert.assertEquals(r.getBigDecimal(index * 2 + 2), maxDecimal, "Failed for column " + index * 2 + 2);
+            });
+
         }
-
+        System.out.println("Columns: " + columns);
 //        valueGenerators.forEach(r -> System.out.println(r.get()));
-
         testDataTypes(columns, valueGenerators, verifiers);
     }
-
 
     @Test(groups = {"integration"})
     public void testStringDataTypes() {
