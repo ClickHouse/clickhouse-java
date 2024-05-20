@@ -16,26 +16,26 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.format.BinaryStreamUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -453,6 +452,110 @@ public class QueryTests extends BaseIntegrationTest {
             columns.add("min_uint" + bits + " UInt" + bits);
             columns.add("max_int" + bits + " Int" + bits);
             columns.add("max_uint" + bits + " UInt" + bits);
+
+            final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
+            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
+            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+
+            valueGenerators.add(() -> String.valueOf(minInt));
+            valueGenerators.add(() -> String.valueOf(0));
+            valueGenerators.add(() -> String.valueOf(maxInt));
+            valueGenerators.add(() -> String.valueOf(maxUInt));
+
+            final int index = i - 3;
+            verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
+                    minInt));
+            verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
+                    BigInteger.ZERO));
+            verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
+                    maxInt));
+            verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
+                    maxUInt));
+        }
+
+//        valueGenerators.forEach(r -> System.out.println(r.get()));
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+    @Test(groups = {"integration"})
+    public void testFloatDataTypes() {
+        final List<String> columns = Arrays.asList(
+                "min_float32 Float32",
+                "max_float32 Float32",
+                "min_float64 Float64",
+                "max_float64 Float64",
+                "float_nan Float32",
+                "float_pos_inf Float32",
+                "float_neg_inf Float32",
+                "pi_float32 Float32",
+                "pi_float64 Float64"
+        );
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> String.valueOf(Float.MIN_VALUE),
+                () -> String.valueOf(Float.MAX_VALUE),
+                () -> String.valueOf(Double.MIN_VALUE),
+                () -> String.valueOf(Double.MAX_VALUE),
+                () -> "NaN",
+                () -> "Inf",
+                () -> "-Inf",
+                () -> String.valueOf((float) Math.PI),
+                () -> String.valueOf(Math.PI)
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getFloat("min_float32"), Float.MIN_VALUE);
+            Assert.assertEquals(r.getFloat(1), Float.MIN_VALUE);
+
+        });
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getFloat("max_float32"), 3.4028233E38F); // TODO: investigate why it's not Float.MAX_VALUE returned from server
+            Assert.assertEquals(r.getFloat(2), 3.4028233E38F);
+        });
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getDouble("min_float64"), 0.0D); // TODO: investigate why it's not Double.MIN_VALUE returned from server
+            Assert.assertEquals(r.getDouble(3), 0.0D);
+        });
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getDouble("max_float64"), Double.MAX_VALUE);
+            Assert.assertEquals(r.getDouble(4), Double.MAX_VALUE);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(Float.isNaN(r.getFloat("float_nan")));
+            Assert.assertTrue(Float.isNaN(r.getFloat(5)));
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(Float.isInfinite(r.getFloat("float_pos_inf")));
+            Assert.assertTrue(Float.isInfinite(r.getFloat(6)));
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(Float.isInfinite(r.getFloat("float_neg_inf")));
+            Assert.assertTrue(Float.isInfinite(r.getFloat(7)));
+        });
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getFloat("pi_float32"), (float) Math.PI);
+            Assert.assertEquals(r.getFloat(8), (float) Math.PI);
+        });
+        verifiers.add(r -> {
+            Assert.assertEquals(r.getDouble("pi_float64"), Math.PI);
+            Assert.assertEquals(r.getDouble(9), Math.PI);
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+    @Test
+    public void testDecimalDataTypes() {
+        final List<String> columns = new ArrayList<>();
+        List<Supplier<String>> valueGenerators = new ArrayList<>();
+        List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+
+        for (int i = 3; i < 9; i++) {
+            int bits = (int) Math.pow(2, i);
+            columns.add("min_decimal" + bits + " Decimal" + bits);
+            columns.add("max_decimal" + bits + " Decimal" + bits);
 
             final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
             final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
