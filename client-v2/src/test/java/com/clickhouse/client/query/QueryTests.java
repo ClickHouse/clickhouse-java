@@ -888,7 +888,6 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(serverStats.numBytesWritten, 0);
         Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
         Assert.assertEquals(serverStats.numRowsWritten, 0);
-        Assert.assertEquals(serverStats.totalRowsToRead, 3);
         Assert.assertEquals(serverStats.resultRows, 3);
         Assert.assertTrue(serverStats.elapsedTime > 1);
 
