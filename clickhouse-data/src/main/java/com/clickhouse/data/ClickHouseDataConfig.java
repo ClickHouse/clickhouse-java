@@ -1,11 +1,11 @@
 package com.clickhouse.data;
 
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseRenameMethod;
+
 import java.io.Serializable;
 import java.math.RoundingMode;
 import java.util.TimeZone;
-
-import com.clickhouse.config.ClickHouseBufferingMode;
-import com.clickhouse.config.ClickHouseRenameMethod;
 
 public interface ClickHouseDataConfig extends Serializable {
     static class Wrapped implements ClickHouseDataConfig {
@@ -137,7 +137,7 @@ public interface ClickHouseDataConfig extends Serializable {
     static final int DEFAULT_BUFFER_SIZE = 8192;
     static final int DEFAULT_READ_BUFFER_SIZE = DEFAULT_BUFFER_SIZE;
     static final int DEFAULT_WRITE_BUFFER_SIZE = DEFAULT_BUFFER_SIZE;
-    static final int DEFAULT_MAX_BUFFER_SIZE = 128 * 1024;
+    static final int DEFAULT_MAX_BUFFER_SIZE = 128 * DEFAULT_BUFFER_SIZE;
     static final int DEFAULT_MAX_MAPPER_CACHE = 100;
     static final int DEFAULT_MAX_QUEUED_BUFFERS = 512;
     static final int DEFAULT_BUFFER_QUEUE_VARIATION = 100;
