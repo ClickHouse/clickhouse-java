@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
@@ -38,6 +39,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -398,6 +402,51 @@ public class QueryTests extends BaseIntegrationTest {
 
             i++;
         }
+    }
+
+    @Test
+    public void testDateTimeDataTypes() {
+        final List<String> columns = Arrays.asList(
+                "min_date Date",
+                "max_date Date",
+                "min_dateTime DateTime",
+                "max_dateTime DateTime"
+        );
+
+        final LocalDate minDate = LocalDate.parse("1970-01-01");
+        final LocalDate maxDate = LocalDate.parse("2149-06-06");
+        final LocalDateTime minDateTime = LocalDateTime.parse("1970-01-01T00:00:00");
+        final LocalDateTime maxDateTime = LocalDateTime.parse("2106-02-07T06:28:15");
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> sq(minDate.toString()),
+                () -> sq(maxDate.toString()),
+                () -> sq(minDateTime.format(DataTypeUtils.DATE_TIME_FORMATTER)),
+                () -> sq(maxDateTime.format(DataTypeUtils.DATE_TIME_FORMATTER))
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_date"), "No value for column min_date found");
+            Assert.assertEquals(r.getLocalDate("min_date"), minDate);
+            Assert.assertEquals(r.getLocalDate(1), minDate);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_date"), "No value for column max_date found");
+            Assert.assertEquals(r.getLocalDate("max_date"), maxDate);
+            Assert.assertEquals(r.getLocalDate(2), maxDate);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_dateTime"), "No value for column min_dateTime found");
+            Assert.assertEquals(r.getLocalDateTime("min_dateTime"), minDateTime);
+            Assert.assertEquals(r.getLocalDateTime(3), minDateTime);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_dateTime"), "No value for column max_dateTime found");
+            Assert.assertEquals(r.getLocalDateTime("max_dateTime"), maxDateTime);
+            Assert.assertEquals(r.getLocalDateTime(4), maxDateTime);
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
     }
 
     private Consumer<ClickHouseBinaryFormatReader> createNumberVerifier(String columnName, int columnIndex,

@@ -523,4 +523,37 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public short getEnum16(int index) {
         return readValue(index);
     }
+
+    @Override
+    public LocalDate getLocalDate(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof LocalDateTime) {
+            return ((LocalDateTime) value).toLocalDate();
+        }
+        return (LocalDate) value;
+
+    }
+
+    @Override
+    public LocalDate getLocalDate(int index) {
+        Object value = readValue(index);
+        if (value instanceof LocalDateTime) {
+            return ((LocalDateTime) value).toLocalDate();
+        }
+        return (LocalDate) value;
+    }
+
+    @Override
+    public LocalDateTime getLocalDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof LocalDate) {
+            return ((LocalDate) value).atStartOfDay();
+        }
+        return (LocalDateTime) value;
+    }
+
+    @Override
+    public LocalDateTime getLocalDateTime(int index) {
+        return readValue(index);
+    }
 }

@@ -12,6 +12,8 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -551,4 +553,12 @@ public interface ClickHouseBinaryFormatReader {
     short getEnum16(String colName);
 
     short getEnum16(int index);
+
+    LocalDate getLocalDate(String colName);
+
+    LocalDate getLocalDate(int index);
+
+    LocalDateTime getLocalDateTime(String colName);
+
+    LocalDateTime getLocalDateTime(int index);
 }
