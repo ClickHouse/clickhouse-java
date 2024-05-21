@@ -89,10 +89,11 @@ public class Client {
             this.configuration = new HashMap<String, String>();
             // TODO: set defaults configuration values
             this.setConnectTimeout(30, SECONDS)
-                .setSocketTimeout(2, SECONDS)
-                .setSocketRcvbuf(804800)
-                .setSocketSndbuf(804800)
-                    .enableCompression(false);
+                    .setSocketTimeout(2, SECONDS)
+                    .setSocketRcvbuf(804800)
+                    .setSocketSndbuf(804800)
+                    .enableCompression(true)
+                    .enableDecompression(false);
         }
 
         public Builder addEndpoint(String endpoint) {
@@ -170,7 +171,11 @@ public class Client {
             return this;
         }
         public Builder enableCompression(boolean enabled) {
-            this.configuration.put("compression", String.valueOf(enabled));
+            this.configuration.put("compress", String.valueOf(enabled));
+            return this;
+        }
+        public Builder enableDecompression(boolean enabled) {
+            this.configuration.put("decompress", String.valueOf(enabled));
             return this;
         }
         public Client build() {
@@ -421,13 +426,7 @@ public class Client {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
         ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
                 .config(clientConfig)
-                .option(ClickHouseClientOption.DECOMPRESS, Boolean.parseBoolean(configuration.getOrDefault("compression", "false")))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
-        if (configuration.containsKey("access_token")) {
-            clientV1.defaultCredentials(ClickHouseCredentials.fromAccessToken(configuration.get("access_token")));
-        } else {
-            clientV1.defaultCredentials(ClickHouseCredentials.fromUserAndPassword(configuration.get("user"), configuration.get("password")));
-        }
         return clientV1.build();
     }
 
