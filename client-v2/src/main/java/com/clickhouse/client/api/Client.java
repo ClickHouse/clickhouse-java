@@ -1,13 +1,6 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseParameterizedQuery;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.*;
 import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -98,7 +91,8 @@ public class Client {
             this.setConnectTimeout(30, SECONDS)
                 .setSocketTimeout(2, SECONDS)
                 .setSocketRcvbuf(804800)
-                .setSocketSndbuf(804800);
+                .setSocketSndbuf(804800)
+                    .enableCompression(false);
         }
 
         public Builder addEndpoint(String endpoint) {
@@ -127,6 +121,12 @@ public class Client {
             this.configuration.put("password", password);
             return this;
         }
+
+        public Builder addAccessToken(String accessToken) {
+            this.configuration.put("access_token", accessToken);
+            return this;
+        }
+
         // SOCKET SETTINGS
         public Builder setConnectTimeout(long size) {
             this.configuration.put("connect_timeout", String.valueOf(size));
@@ -169,12 +169,19 @@ public class Client {
             this.configuration.put("socket_linger", String.valueOf(secondsToWait));
             return this;
         }
+        public Builder enableCompression(boolean enabled) {
+            this.configuration.put("compression", String.valueOf(enabled));
+            return this;
+        }
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
             // check if username and password are empty. so can not initiate client?
+            if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
+                throw new IllegalArgumentException("Username and password are required");
+            }
             return new Client(this.endpoints, this.configuration);
         }
     }
@@ -322,7 +329,6 @@ public class Client {
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
                     .format(settings.getFormat());
-
             Future<ClickHouseResponse> future;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -413,10 +419,16 @@ public class Client {
 
     private ClickHouseClient createClient() {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
-        return ClickHouseClient.builder()
+        ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
                 .config(clientConfig)
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build();
+                .option(ClickHouseClientOption.DECOMPRESS, Boolean.parseBoolean(configuration.getOrDefault("compression", "false")))
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
+        if (configuration.containsKey("access_token")) {
+            clientV1.defaultCredentials(ClickHouseCredentials.fromAccessToken(configuration.get("access_token")));
+        } else {
+            clientV1.defaultCredentials(ClickHouseCredentials.fromUserAndPassword(configuration.get("user"), configuration.get("password")));
+        }
+        return clientV1.build();
     }
 
     private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
@@ -431,6 +443,7 @@ public class Client {
         if (settings.getSetting("insert_deduplication_token") != null) {
             request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
         }
+
         return request;
     }
 
