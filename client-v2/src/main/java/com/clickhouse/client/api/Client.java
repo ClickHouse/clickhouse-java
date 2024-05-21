@@ -170,7 +170,7 @@ public class Client {
             return this;
         }
         public Builder enableCompression(boolean enabled) {
-            this.configuration.put("compression", String.valueOf(enabled));
+            this.configuration.put("decompress", String.valueOf(enabled));
             return this;
         }
         public Client build() {
@@ -421,13 +421,7 @@ public class Client {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
         ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
                 .config(clientConfig)
-                .option(ClickHouseClientOption.DECOMPRESS, Boolean.parseBoolean(configuration.getOrDefault("compression", "false")))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
-        if (configuration.containsKey("access_token")) {
-            clientV1.defaultCredentials(ClickHouseCredentials.fromAccessToken(configuration.get("access_token")));
-        } else {
-            clientV1.defaultCredentials(ClickHouseCredentials.fromUserAndPassword(configuration.get("user"), configuration.get("password")));
-        }
         return clientV1.build();
     }
 
