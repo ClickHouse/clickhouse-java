@@ -421,7 +421,7 @@ public class Client {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
         ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
                 .config(clientConfig)
-                .option(ClickHouseClientOption.DECOMPRESS, configuration.getOrDefault("compression", "false"))
+                .option(ClickHouseClientOption.DECOMPRESS, Boolean.parseBoolean(configuration.getOrDefault("compression", "false")))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
         if (configuration.containsKey("access_token")) {
             clientV1.defaultCredentials(ClickHouseCredentials.fromAccessToken(configuration.get("access_token")));
