@@ -3,10 +3,9 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.data.ClickHouseArraySequence;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -22,7 +21,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -73,7 +71,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public <T> T readValue(int colIndex) throws IOException {
+    public <T> T readValue(int colIndex) {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
@@ -110,42 +108,76 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        return readValue(colName);
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return (String) value;
+        }
+        return value.toString();
     }
 
     @Override
-    public Byte getByte(String colName) {
-        return readValue(colName);
+    public String getString(int index) {
+        // TODO: it may be incorrect to call .toString() on some objects
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return (String) value;
+        }
+        return value.toString();
+    }
+
+    private <T> T readPrimitiveValue(String colName, String typeName) {
+        Object value = readValue(colName);
+        if (value == null) {
+            throw new NullValueException("Column '" + colName + "' has null value and it cannot be cast to " + typeName);
+        }
+        return (T) value;
+    }
+
+    private <T> T readPrimitiveValue(int colIndex, String typeName) {
+        Object value = readValue(colIndex);
+        if (value == null) {
+            throw new NullValueException("Column at index = " + colIndex + " has null value and it cannot be cast to " + typeName);
+        }
+        return (T) value;
     }
 
     @Override
-    public Short getShort(String colName) {
-        return readValue(colName);
+    public byte getByte(String colName) {
+        return readPrimitiveValue(colName, "byte");
     }
 
     @Override
-    public Integer getInteger(String colName) {
-        return readValue(colName);
+    public short getShort(String colName) {
+        return readPrimitiveValue(colName, "short");
     }
 
     @Override
-    public Long getLong(String colName) {
-        return readValue(colName);
+    public int getInteger(String colName) {
+        return readPrimitiveValue(colName, "int");
     }
 
     @Override
-    public Float getFloat(String colName) {
-        return readValue(colName);
+    public long getLong(String colName) {
+        return readPrimitiveValue(colName, "long");
     }
 
     @Override
-    public Double getDouble(String colName) {
-        return readValue(colName);
+    public float getFloat(String colName) {
+        return readPrimitiveValue(colName, "float");
     }
 
     @Override
-    public Boolean getBoolean(String colName) {
-        return readValue(colName);
+    public double getDouble(String colName) {
+        return readPrimitiveValue(colName, "double");
+    }
+
+    @Override
+    public boolean getBoolean(String colName) {
+        return readPrimitiveValue(colName, "boolean");
     }
 
     @Override
@@ -291,6 +323,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             throw new ClientException("Array is not of primitive type");
         }
     }
+
     @Override
     public byte[] getByteArray(String colName) {
         return getPrimitiveArray(colName);
@@ -314,5 +347,213 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public double[] getDoubleArray(String colName) {
         return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public boolean hasValue(int colIndex) {
+        return currentRecord.containsKey(getSchema().indexToName(colIndex));
+    }
+
+    @Override
+    public boolean hasValue(String colName) {
+        return currentRecord.containsKey(colName);
+    }
+
+    @Override
+    public byte getByte(int index) {
+        return readPrimitiveValue(index, "byte");
+    }
+
+    @Override
+    public short getShort(int index) {
+        return readPrimitiveValue(index, "short");
+    }
+
+    @Override
+    public int getInteger(int index) {
+        return readPrimitiveValue(index, "int");
+    }
+
+    @Override
+    public long getLong(int index) {
+        return readPrimitiveValue(index, "long");
+    }
+
+    @Override
+    public float getFloat(int index) {
+        return readPrimitiveValue(index, "float");
+    }
+
+    @Override
+    public double getDouble(int index) {
+        return readPrimitiveValue(index, "double");
+    }
+
+    @Override
+    public boolean getBoolean(int index) {
+        return readPrimitiveValue(index, "boolean");
+    }
+
+    @Override
+    public BigInteger getBigInteger(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Instant getInstant(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public ZonedDateTime getZonedDateTime(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Duration getDuration(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Inet4Address getInet4Address(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Inet6Address getInet6Address(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public UUID getUUID(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public ClickHouseGeoPointValue getGeoPoint(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public ClickHouseGeoRingValue getGeoRing(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public ClickHouseGeoPolygonValue asGeoPolygon(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public <T> List<T> getList(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public <T> List<List<T>> getTwoDimensionalList(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public <T> List<List<List<T>>> getThreeDimensionalList(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public byte[] getByteArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public int[] getIntArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public long[] getLongArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public float[] getFloatArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public double[] getDoubleArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public Object[] getTuple(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Object[] getTuple(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public byte getEnum8(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public byte getEnum8(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public short getEnum16(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public short getEnum16(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public LocalDate getLocalDate(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof LocalDateTime) {
+            return ((LocalDateTime) value).toLocalDate();
+        }
+        return (LocalDate) value;
+
+    }
+
+    @Override
+    public LocalDate getLocalDate(int index) {
+        Object value = readValue(index);
+        if (value instanceof LocalDateTime) {
+            return ((LocalDateTime) value).toLocalDate();
+        }
+        return (LocalDate) value;
+    }
+
+    @Override
+    public LocalDateTime getLocalDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof LocalDate) {
+            return ((LocalDate) value).atStartOfDay();
+        }
+        return (LocalDateTime) value;
+    }
+
+    @Override
+    public LocalDateTime getLocalDateTime(int index) {
+        return readValue(index);
     }
 }
