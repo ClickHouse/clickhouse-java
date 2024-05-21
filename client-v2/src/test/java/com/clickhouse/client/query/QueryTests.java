@@ -341,15 +341,15 @@ public class QueryTests extends BaseIntegrationTest {
 
         // Stats should be available after the query is done
         OperationStatistics stats = response.getOperationStatistics();
-        OperationStatistics.ServerStatistics serverStats = stats.statsByServer;
+        OperationStatistics.ServerStatistics serverStats = stats.serverStatistics;
         System.out.println("Server stats: " + serverStats);
-        System.out.println("Client stats: " + stats.statsByClient);
+        System.out.println("Client stats: " + stats.clientStatistics);
 
         Assert.assertTrue(serverStats.numBytesRead > 0);
         Assert.assertEquals(serverStats.numBytesWritten, 0);
         Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
         Assert.assertEquals(serverStats.numRowsWritten, 0);
-        Assert.assertEquals(serverStats.totalRowsToRead, 0);
+        Assert.assertEquals(serverStats.totalRowsToRead, 3);
         Assert.assertEquals(serverStats.resultRows, 3);
         Assert.assertTrue(serverStats.elapsedTime > 1);
 
@@ -365,9 +365,9 @@ public class QueryTests extends BaseIntegrationTest {
         response = client.query(insertStmtBuilder.toString(),
                 Collections.emptyMap(), settings).get();
 
-        serverStats = response.getOperationStatistics().statsByServer;
+        serverStats = response.getOperationStatistics().serverStatistics;
         System.out.println("Server stats: " + serverStats);
-        System.out.println("Client stats: " + stats.statsByClient);
+        System.out.println("Client stats: " + stats.clientStatistics);
 
         // Server stats: ServerStatistics{"numRowsRead"=10, "numRowsWritten"=10, "totalRowsToRead"=0, "numBytesRead"=651, "numBytesWritten"=651}
         Assert.assertTrue(serverStats.numBytesRead > 0);

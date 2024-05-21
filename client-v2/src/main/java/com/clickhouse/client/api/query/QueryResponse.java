@@ -70,7 +70,7 @@ public class QueryResponse implements AutoCloseable {
         try {
             ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
             completed = true;
-            operationStatistics.statsByClient.setEndTimestamp();
+            operationStatistics.clientStatistics.totalTime.stop();
             this.operationStatistics.updateServerStats(response.getSummary());
         } catch (TimeoutException | InterruptedException | ExecutionException e) {
             throw new RuntimeException(e); // TODO: handle exception

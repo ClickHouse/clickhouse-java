@@ -317,7 +317,8 @@ public class Client {
     public InsertResponse insert(String tableName,
                                      InputStream data,
                                      InsertSettings settings) throws IOException, ClientException {
-        StopWatch watch = StopWatch.createStarted();
+
+        long startNanoTime = System.nanoTime();
         InsertResponse response;
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
@@ -335,14 +336,15 @@ public class Client {
                 }
             }
             try {
-                response = new InsertResponse(client, future.get());
+                response = new InsertResponse(client, future.get(), startNanoTime);
             } catch (InterruptedException | ExecutionException e) {
                 throw new ClientException("Operation has likely timed out.", e);
             }
         }
 
-        watch.stop();
-        LOG.debug("Total insert (InputStream) time: {}", watch.getTime());
+        response.getOperationStatistics().clientStatistics.totalTime.stop();
+        LOG.debug("Total insert (InputStream) time: {}",
+                response.getOperationStatistics().clientStatistics.totalTime.getElapsedTime());
         return response;
     }
 

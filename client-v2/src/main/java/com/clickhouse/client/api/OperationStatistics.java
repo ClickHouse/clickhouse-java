@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.api.internal.StopWatch;
 
 /**
  * OperationStatistics objects hold various stats for complete operations.
@@ -11,26 +12,26 @@ public class OperationStatistics {
 
     public static final ServerStatistics EMPTY_SERVER_STATS = new ServerStatistics(-1, -1, -1, -1, -1, -1, -1);
 
-    public ServerStatistics statsByServer;
+    public ServerStatistics serverStatistics;
 
-    public ClientStatistics statsByClient;
+    public ClientStatistics clientStatistics;
 
     public OperationStatistics(long startTimestamp) {
-        this.statsByServer = EMPTY_SERVER_STATS;
-        this.statsByClient = new ClientStatistics(startTimestamp);
+        this.serverStatistics = EMPTY_SERVER_STATS;
+        this.clientStatistics = new ClientStatistics(startTimestamp);
     }
 
-    public void setStatsByClient(ClientStatistics statsByClient) {
-        this.statsByClient = statsByClient;
+    public void setClientStatistics(ClientStatistics clientStatistics) {
+        this.clientStatistics = clientStatistics;
     }
 
     public void updateServerStats(ClickHouseResponseSummary summary) {
         if (summary == null || summary.equals(ClickHouseResponseSummary.EMPTY)) {
-            this.statsByServer = EMPTY_SERVER_STATS;
+            this.serverStatistics = EMPTY_SERVER_STATS;
             return;
         }
 
-        this.statsByServer = new ServerStatistics(
+        this.serverStatistics = new ServerStatistics(
                 summary.getReadRows(),
                 summary.getReadBytes(),
                 summary.getTotalRowsToRead(),
@@ -112,25 +113,19 @@ public class OperationStatistics {
 
     public static class ClientStatistics {
 
-        private final long startTimestamp;
-        public long elapsedTime;
+        public final StopWatch totalTime;
+
+        public ClientStatistics() {
+            totalTime = new StopWatch();
+        }
 
         public ClientStatistics(long startTimestamp) {
-            this.startTimestamp = startTimestamp;
+            totalTime = new StopWatch(startTimestamp);
         }
-
-        public void setEndTimestamp() {
-            elapsedTime = System.nanoTime() - startTimestamp;
-        }
-
-        public long getElapsedTime() {
-            return elapsedTime;
-        }
-
         @Override
         public String toString() {
             return "ClientStatistics{" +
-                    "\"elapsedTime\"=\"" + elapsedTime + "ns\"" +
+                    "\"totalTime\"=\"" + totalTime.getElapsedTime() + "ms\"" +
                     '}';
         }
     }
