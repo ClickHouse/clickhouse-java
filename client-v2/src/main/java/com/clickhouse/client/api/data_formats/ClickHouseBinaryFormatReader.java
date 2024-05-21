@@ -539,4 +539,16 @@ public interface ClickHouseBinaryFormatReader {
      * @return
      */
     double[] getDoubleArray(int index);
+
+    Object[] getTuple(int index);
+
+    Object[] getTuple(String colName);
+
+    byte getEnum8(String colName);
+
+    byte getEnum8(int index);
+
+    short getEnum16(String colName);
+
+    short getEnum16(int index);
 }

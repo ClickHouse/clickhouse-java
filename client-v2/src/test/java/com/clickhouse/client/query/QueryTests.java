@@ -23,6 +23,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
@@ -45,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
@@ -585,6 +587,114 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testTuples() {
+        final List<String> columns = Arrays.asList(
+                "col1 Tuple(UInt32, String)",
+                "col2 Tuple(UInt32, String, Float32)",
+                "col3 Tuple(UInt32, Tuple(Float32, String))"
+        );
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> "(1, 'value1')",
+                () -> "(1, 'value2', 23.43)",
+                () -> "(1, (23.43, 'value3'))"
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col1"), "No value for column col1 found");
+            Assert.assertEquals(r.getTuple("col1"), new Object[]{1L, "value1"});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col2"), "No value for column col2 found");
+            Assert.assertEquals(r.getTuple("col2"), new Object[]{1L, "value2", 23.43f});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col3"), "No value for column col3 found");
+            Assert.assertEquals(r.getTuple("col3"), new Object[]{1L, new Object[]{23.43f, "value3"}});
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+    @Test
+    public void testEnums() {
+        final List<String> columns = Arrays.asList(
+                "min_enum16 Enum16('value1' = -32768, 'value2' = 2, 'value3' = 3)",
+                "max_enum16 Enum16('value1' = -32768, 'value2' = 2, 'value3' = 32767)",
+                "min_enum8 Enum8('value1' = -128, 'value2' = 2, 'value3' = 3)",
+                "max_enum8 Enum8('value1' = 1, 'value2' = 2, 'value3' = 127)"
+        );
+
+        final UUID providedUUID = UUID.randomUUID();
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> "'value1'",
+                () -> "'value3'",
+                () -> "'value1'",
+                () -> "'value3'"
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_enum16"), "No value for column min_enum16 found");
+            Assert.assertEquals(r.getEnum16("min_enum16"), (short)-32768);
+            Assert.assertEquals(r.getEnum16(1), (short)-32768);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_enum16"), "No value for column max_enum16 found");
+            Assert.assertEquals(r.getEnum16("max_enum16"), (short)32767);
+            Assert.assertEquals(r.getEnum16(2), (short)32767);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_enum8"), "No value for column min_enum8 found");
+            Assert.assertEquals(r.getEnum8("min_enum8"), (byte)-128);
+            Assert.assertEquals(r.getEnum8(3), (byte)-128);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_enum8"), "No value for column max_enum8 found");
+            Assert.assertEquals(r.getEnum8("max_enum8"), (byte)127);
+            Assert.assertEquals(r.getEnum8(4), (byte)127);
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+    @Test
+    public void testUUID() {
+        final List<String> columns = Arrays.asList(
+                "provided UUID",
+                "db_generated UUID",
+                "zero UUID"
+        );
+
+        final UUID providedUUID = UUID.randomUUID();
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> sq(providedUUID.toString()),
+                () -> "generateUUIDv4()",
+                () -> sq("00000000-0000-0000-0000-000000000000")
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("provided"), "No value for column provided found");
+            Assert.assertEquals(r.getUUID("provided"), providedUUID);
+            Assert.assertEquals(r.getUUID(1), providedUUID);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("db_generated"), "No value for column db_generated found");
+            Assert.assertNotNull(r.getUUID("db_generated"));
+            Assert.assertNotNull(r.getUUID(2));
+            Assert.assertEquals(r.getUUID("db_generated"), UUID.fromString(r.getString(2)));
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("zero"), "No value for column zero found");
+            Assert.assertEquals(r.getUUID("zero"), UUID.fromString("00000000-0000-0000-0000-000000000000"));
+            Assert.assertEquals(r.getUUID(3), UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
+    @Test(groups = {"integration"})
     public void testStringDataTypes() {
         final List<String> columns = Arrays.asList(
                 "col1 String",
@@ -628,7 +738,6 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers);
     }
 
-
     private static String sq(String str) {
         return "\'" + str + "\'";
     }
@@ -666,7 +775,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
-
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             System.out.println("Insert statement: " + insertStmtBuilder);
 
             request = client.write(getServer(ClickHouseProtocol.HTTP))

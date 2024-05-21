@@ -108,7 +108,25 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        return readValue(colName);
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return (String) value;
+        }
+        return value.toString();
+    }
+
+    @Override
+    public String getString(int index) {
+        // TODO: it may be incorrect to call .toString() on some objects
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return (String) value;
+        }
+        return value.toString();
     }
 
     private <T> T readPrimitiveValue(String colName, String typeName) {
@@ -342,11 +360,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public String getString(int index) {
-        return readValue(index);
-    }
-
-    @Override
     public byte getByte(int index) {
         return readPrimitiveValue(index, "byte");
     }
@@ -479,5 +492,35 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public double[] getDoubleArray(int index) {
         return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public Object[] getTuple(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public Object[] getTuple(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public byte getEnum8(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public byte getEnum8(int index) {
+        return readValue(index);
+    }
+
+    @Override
+    public short getEnum16(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public short getEnum16(int index) {
+        return readValue(index);
     }
 }
