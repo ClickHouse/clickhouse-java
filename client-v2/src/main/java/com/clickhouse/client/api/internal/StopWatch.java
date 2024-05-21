@@ -30,4 +30,12 @@ public class StopWatch {
     public long getElapsedTime() {
         return TimeUnit.NANOSECONDS.toMillis(elapsedNanoTime);
     }
+
+    @Override
+    public String toString() {
+        return "{" +
+                "\"elapsedNanoTime\"=" + elapsedNanoTime +
+                ", \"elapsedTime\"=" + getElapsedTime() +
+                '}';
+    }
 }

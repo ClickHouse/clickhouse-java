@@ -55,8 +55,8 @@ public class InsertTests extends BaseIntegrationTest {
         }
         InsertResponse response = client.insert(tableName, simplePOJOs, settings);
 
-        ClickHouseResponseSummary summary = response.getSummary();
-        assertNotEquals(summary, null);
-        assertEquals(simplePOJOs.size(), summary.getWrittenRows());
+        assertEquals(simplePOJOs.size(), response.getOperationStatistics().getServerStatistics().numRowsWritten);
+        assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("insert") > 0);
+        assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("serialization") > 0);
     }
 }

@@ -40,12 +40,13 @@ public class QueryResponse implements AutoCloseable {
     private volatile boolean completed = false;
 
     public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef,
-                         QuerySettings settings, ClickHouseFormat format, long startTimestamp) {
+                         QuerySettings settings, ClickHouseFormat format,
+                         OperationStatistics.ClientStatistics clientStatistics) {
         this.client = client;
         this.responseRef = responseRef;
         this.format = format;
         this.settings = settings;
-        this.operationStatistics = new OperationStatistics(startTimestamp);
+        this.operationStatistics = new OperationStatistics(clientStatistics);
     }
 
     public boolean isCompleted() {
@@ -70,7 +71,7 @@ public class QueryResponse implements AutoCloseable {
         try {
             ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
             completed = true;
-            operationStatistics.clientStatistics.totalTime.stop();
+            operationStatistics.clientStatistics.stop("query");
             this.operationStatistics.updateServerStats(response.getSummary());
         } catch (TimeoutException | InterruptedException | ExecutionException e) {
             throw new RuntimeException(e); // TODO: handle exception

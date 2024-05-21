@@ -15,15 +15,12 @@ public class InsertResponse implements AutoCloseable {
 
     private OperationStatistics operationStatistics;
 
-    public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef, long startTimestamp) {
+    public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef,
+                          OperationStatistics.ClientStatistics clientStatistics) {
         this.responseRef = responseRef;
         this.client = client;
-        this.operationStatistics = new OperationStatistics(startTimestamp);
+        this.operationStatistics = new OperationStatistics(clientStatistics);
         this.operationStatistics.updateServerStats(responseRef.getSummary());
-    }
-
-    public ClickHouseResponseSummary getSummary() {
-        return responseRef.getSummary();
     }
 
     @Override

@@ -25,7 +25,6 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
-import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -45,7 +44,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -63,6 +64,8 @@ public class Client {
     private Map<Class<?>, Boolean> hasDefaults;
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private ExecutorService queryExecutor;
+
+    private Map<String, OperationStatistics.ClientStatistics> globalClientStats = new ConcurrentHashMap<>();
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
         this.endpoints = endpoints;
@@ -268,10 +271,14 @@ public class Client {
     public InsertResponse insert(String tableName,
                                          List<Object> data,
                                          InsertSettings settings) throws ClientException, IOException {
+
+        String operationId = startOperation();
+        settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+        globalClientStats.get(operationId).start("serialization");
+
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
-        StopWatch watch = StopWatch.createStarted();
 
         //Add format to the settings
         if (settings == null) {
@@ -306,8 +313,8 @@ public class Client {
             }
         }
 
-        watch.stop();
-        LOG.debug("Total serialization time: {}", watch.getTime());
+        globalClientStats.get(operationId).stop("serialization");
+        LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
         return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
     }
 
@@ -317,8 +324,13 @@ public class Client {
     public InsertResponse insert(String tableName,
                                      InputStream data,
                                      InsertSettings settings) throws IOException, ClientException {
-
-        long startNanoTime = System.nanoTime();
+        String operationId = (String) settings.getSetting(INTERNAL_OPERATION_ID);
+        if (operationId == null) {
+            operationId = startOperation();
+            settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+        }
+        OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
+        clientStats.start("insert");
         InsertResponse response;
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
@@ -336,15 +348,15 @@ public class Client {
                 }
             }
             try {
-                response = new InsertResponse(client, future.get(), startNanoTime);
+                response = new InsertResponse(client, future.get(), clientStats);
             } catch (InterruptedException | ExecutionException e) {
                 throw new ClientException("Operation has likely timed out.", e);
             }
         }
 
-        response.getOperationStatistics().clientStatistics.totalTime.stop();
+        clientStats.stop("insert");
         LOG.debug("Total insert (InputStream) time: {}",
-                response.getOperationStatistics().clientStatistics.totalTime.getElapsedTime());
+                clientStats.getElapsedTime("insert"));
         return response;
     }
 
@@ -362,7 +374,9 @@ public class Client {
      * @return
      */
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
-        final long opStartTimestamp = System.nanoTime();
+
+        OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
+        clientStats.start("query");
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
@@ -386,7 +400,7 @@ public class Client {
             LOG.debug("Executing request: {}", request);
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format,
-                        opStartTimestamp);
+                        clientStats);
                 future.complete(queryResponse);
             } catch (Exception e) {
                 future.completeExceptionally(e);
@@ -464,5 +478,13 @@ public class Client {
             }
         }
         return Collections.unmodifiableSet(formats);
+    }
+
+    private static final String INTERNAL_OPERATION_ID = "operationID";
+
+    private String startOperation() {
+        String operationId = UUID.randomUUID().toString();
+        globalClientStats.put(operationId, new OperationStatistics.ClientStatistics());
+        return operationId;
     }
 }

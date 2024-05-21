@@ -3,6 +3,9 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.internal.StopWatch;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * OperationStatistics objects hold various stats for complete operations.
  * <p>
@@ -16,13 +19,21 @@ public class OperationStatistics {
 
     public ClientStatistics clientStatistics;
 
-    public OperationStatistics(long startTimestamp) {
+    public OperationStatistics(ClientStatistics clientStatistics) {
         this.serverStatistics = EMPTY_SERVER_STATS;
-        this.clientStatistics = new ClientStatistics(startTimestamp);
+        this.clientStatistics = clientStatistics;
     }
 
     public void setClientStatistics(ClientStatistics clientStatistics) {
         this.clientStatistics = clientStatistics;
+    }
+
+    public ClientStatistics getClientStatistics() {
+        return clientStatistics;
+    }
+
+    public ServerStatistics getServerStatistics() {
+        return serverStatistics;
     }
 
     public void updateServerStats(ClickHouseResponseSummary summary) {
@@ -40,6 +51,14 @@ public class OperationStatistics {
                 summary.getResultRows(),
                 summary.getElapsedTime()
         );
+    }
+
+    @Override
+    public String toString() {
+        return "OperationStatistics{" +
+                "\"serverStatistics\"=" + serverStatistics +
+                ", \"clientStatistics\"=" + clientStatistics +
+                '}';
     }
 
     /**
@@ -110,22 +129,26 @@ public class OperationStatistics {
         }
     }
 
-
     public static class ClientStatistics {
+        private final Map<String, StopWatch> spans = new HashMap<>();
 
-        public final StopWatch totalTime;
-
-        public ClientStatistics() {
-            totalTime = new StopWatch();
+        public void start(String spanName) {
+            spans.computeIfAbsent(spanName, k -> new StopWatch()).start();
         }
 
-        public ClientStatistics(long startTimestamp) {
-            totalTime = new StopWatch(startTimestamp);
+        public void stop(String spanName) {
+            spans.computeIfAbsent(spanName, k -> new StopWatch()).stop();
         }
+
+        public long getElapsedTime(String spanName) {
+            StopWatch sw = spans.get(spanName);
+            return sw == null ? -1 : sw.getElapsedTime();
+        }
+
         @Override
         public String toString() {
             return "ClientStatistics{" +
-                    "\"totalTime\"=\"" + totalTime.getElapsedTime() + "ms\"" +
+                    "\"spans\"=" + spans +
                     '}';
         }
     }

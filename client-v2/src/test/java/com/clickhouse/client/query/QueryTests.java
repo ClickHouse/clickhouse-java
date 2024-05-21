@@ -377,6 +377,7 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(serverStats.totalRowsToRead, 0);
         Assert.assertEquals(serverStats.resultRows, rowsToInsert);
         Assert.assertTrue(serverStats.elapsedTime > 1);
+        Assert.assertTrue(stats.clientStatistics.getElapsedTime("query") > 0);
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
