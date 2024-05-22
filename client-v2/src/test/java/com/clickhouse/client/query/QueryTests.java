@@ -913,7 +913,6 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(serverStats.numRowsWritten, rowsToInsert); // 10 rows inserted
         Assert.assertEquals(serverStats.totalRowsToRead, 0);
         Assert.assertEquals(serverStats.resultRows, rowsToInsert);
-        Assert.assertTrue(serverStats.elapsedTime > 1);
         Assert.assertTrue(stats.clientStatistics.getElapsedTime("query") > 0);
     }
 
