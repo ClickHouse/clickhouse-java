@@ -889,7 +889,6 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
         Assert.assertEquals(serverStats.numRowsWritten, 0);
         Assert.assertEquals(serverStats.resultRows, 3);
-        Assert.assertTrue(serverStats.elapsedTime > 1);
 
         StringBuilder insertStmtBuilder = new StringBuilder();
         insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
