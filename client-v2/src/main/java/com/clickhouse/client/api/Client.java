@@ -372,7 +372,7 @@ public class Client {
                 responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
             }
 
-            if (!responseFuture.isDone()) {
+            if (!responseFuture.isCompletedExceptionally()) {
                 try {
                     InsertResponse response = new InsertResponse(client, future.get(), clientStats);
                     responseFuture.complete(response);
