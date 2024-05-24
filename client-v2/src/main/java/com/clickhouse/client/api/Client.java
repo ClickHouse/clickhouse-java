@@ -1,10 +1,19 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.*;
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseClientBuilder;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
+import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -280,9 +289,9 @@ public class Client {
     /**
      * Insert data into ClickHouse using a POJO
      */
-    public InsertResponse insert(String tableName,
+    public Future<InsertResponse> insert(String tableName,
                                          List<Object> data,
-                                         InsertSettings settings) throws ClientException, IOException {
+                                         InsertSettings settings) {
 
         String operationId = startOperation();
         settings.setSetting(INTERNAL_OPERATION_ID, operationId);
@@ -311,7 +320,7 @@ public class Client {
         //Lookup the Serializer for the POJO
         List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
         if (serializers == null || serializers.isEmpty()) {
-            throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
+            throw new SerializerNotFoundException(data.get(0).getClass());
         }
 
         //Call the static .serialize method on the POJOSerializer for each object in the list
@@ -320,7 +329,7 @@ public class Client {
                 try {
                     serializer.serialize(obj, stream);
                 } catch (InvocationTargetException | IllegalAccessException | IOException  e) {
-                    throw new ClientException(e);
+                    throw new DataSerializationException(obj, serializer, e);
                 }
             }
         }
@@ -333,9 +342,9 @@ public class Client {
     /**
      * Insert data into ClickHouse using a binary stream
      */
-    public InsertResponse insert(String tableName,
+    public Future<InsertResponse> insert(String tableName,
                                      InputStream data,
-                                     InsertSettings settings) throws IOException, ClientException {
+                                     InsertSettings settings) {
         String operationId = (String) settings.getSetting(INTERNAL_OPERATION_ID);
         if (operationId == null) {
             operationId = startOperation();
@@ -343,11 +352,13 @@ public class Client {
         }
         OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
         clientStats.start("insert");
-        InsertResponse response;
+
+        CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
+
         try (ClickHouseClient client = createClient()) {
             ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
                     .format(settings.getFormat());
-            Future<ClickHouseResponse> future;
+            CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
 
@@ -357,20 +368,24 @@ public class Client {
                 while ((bytesRead = data.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
                 }
+            } catch (IOException e) {
+                responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
             }
-            try {
-                response = new InsertResponse(client, future.get(), clientStats);
-            } catch (InterruptedException | ExecutionException e) {
-                throw new ClientException("Operation has likely timed out.", e);
+
+            if (!responseFuture.isDone()) {
+                try {
+                    InsertResponse response = new InsertResponse(client, future.get(), clientStats);
+                    responseFuture.complete(response);
+                } catch (InterruptedException | ExecutionException e) {
+                    responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
+                }
             }
+            clientStats.stop("insert");
+            LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
         }
 
-        clientStats.stop("insert");
-        LOG.debug("Total insert (InputStream) time: {}",
-                clientStats.getElapsedTime("insert"));
-        return response;
+        return responseFuture;
     }
-
 
     /**
      * Sends data query to the server and returns a reference to a result descriptor.
@@ -408,10 +423,10 @@ public class Client {
         CompletableFuture<QueryResponse> future = new CompletableFuture<>();
         executor.submit(() -> {
             MDC.put("queryId", settings.getQueryID());
-            LOG.debug("Executing request: {}", request);
+            LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format,
-                        clientStats);
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format, clientStats);
+                queryResponse.ensureDone();
                 future.complete(queryResponse);
             } catch (Exception e) {
                 future.completeExceptionally(e);
@@ -431,15 +446,13 @@ public class Client {
             ClickHouseRequest request = clientQuery.read(getServerNode());
             // XML - because java has a built-in XML parser. Will consider CSV later.
             request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
-            TableSchema tableSchema = new TableSchema();
             try {
                 return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to get table schema", e);
+                throw new ClientException("Failed to get table schema", e);
             }
         }
     }
-
 
     private ClickHouseClient createClient() {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
