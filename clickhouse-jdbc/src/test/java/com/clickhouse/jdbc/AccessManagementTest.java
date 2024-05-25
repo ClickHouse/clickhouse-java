@@ -37,6 +37,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             st.execute("CREATE ROLE " + String.join(", ", roles));
             st.execute("CREATE USER some_user IDENTIFIED WITH no_password");
             st.execute("GRANT " + String.join(", ", roles) + " TO some_user");
+            st.execute("SET DEFAULT ROLE NONE TO some_user");
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
@@ -45,6 +46,9 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             Statement st = connection.createStatement();
             st.execute(setRoleExpr);
             assertRolesEquals(connection, activeRoles);
+            // Check roles are reset
+            st.execute("SET ROLE NONE");
+            assertRolesEquals(connection);
         } catch (SQLException e) {
             if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
                 String serverVersion = getServerVersion(dataSource.getConnection());
@@ -71,10 +75,6 @@ public class AccessManagementTest extends JdbcIntegrationTest {
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
                 {new String[]{"ROL1", "ROL2"}, "set role  ROL2 ,   ROL1  ", new String[]{"ROL2", "ROL1"},
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
-                {new String[]{"ROL1", "ROL2"}, "set role NONE", new String[0],
-                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
-                {new String[]{"ROL1", "ROL2"}, "set role   NoNE, None, NONE", new String[0],
-                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
         };
     }
 
@@ -87,11 +87,11 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             String[] roles = (String[]) resultSet.getArray(1).getArray();
             Arrays.sort(roles);
             Arrays.sort(expected);
-            System.out.print("Roles: ");
-            for (String role : roles) {
-                System.out.print("'" + role + "', ");
-            }
-            System.out.println();
+//            System.out.print("Roles: ");
+//            for (String role : roles) {
+//                System.out.print("'" + role + "', ");
+//            }
+//            System.out.println();
             Assert.assertEquals(roles, expected,
                     "Memorized roles: " + Arrays.toString(roles) + " != Expected: " + Arrays.toString(expected));
 

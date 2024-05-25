@@ -151,9 +151,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     private Map<String, Serializable> buildAdditionalReqParams(ClickHouseRequest<?> sealedRequest) {
         ClickHouseConfig config = sealedRequest.getConfig();
         if (config.getBoolOption(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES)) {
-            if (sealedRequest.hasSetting("_set_roles_stmt")) {
-                return Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
-            } else if (!roles.isEmpty()) {
+            if (!(sealedRequest.hasSetting("_set_roles_stmt") || roles.isEmpty())) {
                 return Collections.singletonMap("_roles", roles);
             }
         }
