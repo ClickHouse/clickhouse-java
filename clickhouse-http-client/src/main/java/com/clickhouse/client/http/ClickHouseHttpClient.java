@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.stream.Collectors;
 
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
@@ -87,7 +88,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
     }
 
-    private ConcurrentSkipListSet<String> roles = new ConcurrentSkipListSet<>();
+    protected ConcurrentSkipListSet<String> roles = new ConcurrentSkipListSet<>();
 
     @Override
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
@@ -220,8 +221,18 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         return ClickHouseHttpOption.class;
     }
 
-    private void rememberRoles(Set<String> requestedRoles) {
+    public void rememberRoles(Set<String> requestedRoles) {
         roles.clear();
-        roles.addAll(requestedRoles);
+        if (requestedRoles != null) {
+            roles.addAll(requestedRoles.stream().filter(r -> !"NONE".equalsIgnoreCase(r)).collect(Collectors.toList()));
+        }
+    }
+
+    public Set<String> getRoles() {
+        return roles;
+    }
+
+    public void clearRoles() {
+        roles.clear();
     }
 }

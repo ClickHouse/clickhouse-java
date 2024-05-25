@@ -71,6 +71,10 @@ public class AccessManagementTest extends JdbcIntegrationTest {
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
                 {new String[]{"ROL1", "ROL2"}, "set role  ROL2 ,   ROL1  ", new String[]{"ROL2", "ROL1"},
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
+                {new String[]{"ROL1", "ROL2"}, "set role NONE", new String[0],
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
+                {new String[]{"ROL1", "ROL2"}, "set role   NoNE, None, NONE", new String[0],
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
         };
     }
 
@@ -88,7 +92,8 @@ public class AccessManagementTest extends JdbcIntegrationTest {
                 System.out.print("'" + role + "', ");
             }
             System.out.println();
-            Assert.assertEquals(roles, expected);
+            Assert.assertEquals(roles, expected,
+                    "Memorized roles: " + Arrays.toString(roles) + " != Expected: " + Arrays.toString(expected));
 
         } catch (Exception e) {
             Assert.fail("Failed", e);
