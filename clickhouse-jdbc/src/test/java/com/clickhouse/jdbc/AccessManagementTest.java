@@ -94,7 +94,14 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 //            System.out.println();
             Assert.assertEquals(roles, expected,
                     "Memorized roles: " + Arrays.toString(roles) + " != Expected: " + Arrays.toString(expected));
-
+        } catch (SQLException e) {
+            if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
+                String serverVersion = getServerVersion(connection);
+                if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
+                    return;
+                }
+            }
+            Assert.fail("Failed", e);
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
