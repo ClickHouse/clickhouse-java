@@ -28,6 +28,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        String serverVersion = getServerVersion(dataSource.getConnection());
 
         try (Connection connection = dataSource.getConnection("access_dba", "123")) {
             Statement st = connection.createStatement();
@@ -51,7 +52,6 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             assertRolesEquals(connection);
         } catch (SQLException e) {
             if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
-                String serverVersion = getServerVersion(dataSource.getConnection());
                 if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
                     return;
                 }
@@ -78,7 +78,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         };
     }
 
-    private void assertRolesEquals(Connection connection, String... expected) {
+    private void assertRolesEquals(Connection connection, String... expected) throws SQLException {
         try {
             Statement st = connection.createStatement();
             ResultSet resultSet = st.executeQuery("select currentRoles()");
@@ -87,19 +87,11 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             String[] roles = (String[]) resultSet.getArray(1).getArray();
             Arrays.sort(roles);
             Arrays.sort(expected);
-//            System.out.print("Roles: ");
-//            for (String role : roles) {
-//                System.out.print("'" + role + "', ");
-//            }
-//            System.out.println();
             Assert.assertEquals(roles, expected,
                     "Memorized roles: " + Arrays.toString(roles) + " != Expected: " + Arrays.toString(expected));
         } catch (SQLException e) {
             if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
-                String serverVersion = getServerVersion(connection);
-                if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
-                    return;
-                }
+               throw e;
             }
             Assert.fail("Failed", e);
         } catch (Exception e) {
