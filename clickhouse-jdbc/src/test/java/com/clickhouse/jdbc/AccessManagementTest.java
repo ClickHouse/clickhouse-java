@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
@@ -29,6 +28,10 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
         String serverVersion = getServerVersion(dataSource.getConnection());
+        if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
+            System.out.println("Test is skipped: feature is supported since 24.4");
+            return;
+        }
 
         try (Connection connection = dataSource.getConnection("access_dba", "123")) {
             Statement st = connection.createStatement();
@@ -50,13 +53,6 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             // Check roles are reset
             st.execute("SET ROLE NONE");
             assertRolesEquals(connection);
-        } catch (SQLException e) {
-            if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
-                if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
-                    return;
-                }
-            }
-            Assert.fail("Failed", e);
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
@@ -89,11 +85,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             Arrays.sort(expected);
             Assert.assertEquals(roles, expected,
                     "Memorized roles: " + Arrays.toString(roles) + " != Expected: " + Arrays.toString(expected));
-        } catch (SQLException e) {
-            if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
-               throw e;
-            }
-            Assert.fail("Failed", e);
+            System.out.println("Roles: " + Arrays.toString(roles));
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
