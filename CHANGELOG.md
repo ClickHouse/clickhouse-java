@@ -1,5 +1,8 @@
 ## Latest 
 
+### Bug Fixes
+- Implement resetting memorized roles by 'SET ROLE NONE' (https://github.com/ClickHouse/clickhouse-java/issues/1647)
+
 ## 0.6.0-patch4
 
 ### New Features
