@@ -40,7 +40,6 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -90,6 +89,10 @@ public class Client {
             return t;
         });
         LOG.debug("Query executor created with {} threads", numThreads);
+    }
+
+    public String getDefaultDatabase() {
+        return this.configuration.get("database");
     }
 
     public static class Builder {
@@ -190,6 +193,11 @@ public class Client {
             this.configuration.put("decompress", String.valueOf(enabled));
             return this;
         }
+        public Builder setDefaultDatabase(String database) {
+            this.configuration.put("database", database);
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -394,38 +402,41 @@ public class Client {
      * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
      * Format may be specified in either the `sqlQuery` or the `settings`.
      * If specified in both, the `sqlQuery` will take precedence.
+     * <br/>
+     * Default output format is RowBinaryWithNamesAndTypes.
      *
      * @param sqlQuery - complete SQL query.
      * @param settings
      * @return
      */
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
-
+        if (settings == null) {
+            settings = new QuerySettings();
+        }
+        if (settings.getFormat() == null) {
+            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
         OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
         clientStats.start("query");
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
-        ExecutorService executor = queryExecutor;
-        if (settings.getExecutorService() != null) {
-            executor = settings.getExecutorService();
-        }
-
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
-        request.query(sqlQuery, settings.getQueryID());
-        final ClickHouseFormat format = ClickHouseFormat.valueOf(settings.getFormat());
+        request.query(sqlQuery, settings.getQueryId());
+        final ClickHouseFormat format = settings.getFormat();
         request.format(format);
         if (qparams != null && !qparams.isEmpty()) {
             request.params(qparams);
         }
 
         CompletableFuture<QueryResponse> future = new CompletableFuture<>();
-        executor.submit(() -> {
-            MDC.put("queryId", settings.getQueryID());
+        final QuerySettings finalSettings = settings;
+        queryExecutor.submit(() -> {
+            MDC.put("queryId", finalSettings.getQueryId());
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format, clientStats);
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
                 future.complete(queryResponse);
             } catch (Exception e) {
@@ -482,27 +493,6 @@ public class Client {
 
     public static Set<String> getCompressAlgorithms() {
         return COMPRESS_ALGORITHMS;
-    }
-
-    private static final Set<String> OUTPUT_FORMATS = createFormatWhitelist("output");
-
-    private static final Set<String> INPUT_FORMATS = createFormatWhitelist("input");
-
-    public static Set<String> getOutputFormats() {
-        return OUTPUT_FORMATS;
-    }
-
-    private static Set<String> createFormatWhitelist(String shouldSupport) {
-        Set<String> formats = new HashSet<>();
-        boolean supportOutput = "output".equals(shouldSupport);
-        boolean supportInput = "input".equals(shouldSupport);
-        boolean supportBoth = "both".equals(shouldSupport);
-        for (ClickHouseFormat format : ClickHouseFormat.values()) {
-            if ((supportOutput && format.supportsOutput()) || (supportInput && format.supportsInput()) || (supportBoth)) {
-                formats.add(format.name());
-            }
-        }
-        return Collections.unmodifiableSet(formats);
     }
 
     private static final String INTERNAL_OPERATION_ID = "operationID";

@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.insert;
 
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 
@@ -66,5 +67,31 @@ public class InsertSettings {
     public InsertSettings setInputStreamBatchSize(int inputStreamBatchSize) {
         rawSettings.put("input_stream_batch_size", inputStreamBatchSize);
         return this;
+    }
+
+    /**
+     * Sets database to be used for a request.
+     */
+    public InsertSettings setDatabase(String database) {
+        ValidationUtils.checkNonBlank(database, "database");
+        rawSettings.put("database", database);
+        return this;
+    }
+
+    public String getDatabase() {
+        return (String) rawSettings.get("database");
+    }
+
+    /**
+     * Whether the client will compress response it sends to client.
+     */
+    public InsertSettings enableCompression(Boolean compress) {
+        ValidationUtils.checkNotNull(compress, "compress");
+        rawSettings.put("compress", compress);
+        return this;
+    }
+
+    public Boolean isCompressionEnabled() {
+        return (Boolean) rawSettings.get("compress");
     }
 }
