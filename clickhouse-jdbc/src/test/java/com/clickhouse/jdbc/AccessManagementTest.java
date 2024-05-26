@@ -109,8 +109,6 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         String url = String.format("jdbc:ch:%s", httpEndpoint);
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
-        properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(),
-                HttpConnectionProvider.APACHE_HTTP_CLIENT.name());
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
         String serverVersion = getServerVersion(dataSource.getConnection());
         if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
