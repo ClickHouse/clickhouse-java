@@ -2,6 +2,13 @@
 
 ## 0.6.0-patch4
 
+### Bug Fixes
+- Roles (memorized by client) can be reset with 'SET ROLE NONE' query (https://github.com/ClickHouse/clickhouse-java/issues/1647)
+- MaxBufferSize can be greater than internal MAX value now
+- Updated example project to use the latest version of the client
+
+## 0.6.0-patch4
+
 ### New Features
 - Added possibility to set client ID in `Referer` HTTP Header (https://github.com/ClickHouse/clickhouse-java/issues/1572)
 - [HTTP] Persistence of a role after it is set by `SET ROLE <role>`
