@@ -51,6 +51,10 @@ public class QueryResponse implements AutoCloseable {
         this.operationStatistics = new OperationStatistics(clientStatistics);
     }
 
+    /**
+     * Called internally to finalize the query execution.
+     * Do not call this method directly.
+     */
     public void ensureDone() {
         if (!completed) {
             // TODO: thread-safety
