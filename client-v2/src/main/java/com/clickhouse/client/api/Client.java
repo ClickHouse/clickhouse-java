@@ -294,7 +294,7 @@ public class Client {
                                          InsertSettings settings) {
 
         String operationId = startOperation();
-        settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+        settings.setOperationId(operationId);
         globalClientStats.get(operationId).start("serialization");
 
         if (data == null || data.isEmpty()) {
@@ -307,12 +307,7 @@ public class Client {
         }
 
         boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
-        if (hasDefaults) {
-            settings.setFormat(ClickHouseFormat.RowBinaryWithDefaults);
-        } else {
-            settings.setFormat(ClickHouseFormat.RowBinary);
-        }
-
+        ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
 
         //Create an output stream to write the data to
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -336,7 +331,7 @@ public class Client {
 
         globalClientStats.get(operationId).stop("serialization");
         LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
-        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
+        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
     }
 
     /**
@@ -344,11 +339,12 @@ public class Client {
      */
     public Future<InsertResponse> insert(String tableName,
                                      InputStream data,
+                                     ClickHouseFormat format,
                                      InsertSettings settings) {
-        String operationId = (String) settings.getSetting(INTERNAL_OPERATION_ID);
+        String operationId = (String) settings.getOperationId();
         if (operationId == null) {
             operationId = startOperation();
-            settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+            settings.setOperationId(operationId);
         }
         OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
         clientStats.start("insert");
@@ -356,8 +352,7 @@ public class Client {
         CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
         try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
-                    .format(settings.getFormat());
+            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings).format(format);
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -465,14 +460,15 @@ public class Client {
     private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
         if (settings == null) return request.table(tableName);
 
-        if (settings.getSetting("query_id") != null) {
-            request.table(tableName, settings.getSetting("query_id").toString());
+        if (settings.getQueryId() != null) {//This has to be handled separately
+            request.table(tableName, settings.getQueryId());
         } else {
             request.table(tableName);
         }
 
-        if (settings.getSetting("insert_deduplication_token") != null) {
-            request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
+        //For each setting, set the value in the request
+        for (Map.Entry<String, Object> entry : settings.getAllSettings().entrySet()) {
+            request.set(entry.getKey(), String.valueOf(entry.getValue()));
         }
 
         return request;
