@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class InsertSettings {
+    private static final int DEFAULT_INPUT_STREAM_BATCH_SIZE = 8196;
+
     private String queryId;
     private int inputStreamBatchSize;
     private String operationId;
@@ -22,7 +24,7 @@ public class InsertSettings {
     }
 
     private void setDefaults() {// Default settings, for now a very small list
-        this.setInputStreamBatchSize(8196);
+        this.setInputStreamBatchSize(DEFAULT_INPUT_STREAM_BATCH_SIZE);
         this.queryId = null;
     }
 
