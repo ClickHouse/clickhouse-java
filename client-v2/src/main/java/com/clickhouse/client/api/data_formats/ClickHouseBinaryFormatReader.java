@@ -26,7 +26,6 @@ public interface ClickHouseBinaryFormatReader {
      *
      * @param <T>
      * @return
-     * @throws IOException
      */
     <T> T readValue(int colIndex);
 
@@ -36,7 +35,6 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @param <T>
      * @return
-     * @throws IOException
      */
     <T> T readValue(String colName);
 
@@ -149,7 +147,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Instant. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * </br>
+     * 
      * If column value is Date or Date32 it will return an Instant with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return an Instant with the time part.
      *
@@ -161,7 +159,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ZonedDateTime. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * </br>
+     * 
      * If column value is Date or Date32 it will return a ZonedDateTime with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return a ZonedDateTime with the time part.
      *
@@ -172,10 +170,10 @@ public interface ClickHouseBinaryFormatReader {
 
     /**
      * Returns the value of the specified column as a Duration.
-     * </br>
+     * 
      * If a stored value is bigger than Long.MAX_VALUE then exception will be thrown. In such case
      * use asBigInteger() method.
-     * </br>
+     * 
      * If value of IntervalQuarter then Duration will be in the unit of Months.
      *
      * @param colName
@@ -307,7 +305,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index
      * @return
      */
     String getString(int index);
@@ -315,7 +313,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a byte.
      *
-     * @param colName - column name
+     * @param index
      * @return
      */
     byte getByte(int index);
@@ -323,7 +321,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a short.
      *
-     * @param colName - column name
+     * @param index
      * @return
      */
     short getShort(int index);
@@ -331,7 +329,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as an integer.
      *
-     * @param colName - column name
+     * @param index
      * @return
      */
     int getInteger(int index);
@@ -339,7 +337,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a long.
      *
-     * @param colName - column name
+     * @param index
      * @return
      */
     long getLong(int index);
@@ -347,7 +345,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a float.
      *
-     * @param colName
+     * @param index
      * @return
      */
     float getFloat(int index);
@@ -355,7 +353,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a double.
      *
-     * @param colName
+     * @param index
      * @return
      */
     double getDouble(int index);
@@ -363,7 +361,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a boolean.
      *
-     * @param colName
+     * @param index
      * @return
      */
     boolean getBoolean(int index);
@@ -371,7 +369,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a BigInteger.
      *
-     * @param colName
+     * @param index
      * @return
      */
     BigInteger getBigInteger(int index);
@@ -379,7 +377,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a BigDecimal.
      *
-     * @param colName
+     * @param index
      * @return
      */
     BigDecimal getBigDecimal(int index);
@@ -387,7 +385,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Instant. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * </br>
+     * 
      * If column value is Date or Date32 it will return an Instant with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return an Instant with the time part.
      *
@@ -399,24 +397,22 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ZonedDateTime. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * </br>
+     * 
      * If column value is Date or Date32 it will return a ZonedDateTime with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return a ZonedDateTime with the time part.
      *
-     * @param colName
+     * @param index
      * @return
      */
     ZonedDateTime getZonedDateTime(int index);
 
     /**
      * Returns the value of the specified column as a Duration.
-     * </br>
      * If a stored value is bigger than Long.MAX_VALUE then exception will be thrown. In such case
      * use asBigInteger() method.
-     * </br>
      * If value of IntervalQuarter then Duration will be in the unit of Months.
      *
-     * @param colName
+     * @param index
      * @return Duration in the unit of column type.
      */
     Duration getDuration(int index);
@@ -425,7 +421,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Inet4Address.
      *
-     * @param colName
+     * @param index
      * @return
      */
     Inet4Address getInet4Address(int index);
@@ -433,7 +429,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Inet6Address.
      *
-     * @param colName
+     * @param index
      * @return
      */
     Inet6Address getInet6Address(int index);
@@ -441,7 +437,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a UUID.
      *
-     * @param colName
+     * @param index
      * @return
      */
     UUID getUUID(int index);
@@ -449,7 +445,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ClickHouseGeoPointValue.
      *
-     * @param colName
+     * @param index
      * @return
      */
     ClickHouseGeoPointValue getGeoPoint(int index);
@@ -457,7 +453,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ClickHouseGeoRingValue.
      *
-     * @param colName
+     * @param index
      * @return
      */
     ClickHouseGeoRingValue getGeoRing(int index);
@@ -465,7 +461,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ClickHouseGeoPolygonValue.
      *
-     * @param colName
+     * @param index
      * @return
      */
     ClickHouseGeoPolygonValue  asGeoPolygon(int index);
@@ -473,7 +469,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ClickHouseGeoMultiPolygonValue.
      *
-     * @param colName
+     * @param index
      * @return
      */
     ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(int index);
@@ -481,7 +477,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     <T> List<T> getList(int index);
@@ -489,7 +485,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     <T> List<List<T>> getTwoDimensionalList(int index);
@@ -497,7 +493,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     <T> List<List<List<T>>> getThreeDimensionalList(int index);
@@ -505,7 +501,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     byte[] getByteArray(int index);
@@ -513,7 +509,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     int[] getIntArray(int index);
@@ -521,7 +517,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     long[] getLongArray(int index);
@@ -529,7 +525,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     float[] getFloatArray(int index);
@@ -537,7 +533,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Reads column with name `colName` as a string.
      *
-     * @param colName - column name
+     * @param index - column name
      * @return
      */
     double[] getDoubleArray(int index);

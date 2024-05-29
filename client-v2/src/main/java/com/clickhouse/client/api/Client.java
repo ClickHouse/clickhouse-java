@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -40,6 +39,7 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -302,7 +302,7 @@ public class Client {
                                          InsertSettings settings) {
 
         String operationId = startOperation();
-        settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+        settings.setOperationId(operationId);
         globalClientStats.get(operationId).start("serialization");
 
         if (data == null || data.isEmpty()) {
@@ -315,12 +315,7 @@ public class Client {
         }
 
         boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
-        if (hasDefaults) {
-            settings.setFormat(ClickHouseFormat.RowBinaryWithDefaults);
-        } else {
-            settings.setFormat(ClickHouseFormat.RowBinary);
-        }
-
+        ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
 
         //Create an output stream to write the data to
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -344,7 +339,7 @@ public class Client {
 
         globalClientStats.get(operationId).stop("serialization");
         LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
-        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
+        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
     }
 
     /**
@@ -352,11 +347,12 @@ public class Client {
      */
     public Future<InsertResponse> insert(String tableName,
                                      InputStream data,
+                                     ClickHouseFormat format,
                                      InsertSettings settings) {
-        String operationId = (String) settings.getSetting(INTERNAL_OPERATION_ID);
+        String operationId = (String) settings.getOperationId();
         if (operationId == null) {
             operationId = startOperation();
-            settings.setSetting(INTERNAL_OPERATION_ID, operationId);
+            settings.setOperationId(operationId);
         }
         OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
         clientStats.start("insert");
@@ -364,8 +360,7 @@ public class Client {
         CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
         try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
-                    .format(settings.getFormat());
+            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings).format(format);
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -396,20 +391,60 @@ public class Client {
     }
 
     /**
-     * Sends data query to the server and returns a reference to a result descriptor.
-     * Control is returned when server accepted the query and started processing it.
-     * <br/>
-     * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
-     * Format may be specified in either the `sqlQuery` or the `settings`.
-     * If specified in both, the `sqlQuery` will take precedence.
-     * <br/>
-     * Default output format is RowBinaryWithNamesAndTypes.
+     * Sends SQL query to server. Default settings are applied.
+
+     * @param sqlQuery - complete SQL query.
+     * @return Future<QueryResponse> - a promise to query response.
+     */
+    public Future<QueryResponse> query(String sqlQuery) {
+        return query(sqlQuery, null, null);
+    }
+
+    /**
+     * Sends SQL query to server.
+     * <ul>
+     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
+     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * </ul>
+     * @param sqlQuery - complete SQL query.
+     * @param settings - query operation settings.
+     * @return Future<QueryResponse> - a promise to query response.
+     */
+    public Future<QueryResponse> query(String sqlQuery, QuerySettings settings) {
+        return query(sqlQuery, null, settings);
+    }
+
+
+
+    /**
+     * Sends SQL query to server with parameters. The map `queryParams` should contain keys that
+     * match the placeholders in the SQL query.
+     * <br>
+     * Parametrized query example:
+     * Sql:
+     * <pre>
+     * SELECT * FROM table WHERE int_column = {id:UInt8} and string_column = {phrase:String}
+     * </pre>
+     * queryParams:
+     * <pre>
+     *      Map<String, Object> queryParams = new HashMap<>();
+     *      queryParams.put("id", 1);
+     *      queryParams.put("phrase", "hello");
+     * </pre>
+     *
+     * <ul>
+     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
+     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * </ul>
+     *
+     *
      *
      * @param sqlQuery - complete SQL query.
-     * @param settings
-     * @return
+     * @param settings - query operation settings.
+     * @param queryParams - query parameters that are sent to the server. (Optional)
+     * @return Future<QueryResponse> - a promise to query response.
      */
-    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
+    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
         if (settings == null) {
             settings = new QuerySettings();
         }
@@ -421,19 +456,26 @@ public class Client {
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
+        if (settings == null) {
+            settings = new QuerySettings();
+            settings.setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        }
+
+        ExecutorService executor = queryExecutor;
+        if (settings.getExecutorService() != null) {
+            executor = settings.getExecutorService();
+        }
+
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
+        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
         request.query(sqlQuery, settings.getQueryId());
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
-        if (qparams != null && !qparams.isEmpty()) {
-            request.params(qparams);
-        }
 
         CompletableFuture<QueryResponse> future = new CompletableFuture<>();
         final QuerySettings finalSettings = settings;
-        queryExecutor.submit(() -> {
-            MDC.put("queryId", finalSettings.getQueryId());
+        executor.submit(() -> {
+            MDC.put("queryId", finalSettings.getQueryID());
             LOG.trace("Executing request: {}", request);
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
@@ -476,14 +518,15 @@ public class Client {
     private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
         if (settings == null) return request.table(tableName);
 
-        if (settings.getSetting("query_id") != null) {
-            request.table(tableName, settings.getSetting("query_id").toString());
+        if (settings.getQueryId() != null) {//This has to be handled separately
+            request.table(tableName, settings.getQueryId());
         } else {
             request.table(tableName);
         }
 
-        if (settings.getSetting("insert_deduplication_token") != null) {
-            request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
+        //For each setting, set the value in the request
+        for (Map.Entry<String, Object> entry : settings.getAllSettings().entrySet()) {
+            request.set(entry.getKey(), String.valueOf(entry.getValue()));
         }
 
         return request;
