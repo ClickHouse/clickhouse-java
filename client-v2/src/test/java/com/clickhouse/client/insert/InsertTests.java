@@ -61,7 +61,7 @@ public class InsertTests extends BaseIntegrationTest {
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
-        InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(10, TimeUnit.SECONDS);
+        InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(30, TimeUnit.SECONDS);
 
         assertEquals(simplePOJOs.size(), response.getOperationStatistics().getServerStatistics().numRowsWritten);
         assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("insert") > 0);

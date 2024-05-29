@@ -1,12 +1,15 @@
 package com.clickhouse.client.api.insert;
 
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.data.ClickHouseFormat;
-
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class InsertSettings {
+    private static final int DEFAULT_INPUT_STREAM_BATCH_SIZE = 8196;
+
+    private String queryId;
+    private int inputStreamBatchSize;
+    private String operationId;
     Map<String, Object> rawSettings;
 
     public InsertSettings() {
@@ -21,7 +24,8 @@ public class InsertSettings {
     }
 
     private void setDefaults() {// Default settings, for now a very small list
-        this.setInputStreamBatchSize(8196);
+        this.setInputStreamBatchSize(DEFAULT_INPUT_STREAM_BATCH_SIZE);
+        this.queryId = null;
     }
 
     public Object getSetting(String option) {
@@ -32,19 +36,16 @@ public class InsertSettings {
         rawSettings.put(option, value);
     }
 
-
-    public ClickHouseFormat getFormat() {
-        return (ClickHouseFormat) rawSettings.get(ClickHouseClientOption.FORMAT.getKey());
+    /**
+     * Get all settings as an unmodifiable map.
+     *
+     * @return all settings
+     */
+    public Map<String, Object> getAllSettings() {
+        return Collections.unmodifiableMap(rawSettings);
     }
-    public InsertSettings setFormat(ClickHouseFormat format) {
-        rawSettings.put(ClickHouseClientOption.FORMAT.getKey(), format);
-        return this;
-    }
 
 
-    public String getDeduplicationToken() {
-        return (String) rawSettings.get("insert_deduplication_token");
-    }
     public InsertSettings setDeduplicationToken(String deduplicationToken) {
         rawSettings.put("insert_deduplication_token", deduplicationToken);
         return this;
@@ -52,19 +53,27 @@ public class InsertSettings {
 
 
     public String getQueryId() {
-        return (String) rawSettings.get("query_id");
+        return this.queryId;
     }
     public InsertSettings setQueryId(String queryId) {
-        rawSettings.put("query_id", queryId);
+        this.queryId = queryId;
         return this;
     }
 
 
     public int getInputStreamBatchSize() {
-        return (int) rawSettings.get("input_stream_batch_size");
+        return this.inputStreamBatchSize;
     }
     public InsertSettings setInputStreamBatchSize(int inputStreamBatchSize) {
-        rawSettings.put("input_stream_batch_size", inputStreamBatchSize);
+        this.inputStreamBatchSize = inputStreamBatchSize;
+        return this;
+    }
+
+    public String getOperationId() {
+        return this.operationId;
+    }
+    public InsertSettings setOperationId(String operationId) {
+        this.operationId = operationId;
         return this;
     }
 }
