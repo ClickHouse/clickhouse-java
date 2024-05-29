@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -383,23 +382,70 @@ public class Client {
     }
 
     /**
-     * Sends data query to the server and returns a reference to a result descriptor.
-     * Control is returned when server accepted the query and started processing it.
-     * <br/>
-     * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
-     * Format may be specified in either the `sqlQuery` or the `settings`.
-     * If specified in both, the `sqlQuery` will take precedence.
+     * Sends SQL query to server. Default settings are applied.
+
+     * @param sqlQuery - complete SQL query.
+     * @return Future<QueryResponse> - a promise to query response.
+     */
+    public Future<QueryResponse> query(String sqlQuery) {
+        return query(sqlQuery, null, null);
+    }
+
+    /**
+     * Sends SQL query to server.
+     * <ul>
+     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
+     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * </ul>
+     * @param sqlQuery - complete SQL query.
+     * @param settings - query operation settings.
+     * @return Future<QueryResponse> - a promise to query response.
+     */
+    public Future<QueryResponse> query(String sqlQuery, QuerySettings settings) {
+        return query(sqlQuery, null, settings);
+    }
+
+
+
+    /**
+     * Sends SQL query to server with parameters. The map `queryParams` should contain keys that
+     * match the placeholders in the SQL query.
+     * <br>
+     * Parametrized query example:
+     * Sql:
+     * <pre>
+     * SELECT * FROM table WHERE int_column = {id:UInt8} and string_column = {phrase:String}
+     * </pre>
+     * queryParams:
+     * <pre>
+     *      Map<String, Object> queryParams = new HashMap<>();
+     *      queryParams.put("id", 1);
+     *      queryParams.put("phrase", "hello");
+     * </pre>
+     *
+     * <ul>
+     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
+     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * </ul>
+     *
+     *
      *
      * @param sqlQuery - complete SQL query.
-     * @param settings
-     * @return
+     * @param settings - query operation settings.
+     * @param queryParams - query parameters that are sent to the server. (Optional)
+     * @return Future<QueryResponse> - a promise to query response.
      */
-    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
+    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
 
         OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
         clientStats.start("query");
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
+
+        if (settings == null) {
+            settings = new QuerySettings();
+            settings.setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        }
 
         ExecutorService executor = queryExecutor;
         if (settings.getExecutorService() != null) {
@@ -407,20 +453,18 @@ public class Client {
         }
 
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
+        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
         request.query(sqlQuery, settings.getQueryID());
         final ClickHouseFormat format = ClickHouseFormat.valueOf(settings.getFormat());
         request.format(format);
-        if (qparams != null && !qparams.isEmpty()) {
-            request.params(qparams);
-        }
 
         CompletableFuture<QueryResponse> future = new CompletableFuture<>();
+        final QuerySettings finalSettings = settings;
         executor.submit(() -> {
-            MDC.put("queryId", settings.getQueryID());
+            MDC.put("queryId", finalSettings.getQueryID());
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), settings, format, clientStats);
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
                 future.complete(queryResponse);
             } catch (Exception e) {

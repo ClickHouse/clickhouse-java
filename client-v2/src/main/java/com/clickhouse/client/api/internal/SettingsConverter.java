@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 public class SettingsConverter {
 
-    public static Map<String, Serializable> toRequestSettings(Map<String, Object> settings) {
+    public static Map<String, Serializable> toRequestSettings(Map<String, Object> settings, Map<String, Object> queryParams) {
         Map<String, Serializable> requestSettings = new HashMap<>();
 
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
@@ -33,6 +33,10 @@ public class SettingsConverter {
             } else {
                 requestSettings.put(entry.getKey(), (Serializable) entry.getValue());
             }
+        }
+
+        if (queryParams != null && !queryParams.isEmpty()) {
+            queryParams.entrySet().forEach(e -> requestSettings.put("param_" + e.getKey(), (Serializable) e.getValue()));
         }
 
         return requestSettings;
