@@ -31,18 +31,10 @@ public class ClickHouseResult implements Result {
                                 .map(rec -> ClickHousePair.of(resp.getColumns(), rec))))
                     .map(pair -> new ClickHouseRow(pair.getRight(), pair.getLeft()))
                 .map(RowSegment::new);
-
-        this.updatedCount = Mono.using(() -> response,
-                resp -> Mono.just(response).map(ClickHouseResponse::getSummary)
-                        .map(ClickHouseResponseSummary::getProgress)
-                        .map(ClickHouseResponseSummary.Progress::getWrittenRows)
-                        .map(UpdateCount::new),
-                resp -> {
-                    if (!resp.isClosed()) {
-                        resp.close();
-                    }
-                });
-
+        this.updatedCount =  Mono.just(response).map(ClickHouseResponse::getSummary)
+                .map(ClickHouseResponseSummary::getProgress)
+                .map(ClickHouseResponseSummary.Progress::getWrittenRows)
+                .map(UpdateCount::new);
         this.segments = Flux.concat(this.updatedCount, this.rowSegments);
     }
 
