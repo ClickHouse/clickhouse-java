@@ -16,6 +16,7 @@ import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -182,15 +183,9 @@ public class Client {
          * @param port - Endpoint port
          */
         public Builder addEndpoint(Protocol protocol, String host, int port) {
-            if (host == null || host.isEmpty()) {
-                throw new IllegalArgumentException("Host is required");
-            }
-            if (port <= 0) {
-                throw new IllegalArgumentException("Port is required");
-            }
-            if (protocol == null) {
-                throw new IllegalArgumentException("Protocol is required");
-            }
+            ValidationUtils.checkNonBlank(host, "host");
+            ValidationUtils.checkNotNull(protocol, "protocol");
+            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
             String endpoint = String.format("%s://%s:%d", protocol.toString().toLowerCase(), host, port);
             this.addEndpoint(endpoint);
@@ -238,7 +233,7 @@ public class Client {
          *
          * @param accessToken - plain text access token
          */
-        public Builder addAccessToken(String accessToken) {
+        public Builder setAccessToken(String accessToken) {
             this.configuration.put("access_token", accessToken);
             return this;
         }
@@ -408,11 +403,14 @@ public class Client {
     }
 
     /**
-     * Pings the server to check if it is alive
+     * Pings the server to check if it is alive. Maximum timeout is 10 minutes.
+     *
      * @param timeout timeout in milliseconds
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
+        ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
+                "timeout");
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         return clientPing.ping(getServerNode(), Math.toIntExact(timeout));
     }
