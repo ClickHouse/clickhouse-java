@@ -28,8 +28,8 @@ public class MetadataTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(node.getBaseUri() + "default")
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
     }
 

@@ -41,6 +41,15 @@ public class ClickHouseTabSeparatedProcessorTest extends BaseDataProcessorTest {
                 { UUID.randomUUID().toString(), 256 } };
     }
 
+    @DataProvider(name = "specialCkDoubleDataProvider")
+    private Object[][] getSpecialCkDoubleData() {
+        return new Object[][] {
+                { "inf", Double.POSITIVE_INFINITY },
+                { "+inf", Double.POSITIVE_INFINITY },
+                { "-inf", Double.NEGATIVE_INFINITY },
+                { "nan", Double.NaN } };
+    }
+
     @Override
     protected ClickHouseDataProcessor getDataProcessor(ClickHouseDataConfig config, ClickHouseColumn column,
             ClickHouseInputStream input, ClickHouseOutputStream output) throws IOException {
@@ -183,6 +192,25 @@ public class ClickHouseTabSeparatedProcessorTest extends BaseDataProcessorTest {
             count++;
         }
         Assert.assertEquals(count, rows);
+    }
+
+    @Test(dataProvider = "specialCkDoubleDataProvider", groups = { "unit" })
+    public void testReadSpecialCkDoubleData(String specialCkDouble, Double d) throws IOException {
+        String result = String.format("\\'%s\\'\nDouble\n%s\n", specialCkDouble, specialCkDouble);
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig() {
+            @Override
+            public ClickHouseFormat getFormat() {
+                return ClickHouseFormat.TabSeparatedWithNamesAndTypes;
+            }
+        };
+        ClickHouseInputStream input = ClickHouseInputStream.of(Collections.singletonList(result), String.class,
+                s -> s.getBytes(), null);
+        ClickHouseTabSeparatedProcessor p = new ClickHouseTabSeparatedProcessor(config, input, null, null, null);
+        Assert.assertEquals(p.getColumns(),
+                Collections.singletonList(ClickHouseColumn.of(String.format("'%s'", specialCkDouble), "Double")));
+        for (ClickHouseRecord r : p.records()) {
+            Assert.assertEquals(r.getValue(0).asDouble(), d);
+        }
     }
 
     @Test(groups = { "unit" })

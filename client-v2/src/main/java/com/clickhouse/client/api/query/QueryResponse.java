@@ -1,7 +1,9 @@
 package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -49,17 +51,10 @@ public class QueryResponse implements AutoCloseable {
         this.operationStatistics = new OperationStatistics(clientStatistics);
     }
 
-    public boolean isCompleted() {
-        if (completed) {
-            return true;
-        }
-        if (responseRef.isDone()) {
-            makeComplete();
-        }
-
-        return completed;
-    }
-
+    /**
+     * Called internally to finalize the query execution.
+     * Do not call this method directly.
+     */
     public void ensureDone() {
         if (!completed) {
             // TODO: thread-safety
@@ -74,7 +69,7 @@ public class QueryResponse implements AutoCloseable {
             operationStatistics.clientStatistics.stop("query");
             this.operationStatistics.updateServerStats(response.getSummary());
         } catch (TimeoutException | InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e); // TODO: handle exception
+            throw new ClientException("Query request failed", e);
         }
     }
 
@@ -92,7 +87,7 @@ public class QueryResponse implements AutoCloseable {
         try {
             client.close();
         } catch (Exception e) {
-            // TODO: decide about logging
+            throw new ClientException("Failed to close client", e);
         }
     }
 

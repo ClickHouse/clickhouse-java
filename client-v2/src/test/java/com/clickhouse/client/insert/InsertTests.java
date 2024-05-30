@@ -1,19 +1,27 @@
 package com.clickhouse.client.insert;
 
-import com.clickhouse.client.*;
+import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.Protocol;
-import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.Client;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 public class InsertTests extends BaseIntegrationTest {
     private Client client;
@@ -24,8 +32,8 @@ public class InsertTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
@@ -41,7 +49,7 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" }, enabled = true)
-    public void insertSimplePOJOs() throws ClickHouseException, ClientException, IOException {
+    public void insertSimplePOJOs() throws Exception {
         String tableName = "simple_pojo_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
@@ -53,7 +61,7 @@ public class InsertTests extends BaseIntegrationTest {
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
-        InsertResponse response = client.insert(tableName, simplePOJOs, settings);
+        InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(30, TimeUnit.SECONDS);
 
         assertEquals(simplePOJOs.size(), response.getOperationStatistics().getServerStatistics().numRowsWritten);
         assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("insert") > 0);
