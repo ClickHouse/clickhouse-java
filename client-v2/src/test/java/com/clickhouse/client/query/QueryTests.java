@@ -68,8 +68,8 @@ public class QueryTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
 
         delayForProfiler(0);
@@ -114,7 +114,7 @@ public class QueryTests extends BaseIntegrationTest {
         List<QuerySettings> settingsList = Arrays.asList(
                 new QuerySettings()
                         .setFormat(ClickHouseFormat.JSONEachRow)
-                        .setSetting("format_json_quote_64bit_integers", "true"),
+                        .setOption("format_json_quote_64bit_integers", "true"),
 
                 new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
         List<Boolean> expected = Arrays.asList(true, false);
@@ -1049,10 +1049,10 @@ public class QueryTests extends BaseIntegrationTest {
             writer.write("2\t'two'\n");
             writer.write("3\t'three'\n");
         }
-        InsertSettings insertSettings = new InsertSettings().setFormat(ClickHouseFormat.TabSeparated);
-        client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), insertSettings).get();
+        InsertSettings insertSettings = new InsertSettings();
+        client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
 
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
         Map<String, Object> queryParams = new HashMap<>();
         queryParams.put("param1", 2);
         QueryResponse queryResponse =

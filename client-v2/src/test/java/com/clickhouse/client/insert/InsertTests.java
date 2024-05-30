@@ -32,8 +32,8 @@ public class InsertTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
