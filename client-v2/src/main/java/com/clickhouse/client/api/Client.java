@@ -36,10 +36,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,11 +52,44 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
+/**
+ * <p>Client is the starting point for all interactions with ClickHouse. </p>
+ *
+ * <p>{@link Builder} is designed to construct a client object with required configuration:</p>
+ *  <pre>{@code
+ *
+ *  Client client = new Client.Builder()
+ *        .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
+ *        .addUsername("default")
+ *        .build();
+ *        }
+ *  </pre>
+ *
+ *
+ * <p>When client object is created any operation method can be called on it:</p>
+ * <pre>{@code
+ *
+ *  if (client.ping()) {
+ *      QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+ *      Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
+ *      QueryResponse queryResponse = response.get();
+ *  }
+ *  }
+ * </pre>
+ *
+ *
+ * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
+ *
+ */
 public class Client {
-    public static final int TIMEOUT = 30_000;
+    private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(30);
+
+    private static final String DEFAULT_DB_NAME = "default";
+
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
@@ -91,6 +124,15 @@ public class Client {
         LOG.debug("Query executor created with {} threads", numThreads);
     }
 
+    /**
+     * Returns default database name that will be used by operations if not specified.
+     *
+     * @return String - actual default database name.
+     */
+    public String getDefaultDatabase() {
+        return this.configuration.get("database");
+    }
+
     public static class Builder {
         private Set<String> endpoints;
         private Map<String, String> configuration;
@@ -103,92 +145,233 @@ public class Client {
                     .setSocketTimeout(2, SECONDS)
                     .setSocketRcvbuf(804800)
                     .setSocketSndbuf(804800)
-                    .enableCompression(true)
-                    .enableDecompression(false);
+                    .compressServerResponse(true)
+                    .compressClientRequest(false);
         }
 
+        /**
+         * Server address to which client may connect. If there are multiple endpoints then client will
+         * connect to one of them.
+         * Acceptable formats are:
+         * <ul>
+         *     <li>{@code http://localhost:8123}</li>
+         *     <li>{@code https://localhost:8443}</li>
+         * </ul>
+         *
+         * @param endpoint - URL formatted string with protocol, host and port.
+         */
         public Builder addEndpoint(String endpoint) {
-            // TODO: validate endpoint
+            try {
+                URL endpointURL = new java.net.URL(endpoint);
+                if (!(endpointURL.getProtocol().equalsIgnoreCase("https") ||
+                        endpointURL.getProtocol().equalsIgnoreCase("http"))) {
+                    throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
+                }
+            } catch (java.net.MalformedURLException e) {
+                throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
+            }
             this.endpoints.add(endpoint);
             return this;
         }
 
+        /**
+         * Server address to which client may connect. If there are multiple endpoints then client will
+         * connect to one of them.
+         *
+         * @param protocol - Endpoint protocol
+         * @param host - Endpoint host
+         * @param port - Endpoint port
+         */
         public Builder addEndpoint(Protocol protocol, String host, int port) {
+            ValidationUtils.checkNonBlank(host, "host");
+            ValidationUtils.checkNotNull(protocol, "protocol");
+            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
+
             String endpoint = String.format("%s://%s:%d", protocol.toString().toLowerCase(), host, port);
             this.addEndpoint(endpoint);
             return this;
         }
 
-        public Builder addConfiguration(String key, String value) {
+
+        /**
+         * Sets a configuration option. This method can be used to set any configuration option.
+         * There is no specific validation is done on the key or value.
+         *
+         * @param key - configuration option name
+         * @param value - configuration option value
+         */
+        public Builder setOption(String key, String value) {
             this.configuration.put(key, value);
             return this;
         }
 
-        public Builder addUsername(String username) {
+        /**
+         * Username for authentication with server. Required for all operations.
+         * Same username will be used for all endpoints.
+         *
+         * @param username - a valid username
+         */
+        public Builder setUsername(String username) {
             this.configuration.put("user", username);
             return this;
         }
 
-        public Builder addPassword(String password) {
+        /**
+         * Password for authentication with server. Required for all operations.
+         * Same password will be used for all endpoints.
+         *
+         * @param password - plain text password
+         */
+        public Builder setPassword(String password) {
             this.configuration.put("password", password);
             return this;
         }
 
-        public Builder addAccessToken(String accessToken) {
+        /**
+         * Access token for authentication with server. Required for all operations.
+         * Same access token will be used for all endpoints.
+         *
+         * @param accessToken - plain text access token
+         */
+        public Builder setAccessToken(String accessToken) {
             this.configuration.put("access_token", accessToken);
             return this;
         }
 
         // SOCKET SETTINGS
-        public Builder setConnectTimeout(long size) {
-            this.configuration.put("connect_timeout", String.valueOf(size));
-            return this;
-        }
-        public Builder setConnectTimeout(long amount, ChronoUnit unit) {
-            this.setConnectTimeout(Duration.of(amount, unit).toMillis());
+
+        /**
+         * Default connection timeout in milliseconds. Timeout is applied to establish a connection.
+         *
+         * @param timeout - connection timeout in milliseconds
+         */
+        public Builder setConnectTimeout(long timeout) {
+            this.configuration.put("connect_timeout", String.valueOf(timeout));
             return this;
         }
 
-        public Builder setSocketTimeout(long size) {
-            this.configuration.put("socket_timeout", String.valueOf(size));
+        /**
+         * Default connection timeout in milliseconds. Timeout is applied to establish a connection.
+         *
+         * @param timeout - connection timeout value
+         * @param unit - time unit
+         */
+        public Builder setConnectTimeout(long timeout, ChronoUnit unit) {
+            return this.setConnectTimeout(Duration.of(timeout, unit).toMillis());
+        }
+
+        /**
+         * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
+         *
+         * @param timeout - socket timeout in milliseconds
+         */
+        public Builder setSocketTimeout(long timeout) {
+            this.configuration.put("socket_timeout", String.valueOf(timeout));
             return this;
         }
-        public Builder setSocketTimeout(long amount, ChronoUnit unit) {
-            this.setSocketTimeout(Duration.of(amount, unit).toMillis());
-            return this;
+
+        /**
+         * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
+         *
+         * @param timeout - socket timeout value
+         * @param unit - time unit
+         */
+        public Builder setSocketTimeout(long timeout, ChronoUnit unit) {
+            return this.setSocketTimeout(Duration.of(timeout, unit).toMillis());
         }
+
+        /**
+         * Default socket receive buffer size in bytes.
+         *
+         * @param size - socket receive buffer size in bytes
+         */
         public Builder setSocketRcvbuf(long size) {
             this.configuration.put("socket_rcvbuf", String.valueOf(size));
             return this;
         }
+
+        /**
+         * Default socket send buffer size in bytes.
+         *
+         * @param size - socket send buffer size in bytes
+         */
         public Builder setSocketSndbuf(long size) {
             this.configuration.put("socket_sndbuf", String.valueOf(size));
             return this;
         }
-        public Builder setSocketReuseaddr(boolean value) {
+
+        /**
+         * Default socket reuse address option.
+         *
+         * @param value - socket reuse address option
+         */
+        public Builder setSocketReuseAddress(boolean value) {
             this.configuration.put("socket_reuseaddr", String.valueOf(value));
             return this;
         }
-        public Builder setSocketKeepalive(boolean value) {
+
+        /**
+         * Default socket keep alive option.If set to true socket will be kept alive
+         * until terminated by one of the parties.
+         *
+         * @param value - socket keep alive option
+         */
+        public Builder setSocketKeepAlive(boolean value) {
             this.configuration.put("socket_keepalive", String.valueOf(value));
             return this;
         }
+
+        /**
+         * Default socket tcp_no_delay option. If set to true, disables Nagle's algorithm.
+         *
+         * @param value - socket tcp no delay option
+         */
         public Builder setSocketTcpNodelay(boolean value) {
             this.configuration.put("socket_tcp_nodelay", String.valueOf(value));
             return this;
         }
+
+        /**
+         * Default socket linger option. If set to true, socket will linger for the specified time.
+         *
+         * @param secondsToWait - socket linger time in seconds
+         */
         public Builder setSocketLinger(int secondsToWait) {
             this.configuration.put("socket_linger", String.valueOf(secondsToWait));
             return this;
         }
-        public Builder enableCompression(boolean enabled) {
+
+        /**
+         * Server response compression. If set to true server will compress the response.
+         * Has most effect for read operations.
+         *
+         * @param enabled - indicates if server response compression is enabled
+         */
+        public Builder compressServerResponse(boolean enabled) {
             this.configuration.put("compress", String.valueOf(enabled));
             return this;
         }
-        public Builder enableDecompression(boolean enabled) {
+
+        /**
+         * Client request compression. If set to true client will compress the request.
+         * Has most effect for write operations.
+         *
+         * @param enabled - indicates if client request compression is enabled
+         */
+        public Builder compressClientRequest(boolean enabled) {
             this.configuration.put("decompress", String.valueOf(enabled));
             return this;
         }
+
+        /**
+         * Sets the default database name that will be used by operations if not specified.
+         * @param database - actual default database name.
+         */
+        public Builder setDefaultDatabase(String database) {
+            this.configuration.put("database", database);
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -197,6 +380,10 @@ public class Client {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
                 throw new IllegalArgumentException("Username and password are required");
+            }
+            // set default database name if not specified
+            if (!this.configuration.containsKey("database")) {
+                this.configuration.put("database", DEFAULT_DB_NAME);
             }
             return new Client(this.endpoints, this.configuration);
         }
@@ -208,7 +395,7 @@ public class Client {
     }
 
     /**
-     * Ping the server to check if it is alive
+     * Pings the server to check if it is alive
      * @return true if the server is alive, false otherwise
      */
     public boolean ping() {
@@ -216,17 +403,24 @@ public class Client {
     }
 
     /**
-     * Ping the server to check if it is alive
+     * Pings the server to check if it is alive. Maximum timeout is 10 minutes.
+     *
      * @param timeout timeout in milliseconds
      * @return true if the server is alive, false otherwise
      */
-    public boolean ping(int timeout) {
+    public boolean ping(long timeout) {
+        ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
+                "timeout");
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-        return clientPing.ping(getServerNode(), timeout);
+        return clientPing.ping(getServerNode(), Math.toIntExact(timeout));
     }
 
+
     /**
-     * Register the POJO
+     * <p>Registers a POJO class and maps its fields to a table schema</p>
+     *
+     * @param clazz - class of a POJO
+     * @param schema - correlating table schema
      */
     public void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
@@ -286,7 +480,22 @@ public class Client {
     }
 
     /**
-     * Insert data into ClickHouse using a POJO
+     * <p>Sends write request to database. List of objects is converted into a most suitable format
+     * then it is sent to a server. Members of the list must be pre-registered using
+     * {@link #register(Class, TableSchema)} method:</p>
+     *
+     * <pre>{@code
+     * client.register(SamplePOJO.class, tableSchema);
+     * List<Object> input = new ArrayList<>();
+     * // ... Insert some items into input list
+     * Future<InsertResponse> response = client.insert(tableName, simplePOJOs, settings);
+     * }
+     * </pre>
+     *
+     * @param tableName - destination table name
+     * @param data  - data stream to insert
+     * @param settings - insert operation settings
+     * @return {@code Future<InsertResponse>} - a promise to insert response
      */
     public Future<InsertResponse> insert(String tableName,
                                          List<Object> data,
@@ -334,7 +543,13 @@ public class Client {
     }
 
     /**
-     * Insert data into ClickHouse using a binary stream
+     * <p>Sends write request to database. Input data is read from the input stream.</p>
+     *
+     * @param tableName - destination table name
+     * @param data  - data stream to insert
+     * @param format - format of the data in the stream
+     * @param settings - insert operation settings
+     * @return {@code Future<InsertResponse>} - a promise to insert response
      */
     public Future<InsertResponse> insert(String tableName,
                                      InputStream data,
@@ -357,7 +572,7 @@ public class Client {
                 future = request.data(stream.getInputStream()).execute();
 
                 //Copy the data from the input stream to the output stream
-                byte[] buffer = new byte[settings.getInputStreamBatchSize()];
+                byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
                 int bytesRead;
                 while ((bytesRead = data.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
@@ -383,23 +598,23 @@ public class Client {
 
     /**
      * Sends SQL query to server. Default settings are applied.
-
      * @param sqlQuery - complete SQL query.
-     * @return Future<QueryResponse> - a promise to query response.
+     * @return {@code Future<QueryResponse>} - a promise to query response.
      */
     public Future<QueryResponse> query(String sqlQuery) {
         return query(sqlQuery, null, null);
     }
 
     /**
-     * Sends SQL query to server.
+     * <p>Sends SQL query to server.</p>
+     * <b>Notes:</b>
      * <ul>
      * <li>Server response format can be specified thru `settings` or in SQL query.</li>
      * <li>If specified in both, the `sqlQuery` will take precedence.</li>
      * </ul>
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
-     * @return Future<QueryResponse> - a promise to query response.
+     * @return {@code Future<QueryResponse>} - a promise to query response.
      */
     public Future<QueryResponse> query(String sqlQuery, QuerySettings settings) {
         return query(sqlQuery, null, settings);
@@ -408,60 +623,56 @@ public class Client {
 
 
     /**
-     * Sends SQL query to server with parameters. The map `queryParams` should contain keys that
-     * match the placeholders in the SQL query.
-     * <br>
-     * Parametrized query example:
-     * Sql:
-     * <pre>
+     * <p>Sends SQL query to server with parameters. The map `queryParams` should contain keys that
+     * match the placeholders in the SQL query.</p>
+     * <p>For a parametrized query like:</p>
+     * <pre>{@code
      * SELECT * FROM table WHERE int_column = {id:UInt8} and string_column = {phrase:String}
+     * }
      * </pre>
-     * queryParams:
-     * <pre>
+     *
+     * <p>Code to set the queryParams would be:</p>
+     * <pre>{@code
      *      Map<String, Object> queryParams = new HashMap<>();
      *      queryParams.put("id", 1);
      *      queryParams.put("phrase", "hello");
+     *      }
      * </pre>
      *
+     * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
-     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * <li>Server response format can be specified thru {@code settings} or in SQL query.</li>
+     * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
      * </ul>
-     *
-     *
      *
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
      * @param queryParams - query parameters that are sent to the server. (Optional)
-     * @return Future<QueryResponse> - a promise to query response.
+     * @return {@code Future<QueryResponse>} - a promise to query response.
      */
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
-
+        if (settings == null) {
+            settings = new QuerySettings();
+        }
+        if (settings.getFormat() == null) {
+            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
         OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
         clientStats.start("query");
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
-        if (settings == null) {
-            settings = new QuerySettings();
-            settings.setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
-        }
-
-        ExecutorService executor = queryExecutor;
-        if (settings.getExecutorService() != null) {
-            executor = settings.getExecutorService();
-        }
 
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
-        request.query(sqlQuery, settings.getQueryID());
-        final ClickHouseFormat format = ClickHouseFormat.valueOf(settings.getFormat());
+        request.query(sqlQuery, settings.getQueryId());
+        final ClickHouseFormat format = settings.getFormat();
         request.format(format);
 
         CompletableFuture<QueryResponse> future = new CompletableFuture<>();
         final QuerySettings finalSettings = settings;
-        executor.submit(() -> {
-            MDC.put("queryId", finalSettings.getQueryID());
+        queryExecutor.submit(() -> {
+            MDC.put("queryId", finalSettings.getQueryId());
             LOG.trace("Executing request: {}", request);
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
@@ -476,10 +687,29 @@ public class Client {
         return future;
     }
 
+    /**
+     * <p>Fetches schema of a table and returns complete information about each column.
+     * Information includes column name, type, default value, etc.</p>
+     *
+     * <p>See {@link #register(Class, TableSchema)}</p>
+     *
+     * @param table - table name
+     * @return {@code TableSchema} - Schema of the table
+     */
     public TableSchema getTableSchema(String table) {
-        return getTableSchema(table, "default");
+        return getTableSchema(table, configuration.get("database"));
     }
 
+    /**
+     * <p>Fetches schema of a table and returns complete information about each column.
+     * Information includes column name, type, default value, etc.</p>
+     *
+     * <p>See {@link #register(Class, TableSchema)}</p>
+     *
+     * @param table - table name
+     * @param database - database name
+     * @return {@code TableSchema} - Schema of the table
+     */
     public TableSchema getTableSchema(String table, String database) {
         try (ClickHouseClient clientQuery = createClient()) {
             ClickHouseRequest request = clientQuery.read(getServerNode());
@@ -517,35 +747,6 @@ public class Client {
 
         return request;
     }
-
-    private static final Set<String> COMPRESS_ALGORITHMS = ValidationUtils.whiteList("LZ4", "LZ4HC", "ZSTD", "ZSTDHC", "NONE");
-
-    public static Set<String> getCompressAlgorithms() {
-        return COMPRESS_ALGORITHMS;
-    }
-
-    private static final Set<String> OUTPUT_FORMATS = createFormatWhitelist("output");
-
-    private static final Set<String> INPUT_FORMATS = createFormatWhitelist("input");
-
-    public static Set<String> getOutputFormats() {
-        return OUTPUT_FORMATS;
-    }
-
-    private static Set<String> createFormatWhitelist(String shouldSupport) {
-        Set<String> formats = new HashSet<>();
-        boolean supportOutput = "output".equals(shouldSupport);
-        boolean supportInput = "input".equals(shouldSupport);
-        boolean supportBoth = "both".equals(shouldSupport);
-        for (ClickHouseFormat format : ClickHouseFormat.values()) {
-            if ((supportOutput && format.supportsOutput()) || (supportInput && format.supportsInput()) || (supportBoth)) {
-                formats.add(format.name());
-            }
-        }
-        return Collections.unmodifiableSet(formats);
-    }
-
-    private static final String INTERNAL_OPERATION_ID = "operationID";
 
     private String startOperation() {
         String operationId = UUID.randomUUID().toString();

@@ -68,8 +68,8 @@ public class QueryTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
 
         delayForProfiler(0);
@@ -89,7 +89,7 @@ public class QueryTests extends BaseIntegrationTest {
         prepareSimpleDataSet();
 
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated.name());
+                .setFormat(ClickHouseFormat.TabSeparated);
 
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
 
@@ -113,10 +113,10 @@ public class QueryTests extends BaseIntegrationTest {
         prepareSimpleDataSet();
         List<QuerySettings> settingsList = Arrays.asList(
                 new QuerySettings()
-                        .setFormat(ClickHouseFormat.JSONEachRow.name())
-                        .setSetting("format_json_quote_64bit_integers", "true"),
+                        .setFormat(ClickHouseFormat.JSONEachRow)
+                        .setOption("format_json_quote_64bit_integers", "true"),
 
-                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow.name()));
+                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
         List<Boolean> expected = Arrays.asList(true, false);
 
         Iterator<Boolean> expectedIterator = expected.iterator();
@@ -157,7 +157,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS,
                 DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(format.name());
+        QuerySettings settings = new QuerySettings().setFormat(format);
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), settings);
         QueryResponse queryResponse = response.get();
 
@@ -205,7 +205,7 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "dynamic_schema_test_table";
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS,
                 DATASET_VALUE_GENERATORS, 10);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
         QueryResponse queryResponse = response.get();
 
@@ -235,7 +235,7 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "dynamic_schema_row_test_table";
         final int rows = 10;
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
 
         QueryResponse queryResponse = response.get();
@@ -277,7 +277,7 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, ARRAY_COLUMNS, ARRAY_VALUE_GENERATORS, rows);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
@@ -322,7 +322,7 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, MAP_COLUMNS, MAP_VALUE_GENERATORS, rows);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
@@ -366,7 +366,7 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, NULL_DATASET_COLUMNS, NULL_DATASET_VALUE_GENERATORS, 1);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
@@ -833,7 +833,7 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("Failed at prepare stage", e);
         }
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         StringBuilder selectStmtBuilder = new StringBuilder();
         selectStmtBuilder.append("SELECT ");
         for (String column : columns) {
@@ -870,7 +870,7 @@ public class QueryTests extends BaseIntegrationTest {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated.name());
+                .setFormat(ClickHouseFormat.TabSeparated);
 
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
@@ -1049,10 +1049,10 @@ public class QueryTests extends BaseIntegrationTest {
             writer.write("2\t'two'\n");
             writer.write("3\t'three'\n");
         }
-        InsertSettings insertSettings = new InsertSettings().setFormat(ClickHouseFormat.TabSeparated);
-        client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), insertSettings).get();
+        InsertSettings insertSettings = new InsertSettings();
+        client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
 
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
         Map<String, Object> queryParams = new HashMap<>();
         queryParams.put("param1", 2);
         QueryResponse queryResponse =
