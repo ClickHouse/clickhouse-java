@@ -1,6 +1,9 @@
 package com.clickhouse.client.http;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -24,7 +27,6 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
@@ -554,5 +556,33 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             ClickHouseResponseSummary summary = response.getSummary();
             Assert.assertEquals(summary.getReadRows(), 1L);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingBinaryFromRespose() throws Exception {
+        final ClickHouseNode server = getServer();
+        String tableName = "test_protobuf_format";
+        String tableColumns = String.format("id Int64, raw String");
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ") engine=MergeTree order by tuple()");
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseResponse response = client.read(server).query("select structureToProtobufSchema ('column1 String, column2 UInt32')")
+                    .format(ClickHouseFormat.RawBLOB)
+                    .executeAndWait();
+
+            try (InputStream responseBody = response.getInputStream()) {
+                String protoSchema = new String(responseBody.readAllBytes());
+                Assert.assertEquals(protoSchema, "syntax = \"proto3\";\n" +
+                        "\n" +
+                        "message Message\n" +
+                        "{\n" +
+                        "    bytes column1 = 1;\n" +
+                        "    uint32 column2 = 2;\n" +
+                        "}");
+
+            }
+        }
+
     }
 }

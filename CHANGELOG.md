@@ -1,5 +1,12 @@
 ## Latest 
 
+### Bug Fixes
+- Fix getting response input stream for binary formats.
+  - https://github.com/ClickHouse/clickhouse-java/issues/1494
+  - https://github.com/ClickHouse/clickhouse-java/issues/1567
+  - https://github.com/ClickHouse/clickhouse-java/issues/1475
+  - https://github.com/ClickHouse/clickhouse-java/issues/1376
+
 ## 0.6.0-patch4
 
 ### New Features
