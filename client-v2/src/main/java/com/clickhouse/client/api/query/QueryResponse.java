@@ -1,7 +1,10 @@
 package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
@@ -34,25 +37,39 @@ public class QueryResponse implements AutoCloseable {
 
     private QuerySettings settings;
 
+    private OperationStatistics operationStatistics;
+
+    private volatile boolean completed = false;
+
     public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef,
-                         QuerySettings settings, ClickHouseFormat format) {
+                         QuerySettings settings, ClickHouseFormat format,
+                         OperationStatistics.ClientStatistics clientStatistics) {
         this.client = client;
         this.responseRef = responseRef;
         this.format = format;
         this.settings = settings;
+        this.operationStatistics = new OperationStatistics(clientStatistics);
     }
 
-    public boolean isDone() {
-        return responseRef.isDone();
-    }
-
+    /**
+     * Called internally to finalize the query execution.
+     * Do not call this method directly.
+     */
     public void ensureDone() {
-        if (!isDone()) {
-            try {
-                responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
-            } catch (TimeoutException | InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e); // TODO: handle exception
-            }
+        if (!completed) {
+            // TODO: thread-safety
+            makeComplete();
+        }
+    }
+
+    private void makeComplete() {
+        try {
+            ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
+            completed = true;
+            operationStatistics.clientStatistics.stop("query");
+            this.operationStatistics.updateServerStats(response.getSummary());
+        } catch (TimeoutException | InterruptedException | ExecutionException e) {
+            throw new ClientException("Query request failed", e);
         }
     }
 
@@ -70,11 +87,16 @@ public class QueryResponse implements AutoCloseable {
         try {
             client.close();
         } catch (Exception e) {
-            // TODO: decide about logging
+            throw new ClientException("Failed to close client", e);
         }
     }
 
     public ClickHouseFormat getFormat() {
         return format;
+    }
+
+    public OperationStatistics getOperationStatistics() {
+        ensureDone();
+        return operationStatistics;
     }
 }

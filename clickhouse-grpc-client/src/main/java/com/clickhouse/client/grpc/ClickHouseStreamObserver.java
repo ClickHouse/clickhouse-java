@@ -109,7 +109,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         if (result.hasProgress()) {
             Progress p = result.getProgress();
             summary.update(new ClickHouseResponseSummary.Progress(p.getReadRows(), p.getReadBytes(),
-                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes()));
+                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes(), 0L, 0L));
         }
 
         if (result.getCancelled()) {

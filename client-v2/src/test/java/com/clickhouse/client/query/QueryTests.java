@@ -11,20 +11,19 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHouseInputStream;
-import com.clickhouse.data.format.BinaryStreamUtils;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
@@ -33,18 +32,18 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -69,8 +68,8 @@ public class QueryTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
-                .addUsername("default")
-                .addPassword("")
+                .setUsername("default")
+                .setPassword("")
                 .build();
 
         delayForProfiler(0);
@@ -90,10 +89,9 @@ public class QueryTests extends BaseIntegrationTest {
         prepareSimpleDataSet();
 
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated.name());
+                .setFormat(ClickHouseFormat.TabSeparated);
 
-        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE,
-                Collections.emptyMap(), settings);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
 
         try {
             BufferedReader br = new BufferedReader(new InputStreamReader(response.get().getInputStream()));
@@ -115,15 +113,15 @@ public class QueryTests extends BaseIntegrationTest {
         prepareSimpleDataSet();
         List<QuerySettings> settingsList = Arrays.asList(
                 new QuerySettings()
-                        .setFormat(ClickHouseFormat.JSONEachRow.name())
-                        .setSetting("format_json_quote_64bit_integers", "true"),
+                        .setFormat(ClickHouseFormat.JSONEachRow)
+                        .setOption("format_json_quote_64bit_integers", "true"),
 
-                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow.name()));
+                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
         List<Boolean> expected = Arrays.asList(true, false);
 
         Iterator<Boolean> expectedIterator = expected.iterator();
         for (QuerySettings settings : settingsList) {
-            Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, null, settings);
+            Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
             QueryResponse queryResponse = response.get();
             ArrayList<JsonNode> records = new ArrayList<>();
             final ObjectMapper objectMapper = new ObjectMapper();
@@ -159,8 +157,8 @@ public class QueryTests extends BaseIntegrationTest {
 
         List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS,
                 DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(format.name());
-        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), settings);
         QueryResponse queryResponse = response.get();
 
         Map<String, Object> record = new HashMap<>();
@@ -207,8 +205,8 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "dynamic_schema_test_table";
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS,
                 DATASET_VALUE_GENERATORS, 10);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
         QueryResponse queryResponse = response.get();
 
         TableSchema schema = new TableSchema();
@@ -237,8 +235,8 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "dynamic_schema_row_test_table";
         final int rows = 10;
         List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
 
         QueryResponse queryResponse = response.get();
         TableSchema schema = new TableSchema();
@@ -279,8 +277,8 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, ARRAY_COLUMNS, ARRAY_VALUE_GENERATORS, rows);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
@@ -324,8 +322,8 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, MAP_COLUMNS, MAP_VALUE_GENERATORS, rows);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
@@ -368,8 +366,8 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 1;
         List<Map<String, Object>> data = prepareDataSet(table, NULL_DATASET_COLUMNS, NULL_DATASET_VALUE_GENERATORS, 1);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, null, settings);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
@@ -835,7 +833,7 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("Failed at prepare stage", e);
         }
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         StringBuilder selectStmtBuilder = new StringBuilder();
         selectStmtBuilder.append("SELECT ");
         for (String column : columns) {
@@ -844,7 +842,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
         selectStmtBuilder.setLength(selectStmtBuilder.length() - 2);
         selectStmtBuilder.append(" FROM ").append(table);
-        Future<QueryResponse> response = client.query(selectStmtBuilder.toString(), null, settings);
+        Future<QueryResponse> response = client.query(selectStmtBuilder.toString(), settings);
         TableSchema schema = client.getTableSchema(table);
 
         try {
@@ -865,6 +863,52 @@ public class QueryTests extends BaseIntegrationTest {
         } catch (Exception e) {
             Assert.fail("Failed at verification stage", e);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryMetrics() throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.TabSeparated);
+
+        QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
+
+        // Stats should be available after the query is done
+        OperationStatistics stats = response.getOperationStatistics();
+        OperationStatistics.ServerStatistics serverStats = stats.serverStatistics;
+        System.out.println("Server stats: " + serverStats);
+        System.out.println("Client stats: " + stats.clientStatistics);
+
+        Assert.assertTrue(serverStats.numBytesRead > 0);
+        Assert.assertEquals(serverStats.numBytesWritten, 0);
+        Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
+        Assert.assertEquals(serverStats.numRowsWritten, 0);
+        Assert.assertEquals(serverStats.resultRows, 3);
+
+        StringBuilder insertStmtBuilder = new StringBuilder();
+        insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
+        final int rowsToInsert = 5;
+        for (int i = 0; i < rowsToInsert; i++) {
+            insertStmtBuilder.append("(");
+            Map<String, Object> values = writeValuesRow(insertStmtBuilder, DATASET_COLUMNS, DATASET_VALUE_GENERATORS);
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            insertStmtBuilder.append("), ");
+        }
+        response = client.query(insertStmtBuilder.toString(), settings).get();
+
+        serverStats = response.getOperationStatistics().serverStatistics;
+        System.out.println("Server stats: " + serverStats);
+        System.out.println("Client stats: " + stats.clientStatistics);
+
+        // Server stats: ServerStatistics{"numRowsRead"=10, "numRowsWritten"=10, "totalRowsToRead"=0, "numBytesRead"=651, "numBytesWritten"=651}
+        Assert.assertTrue(serverStats.numBytesRead > 0);
+        Assert.assertTrue(serverStats.numBytesWritten > 0);
+        Assert.assertEquals(serverStats.numRowsRead, rowsToInsert); // 10 rows in the table
+        Assert.assertEquals(serverStats.numRowsWritten, rowsToInsert); // 10 rows inserted
+        Assert.assertEquals(serverStats.totalRowsToRead, 0);
+        Assert.assertEquals(serverStats.resultRows, rowsToInsert);
+        Assert.assertTrue(stats.clientStatistics.getElapsedTime("query") > 0);
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
@@ -920,37 +964,7 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
             for (int i = 0; i < rows; i++) {
                 insertStmtBuilder.append("(");
-                Map<String, Object> values = new HashMap<>();
-                Iterator<String> columnIterator = columns.iterator();
-                for (Function<String, Object> valueGenerator : valueGenerators) {
-                    Object value = valueGenerator.apply(null);
-                    if (value instanceof String) {
-                        insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
-                    } else if (value instanceof BaseStream<?, ?>) {
-                        insertStmtBuilder.append('[');
-                        BaseStream stream = ((BaseStream<?, ?>) value);
-                        for (Iterator it = stream.iterator(); it.hasNext(); ) {
-                            insertStmtBuilder.append(quoteValue(it.next())).append(", ");
-                        }
-                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-                        insertStmtBuilder.append("], ");
-                    } else if (value instanceof Map) {
-                        insertStmtBuilder.append("{");
-                        Map<String, Object> map = (Map<String, Object>) value;
-                        for (Map.Entry<String, Object> entry : map.entrySet()) {
-                            insertStmtBuilder.append(quoteValue(entry.getKey())).append(" : ")
-                                    .append(quoteValue(entry.getValue())).append(", ");
-                        }
-                        insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-                        insertStmtBuilder.append("}, ");
-                    } else if (value == null) {
-                        insertStmtBuilder.append("NULL, ");
-                    } else {
-                        insertStmtBuilder.append(value).append(", ");
-                    }
-                    values.put(columnIterator.next().split(" ")[0], value);
-
-                }
+                Map<String, Object> values = writeValuesRow(insertStmtBuilder, columns, valueGenerators);
                 insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
                 insertStmtBuilder.append("), ");
                 data.add(values);
@@ -963,6 +977,39 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("failed to prepare data set", e);
         }
         return data;
+    }
+
+    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators ) {
+        Map<String, Object> values = new HashMap<>();
+        Iterator<String> columnIterator = columns.iterator();
+        for (Function<String, Object> valueGenerator : valueGenerators) {
+            Object value = valueGenerator.apply(null);
+            if (value instanceof String) {
+                insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
+            } else if (value instanceof BaseStream<?, ?>) {
+                insertStmtBuilder.append('[');
+                BaseStream stream = ((BaseStream<?, ?>) value);
+                for (Iterator it = stream.iterator(); it.hasNext(); ) {
+                    insertStmtBuilder.append(quoteValue(it.next())).append(", ");
+                }
+                insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                insertStmtBuilder.append("], ");
+            } else if (value instanceof Map) {
+                insertStmtBuilder.append("{");
+                Map<String, Object> map = (Map<String, Object>) value;
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    insertStmtBuilder.append(quoteValue(entry.getKey())).append(" : ")
+                            .append(quoteValue(entry.getValue())).append(", ");
+                }
+                insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                insertStmtBuilder.append("}, ");
+            } else {
+                insertStmtBuilder.append(value).append(", ");
+            }
+            values.put(columnIterator.next().split(" ")[0], value);
+
+        }
+        return values;
     }
 
     private String quoteValue(Object value) {
@@ -987,5 +1034,32 @@ public class QueryTests extends BaseIntegrationTest {
         }
         sb.setLength(sb.length() - 2);
         sb.append(']');
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryParams() throws Exception {
+        final String table = "query_params_test_table";
+
+        client.query("DROP TABLE IF EXISTS default." + table, null).get();
+        client.query("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+
+        ByteArrayOutputStream insertData = new ByteArrayOutputStream();
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
+            writer.write("1\t'one'\n");
+            writer.write("2\t'two'\n");
+            writer.write("3\t'three'\n");
+        }
+        InsertSettings insertSettings = new InsertSettings();
+        client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
+
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
+        Map<String, Object> queryParams = new HashMap<>();
+        queryParams.put("param1", 2);
+        QueryResponse queryResponse =
+                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams, querySettings).get();
+
+        try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
+            responseBody.lines().forEach(System.out::println);
+        }
     }
 }

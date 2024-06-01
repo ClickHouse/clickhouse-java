@@ -48,7 +48,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
         if (result.hasProgress()) {
             Progress p = result.getProgress();
             summary.update(new ClickHouseResponseSummary.Progress(p.getReadRows(), p.getReadBytes(),
-                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes()));
+                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes(), 0L, 0L));
         }
 
         if (result.hasStats()) {

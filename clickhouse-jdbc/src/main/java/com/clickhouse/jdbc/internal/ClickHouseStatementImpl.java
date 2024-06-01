@@ -138,6 +138,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             } catch (Exception e) {
                 throw SqlExceptionUtils.handle(e);
             } finally {
+                request.removeSetting("_set_roles_stmt");
                 if (response == null) {
                     // something went wrong
                 } else if (i + 1 < len) {

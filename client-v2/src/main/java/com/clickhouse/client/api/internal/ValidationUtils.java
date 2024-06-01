@@ -7,7 +7,15 @@ import java.util.Set;
 
 public class ValidationUtils {
 
+    public static final int TCP_PORT_NUMBER_MAX = (1 << 16) -1;
+
     public static void checkRange(int value, int min, int max, String name) {
+        if (value < min || value > max) {
+            throw new SettingsValidationException(name, "\"" + name + "\" must be in range [" + min + ", " + max + "]");
+        }
+    }
+
+    public static void checkRange(long value, long min, long max, String name) {
         if (value < min || value > max) {
             throw new SettingsValidationException(name, "\"" + name + "\" must be in range [" + min + ", " + max + "]");
         }
