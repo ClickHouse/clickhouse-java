@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -572,7 +574,9 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                     .executeAndWait();
 
             try (InputStream responseBody = response.getInputStream()) {
-                String protoSchema = new String(responseBody.readAllBytes());
+                byte[] buffer = new byte[responseBody.available()];
+                Assert.assertTrue(responseBody.read(buffer) > 0);
+                String protoSchema = new String(buffer, StandardCharsets.UTF_8);
                 Assert.assertEquals(protoSchema, "syntax = \"proto3\";\n" +
                         "\n" +
                         "message Message\n" +
@@ -581,6 +585,8 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                         "    uint32 column2 = 2;\n" +
                         "}");
 
+            } finally {
+                response.close();
             }
         }
 
