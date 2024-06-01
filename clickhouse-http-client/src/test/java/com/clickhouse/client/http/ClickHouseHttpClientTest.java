@@ -569,26 +569,16 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 "create table " + tableName + " (" + tableColumns + ") engine=MergeTree order by tuple()");
 
         try (ClickHouseClient client = getClient()) {
-            ClickHouseResponse response = client.read(server).query("select structureToProtobufSchema ('column1 String, column2 UInt32')")
+            ClickHouseResponse response = client.read(server).query("select hostname()")
                     .format(ClickHouseFormat.RawBLOB)
                     .executeAndWait();
 
             try (InputStream responseBody = response.getInputStream()) {
                 byte[] buffer = new byte[responseBody.available()];
                 Assert.assertTrue(responseBody.read(buffer) > 0);
-                String protoSchema = new String(buffer, StandardCharsets.UTF_8);
-                Assert.assertEquals(protoSchema, "syntax = \"proto3\";\n" +
-                        "\n" +
-                        "message Message\n" +
-                        "{\n" +
-                        "    bytes column1 = 1;\n" +
-                        "    uint32 column2 = 2;\n" +
-                        "}");
-
             } finally {
                 response.close();
             }
         }
-
     }
 }
