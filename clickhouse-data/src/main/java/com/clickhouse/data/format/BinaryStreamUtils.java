@@ -225,6 +225,18 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Writes string bytes into given output stream.
+     *
+     * @param output non-null output stream
+     * @param string  non-null utf-8 string
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeBytes(OutputStream output, String string) throws IOException {
+        output.write(string.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
      * Reads {@code length} characters from given reader. It behaves in a similar
      * way as {@link java.io.DataInput#readFully(byte[])}.
      *
