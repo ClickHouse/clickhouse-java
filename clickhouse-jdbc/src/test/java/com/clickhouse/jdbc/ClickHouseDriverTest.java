@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseProtocol;
@@ -22,7 +23,9 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
     public void testConnect() throws SQLException {
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
         ClickHouseDriver driver = new ClickHouseDriver();
-        ClickHouseConnection conn = driver.connect("jdbc:clickhouse://" + address, null);
-        conn.close();
+
+        try (Connection conn = driver.connect("jdbc:clickhouse://" + address, null)) {
+            Assert.assertTrue(conn.isReadOnly());
+        }
     }
 }
