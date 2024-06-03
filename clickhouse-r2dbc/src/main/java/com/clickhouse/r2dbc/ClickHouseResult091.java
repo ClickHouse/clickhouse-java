@@ -20,28 +20,24 @@ class ClickHouseResult implements Result {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseResult.class);
 
-    private final Flux<? extends Result.Segment> rowSegments;
-    private final Mono<? extends Result.Segment> updatedCount;
     private final Flux<? extends Result.Segment> segments;
 
     ClickHouseResult(ClickHouseResponse response) {
-        this.rowSegments = Mono.just(response)
+        Flux<? extends RowSegment> rowSegments = Mono.just(response)
                 .flatMapMany(resp -> Flux
                         .fromStream(StreamSupport.stream(resp.records().spliterator(), false)
                                 .map(rec -> ClickHousePair.of(resp.getColumns(), rec))))
                     .map(pair -> new ClickHouseRow(pair.getRight(), pair.getLeft()))
                 .map(RowSegment::new);
-        this.updatedCount =  Mono.just(response).map(ClickHouseResponse::getSummary)
+        Mono<? extends UpdateCount> updatedCount =  Mono.just(response).map(ClickHouseResponse::getSummary)
                 .map(ClickHouseResponseSummary::getProgress)
                 .map(ClickHouseResponseSummary.Progress::getWrittenRows)
                 .map(UpdateCount::new);
-        this.segments = Flux.concat(this.updatedCount, this.rowSegments);
+        this.segments = Flux.concat(updatedCount, rowSegments).doOnComplete(response::close);
     }
 
-    ClickHouseResult(Flux<? extends Result.Segment> rowSegments, Mono<? extends Result.Segment> updatedCount) {
-        this.rowSegments = rowSegments;
-        this.updatedCount = updatedCount;
-        this.segments = Flux.concat(this.updatedCount, this.rowSegments);
+    ClickHouseResult(Flux<? extends Result.Segment> rowSegments) {
+        this.segments = rowSegments;
     }
 
     /**
@@ -51,12 +47,16 @@ class ClickHouseResult implements Result {
      */
     @Override
     public Mono<Integer> getRowsUpdated() {
-        return updatedCount.map(val -> (int) ((UpdateCount) val).value());
+        return this.segments.filter(segment -> segment instanceof UpdateCount)
+                .cast(UpdateCount.class)
+                .map(UpdateCount::value)
+                .reduce(Long::sum)
+                .map(Math::toIntExact);
     }
 
     @Override
     public <T> Publisher<T> map(BiFunction<Row, RowMetadata, ? extends T> biFunction) {
-        return rowSegments.cast(RowSegment.class)
+        return this.segments.filter(segment -> segment instanceof RowSegment).cast(RowSegment.class)
                 .map(RowSegment::row).handle((row, sink) -> {
             try {
                 sink.next(biFunction.apply(row, row.getMetadata()));
@@ -68,7 +68,7 @@ class ClickHouseResult implements Result {
 
     @Override
     public Result filter(Predicate<Segment> predicate) {
-        return new ClickHouseResult(segments.filter(predicate), updatedCount.filter(predicate));
+        return new ClickHouseResult(segments.filter(predicate));
     }
 
     @Override

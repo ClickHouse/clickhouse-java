@@ -1,7 +1,12 @@
 package com.clickhouse.client.http;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +29,6 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
@@ -553,6 +557,28 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                      .executeAndWait()) {
             ClickHouseResponseSummary summary = response.getSummary();
             Assert.assertEquals(summary.getReadRows(), 1L);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingBinaryFromRespose() throws Exception {
+        final ClickHouseNode server = getServer();
+        String tableName = "test_protobuf_format";
+        String tableColumns = String.format("id Int64, raw String");
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ") engine=MergeTree order by tuple()");
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseResponse response = client.read(server).query("select hostname()")
+                    .format(ClickHouseFormat.RawBLOB)
+                    .executeAndWait();
+
+            try (InputStream responseBody = response.getInputStream()) {
+                byte[] buffer = new byte[responseBody.available()];
+                Assert.assertTrue(responseBody.read(buffer) > 0);
+            } finally {
+                response.close();
+            }
         }
     }
 }

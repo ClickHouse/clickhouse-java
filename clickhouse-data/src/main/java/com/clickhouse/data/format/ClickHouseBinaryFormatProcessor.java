@@ -13,7 +13,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
-public class ClickHouseNativeProcessor extends ClickHouseDataProcessor {
+public class ClickHouseBinaryFormatProcessor extends ClickHouseDataProcessor {
 
 
     /**
@@ -28,9 +28,9 @@ public class ClickHouseNativeProcessor extends ClickHouseDataProcessor {
      * @param settings nullable settings
      * @throws IOException when failed to read columns from input stream
      */
-    public ClickHouseNativeProcessor(ClickHouseDataConfig config, ClickHouseInputStream input,
-                                        ClickHouseOutputStream output, List<ClickHouseColumn> columns,
-                                        Map<String, Serializable> settings) throws IOException {
+    public ClickHouseBinaryFormatProcessor(ClickHouseDataConfig config, ClickHouseInputStream input,
+                                           ClickHouseOutputStream output, List<ClickHouseColumn> columns,
+                                           Map<String, Serializable> settings) throws IOException {
         super(config, input, output, columns, settings);
     }
 
