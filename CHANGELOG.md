@@ -1,6 +1,7 @@
 ## Latest 
 
 ### Bug Fixes
+- Fix proper handling of ClickHouseResult to release DB connection https://github.com/ClickHouse/clickhouse-java/issues/1538
 - Fix getting response input stream for binary formats.
     - https://github.com/ClickHouse/clickhouse-java/issues/1494
     - https://github.com/ClickHouse/clickhouse-java/issues/1567
