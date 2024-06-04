@@ -173,7 +173,6 @@ public class QueryTests extends BaseIntegrationTest {
                 reader.copyRecord(record);
                 Assert.assertEquals(record, expectedRecord);
             }
-            throw new RuntimeException("test failed");
         } catch (IOException e) {
             Assert.fail("failed to read response", e);
         }
