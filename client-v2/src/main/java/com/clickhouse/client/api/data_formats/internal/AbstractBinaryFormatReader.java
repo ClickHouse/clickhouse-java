@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +47,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected BinaryStreamReader binaryStreamReader;
 
-    private List<Object> record;
-
     private TableSchema schema;
 
     protected volatile boolean hasNext = true;
@@ -56,7 +55,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.inputStream = inputStream;
         this.chInputStream = inputStream instanceof ClickHouseInputStream ?
                 (ClickHouseInputStream) inputStream : ClickHouseInputStream.of(inputStream);
-        this.settings = new HashMap<>(querySettings.getAllSettings());
+        this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
         this.binaryStreamReader = new BinaryStreamReader(chInputStream, LOG);
         setSchema(schema);
     }

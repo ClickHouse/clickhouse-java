@@ -494,12 +494,31 @@ public class Client {
      *
      * @param tableName - destination table name
      * @param data  - data stream to insert
-     * @param settings - insert operation settings
-     * @return {@code Future<InsertResponse>} - a promise to insert response
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
-    public Future<InsertResponse> insert(String tableName,
-                                         List<Object> data,
-                                         InsertSettings settings) {
+    public CompletableFuture<InsertResponse> insert(String tableName, List<?> data) {
+        return insert(tableName, data, new InsertSettings());
+    }
+
+    /**
+     * <p>Sends write request to database. List of objects is converted into a most suitable format
+     * then it is sent to a server. Members of the list must be pre-registered using
+     * {@link #register(Class, TableSchema)} method:</p>
+     *
+     * <pre>{@code
+     * client.register(SamplePOJO.class, tableSchema);
+     * List<Object> input = new ArrayList<>();
+     * // ... Insert some items into input list
+     * Future<InsertResponse> response = client.insert(tableName, simplePOJOs, settings);
+     * }
+     * </pre>
+     *
+     * @param tableName - destination table name
+     * @param data  - data stream to insert
+     * @param settings - insert operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName, List<?> data, InsertSettings settings) {
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -548,10 +567,25 @@ public class Client {
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param format - format of the data in the stream
-     * @param settings - insert operation settings
-     * @return {@code Future<InsertResponse>} - a promise to insert response
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
-    public Future<InsertResponse> insert(String tableName,
+    public CompletableFuture<InsertResponse> insert(String tableName,
+                                         InputStream data,
+                                         ClickHouseFormat format)
+    {
+        return insert(tableName, data, format, new InsertSettings());
+    }
+
+    /**
+     * <p>Sends write request to database. Input data is read from the input stream.</p>
+     *
+     * @param tableName - destination table name
+     * @param data  - data stream to insert
+     * @param format - format of the data in the stream
+     * @param settings - insert operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName,
                                      InputStream data,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
@@ -599,9 +633,9 @@ public class Client {
     /**
      * Sends SQL query to server. Default settings are applied.
      * @param sqlQuery - complete SQL query.
-     * @return {@code Future<QueryResponse>} - a promise to query response.
+     * @return {@code CompletableFuture<QueryResponse>} - a promise to query response.
      */
-    public Future<QueryResponse> query(String sqlQuery) {
+    public CompletableFuture<QueryResponse> query(String sqlQuery) {
         return query(sqlQuery, null, null);
     }
 
@@ -614,9 +648,9 @@ public class Client {
      * </ul>
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
-     * @return {@code Future<QueryResponse>} - a promise to query response.
+     * @return {@code CompletableFuture<QueryResponse>} - a promise to query response.
      */
-    public Future<QueryResponse> query(String sqlQuery, QuerySettings settings) {
+    public CompletableFuture<QueryResponse> query(String sqlQuery, QuerySettings settings) {
         return query(sqlQuery, null, settings);
     }
 
@@ -648,9 +682,9 @@ public class Client {
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
      * @param queryParams - query parameters that are sent to the server. (Optional)
-     * @return {@code Future<QueryResponse>} - a promise to query response.
+     * @return {@code CompletableFuture<QueryResponse>} - a promise to query response.
      */
-    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
+    public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
         if (settings == null) {
             settings = new QuerySettings();
         }
