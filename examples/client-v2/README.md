@@ -2,8 +2,7 @@
 
 ## Overview
 
-This example demonstrates how to use the client V2 to interact with the
-
+This example demonstrates how to use the client V2 to interact with the ClickHouse server.
 
 ## How to Run
 

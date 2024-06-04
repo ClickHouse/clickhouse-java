@@ -13,7 +13,7 @@ public class Main {
     public static void main(String[] args) {
         final String endpoint = System.getProperty("chEndpoint", "http://localhost:8123");
         final String user = System.getProperty("chUser", "default");
-        final String password = System.getProperty("chPassword", null);
+        final String password = System.getProperty("chPassword", "");
         final String database = System.getProperty("chDatabase", "default");
 
         //  Stream data from resources/sample_hacker_news_posts.json to ClickHouse
