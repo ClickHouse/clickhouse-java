@@ -54,12 +54,12 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 install
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 install
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
           find `pwd`/examples -type f -name pom.xml -exec sed -i -e "s|\(<clickhouse-java.version>\).*\(<\)|\1$LIB_VER\2|g" {} \;
-          for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
+          for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn  --batch-mode --no-transfer-progress clean compile; done
 
   test-multi-env:
     needs: compile
@@ -90,7 +90,7 @@ jobs:
           java-version: 17
           cache: "maven"
       - name: Test libraries
-        run: mvn --batch-mode -Dj8 -DskipITs verify
+        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -121,7 +121,7 @@ jobs:
           components: "native-image"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build native image
-        run: mvn --batch-mode -Pnative -Dj8 -DskipTests install
+        run: mvn --batch-mode --no-transfer-progress -Pnative -Dj8 -DskipTests install
       - name: Test native image
         run: ./clickhouse-jdbc/target/clickhouse-jdbc-bin
       - name: Compress binary
@@ -162,7 +162,7 @@ jobs:
             && clickhouse client --version
       - name: Test CLI client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 -DskipUTs verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -219,7 +219,7 @@ jobs:
           EOF
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -275,10 +275,10 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -335,10 +335,10 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-jdbc -DskipTests install
+        run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
-          mvn --batch-mode --projects clickhouse-r2dbc -DclickhouseVersion=${{ matrix.clickhouse }} \
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=${{ matrix.clickhouse }} \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
@@ -388,10 +388,10 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
       - name: Test JDBC and R2DBC drivers
         run: |
-          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
             -Dj8 -DskipUTs verify
       - name: Upload test results

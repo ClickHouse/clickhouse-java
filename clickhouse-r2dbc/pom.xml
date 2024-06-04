@@ -182,6 +182,7 @@
                     <argLine>${surefireArgLine}</argLine>
                     <skipTests>${skipUTs}</skipTests>
                     <useModulePath>false</useModulePath>
+                    <redirectTestOutputToFile>true</redirectTestOutputToFile>
                 </configuration>
             </plugin>
             <plugin>
@@ -194,6 +195,7 @@
                     <skipITs>${skipITs}</skipITs>
                     <useSystemClassLoader>true</useSystemClassLoader>
                     <useModulePath>false</useModulePath>
+                    <redirectTestOutputToFile>true</redirectTestOutputToFile>
                 </configuration>
                 <executions>
                     <execution>
