@@ -22,6 +22,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QueryResponseReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -98,6 +99,26 @@ public class QueryTests extends BaseIntegrationTest {
             String line = null;
             while ((line = br.readLine()) != null) {
                 System.out.println(line);
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            Assert.fail("failed to get response", e);
+        } catch (IOException e) {
+            Assert.fail("failed to read response", e);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadQuery() {
+        prepareSimpleDataSet();
+
+        Future<QueryResponseReader> response = client.readQuery("SELECT * FROM " + DATASET_TABLE);
+
+        try {
+            ClickHouseBinaryFormatReader reader = response.get().getReader();
+            Map<String, Object> record = new HashMap<>();
+            while (reader.next()) {
+                reader.copyRecord(record);
+                System.out.println(record);
             }
         } catch (InterruptedException | ExecutionException e) {
             Assert.fail("failed to get response", e);

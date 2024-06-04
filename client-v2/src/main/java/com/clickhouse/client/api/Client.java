@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -19,6 +20,7 @@ import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QueryResponseReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
@@ -712,6 +714,61 @@ public class Client {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
                 future.complete(queryResponse);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            } finally {
+                MDC.remove("queryId");
+            }
+        });
+        return future;
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     *
+     * @param sqlQuery
+     * @return
+     */
+    public CompletableFuture<QueryResponseReader> readQuery(String sqlQuery) {
+        return readQuery(sqlQuery, null);
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
+     *
+     * @param sqlQuery
+     * @param settings
+     * @return
+     */
+    public CompletableFuture<QueryResponseReader> readQuery(String sqlQuery, QuerySettings settings) {
+        if (settings == null) {
+            settings = new QuerySettings();
+        }
+        settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
+        clientStats.start("query");
+        ClickHouseClient client = createClient();
+        ClickHouseRequest<?> request = client.read(getServerNode());
+
+
+        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
+        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
+        request.query(sqlQuery, settings.getQueryId());
+        final ClickHouseFormat format = settings.getFormat();
+        request.format(format);
+
+        CompletableFuture<QueryResponseReader> future = new CompletableFuture<>();
+        final QuerySettings finalSettings = settings;
+        queryExecutor.submit(() -> {
+            MDC.put("queryId", finalSettings.getQueryId());
+            LOG.trace("Executing request: {}", request);
+            try {
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
+                queryResponse.ensureDone();
+                future.complete(new QueryResponseReader(queryResponse,
+                        new RowBinaryWithNamesAndTypesFormatReader(queryResponse.getInputStream(), finalSettings)));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             } finally {
