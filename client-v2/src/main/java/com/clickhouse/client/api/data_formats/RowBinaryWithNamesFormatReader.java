@@ -18,6 +18,10 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
 
     private List<String> columns = null;
 
+    public RowBinaryWithNamesFormatReader(InputStream inputStream, TableSchema schema) {
+        this(inputStream, null, schema);
+    }
+
     public RowBinaryWithNamesFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         super(inputStream, querySettings, schema);
     }

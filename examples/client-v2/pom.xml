@@ -91,6 +91,21 @@
             <version>${apache-httpclient.version}</version>
         </dependency>
 
+        <!-- Support of the compression -->
+        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.26.2</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.lz4/lz4-java -->
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.8.0</version>
+        </dependency>
+
+
         <!-- Miscellaneous application dependencies -->
 
         <!-- Project Lombok simplifies some routine tasks -->

@@ -1,8 +1,11 @@
 package com.clickhouse.examples.client_v2;
 
+import com.clickhouse.examples.client_v2.data.ArticleViewEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Slf4j
 public class Main {
@@ -13,7 +16,8 @@ public class Main {
         final String password = System.getProperty("chPassword", null);
         final String database = System.getProperty("chDatabase", "default");
 
-        SimpleWriter writer = new SimpleWriter(endpoint, user, password, database);
+        //  Stream data from resources/sample_hacker_news_posts.json to ClickHouse
+        Stream2DbWriter writer = new Stream2DbWriter(endpoint, user, password, database);
 
         if (writer.isServerAlive()) {
             log.info("ClickHouse server is alive");
@@ -24,7 +28,6 @@ public class Main {
 
         writer.resetTable();
 
-
         log.info("Inserting data from resources/sample_hacker_news_posts.json");
         try (InputStream is = Main.class.getResourceAsStream("/sample_hacker_news_posts.json")) {
             writer.insertData_JSONEachRowFormat(is);
@@ -32,12 +35,20 @@ public class Main {
             log.error("Failed to insert data", e);
         }
 
+        // Read data back
         SimpleReader reader = new SimpleReader(endpoint, user, password, database);
-
         reader.readData();
 
-        log.info("Done");
+        // Insert data using POJO
+        POJO2DbWriter pojoWriter = new POJO2DbWriter(endpoint, user, password, database);
+        pojoWriter.resetTable();
+        for (int i = 0; i < 10; i++) {
+            pojoWriter.submit(new ArticleViewEvent(11132929d, LocalDateTime.now(), UUID.randomUUID().toString()));
+        }
 
+        pojoWriter.printLastEvents();
+
+        log.info("Done");
         Runtime.getRuntime().exit(0);
     }
 }

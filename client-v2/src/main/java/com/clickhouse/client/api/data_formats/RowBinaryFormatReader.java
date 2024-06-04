@@ -12,6 +12,11 @@ import java.io.InputStream;
 import java.util.Map;
 
 public class RowBinaryFormatReader extends AbstractBinaryFormatReader {
+
+    public RowBinaryFormatReader(InputStream inputStream, TableSchema schema) {
+        this(inputStream, null, schema);
+    }
+
     public RowBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         super(inputStream, querySettings, schema);
     }
