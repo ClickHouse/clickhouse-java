@@ -15,6 +15,7 @@ import com.clickhouse.data.value.ClickHouseGeoRingValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -65,11 +67,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected abstract void readRecord(Map<String, Object> record) throws IOException;
 
     @Override
-    public void copyRecord(Map<String, Object> destination) throws IOException {
-        destination.putAll(currentRecord);
-    }
-
-    @Override
     public <T> T readValue(int colIndex) {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
@@ -87,7 +84,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public boolean hasNext() {
         if (hasNext) {
             try {
-                return chInputStream.available() > 0;
+                hasNext = chInputStream.available() > 0;
+                return hasNext;
             } catch (IOException e) {
                 hasNext = false;
                 LOG.error("Failed to check if there is more data available", e);
@@ -95,6 +93,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             }
         }
         return false;
+    }
+
+    @Override
+    public Map<String, Object> next() {
+        if (!hasNext) {
+            throw new NoSuchElementException();
+        }
+
+        try {
+            readRecord(currentRecord);
+            return currentRecord;
+        } catch (EOFException e) {
+            hasNext = false;
+            return null;
+        } catch (IOException e) {
+            hasNext = false;
+            throw new ClientException("Failed to read row", e);
+        }
     }
 
     protected void setSchema(TableSchema schema) {

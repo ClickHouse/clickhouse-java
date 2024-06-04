@@ -20,10 +20,11 @@ import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatRe
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.client.api.query.QueryResponseReader;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.query.Records;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,10 +50,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -108,23 +111,17 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testReadQuery() {
-        prepareSimpleDataSet();
+    public void testReadRecords() throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
-        Future<QueryResponseReader> response = client.readQuery("SELECT * FROM " + DATASET_TABLE);
 
-        try {
-            ClickHouseBinaryFormatReader reader = response.get().getReader();
-            Map<String, Object> record = new HashMap<>();
-            while (reader.next()) {
-                reader.copyRecord(record);
-                System.out.println(record);
-            }
-        } catch (InterruptedException | ExecutionException e) {
-            Assert.fail("failed to get response", e);
-        } catch (IOException e) {
-            Assert.fail("failed to read response", e);
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.TabSeparated);
 
+        Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE, settings).get(3, TimeUnit.SECONDS);
+
+        for (GenericRecord record : records) {
+            record.getString(3); // string column col3
         }
     }
 
@@ -182,20 +179,14 @@ public class QueryTests extends BaseIntegrationTest {
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), settings);
         QueryResponse queryResponse = response.get();
 
-        Map<String, Object> record = new HashMap<>();
         TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, tableSchema);
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
-        try {
-            while (dataIterator.hasNext()) {
-                Map<String, Object> expectedRecord = dataIterator.next();
-                reader.next();
-                reader.copyRecord(record);
-                Assert.assertEquals(record, expectedRecord);
-            }
-        } catch (IOException e) {
-            Assert.fail("failed to read response", e);
+        while (dataIterator.hasNext()) {
+            Map<String, Object> expectedRecord = dataIterator.next();
+            Map<String, Object> actualRecord = reader.next();
+            Assert.assertEquals(actualRecord, expectedRecord);
         }
     }
 
@@ -236,7 +227,7 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
         while (reader.hasNext()) {
-            Assert.assertTrue(reader.next());
+            Assert.assertNotNull(reader.next());
             String hostName = reader.readValue("host");
             Long col1 = reader.readValue("col1");
             String col3 = reader.readValue("col3");
@@ -248,7 +239,7 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.readValue(3), hostName);
         }
 
-        Assert.assertFalse(reader.next());
+        Assert.expectThrows(NoSuchElementException.class, reader::next);
     }
 
     @Test(groups = {"integration"})
@@ -266,11 +257,10 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(queryResponse.getInputStream(), settings);
 
-        Map<String, Object> record = new HashMap<>();
+        Map<String, Object> record;
         for (int i = 0; i < rows; i++) {
-            record.clear();
-            reader.next();
-            reader.copyRecord(record);
+            record = reader.next();
+            Assert.assertNotNull(record);
         }
     }
 
@@ -305,9 +295,9 @@ public class QueryTests extends BaseIntegrationTest {
         QueryResponse queryResponse = response.get();
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
 
-        Assert.assertTrue(reader.next());
-        Map<String, Object> record = new HashMap<>();
-        reader.copyRecord(record);
+
+        Map<String, Object> record = reader.next();
+        Assert.assertNotNull(record);
         long[] col1Values = reader.getLongArray("col1");
         System.out.println("col1: " + Arrays.toString(col1Values));
         System.out.println("Record: " + record);
@@ -350,9 +340,8 @@ public class QueryTests extends BaseIntegrationTest {
         QueryResponse queryResponse = response.get();
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
 
-        Assert.assertTrue(reader.next());
-        Map<String, Object> record = new HashMap<>();
-        reader.copyRecord(record);
+        Map<String, Object> record = reader.next();
+        Assert.assertNotNull(record);
 //        System.out.println("col1: " + Arrays.toString(col1Values));
         System.out.println("Record: " + record);
     }
@@ -394,9 +383,8 @@ public class QueryTests extends BaseIntegrationTest {
         QueryResponse queryResponse = response.get();
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
 
-        Assert.assertTrue(reader.next());
-        Map<String, Object> record = new HashMap<>();
-        reader.copyRecord(record);
+        Map<String, Object> record = reader.next();
+        Assert.assertNotNull(record);
         System.out.println("Record: " + record);
         int i = 0;
         for (String columns : NULL_DATASET_COLUMNS) {
@@ -869,7 +857,7 @@ public class QueryTests extends BaseIntegrationTest {
         try {
             QueryResponse queryResponse = response.get();
             ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
-            Assert.assertTrue(reader.next());
+            Assert.assertNotNull(reader.next());
             Assert.assertEquals(verifiers.size(), columns.size(), "Number of verifiers should match number of columns");
             int colIndex = 0;
             for (Consumer<ClickHouseBinaryFormatReader> verifier : verifiers) {

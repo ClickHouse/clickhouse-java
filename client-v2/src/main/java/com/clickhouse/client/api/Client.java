@@ -22,6 +22,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QueryResponseReader;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -725,12 +726,14 @@ public class Client {
 
     /**
      * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
      *
      * @param sqlQuery
      * @return
      */
-    public CompletableFuture<QueryResponseReader> readQuery(String sqlQuery) {
-        return readQuery(sqlQuery, null);
+    public CompletableFuture<Records> queryRecords(String sqlQuery) {
+        return queryRecords(sqlQuery, null);
     }
 
     /**
@@ -742,7 +745,7 @@ public class Client {
      * @param settings
      * @return
      */
-    public CompletableFuture<QueryResponseReader> readQuery(String sqlQuery, QuerySettings settings) {
+    public CompletableFuture<Records> queryRecords(String sqlQuery, QuerySettings settings) {
         if (settings == null) {
             settings = new QuerySettings();
         }
@@ -759,7 +762,7 @@ public class Client {
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
 
-        CompletableFuture<QueryResponseReader> future = new CompletableFuture<>();
+        CompletableFuture<Records> future = new CompletableFuture<>();
         final QuerySettings finalSettings = settings;
         queryExecutor.submit(() -> {
             MDC.put("queryId", finalSettings.getQueryId());
@@ -767,8 +770,7 @@ public class Client {
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
-                future.complete(new QueryResponseReader(queryResponse,
-                        new RowBinaryWithNamesAndTypesFormatReader(queryResponse.getInputStream(), finalSettings)));
+                future.complete(new Records(queryResponse, finalSettings));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             } finally {

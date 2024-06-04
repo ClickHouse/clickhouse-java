@@ -74,21 +74,6 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         return (T) currentRecord.get(colName);
     }
 
-    @Override
-    public boolean next() {
-        if (hasNext) {
-            try {
-                readRecord(currentRecord);
-            } catch (EOFException e) {
-                hasNext = false;
-                return false;
-            } catch (IOException e) {
-                throw new ClientException("Failed to read next block", e);
-            }
-        }
-        return false;
-    }
-
     private static class Block {
         final List<String> names;
         final List<String> types;

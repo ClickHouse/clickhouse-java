@@ -10,10 +10,12 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
-public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader {
+public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Map<String, Object>> {
 
     public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream) {
         this(inputStream, null);
@@ -58,22 +60,5 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
                 record.put(column.getColumnName(),val);
             }
         }
-    }
-
-    @Override
-    public boolean next() {
-        if (hasNext) {
-            try {
-                readRecord(currentRecord);
-                return true;
-            } catch (EOFException e) {
-                hasNext = false;
-                return false;
-            } catch (IOException e) {
-                hasNext = false;
-                throw new ClientException("Failed to read row", e);
-            }
-        }
-        return false;
     }
 }
