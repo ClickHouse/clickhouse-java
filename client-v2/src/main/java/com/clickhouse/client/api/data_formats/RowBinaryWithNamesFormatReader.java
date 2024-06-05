@@ -47,16 +47,4 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
     public List<String> getColumns() {
         return columns;
     }
-
-    @Override
-    public boolean next() {
-        try {
-            readRecord(currentRecord);
-            return true;
-        } catch (EOFException e) {
-            return false;
-        } catch (IOException e) {
-            throw new ClientException("Failed to read row", e);
-        }
-    }
 }

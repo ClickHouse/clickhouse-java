@@ -1,23 +1,16 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
-import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -29,98 +22,31 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
-public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
+public class MapBackedRecord implements GenericRecord {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
-
-    protected InputStream inputStream;
-
-    protected ClickHouseInputStream chInputStream;
-
-    protected Map<String, Object> settings;
-
-    protected BinaryStreamReader binaryStreamReader;
+    private final Map<String, Object> record;
 
     private TableSchema schema;
 
-    protected volatile boolean hasNext = true;
-
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
-        this.inputStream = inputStream;
-        this.chInputStream = inputStream instanceof ClickHouseInputStream ?
-                (ClickHouseInputStream) inputStream : ClickHouseInputStream.of(inputStream);
-        this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        this.binaryStreamReader = new BinaryStreamReader(chInputStream, LOG);
-        setSchema(schema);
-    }
-
-
-    protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
-
-    protected abstract void readRecord(Map<String, Object> record) throws IOException;
-
-    @Override
-    public <T> T readValue(int colIndex) {
-        if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
-            throw new ClientException("Column index out of bounds: " + colIndex);
-        }
-        colIndex = colIndex - 1;
-        return (T) currentRecord.get(getSchema().indexToName(colIndex));
-    }
-
-    @Override
-    public <T> T readValue(String colName) {
-        return (T) currentRecord.get(colName);
-    }
-
-    @Override
-    public boolean hasNext() {
-        if (hasNext) {
-            try {
-                hasNext = chInputStream.available() > 0;
-                return hasNext;
-            } catch (IOException e) {
-                hasNext = false;
-                LOG.error("Failed to check if there is more data available", e);
-                return false;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public Map<String, Object> next() {
-        if (!hasNext) {
-            throw new NoSuchElementException();
-        }
-
-        try {
-            readRecord(currentRecord);
-            return currentRecord;
-        } catch (EOFException e) {
-            hasNext = false;
-            return null;
-        } catch (IOException e) {
-            hasNext = false;
-            throw new ClientException("Failed to read row", e);
-        }
-    }
-
-    protected void setSchema(TableSchema schema) {
+    public MapBackedRecord(Map<String, Object> record, TableSchema schema) {
+        this.record = record;
         this.schema = schema;
     }
 
-    @Override
-    public TableSchema getSchema() {
-        return schema;
+    public <T> T readValue(int colIndex) {
+        if (colIndex < 1 || colIndex > schema.getColumns().size()) {
+            throw new ClientException("Column index out of bounds: " + colIndex);
+        }
+        colIndex = colIndex - 1;
+        return (T) record.get(schema.indexToName(colIndex));
+    }
+
+    public <T> T readValue(String colName) {
+        return (T) record.get(colName);
     }
 
     @Override
@@ -358,12 +284,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().indexToName(colIndex));
+        return record.containsKey(schema.indexToName(colIndex));
     }
 
     @Override
     public boolean hasValue(String colName) {
-        return currentRecord.containsKey(colName);
+        return record.containsKey(colName);
     }
 
     @Override

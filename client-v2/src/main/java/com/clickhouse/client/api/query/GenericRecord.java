@@ -1,6 +1,5 @@
-package com.clickhouse.client.api.data_formats;
+package com.clickhouse.client.api.query;
 
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -16,45 +15,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-public interface ClickHouseBinaryFormatReader {
+public interface GenericRecord {
 
-    /**
-     * Reads a single value from the stream.
-     *
-     * @param <T>
-     * @return
-     */
-    <T> T readValue(int colIndex);
-
-    /**
-     * Reads a row to an array of objects.
-     *
-     * @param colName
-     * @param <T>
-     * @return
-     */
-    <T> T readValue(String colName);
-
-    boolean hasValue(String colName);
-
-    boolean hasValue(int colIndex);
-
-    /**
-     * Checks if there are more rows to read.
-     *
-     * @return
-     */
-    boolean hasNext();
-
-    /**
-     * Moves cursor to the next row. Must be called before reading the first row.
-     *
-     * @return true if there are more rows to read, false otherwise
-     */
-    Map<String, Object> next();
 
     /**
      * Reads column with name `colName` as a string.
@@ -139,7 +103,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Instant. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * 
+     *
      * If column value is Date or Date32 it will return an Instant with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return an Instant with the time part.
      *
@@ -151,7 +115,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ZonedDateTime. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * 
+     *
      * If column value is Date or Date32 it will return a ZonedDateTime with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return a ZonedDateTime with the time part.
      *
@@ -162,10 +126,10 @@ public interface ClickHouseBinaryFormatReader {
 
     /**
      * Returns the value of the specified column as a Duration.
-     * 
+     *
      * If a stored value is bigger than Long.MAX_VALUE then exception will be thrown. In such case
      * use asBigInteger() method.
-     * 
+     *
      * If value of IntervalQuarter then Duration will be in the unit of Months.
      *
      * @param colName
@@ -286,6 +250,10 @@ public interface ClickHouseBinaryFormatReader {
      */
     String getString(int index);
 
+    boolean hasValue(int colIndex);
+
+    boolean hasValue(String colName);
+
     /**
      * Reads column with name `colName` as a byte.
      *
@@ -361,7 +329,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as an Instant. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * 
+     *
      * If column value is Date or Date32 it will return an Instant with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return an Instant with the time part.
      *
@@ -373,7 +341,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Returns the value of the specified column as a ZonedDateTime. Timezone is derived from the column definition.
      * If no timezone is specified in the column definition then UTC will be used.
-     * 
+     *
      * If column value is Date or Date32 it will return a ZonedDateTime with time set to 00:00:00.
      * If column value is DateTime or DateTime32 it will return a ZonedDateTime with the time part.
      *
@@ -458,6 +426,7 @@ public interface ClickHouseBinaryFormatReader {
      */
     <T> List<T> getList(int index);
 
+
     /**
      * Reads column with name `colName` as a string.
      *
@@ -517,6 +486,4 @@ public interface ClickHouseBinaryFormatReader {
     LocalDateTime getLocalDateTime(String colName);
 
     LocalDateTime getLocalDateTime(int index);
-
-    TableSchema getSchema();
 }

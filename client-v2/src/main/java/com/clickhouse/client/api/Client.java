@@ -8,6 +8,9 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -18,8 +21,10 @@ import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -51,7 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -719,6 +723,83 @@ public class Client {
             }
         });
         return future;
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
+     *
+     * @param sqlQuery
+     * @return
+     */
+    public CompletableFuture<Records> queryRecords(String sqlQuery) {
+        return queryRecords(sqlQuery, null);
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
+     *
+     * @param sqlQuery
+     * @param settings
+     * @return
+     */
+    public CompletableFuture<Records> queryRecords(String sqlQuery, QuerySettings settings) {
+        if (settings == null) {
+            settings = new QuerySettings();
+        }
+        settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
+        clientStats.start("query");
+        ClickHouseClient client = createClient();
+        ClickHouseRequest<?> request = client.read(getServerNode());
+
+
+        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
+        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
+        request.query(sqlQuery, settings.getQueryId());
+        final ClickHouseFormat format = settings.getFormat();
+        request.format(format);
+
+        CompletableFuture<Records> future = new CompletableFuture<>();
+        final QuerySettings finalSettings = settings;
+        queryExecutor.submit(() -> {
+            MDC.put("queryId", finalSettings.getQueryId());
+            LOG.trace("Executing request: {}", request);
+            try {
+                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
+                queryResponse.ensureDone();
+                future.complete(new Records(queryResponse, finalSettings));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            } finally {
+                MDC.remove("queryId");
+            }
+        });
+        return future;
+    }
+
+    /**
+     * <p>Queries data in descriptive format and reads result to a collection.</p>
+     * <p>Use this method for queries that would return only a few records only.</p>
+     * @param sqlQuery
+     * @return
+     */
+    public List<GenericRecord> queryAll(String sqlQuery) {
+        try {
+            try (QueryResponse response = query(sqlQuery).get(TIMEOUT, TimeUnit.MILLISECONDS)) {
+                List<GenericRecord> records = new ArrayList<>();
+                ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                while (reader.hasNext()) {
+                    records.add(new MapBackedRecord(reader.next(), reader.getSchema()));
+                }
+                return records;
+            }
+        } catch (Exception e) {
+            throw new ClientException("Failed to get query response", e);
+        }
     }
 
     /**
