@@ -63,7 +63,8 @@ public class SimpleReader {
             // Create a reader to access the data in a convenient way
             ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
 
-            while (reader.next()) {
+            while (reader.hasNext()) {
+                reader.next();
                 double id = reader.getDouble("id");
                 String title = reader.getString("title");
                 String url = reader.getString("url");

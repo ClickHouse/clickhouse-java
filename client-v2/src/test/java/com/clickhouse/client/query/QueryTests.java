@@ -135,7 +135,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
-        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().orElseThrow();
+        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
         Assert.assertNotNull(hostnameRecord);
     }
 
