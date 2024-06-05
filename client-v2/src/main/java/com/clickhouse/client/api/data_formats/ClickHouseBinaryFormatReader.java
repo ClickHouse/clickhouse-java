@@ -1,11 +1,11 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -220,7 +220,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @return
      */
-    ClickHouseGeoPolygonValue  asGeoPolygon(String colName);
+    ClickHouseGeoPolygonValue getGeoPolygon(String colName);
 
     /**
      * Returns the value of the specified column as a ClickHouseGeoMultiPolygonValue.
@@ -228,7 +228,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param colName
      * @return
      */
-    ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(String colName);
+    ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -237,22 +237,6 @@ public interface ClickHouseBinaryFormatReader {
      * @return
      */
     <T> List<T> getList(String colName);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param colName - column name
-     * @return
-     */
-    <T> List<List<T>> getTwoDimensionalList(String colName);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param colName - column name
-     * @return
-     */
-    <T> List<List<List<T>>> getThreeDimensionalList(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -456,7 +440,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param index
      * @return
      */
-    ClickHouseGeoPolygonValue  asGeoPolygon(int index);
+    ClickHouseGeoPolygonValue getGeoPolygon(int index);
 
     /**
      * Returns the value of the specified column as a ClickHouseGeoMultiPolygonValue.
@@ -464,7 +448,7 @@ public interface ClickHouseBinaryFormatReader {
      * @param index
      * @return
      */
-    ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(int index);
+    ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index);
 
     /**
      * Reads column with name `colName` as a string.
@@ -473,22 +457,6 @@ public interface ClickHouseBinaryFormatReader {
      * @return
      */
     <T> List<T> getList(int index);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param index - column name
-     * @return
-     */
-    <T> List<List<T>> getTwoDimensionalList(int index);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param index - column name
-     * @return
-     */
-    <T> List<List<List<T>>> getThreeDimensionalList(int index);
 
     /**
      * Reads column with name `colName` as a string.
@@ -549,4 +517,6 @@ public interface ClickHouseBinaryFormatReader {
     LocalDateTime getLocalDateTime(String colName);
 
     LocalDateTime getLocalDateTime(int index);
+
+    TableSchema getSchema();
 }

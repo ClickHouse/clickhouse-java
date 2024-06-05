@@ -4,11 +4,11 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryReaderBackedRecord;
+import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.Iterator;
 import java.util.Spliterator;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -19,6 +19,7 @@ public class Records implements Iterable<GenericRecord> {
     private final ClickHouseBinaryFormatReader reader;
 
     private boolean empty;
+    private Iterator<GenericRecord> iterator;
 
     public Records(QueryResponse response, QuerySettings finalSettings) {
         this.response = response;
@@ -31,30 +32,30 @@ public class Records implements Iterable<GenericRecord> {
 
     @Override
     public Iterator<GenericRecord> iterator() {
-        return new Iterator<>() {
+        if (iterator == null) {
+            iterator = new Iterator<>() {
+                GenericRecord record = new BinaryReaderBackedRecord(reader);
 
-            GenericRecord record = new BinaryReaderBackedRecord(reader);
+                @Override
+                public boolean hasNext() {
+                    return reader.hasNext();
+                }
 
-            @Override
-            public boolean hasNext() {
-                return reader.hasNext();
-            }
-
-            @Override
-            public GenericRecord next() {
-                reader.next();
-                return record;
-            }
-        };
+                @Override
+                public GenericRecord next() {
+                    reader.next();
+                    return record;
+                }
+            };
+        } else {
+            throw new IllegalStateException("Iterator has already been created");
+        }
+        return iterator;
     }
 
     @Override
     public Spliterator<GenericRecord> spliterator() {
         return Iterable.super.spliterator();
-    }
-
-    int size() {
-        return 0;
     }
 
     /**

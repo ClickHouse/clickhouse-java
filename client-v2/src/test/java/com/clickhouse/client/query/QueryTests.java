@@ -114,15 +114,22 @@ public class QueryTests extends BaseIntegrationTest {
     public void testReadRecords() throws Exception {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
-
-        QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated);
-
-        Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE, settings).get(3, TimeUnit.SECONDS);
+        Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
 
         for (GenericRecord record : records) {
             record.getString(3); // string column col3
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadRecordsGetFirstRecord() throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        Records records = client.queryRecords("SELECT hostname()").get(3, TimeUnit.SECONDS);
+
+        Iterator<GenericRecord> iter = records.iterator();
+        Assert.expectThrows(IllegalStateException.class, records::iterator);
+        iter.next();
+        Assert.assertFalse(iter.hasNext());
     }
 
     @Test(groups = {"integration"}, enabled = false)

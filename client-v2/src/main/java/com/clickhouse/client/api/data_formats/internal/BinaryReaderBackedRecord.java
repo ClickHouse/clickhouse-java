@@ -34,316 +34,316 @@ public class BinaryReaderBackedRecord implements GenericRecord {
 
     @Override
     public byte getByte(String colName) {
-        return 0;
+        return reader.getByte(colName);
     }
 
     @Override
     public short getShort(String colName) {
-        return 0;
+        return reader.getShort(colName);
     }
 
     @Override
     public int getInteger(String colName) {
-        return 0;
+        return reader.getInteger(colName);
     }
 
     @Override
     public long getLong(String colName) {
-        return 0;
+        return reader.getLong(colName);
     }
 
     @Override
     public float getFloat(String colName) {
-        return 0;
+        return reader.getFloat(colName);
     }
 
     @Override
     public double getDouble(String colName) {
-        return 0;
+        return reader.getDouble(colName);
     }
 
     @Override
     public boolean getBoolean(String colName) {
-        return false;
+        return reader.getBoolean(colName);
     }
 
     @Override
     public BigInteger getBigInteger(String colName) {
-        return null;
+        return reader.getBigInteger(colName);
     }
 
     @Override
     public BigDecimal getBigDecimal(String colName) {
-        return null;
+        return reader.getBigDecimal(colName);
     }
 
     @Override
     public Instant getInstant(String colName) {
-        return null;
+        return reader.getInstant(colName);
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
-        return null;
+        return reader.getZonedDateTime(colName);
     }
 
     @Override
     public Duration getDuration(String colName) {
-        return null;
+        return reader.getDuration(colName);
     }
 
     @Override
     public Inet4Address getInet4Address(String colName) {
-        return null;
+        return reader.getInet4Address(colName);
     }
 
     @Override
     public Inet6Address getInet6Address(String colName) {
-        return null;
+        return reader.getInet6Address(colName);
     }
 
     @Override
     public UUID getUUID(String colName) {
-        return null;
+        return reader.getUUID(colName);
     }
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(String colName) {
-        return null;
+        return reader.getGeoPoint(colName);
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(String colName) {
-        return null;
+        return reader.getGeoRing(colName);
     }
 
     @Override
-    public ClickHouseGeoPolygonValue asGeoPolygon(String colName) {
-        return null;
+    public ClickHouseGeoPolygonValue getGeoPolygon(String colName) {
+        return reader.getGeoPolygon(colName);
     }
 
     @Override
-    public ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(String colName) {
-        return null;
+    public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName) {
+        return reader.getGeoMultiPolygon(colName);
     }
 
     @Override
     public <T> List<T> getList(String colName) {
-        return null;
-    }
-
-    @Override
-    public <T> List<List<T>> getTwoDimensionalList(String colName) {
-        return null;
-    }
-
-    @Override
-    public <T> List<List<List<T>>> getThreeDimensionalList(String colName) {
-        return null;
+        return reader.getList(colName);
     }
 
     @Override
     public byte[] getByteArray(String colName) {
-        return new byte[0];
+        return reader.getByteArray(colName);
     }
 
     @Override
     public int[] getIntArray(String colName) {
-        return new int[0];
+        return reader.getIntArray(colName);
     }
 
     @Override
     public long[] getLongArray(String colName) {
-        return new long[0];
+        return reader.getLongArray(colName);
     }
 
     @Override
     public float[] getFloatArray(String colName) {
-        return new float[0];
+        return reader.getFloatArray(colName);
     }
 
     @Override
     public double[] getDoubleArray(String colName) {
-        return new double[0];
+        return reader.getDoubleArray(colName);
     }
 
     @Override
     public String getString(int index) {
-        return null;
+        return reader.getString(index);
+    }
+
+    @Override
+    public boolean hasValue(int colIndex) {
+        return reader.hasValue(colIndex);
+    }
+
+    @Override
+    public boolean hasValue(String colName) {
+        return reader.hasValue(colName);
     }
 
     @Override
     public byte getByte(int index) {
-        return 0;
+        return reader.getByte(index);
     }
 
     @Override
     public short getShort(int index) {
-        return 0;
+        return reader.getShort(index);
     }
 
     @Override
     public int getInteger(int index) {
-        return 0;
+        return reader.getInteger(index);
     }
 
     @Override
     public long getLong(int index) {
-        return 0;
+        return reader.getLong(index);
     }
 
     @Override
     public float getFloat(int index) {
-        return 0;
+        return reader.getFloat(index);
     }
 
     @Override
     public double getDouble(int index) {
-        return 0;
+        return reader.getDouble(index);
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return false;
+        return reader.getBoolean(index);
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return null;
+        return reader.getBigInteger(index);
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return null;
+        return reader.getBigDecimal(index);
     }
 
     @Override
     public Instant getInstant(int index) {
-        return null;
+        return reader.getInstant(index);
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
-        return null;
+        return reader.getZonedDateTime(index);
     }
 
     @Override
     public Duration getDuration(int index) {
-        return null;
+        return reader.getDuration(index);
     }
 
     @Override
     public Inet4Address getInet4Address(int index) {
-        return null;
+        return reader.getInet4Address(index);
     }
 
     @Override
     public Inet6Address getInet6Address(int index) {
-        return null;
+        return reader.getInet6Address(index);
     }
 
     @Override
     public UUID getUUID(int index) {
-        return null;
+        return reader.getUUID(index);
     }
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(int index) {
-        return null;
+        return reader.getGeoPoint(index);
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(int index) {
-        return null;
+        return reader.getGeoRing(index);
     }
 
     @Override
-    public ClickHouseGeoPolygonValue asGeoPolygon(int index) {
-        return null;
+    public ClickHouseGeoPolygonValue getGeoPolygon(int index) {
+        return reader.getGeoPolygon(index);
     }
 
     @Override
-    public ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(int index) {
-        return null;
+    public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index) {
+        return reader.getGeoMultiPolygon(index);
     }
 
     @Override
     public <T> List<T> getList(int index) {
-        return null;
+        return reader.getList(index);
     }
 
     @Override
     public byte[] getByteArray(int index) {
-        return new byte[0];
+        return reader.getByteArray(index);
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return new int[0];
+        return reader.getIntArray(index);
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return new long[0];
+        return reader.getLongArray(index);
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return new float[0];
+        return reader.getFloatArray(index);
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return new double[0];
+        return reader.getDoubleArray(index);
     }
 
     @Override
     public Object[] getTuple(int index) {
-        return new Object[0];
+        return reader.getTuple(index);
     }
 
     @Override
     public Object[] getTuple(String colName) {
-        return new Object[0];
+        return reader.getTuple(colName);
     }
 
     @Override
     public byte getEnum8(String colName) {
-        return 0;
+        return reader.getEnum8(colName);
     }
 
     @Override
     public byte getEnum8(int index) {
-        return 0;
+        return reader.getEnum8(index);
     }
 
     @Override
     public short getEnum16(String colName) {
-        return 0;
+        return reader.getEnum16(colName);
     }
 
     @Override
     public short getEnum16(int index) {
-        return 0;
+        return reader.getEnum16(index);
     }
 
     @Override
     public LocalDate getLocalDate(String colName) {
-        return null;
+        return reader.getLocalDate(colName);
     }
 
     @Override
     public LocalDate getLocalDate(int index) {
-        return null;
+        return reader.getLocalDate(index);
     }
 
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
-        return null;
+        return reader.getLocalDateTime(colName);
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return null;
+        return reader.getLocalDateTime(index);
     }
 }

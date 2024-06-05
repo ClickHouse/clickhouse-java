@@ -5,7 +5,6 @@ import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -16,7 +15,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public interface GenericRecord {
@@ -186,7 +184,7 @@ public interface GenericRecord {
      * @param colName
      * @return
      */
-    ClickHouseGeoPolygonValue asGeoPolygon(String colName);
+    ClickHouseGeoPolygonValue getGeoPolygon(String colName);
 
     /**
      * Returns the value of the specified column as a ClickHouseGeoMultiPolygonValue.
@@ -194,7 +192,7 @@ public interface GenericRecord {
      * @param colName
      * @return
      */
-    ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(String colName);
+    ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -203,22 +201,6 @@ public interface GenericRecord {
      * @return
      */
     <T> List<T> getList(String colName);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param colName - column name
-     * @return
-     */
-    <T> List<List<T>> getTwoDimensionalList(String colName);
-
-    /**
-     * Reads column with name `colName` as a string.
-     *
-     * @param colName - column name
-     * @return
-     */
-    <T> List<List<List<T>>> getThreeDimensionalList(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -267,6 +249,10 @@ public interface GenericRecord {
      * @return
      */
     String getString(int index);
+
+    boolean hasValue(int colIndex);
+
+    boolean hasValue(String colName);
 
     /**
      * Reads column with name `colName` as a byte.
@@ -422,7 +408,7 @@ public interface GenericRecord {
      * @param index
      * @return
      */
-    ClickHouseGeoPolygonValue  asGeoPolygon(int index);
+    ClickHouseGeoPolygonValue getGeoPolygon(int index);
 
     /**
      * Returns the value of the specified column as a ClickHouseGeoMultiPolygonValue.
@@ -430,7 +416,7 @@ public interface GenericRecord {
      * @param index
      * @return
      */
-    ClickHouseGeoMultiPolygonValue asGeoMultiPolygon(int index);
+    ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index);
 
     /**
      * Reads column with name `colName` as a string.
