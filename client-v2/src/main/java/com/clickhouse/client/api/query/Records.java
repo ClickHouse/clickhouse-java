@@ -4,7 +4,6 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryReaderBackedRecord;
-import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.Iterator;
@@ -33,7 +32,7 @@ public class Records implements Iterable<GenericRecord> {
     @Override
     public Iterator<GenericRecord> iterator() {
         if (iterator == null) {
-            iterator = new Iterator<>() {
+            iterator = new Iterator<GenericRecord>() {
                 GenericRecord record = new BinaryReaderBackedRecord(reader);
 
                 @Override
