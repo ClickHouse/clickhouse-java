@@ -8,6 +8,9 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -18,6 +21,7 @@ import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
@@ -775,6 +779,27 @@ public class Client {
             }
         });
         return future;
+    }
+
+    /**
+     * <p>Queries data in descriptive format and reads result to a collection.</p>
+     * <p>Use this method for queries that would return only a few records only.</p>
+     * @param sqlQuery
+     * @return
+     */
+    public List<GenericRecord> queryAll(String sqlQuery) {
+        try {
+            try (QueryResponse response = query(sqlQuery).get(TIMEOUT, TimeUnit.MILLISECONDS)) {
+                List<GenericRecord> records = new ArrayList<>();
+                ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                while (reader.hasNext()) {
+                    records.add(new MapBackedRecord(reader.next(), reader.getSchema()));
+                }
+                return records;
+            }
+        } catch (Exception e) {
+            throw new ClientException("Failed to get query response", e);
+        }
     }
 
     /**

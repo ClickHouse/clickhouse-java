@@ -132,6 +132,13 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertFalse(iter.hasNext());
     }
 
+    @Test(groups = {"integration"})
+    public void testQueryAll() throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().orElseThrow();
+        Assert.assertNotNull(hostnameRecord);
+    }
+
     @Test(groups = {"integration"}, enabled = false)
     public void testQueryJSONWith64BitIntegers() throws ExecutionException, InterruptedException {
         // won't work because format settings are set thru separate statement.
