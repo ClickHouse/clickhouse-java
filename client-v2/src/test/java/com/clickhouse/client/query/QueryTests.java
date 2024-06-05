@@ -12,7 +12,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.OperationStatistics;
-import com.clickhouse.client.api.Protocol;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
@@ -71,7 +71,7 @@ public class QueryTests extends BaseIntegrationTest {
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
                 .build();

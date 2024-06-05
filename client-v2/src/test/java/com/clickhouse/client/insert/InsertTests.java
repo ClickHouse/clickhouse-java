@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.Protocol;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
@@ -31,7 +31,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
                 .build();
