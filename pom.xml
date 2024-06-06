@@ -127,7 +127,7 @@
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.6.0</assembly-plugin.version>
         <clean-plugin.version>3.3.1</clean-plugin.version>
-        <compiler-plugin.version>3.11.0</compiler-plugin.version>
+        <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <deploy-plugin.version>3.1.1</deploy-plugin.version>
         <enforcer-plugin.version>3.3.0</enforcer-plugin.version>
         <exec-plugin.version>3.1.0</exec-plugin.version>
