@@ -1,10 +1,10 @@
 package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.OperationStatistics;
+import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
@@ -37,18 +37,18 @@ public class QueryResponse implements AutoCloseable {
 
     private QuerySettings settings;
 
-    private OperationStatistics operationStatistics;
+    private OperationMetrics operationMetrics;
 
     private volatile boolean completed = false;
 
     public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef,
                          QuerySettings settings, ClickHouseFormat format,
-                         OperationStatistics.ClientStatistics clientStatistics) {
+                         ClientStatisticsHolder clientStatisticsHolder) {
         this.client = client;
         this.responseRef = responseRef;
         this.format = format;
         this.settings = settings;
-        this.operationStatistics = new OperationStatistics(clientStatistics);
+        this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
     }
 
     /**
@@ -66,8 +66,7 @@ public class QueryResponse implements AutoCloseable {
         try {
             ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
             completed = true;
-            operationStatistics.clientStatistics.stop("query");
-            this.operationStatistics.updateServerStats(response.getSummary());
+            operationMetrics.operationComplete(response.getSummary());
         } catch (TimeoutException | InterruptedException | ExecutionException e) {
             throw new ClientException("Query request failed", e);
         }
@@ -95,8 +94,8 @@ public class QueryResponse implements AutoCloseable {
         return format;
     }
 
-    public OperationStatistics getOperationStatistics() {
+    public OperationMetrics getMetrics() {
         ensureDone();
-        return operationStatistics;
+        return operationMetrics;
     }
 }

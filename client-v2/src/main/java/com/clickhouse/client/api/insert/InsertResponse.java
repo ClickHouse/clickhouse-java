@@ -2,25 +2,21 @@ package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.api.OperationStatistics;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 
 public class InsertResponse implements AutoCloseable {
     private final ClickHouseResponse responseRef;
     private final ClickHouseClient client;
 
-    private OperationStatistics operationStatistics;
+    private OperationMetrics operationMetrics;
 
     public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef,
-                          OperationStatistics.ClientStatistics clientStatistics) {
+                          ClientStatisticsHolder clientStatisticsHolder) {
         this.responseRef = responseRef;
         this.client = client;
-        this.operationStatistics = new OperationStatistics(clientStatistics);
-        this.operationStatistics.updateServerStats(responseRef.getSummary());
+        this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
+        this.operationMetrics.operationComplete(responseRef.getSummary());
     }
 
     @Override
@@ -32,7 +28,7 @@ public class InsertResponse implements AutoCloseable {
         }
     }
 
-    public OperationStatistics getOperationStatistics() {
-        return operationStatistics;
+    public OperationMetrics getMetrics() {
+        return operationMetrics;
     }
 }

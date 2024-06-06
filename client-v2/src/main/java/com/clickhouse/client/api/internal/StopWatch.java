@@ -1,8 +1,10 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.metrics.Metric;
+
 import java.util.concurrent.TimeUnit;
 
-public class StopWatch {
+public class StopWatch implements Metric {
 
     long elapsedNanoTime = 0;
     long startNanoTime;
@@ -37,5 +39,10 @@ public class StopWatch {
                 "\"elapsedNanoTime\"=" + elapsedNanoTime +
                 ", \"elapsedTime\"=" + getElapsedTime() +
                 '}';
+    }
+
+    @Override
+    public long getLong() {
+        return getElapsedTime();
     }
 }

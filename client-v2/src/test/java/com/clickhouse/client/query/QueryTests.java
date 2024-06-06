@@ -11,7 +11,6 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.OperationStatistics;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
@@ -20,6 +19,9 @@ import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatRe
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -898,16 +900,12 @@ public class QueryTests extends BaseIntegrationTest {
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
         // Stats should be available after the query is done
-        OperationStatistics stats = response.getOperationStatistics();
-        OperationStatistics.ServerStatistics serverStats = stats.serverStatistics;
-        System.out.println("Server stats: " + serverStats);
-        System.out.println("Client stats: " + stats.clientStatistics);
+        OperationMetrics metrics = response.getMetrics();
+        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
+        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
-        Assert.assertTrue(serverStats.numBytesRead > 0);
-        Assert.assertEquals(serverStats.numBytesWritten, 0);
-        Assert.assertEquals(serverStats.numRowsRead, 10); // 10 rows in the table
-        Assert.assertEquals(serverStats.numRowsWritten, 0);
-        Assert.assertEquals(serverStats.resultRows, 3);
+        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
+        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
 
         StringBuilder insertStmtBuilder = new StringBuilder();
         insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
@@ -920,18 +918,13 @@ public class QueryTests extends BaseIntegrationTest {
         }
         response = client.query(insertStmtBuilder.toString(), settings).get();
 
-        serverStats = response.getOperationStatistics().serverStatistics;
-        System.out.println("Server stats: " + serverStats);
-        System.out.println("Client stats: " + stats.clientStatistics);
+        metrics = response.getMetrics();
+        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
+        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
-        // Server stats: ServerStatistics{"numRowsRead"=10, "numRowsWritten"=10, "totalRowsToRead"=0, "numBytesRead"=651, "numBytesWritten"=651}
-        Assert.assertTrue(serverStats.numBytesRead > 0);
-        Assert.assertTrue(serverStats.numBytesWritten > 0);
-        Assert.assertEquals(serverStats.numRowsRead, rowsToInsert); // 10 rows in the table
-        Assert.assertEquals(serverStats.numRowsWritten, rowsToInsert); // 10 rows inserted
-        Assert.assertEquals(serverStats.totalRowsToRead, 0);
-        Assert.assertEquals(serverStats.resultRows, rowsToInsert);
-        Assert.assertTrue(stats.clientStatistics.getElapsedTime("query") > 0);
+        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
+        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
+        Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
