@@ -3,6 +3,7 @@ package com.clickhouse.examples.client_v2;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.data.ClickHouseFormat;
 import lombok.extern.slf4j.Slf4j;
 
@@ -67,6 +68,7 @@ public class Stream2DbWriter {
      *
      * <p>Any other format can be used instead of JSONEachRow, such as TabSeparated, RowBinary, etc. As data stream
      * is passed almost directly to a transport layer.</p>
+     *
      * @param inputStream - input stream of JSONEachRow formatted data
      */
     public void insertData_JSONEachRowFormat(InputStream inputStream) {
@@ -74,7 +76,7 @@ public class Stream2DbWriter {
         try {
             InsertResponse response = client.insert(TABLE_NAME, inputStream, ClickHouseFormat.JSONEachRow,
                     insertSettings).get(3, TimeUnit.SECONDS);
-            log.info("Insert finished: {}", response.getOperationStatistics());
+            log.info("Insert finished: {} rows written", response.getMetrics().getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
         } catch (Exception e) {
             log.error("Failed to write JSONEachRow data", e);
             throw new RuntimeException(e);
