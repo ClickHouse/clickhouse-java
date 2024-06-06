@@ -573,45 +573,19 @@ public class Client {
      * @param format - target format
      * @return
      */
+    public CompletableFuture<InsertResponse> insert(String tableName, byte[] src, ClickHouseFormat format) {
+        return insert(tableName, new ByteArrayInputStream(src), format, new InsertSettings());
+    }
+
+    /**
+     * <p>Sends write request to database. Input data is read from the buffer. Data should be already in target format.</p>
+     * @param tableName - destination table name
+     * @param src - data buffer to insert
+     * @param format - target format
+     * @return
+     */
     public CompletableFuture<InsertResponse> insert(String tableName, byte[] src, ClickHouseFormat format, InsertSettings settings) {
-        String operationId = (String) settings.getOperationId();
-        if (operationId == null) {
-            operationId = startOperation();
-            settings.setOperationId(operationId);
-        }
-        OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
-        clientStats.start("insert");
-
-        CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
-
-        try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings).format(format);
-            CompletableFuture<ClickHouseResponse> future = null;
-            try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
-                future = request.data(stream.getInputStream()).execute();
-
-                // All bytes are copied from the buffer to the output stream
-                // PipedOutputStream will handle growing the buffer if needed
-                ByteArrayInputStream data = new ByteArrayInputStream(src);
-                data.transferTo(stream);
-
-            } catch (IOException e) {
-                responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
-            }
-
-            if (!responseFuture.isCompletedExceptionally()) {
-                try {
-                    InsertResponse response = new InsertResponse(client, future.get(), clientStats);
-                    responseFuture.complete(response);
-                } catch (InterruptedException | ExecutionException e) {
-                    responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
-                }
-            }
-            clientStats.stop("insert");
-            LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
-        }
-
-        return responseFuture;
+        return insert(tableName, new ByteArrayInputStream(src), format, settings);
     }
 
     /**
