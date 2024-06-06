@@ -924,7 +924,9 @@ public class QueryTests extends BaseIntegrationTest {
 
         Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
+        Assert.assertEquals(response.getReadRows(), rowsToInsert);
         Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(

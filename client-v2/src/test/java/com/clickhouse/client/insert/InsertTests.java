@@ -68,6 +68,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         OperationMetrics metrics = response.getMetrics();
         assertEquals(simplePOJOs.size(), metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
+        assertEquals(simplePOJOs.size(), response.getWrittenRows());
         assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
     }
