@@ -3,6 +3,7 @@ package com.clickhouse.examples.client_v2;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
@@ -72,7 +73,7 @@ public class SimpleReader {
                 log.info("id: {}, title: {}, url: {}", id, title, url);
             }
 
-            log.info("Data read successfully: {}", response.getOperationStatistics());
+            log.info("Data read successfully: {} ms", response.getMetrics().getMetric(ClientMetrics.OP_DURATION).getLong());
         } catch (Exception e) {
             log.error("Failed to read data", e);
         }

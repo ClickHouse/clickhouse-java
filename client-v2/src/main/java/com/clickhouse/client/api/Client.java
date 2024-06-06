@@ -21,6 +21,8 @@ import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -103,7 +105,7 @@ public class Client {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private ExecutorService queryExecutor;
 
-    private Map<String, OperationStatistics.ClientStatistics> globalClientStats = new ConcurrentHashMap<>();
+    private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
         this.endpoints = endpoints;
@@ -526,7 +528,7 @@ public class Client {
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
-        globalClientStats.get(operationId).start("serialization");
+        globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
@@ -560,7 +562,7 @@ public class Client {
             }
         }
 
-        globalClientStats.get(operationId).stop("serialization");
+        globalClientStats.get(operationId).stop(ClientMetrics.OP_SERIALIZATION);
         LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
         return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
     }
@@ -598,8 +600,8 @@ public class Client {
             operationId = startOperation();
             settings.setOperationId(operationId);
         }
-        OperationStatistics.ClientStatistics clientStats = globalClientStats.remove(operationId);
-        clientStats.start("insert");
+        ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
+        clientStats.start(ClientMetrics.OP_DURATION);
 
         CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
@@ -627,7 +629,6 @@ public class Client {
                     responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
                 }
             }
-            clientStats.stop("insert");
             LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
         }
 
@@ -695,8 +696,8 @@ public class Client {
         if (settings.getFormat() == null) {
             settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         }
-        OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
-        clientStats.start("query");
+        ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
+        clientStats.start(ClientMetrics.OP_DURATION);
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
 
@@ -751,7 +752,7 @@ public class Client {
             settings = new QuerySettings();
         }
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        OperationStatistics.ClientStatistics clientStats = new OperationStatistics.ClientStatistics();
+        ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start("query");
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
@@ -865,7 +866,7 @@ public class Client {
 
     private String startOperation() {
         String operationId = UUID.randomUUID().toString();
-        globalClientStats.put(operationId, new OperationStatistics.ClientStatistics());
+        globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
     }
 }
