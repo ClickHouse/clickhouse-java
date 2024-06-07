@@ -35,11 +35,13 @@ public class ClickHouseException extends Exception {
 
     private final int errorCode;
 
-    private static String buildErrorMessage(int code, Throwable cause, ClickHouseNode server) {
-        return buildErrorMessage(code, cause != null ? cause.getMessage() : null, server);
+    private final ClickHouseNode server;
+
+    private static String buildErrorMessageImpl(int code, Throwable cause) {
+        return buildErrorMessageImpl(code, cause != null ? cause.getMessage() : null);
     }
 
-    private static String buildErrorMessage(int code, String message, ClickHouseNode server) {
+    private static String buildErrorMessageImpl(int code, String message) {
         StringBuilder builder = new StringBuilder();
 
         if (message != null && !message.isEmpty()) {
@@ -52,10 +54,6 @@ public class ClickHouseException extends Exception {
             builder.append(MSG_CODE).append(code).append(". Execution timed out");
         } else {
             builder.append("Unknown error ").append(code);
-        }
-
-        if (server != null) {
-            builder.append(", server ").append(server);
         }
 
         return builder.toString();
@@ -175,9 +173,9 @@ public class ClickHouseException extends Exception {
      * @param server server
      */
     public ClickHouseException(int code, Throwable cause, ClickHouseNode server) {
-        super(buildErrorMessage(code, cause, server), cause);
-
-        errorCode = code;
+        super(buildErrorMessageImpl(code, cause), cause);
+        this.server = server;
+        this.errorCode = code;
     }
 
     /**
@@ -188,9 +186,10 @@ public class ClickHouseException extends Exception {
      * @param server  server
      */
     public ClickHouseException(int code, String message, ClickHouseNode server) {
-        super(buildErrorMessage(code, message, server), null);
+        super(buildErrorMessageImpl(code, message), null);
 
-        errorCode = code;
+        this.server = server;
+        this.errorCode = code;
     }
 
     /**
@@ -203,7 +202,8 @@ public class ClickHouseException extends Exception {
     protected ClickHouseException(int code, String message, Throwable cause) {
         super(message, cause);
 
-        errorCode = code;
+        this.server = null;
+        this.errorCode = code;
     }
 
     /**
@@ -213,5 +213,14 @@ public class ClickHouseException extends Exception {
      */
     public int getErrorCode() {
         return errorCode;
+    }
+
+    /**
+     * Get the server that caused the exception.
+     * If the exception is not caused by a server, this method will return null.
+     * @return server
+     */
+    public ClickHouseNode getServer() {
+        return server;
     }
 }
