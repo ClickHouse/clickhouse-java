@@ -23,11 +23,14 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
 
     public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream, QuerySettings querySettings) {
         super(inputStream, querySettings, null);
-        setSchema(readSchema());
+        readSchema();
     }
 
-    private TableSchema readSchema() {
+    private void readSchema() {
         try {
+            if (inputStream.available() < 1) {
+                return;
+            }
             TableSchema headerSchema = new TableSchema();
             List<String> columns = new ArrayList<>();
             int nCol = chInputStream.readVarInt();
@@ -39,7 +42,7 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
                 headerSchema.addColumn(columns.get(i), chInputStream.readUnicodeString());
             }
 
-            return headerSchema;
+            setSchema(headerSchema);
         } catch (IOException e) {
             throw new ClientException("Failed to read header", e);
         }
