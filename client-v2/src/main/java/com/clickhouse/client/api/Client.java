@@ -16,12 +16,12 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -35,7 +35,6 @@ import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -708,21 +707,19 @@ public class Client {
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
 
-        CompletableFuture<QueryResponse> future = new CompletableFuture<>();
         final QuerySettings finalSettings = settings;
-        queryExecutor.submit(() -> {
-            MDC.put("queryId", finalSettings.getQueryId());
+        CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
-                future.complete(queryResponse);
+                return queryResponse;
+            } catch (ClientException e) {
+                throw e;
             } catch (Exception e) {
-                future.completeExceptionally(e);
-            } finally {
-                MDC.remove("queryId");
+                throw new ClientException("Failed to get query response", e);
             }
-        });
+        }, queryExecutor);
         return future;
     }
 
@@ -764,21 +761,20 @@ public class Client {
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
 
-        CompletableFuture<Records> future = new CompletableFuture<>();
         final QuerySettings finalSettings = settings;
-        queryExecutor.submit(() -> {
-            MDC.put("queryId", finalSettings.getQueryId());
+        CompletableFuture<Records> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
                 QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
                 queryResponse.ensureDone();
-                future.complete(new Records(queryResponse, finalSettings));
+                return new Records(queryResponse, finalSettings);
+            } catch (ClientException e) {
+                throw e;
             } catch (Exception e) {
-                future.completeExceptionally(e);
-            } finally {
-                MDC.remove("queryId");
+                throw new ClientException("Failed to get query response", e);
             }
-        });
+        }, queryExecutor);
+
         return future;
     }
 
