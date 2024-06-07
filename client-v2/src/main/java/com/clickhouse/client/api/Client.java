@@ -384,9 +384,9 @@ public class Client {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            this.configuration.put("proxy_type", type.toString());
-            this.configuration.put("proxy_host", host);
-            this.configuration.put("proxy_port", String.valueOf(port));
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_TYPE), type.toString());
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_HOST), host);
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_PORT), String.valueOf(port));
             return this;
         }
 
