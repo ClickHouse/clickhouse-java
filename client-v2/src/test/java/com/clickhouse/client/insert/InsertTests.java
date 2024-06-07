@@ -11,6 +11,9 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.ServerMetrics;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -63,8 +66,10 @@ public class InsertTests extends BaseIntegrationTest {
         }
         InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(30, TimeUnit.SECONDS);
 
-        assertEquals(simplePOJOs.size(), response.getOperationStatistics().getServerStatistics().numRowsWritten);
-        assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("insert") > 0);
-        assertTrue(response.getOperationStatistics().getClientStatistics().getElapsedTime("serialization") > 0);
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals(simplePOJOs.size(), metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
+        assertEquals(simplePOJOs.size(), response.getWrittenRows());
+        assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+        assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
     }
 }
