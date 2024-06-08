@@ -788,9 +788,11 @@ public class Client {
         try {
             try (QueryResponse response = query(sqlQuery).get(TIMEOUT, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
-                ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
-                while (reader.hasNext()) {
-                    records.add(new MapBackedRecord(reader.next(), reader.getSchema()));
+                if (response.getResultRows() > 0) {
+                    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                    while (reader.hasNext()) {
+                        records.add(new MapBackedRecord(reader.next(), reader.getSchema()));
+                    }
                 }
                 return records;
             }

@@ -136,10 +136,24 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testReadRecordsNoResult() throws Exception {
+        Records records = client.queryRecords("CREATE DATABASE IF NOT EXISTS test_db").get(3, TimeUnit.SECONDS);
+
+        Iterator<GenericRecord> iter = records.iterator();
+        Assert.assertFalse(iter.hasNext());
+    }
+
+    @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
         GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
         Assert.assertNotNull(hostnameRecord);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllNoResult() throws Exception {
+        List<GenericRecord>  records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
+        Assert.assertTrue(records.isEmpty());
     }
 
     @Test(groups = {"integration"}, enabled = false)
