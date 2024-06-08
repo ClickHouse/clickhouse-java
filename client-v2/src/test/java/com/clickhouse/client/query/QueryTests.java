@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -364,8 +365,14 @@ public class QueryTests extends BaseIntegrationTest {
 
 
     @Test(groups = {"integration"})
-    public void testQueryExceptionHandling() {
+    public void testQueryExceptionHandling() throws Exception {
 
+        try {
+            client.queryRecords("SELECT * FROM unknown_table").get(3, TimeUnit.SECONDS);
+            Assert.fail("expected exception");
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        }
     }
 
 
