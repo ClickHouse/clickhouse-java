@@ -1,12 +1,18 @@
 ## Latest 
 
+## 0.6.1
+
+### New Features
+- Alpha version of the new client API. See example https://github.com/ClickHouse/clickhouse-java/tree/main/examples/client-v2. 
+
 ### Bug Fixes
-- Fix proper handling of ClickHouseResult to release DB connection https://github.com/ClickHouse/clickhouse-java/issues/1538
+- Fix proper handling of ClickHouseResult to release DB connection (https://github.com/ClickHouse/clickhouse-java/issues/1538
 - Fix getting response input stream for binary formats.
     - https://github.com/ClickHouse/clickhouse-java/issues/1494
     - https://github.com/ClickHouse/clickhouse-java/issues/1567
     - https://github.com/ClickHouse/clickhouse-java/issues/1475
     - https://github.com/ClickHouse/clickhouse-java/issues/1376
+- Exception context remove from a message. Server information not present anymore but available thru `com.clickhouse.client.ClickHouseException#getServer` (https://github.com/ClickHouse/clickhouse-java/issues/1677)
 
 ## 0.6.0-patch5
 
