@@ -65,3 +65,11 @@ To run with a snapshot version of ClickHouse Java client (replace `0.6.0` with t
 ```shell
 mvn exec:java -Dclickhouse-java.version=0.6.0-SNAPSHOT -Dexec.mainClass="com.clickhouse.examples.formats.ProtobufMain"
 ```
+
+
+Addition options can be passed to the application:
+- `-DchPort` - ClickHouse server port (default: 8123)
+- `-DchSsl` - Set to `true` to use https (default: false)
+- `-DchUser` - ClickHouse user name (default: default)
+- `-DchPassword` - ClickHouse user password (default: empty)
+- `-DchDatabase` - ClickHouse database name (default: default)
