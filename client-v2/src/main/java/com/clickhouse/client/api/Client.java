@@ -11,6 +11,8 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
+import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -46,6 +48,7 @@ import java.net.URL;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -187,12 +190,12 @@ public class Client {
          * @param host - Endpoint host
          * @param port - Endpoint port
          */
-        public Builder addEndpoint(Protocol protocol, String host, int port) {
+        public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure) {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            String endpoint = String.format("%s://%s:%d", protocol.toString().toLowerCase(), host, port);
+            String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
             this.addEndpoint(endpoint);
             return this;
         }
@@ -374,6 +377,17 @@ public class Client {
          */
         public Builder setDefaultDatabase(String database) {
             this.configuration.put("database", database);
+            return this;
+        }
+
+        public Builder addProxy(ProxyType type, String host, int port) {
+            ValidationUtils.checkNotNull(type, "type");
+            ValidationUtils.checkNonBlank(host, "host");
+            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
+
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_TYPE), type.toString());
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_HOST), host);
+            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_PORT), String.valueOf(port));
             return this;
         }
 
@@ -574,10 +588,7 @@ public class Client {
      * @param format - format of the data in the stream
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
-    public CompletableFuture<InsertResponse> insert(String tableName,
-                                         InputStream data,
-                                         ClickHouseFormat format)
-    {
+    public CompletableFuture<InsertResponse> insert(String tableName, InputStream data, ClickHouseFormat format) {
         return insert(tableName, data, format, new InsertSettings());
     }
 
@@ -866,5 +877,19 @@ public class Client {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
+    }
+
+    public String toString() {
+        return "Client{" +
+                "endpoints=" + endpoints +
+                '}';
+    }
+
+    public Map<String, String> getConfiguration() {
+        return Collections.unmodifiableMap(configuration);
+    }
+
+    public Set<String> getEndpoints() {
+        return Collections.unmodifiableSet(endpoints);
     }
 }
