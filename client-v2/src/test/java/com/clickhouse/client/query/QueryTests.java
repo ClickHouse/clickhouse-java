@@ -118,7 +118,7 @@ public class QueryTests extends BaseIntegrationTest {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
         Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
-
+        Assert.assertTrue(records.getResultRows() == 10, "Unexpected number of rows");
         for (GenericRecord record : records) {
             record.getString(3); // string column col3
         }
