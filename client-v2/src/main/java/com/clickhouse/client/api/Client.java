@@ -385,9 +385,9 @@ public class Client {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_TYPE).toLowerCase(), type.toString());
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_HOST).toLowerCase(), host);
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_PORT).toLowerCase(), String.valueOf(port));
+            this.configuration.put(ClickHouseClientOption.PROXY_TYPE.getKey(), type.toString());
+            this.configuration.put(ClickHouseClientOption.PROXY_HOST.getKey(), host);
+            this.configuration.put(ClickHouseClientOption.PROXY_PORT.getKey(), String.valueOf(port));
             return this;
         }
 
