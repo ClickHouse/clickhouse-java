@@ -58,8 +58,11 @@ public class TableSchema {
     }
 
     public void addColumn(String name, String type) {
+        addColumn(name, type, "");
+    }
+    public void addColumn(String name, String type, String defaultType) {
         columns.add(ClickHouseColumn.of(name, type));
-        if (type.toUpperCase().contains("DEFAULT")) {
+        if (defaultType.toUpperCase().contains("DEFAULT")) {
             hasDefaults = true;
         }
         Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
@@ -83,6 +86,18 @@ public class TableSchema {
 
     public int nameToIndex(String name) {
         return colIndex.get(name).intValue();
+    }
+
+    @Override
+    public String toString() {
+        return "TableSchema{" +
+                "tableName='" + tableName + '\'' +
+                ", databaseName='" + databaseName + '\'' +
+                ", columns=" + columns +
+                ", metadata=" + metadata +
+                ", colIndex=" + colIndex +
+                ", hasDefaults=" + hasDefaults +
+                '}';
     }
 }
 

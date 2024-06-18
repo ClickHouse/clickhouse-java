@@ -59,7 +59,7 @@ public class InsertTests extends BaseIntegrationTest {
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
-
+        System.out.println(client.getTableSchema(tableName, "default"));
         client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
