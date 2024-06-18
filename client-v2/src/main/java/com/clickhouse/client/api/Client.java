@@ -19,6 +19,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -30,6 +31,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
@@ -42,6 +44,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -430,10 +433,11 @@ public class Client {
     public boolean ping(long timeout) {
         ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
                 "timeout");
-        ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-        return clientPing.ping(getServerNode(), Math.toIntExact(timeout));
-    }
 
+        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
+            return client.ping(getServerNode(), Math.toIntExact(timeout));
+        }
+    }
 
     /**
      * <p>Registers a POJO class and maps its fields to a table schema</p>
@@ -615,8 +619,9 @@ public class Client {
 
         CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
-        try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings).format(format);
+        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
+            ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
+                    .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -708,10 +713,8 @@ public class Client {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
-        ClickHouseClient client = createClient();
+        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
         ClickHouseRequest<?> request = client.read(getServerNode());
-
-
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
         request.query(sqlQuery, settings.getQueryId());
@@ -762,10 +765,8 @@ public class Client {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start("query");
-        ClickHouseClient client = createClient();
+        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
         ClickHouseRequest<?> request = client.read(getServerNode());
-
-
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
         request.query(sqlQuery, settings.getQueryId());
@@ -836,8 +837,8 @@ public class Client {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        try (ClickHouseClient clientQuery = createClient()) {
-            ClickHouseRequest request = clientQuery.read(getServerNode());
+        try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
+            ClickHouseRequest<?> request = clientQuery.read(getServerNode());
             // XML - because java has a built-in XML parser. Will consider CSV later.
             request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
             try {
@@ -846,31 +847,6 @@ public class Client {
                 throw new ClientException("Failed to get table schema", e);
             }
         }
-    }
-
-    private ClickHouseClient createClient() {
-        ClickHouseConfig clientConfig = new ClickHouseConfig();
-        ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
-                .config(clientConfig)
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
-        return clientV1.build();
-    }
-
-    private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
-        if (settings == null) return request.table(tableName);
-
-        if (settings.getQueryId() != null) {//This has to be handled separately
-            request.table(tableName, settings.getQueryId());
-        } else {
-            request.table(tableName);
-        }
-
-        //For each setting, set the value in the request
-        for (Map.Entry<String, Object> entry : settings.getAllSettings().entrySet()) {
-            request.set(entry.getKey(), String.valueOf(entry.getValue()));
-        }
-
-        return request;
     }
 
     private String startOperation() {
