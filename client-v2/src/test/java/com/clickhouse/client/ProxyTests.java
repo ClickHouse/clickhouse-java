@@ -72,7 +72,7 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" }, enabled = true)
     public void simpleProxyTest() throws Exception {
-        String tableName = "simple_pojo_proxy_table";
+        String tableName = "simple_pojo_enable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
@@ -95,7 +95,7 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" }, enabled = true)
     public void simpleDisabledProxyTest() throws Exception {
-        String tableName = "simple_pojo_proxy_table";
+        String tableName = "simple_pojo_disable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
