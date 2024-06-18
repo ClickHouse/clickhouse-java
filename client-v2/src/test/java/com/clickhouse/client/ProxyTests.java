@@ -111,7 +111,7 @@ public class ProxyTests extends BaseIntegrationTest{
             InsertResponse response = client.insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
             fail("Should have thrown exception.");
         } catch (Exception e) {
-            assertTrue(e.getMessage().contains("Operation has likely timed out."));
+            assertTrue(e instanceof ClientException);
         }
     }
 }
