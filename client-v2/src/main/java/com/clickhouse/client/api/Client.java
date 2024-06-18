@@ -465,7 +465,7 @@ public class Client {
         this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
 
         for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "");
+            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".","");
             serializers.add((obj, stream) -> {
                 if (!getterMethods.containsKey(columnName)) {
                     LOG.warn("No getter method found for column: {}", columnName);

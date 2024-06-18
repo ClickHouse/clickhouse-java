@@ -13,6 +13,7 @@ import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,8 @@ public class SamplePOJO {
     private List<String> array;
     private List<Integer> tuple;
     private Map<String, Integer> map;
-    private SamplePOJOInner inner;
+    private List<Integer> nestedInnerInt;
+    private List<String> nestedInnerString;
 
     public SamplePOJO() {
         final Random random = new Random();
@@ -110,7 +112,7 @@ public class SamplePOJO {
 
         bool = random.nextBoolean();
 
-        string = RandomStringUtils.randomAlphabetic(1, 512);
+        string = RandomStringUtils.randomAlphabetic(1, 256);
         fixedString = RandomStringUtils.randomAlphabetic(3);
 
         date = LocalDate.now();
@@ -143,7 +145,9 @@ public class SamplePOJO {
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
         }
-        inner = new SamplePOJOInner();
+
+        nestedInnerInt = Collections.singletonList(random.nextInt(32768));
+        nestedInnerString = Collections.singletonList(RandomStringUtils.randomAlphabetic(1, 256));
     }
 
     public int getInt8() {
@@ -434,13 +438,22 @@ public class SamplePOJO {
         this.map = map;
     }
 
-    public SamplePOJOInner getInner() {
-        return inner;
+    public List<Integer> getNestedInnerInt() {
+        return nestedInnerInt;
     }
 
-    public void setInner(SamplePOJOInner inner) {
-        this.inner = inner;
+    public void setNestedInnerInt(List<Integer> nestedInnerInt) {
+        this.nestedInnerInt = nestedInnerInt;
     }
+
+    public List<String> getNestedInnerString() {
+        return nestedInnerString;
+    }
+
+    public void setNestedInnerString(List<String> nestedInnerString) {
+        this.nestedInnerString = nestedInnerString;
+    }
+
 
     public static TableSchema generateTableSchema(String tableName) {
         TableSchema schema = new TableSchema();
@@ -497,8 +510,7 @@ public class SamplePOJO {
         schema.addColumn("tuple", "Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32)");
         schema.addColumn("map", "Map(String, Int32)");
 
-        //schema.addColumn("inner", "Nested (innerInt Int32, innerString String)");
-
+        schema.addColumn("nested", "Nested (innerInt Int32, innerString String)");
         return schema;
     }
 
@@ -515,41 +527,5 @@ public class SamplePOJO {
         }
         sb.append(") ENGINE = Memory");
         return sb.toString();
-    }
-
-    public static class SamplePOJOInner {
-        private int innerInt;
-        private String innerString;
-
-        public SamplePOJOInner() {
-            final Random random = new Random();
-            innerInt = random.nextInt();
-            innerString = "inner" + random.nextInt();
-        }
-
-        public static TableSchema generateTableSchema(String tableName) {
-            TableSchema schema = new TableSchema();
-            schema.setDatabaseName("default");
-            schema.setTableName(tableName);
-            schema.addColumn("innerInt", "Int32");
-            schema.addColumn("innerString", "String");
-            return schema;
-        }
-
-        public int getInnerInt() {
-            return innerInt;
-        }
-
-        public void setInnerInt(int innerInt) {
-            this.innerInt = innerInt;
-        }
-
-        public String getInnerString() {
-            return innerString;
-        }
-
-        public void setInnerString(String innerString) {
-            this.innerString = innerString;
-        }
     }
 }
