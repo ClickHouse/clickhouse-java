@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 public class ProxyTests extends BaseIntegrationTest{
     private Client client;
@@ -69,7 +70,7 @@ public class ProxyTests extends BaseIntegrationTest{
     }
 
 
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" }, enabled = true)
     public void simpleProxyTest() throws Exception {
         String tableName = "simple_pojo_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
@@ -105,12 +106,11 @@ public class ProxyTests extends BaseIntegrationTest{
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
-        //proxy.disable();
+        proxy.disable();
         try {
             InsertResponse response = client.insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
+            fail("Should have thrown exception.");
         } catch (Exception e) {
-            //FOR NOW THIS WILL FAIL
-            //IF IT SUCCEEDS (meaning the test fails), YAY PROXY WORKS WE SHOULD REIMPLEMENT THE TESTS!
             assertTrue(e.getMessage().contains("Operation has likely timed out."));
         }
     }
