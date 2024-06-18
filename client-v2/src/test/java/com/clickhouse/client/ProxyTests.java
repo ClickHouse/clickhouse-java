@@ -77,7 +77,7 @@ public class ProxyTests extends BaseIntegrationTest{
         System.out.println(createSQL);
         createTable(createSQL);
 
-        client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -100,7 +100,7 @@ public class ProxyTests extends BaseIntegrationTest{
         System.out.println(createSQL);
         createTable(createSQL);
 
-        client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {

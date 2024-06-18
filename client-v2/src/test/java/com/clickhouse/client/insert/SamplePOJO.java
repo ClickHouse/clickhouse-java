@@ -146,8 +146,8 @@ public class SamplePOJO {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
         }
 
-        nestedInnerInt = Collections.singletonList(random.nextInt(32768));
-        nestedInnerString = Collections.singletonList(RandomStringUtils.randomAlphabetic(1, 256));
+        nestedInnerInt = List.of(random.nextInt(Integer.MAX_VALUE));
+        nestedInnerString = List.of(RandomStringUtils.randomAlphabetic(1, 256));
     }
 
     public int getInt8() {
