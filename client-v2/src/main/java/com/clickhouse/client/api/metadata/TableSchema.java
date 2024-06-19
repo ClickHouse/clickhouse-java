@@ -61,10 +61,13 @@ public class TableSchema {
         addColumn(name, type, "");
     }
     public void addColumn(String name, String type, String defaultType) {
-        columns.add(ClickHouseColumn.of(name, type));
+        ClickHouseColumn column = ClickHouseColumn.of(name, type);
         if (defaultType.toUpperCase().contains("DEFAULT")) {
             hasDefaults = true;
+            column.setHasDefault(true);
         }
+        columns.add(column);
+
         Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
             columnMetadata.put("type", type);
         colIndex.put(name, columns.size() - 1);
