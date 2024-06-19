@@ -12,6 +12,7 @@ import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -146,8 +147,13 @@ public class SamplePOJO {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
         }
 
-        nestedInnerInt = List.of(random.nextInt(Integer.MAX_VALUE));
-        nestedInnerString = List.of(RandomStringUtils.randomAlphabetic(1, 256));
+        List<Integer> innerInt = new ArrayList<>();
+        innerInt.add(random.nextInt(Integer.MAX_VALUE));
+        nestedInnerInt = innerInt;
+
+        List<String> innerString = new ArrayList<>();
+        innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
+        nestedInnerString = innerString;
     }
 
     public int getInt8() {
