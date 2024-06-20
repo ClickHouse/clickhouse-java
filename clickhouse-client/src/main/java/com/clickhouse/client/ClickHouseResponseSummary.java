@@ -20,7 +20,7 @@ public class ClickHouseResponseSummary implements Serializable {
     public static final class Progress implements Serializable {
         private static final long serialVersionUID = -1447066780591278108L;
 
-        static final Progress EMPTY = new Progress(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        static final Progress EMPTY = new Progress(0L, 0L, 0L, 0L, 0L, 0L, 0L, "");
 
         private final long read_rows;
         private final long read_bytes;
@@ -29,6 +29,7 @@ public class ClickHouseResponseSummary implements Serializable {
         private final long written_bytes;
         private final long elapsed_time;
         private final long result_rows;
+        private final String query_id;
 
         /**
          * Default constructor.
@@ -39,9 +40,26 @@ public class ClickHouseResponseSummary implements Serializable {
          * @param written_rows       Number of rows written
          * @param written_bytes      Volume of data written in bytes
          * @param elapsed_time       Query processing time in (ns)
+         * @param result_rows        Number of rows in the result
          */
         public Progress(long read_rows, long read_bytes, long total_rows_to_read, long written_rows,
-                long written_bytes, long elapsed_time, long result_rows) {
+                        long written_bytes, long elapsed_time, long result_rows) {
+            this(read_rows, read_bytes, total_rows_to_read, written_rows, written_bytes, elapsed_time, result_rows, "");
+        }
+        /**
+         * Default constructor.
+         *
+         * @param read_rows          Number of rows read
+         * @param read_bytes         Volume of data read in bytes
+         * @param total_rows_to_read Total number of rows to be read
+         * @param written_rows       Number of rows written
+         * @param written_bytes      Volume of data written in bytes
+         * @param elapsed_time       Query processing time in (ns)
+         * @param result_rows        Number of rows in the result
+         * @param query_id           Query ID
+         */
+        public Progress(long read_rows, long read_bytes, long total_rows_to_read, long written_rows,
+                long written_bytes, long elapsed_time, long result_rows, String query_id) {
             this.read_rows = read_rows;
             this.read_bytes = read_bytes;
             this.total_rows_to_read = total_rows_to_read;
@@ -49,6 +67,7 @@ public class ClickHouseResponseSummary implements Serializable {
             this.written_bytes = written_bytes;
             this.elapsed_time = elapsed_time;
             this.result_rows = result_rows;
+            this.query_id = query_id;
         }
 
         public long getReadRows() {
@@ -78,6 +97,10 @@ public class ClickHouseResponseSummary implements Serializable {
         public long getResultRows() {
             return result_rows;
         }
+
+        public String getQueryId() {
+            return query_id;
+        }
         public Progress add(Progress progress) {
             if (progress == null) {
                 return this;
@@ -86,7 +109,7 @@ public class ClickHouseResponseSummary implements Serializable {
             return new Progress(read_rows + progress.read_rows, read_bytes + progress.read_bytes,
                     total_rows_to_read + progress.total_rows_to_read, written_rows + progress.written_rows,
                     written_bytes + progress.written_bytes,elapsed_time + progress.elapsed_time,
-                    result_rows + progress.result_rows);
+                    result_rows + progress.result_rows, query_id + ", " + progress.query_id);
         }
 
         public boolean isEmpty() {

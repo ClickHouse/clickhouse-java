@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseResponseSummary.Statistics;
 
 public class ClickHouseResponseSummaryTest {
     @Test(groups = { "unit" })
-    public void testConsutrctor() {
+    public void testConstructor() {
         ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
         Assert.assertNotNull(summary.getProgress());
         Assert.assertNotNull(summary.getStatistics());
