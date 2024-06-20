@@ -1,5 +1,8 @@
 ## Latest 
 
+### New Features
+- Describe non-executed SELECT queries in prepared statements to provide metadata (https://github.com/ClickHouse/clickhouse-java/issues/1430)
+
 ## 0.6.1
 
 ### New Features
