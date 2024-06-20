@@ -57,6 +57,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertSimplePOJOs() throws Exception {
         String tableName = "simple_pojo_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        String uuid = UUID.randomUUID().toString();
         System.out.println(createSQL);
         createTable(createSQL);
         client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
@@ -65,6 +66,7 @@ public class InsertTests extends BaseIntegrationTest {
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
+        settings.setQueryId(uuid);
         InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(30, TimeUnit.SECONDS);
 
         OperationMetrics metrics = response.getMetrics();
@@ -72,5 +74,7 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(simplePOJOs.size(), response.getWrittenRows());
         assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
+        assertEquals(metrics.getMetric(ServerMetrics.QUERY_ID).getString(), uuid);
+        assertEquals(response.getQueryId(), uuid);
     }
 }
