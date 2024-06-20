@@ -11,6 +11,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
@@ -58,8 +59,7 @@ public class InsertTests extends BaseIntegrationTest {
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
-
-        client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {

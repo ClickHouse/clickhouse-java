@@ -589,7 +589,7 @@ public final class ClickHouseColumn implements Serializable {
         this.originalTypeName = originalTypeName == null ? dataType.name() : originalTypeName;
         this.nullable = nullable;
         this.lowCardinality = lowCardinality;
-        this.hasDefault = originalTypeName != null && originalTypeName.toUpperCase().contains("DEFAULT");
+        this.hasDefault = false;
 
         if (parameters == null || parameters.isEmpty()) {
             this.parameters = Collections.emptyList();
@@ -732,6 +732,10 @@ public final class ClickHouseColumn implements Serializable {
 
     public boolean hasDefault() {
         return hasDefault;
+    }
+
+    public void setHasDefault(boolean hasDefault) {
+        this.hasDefault = hasDefault;
     }
 
     public boolean isLowCardinality() {
