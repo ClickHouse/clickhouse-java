@@ -2,21 +2,21 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.metrics.Metric;
 
-public class Gauge implements Metric {
+public class GenericMetric implements Metric {
 
-    private volatile long value;
+    private volatile Object value;
 
-    public Gauge(long readRows) {
-        this.value = readRows;
+    public GenericMetric(Object value) {
+        this.value = value;
     }
 
-    public void set(long value) {
+    public void set(Object value) {
         this.value = value;
     }
 
     @Override
     public long getLong() {
-        return value;
+        return Long.parseLong(getString());
     }
 
     @Override

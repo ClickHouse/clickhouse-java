@@ -7,4 +7,10 @@ public interface Metric {
      * @return value of the metric as a long
      */
     long getLong();
+
+    /**
+     * Returns value of the metric as a string.
+     * @return value of the metric as a string
+     */
+    String getString();
 }

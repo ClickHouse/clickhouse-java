@@ -3,6 +3,7 @@ package com.clickhouse.client.api.metrics;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.Gauge;
+import com.clickhouse.client.api.internal.GenericMetric;
 import com.clickhouse.client.api.internal.StopWatch;
 
 import java.util.HashMap;
@@ -43,6 +44,7 @@ public class OperationMetrics {
         metrics.put(ServerMetrics.NUM_BYTES_WRITTEN.getKey(), new Gauge(serverStats.getWrittenBytes()));
         metrics.put(ServerMetrics.RESULT_ROWS.getKey(), new Gauge(serverStats.getResultRows()));
         metrics.put(ServerMetrics.ELAPSED_TIME.getKey(), new Gauge(serverStats.getElapsedTime()));
+        metrics.put(ServerMetrics.QUERY_ID.getKey(), new GenericMetric(serverStats.getQueryId()));
     }
 
     @Override
