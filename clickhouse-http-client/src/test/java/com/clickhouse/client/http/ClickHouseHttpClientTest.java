@@ -415,6 +415,21 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testQueryId() throws ClickHouseException {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        String uuid = UUID.randomUUID().toString();
+
+        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                .defaultCredentials(ClickHouseCredentials.fromUserAndPassword("foo", "bar")).build()) {
+            try (ClickHouseResponse resp = newRequest(client, server).compressServerResponse(false)
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .query("select 1,2", uuid).executeAndWait()) {
+                Assert.assertEquals(resp.getSummary().getQueryId(), uuid);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testProxyConnection() throws ClickHouseException, IOException {
         ToxiproxyContainer toxiproxy = null;
         if (!ClickHouseServerForTest.hasProxyAddress()) {

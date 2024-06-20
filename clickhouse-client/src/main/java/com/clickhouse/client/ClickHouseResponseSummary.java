@@ -345,6 +345,10 @@ public class ClickHouseResponseSummary implements Serializable {
         return progress.get().getResultRows();
     }
 
+    public String getQueryId() {
+        return progress.get().getQueryId();
+    }
+
     public boolean isEmpty() {
         return progress.get().isEmpty() && stats.get().isEmpty();
     }
