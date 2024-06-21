@@ -79,5 +79,5 @@ jobs:
           maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_USER }}
-          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
+          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
