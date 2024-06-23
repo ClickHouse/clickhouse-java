@@ -18,27 +18,29 @@ import java.util.Map;
 
 public class ClientV1AdaptorHelper {
 
-    private static void copyProxySettings(Map<ClickHouseOption, Serializable> target, Map<String, String> config) {
-        ClickHouseClientOption opt = ClickHouseClientOption.PROXY_HOST;
-        String value = config.get(opt.getKey());
-        if (value != null) {
-            target.put(opt, value);
-        }
-        opt = ClickHouseClientOption.PROXY_PORT;
-        value = config.get(opt.getKey());
-        if (value != null) {
-            target.put(opt, Integer.parseInt(value));
-        }
-        opt = ClickHouseClientOption.PROXY_TYPE;
-        value = config.get(opt.getKey());
-        if (value != null) {
-            target.put(opt, ClickHouseProxyType.valueOf(value));
+    private static void copyClientOptions(Map<ClickHouseOption, Serializable> target, Map<String, String> config) {
+
+        for (ClickHouseClientOption opt : ClickHouseClientOption.values()) {
+            String value = config.get(opt.getKey());
+            if (value == null) {
+                continue;
+            }
+
+            if (opt.getValueType().isAssignableFrom(Integer.class)) {
+                target.put(opt, Integer.parseInt(value));
+            } else if (opt.getValueType().isAssignableFrom(Boolean.class)) {
+                target.put(opt, Boolean.parseBoolean(value));
+            } else if (opt.getValueType().isEnum()) {
+                target.put(opt, Enum.valueOf((Class<Enum>) opt.getValueType(), value));
+            } else if (opt.getValueType().isAssignableFrom(String.class)) {
+                target.put(opt, value);
+            }
         }
     }
 
     public static ClickHouseClient createClient(Map<String, String> configuration) {
         Map<ClickHouseOption, Serializable> config = new HashMap<>();
-        copyProxySettings(config, configuration);
+        copyClientOptions(config, configuration);
 
         ClickHouseConfig clientConfig = new ClickHouseConfig(config);
 
