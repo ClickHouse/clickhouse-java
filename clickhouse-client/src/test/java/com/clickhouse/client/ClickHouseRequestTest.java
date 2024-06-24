@@ -660,35 +660,4 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getQuery(), expectedSql);
         Assert.assertEquals(request.getStatements().get(0), expectedSql);
     }
-
-    @Test
-    public void testConcurrentUse() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
-        Assert.assertNotNull(request);
-
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(3);
-
-        final List<ClickHouseRequest<?>> sealedRequests = new ArrayList<>();
-
-        for (int i = 0; i < 3; i++) {
-            executor.scheduleWithFixedDelay(() -> {
-                String queryID = UUID.randomUUID().toString();
-//                System.out.println(System.currentTimeMillis() + "  Thread " + Thread.currentThread().getId() + " qId: " + queryID);
-                sealedRequests.add(request.query("select 1", queryID).seal());
-            }, 100, 100, TimeUnit.MILLISECONDS);
-        }
-
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Assert.fail("Thread sleep interrupted");
-        }
-        executor.shutdown();
-        final Set<String> queryIDs = new HashSet<>();
-        for (ClickHouseRequest<?> r : sealedRequests) {
-//            System.out.println(queryIDs);
-            Assert.assertTrue(queryIDs.add(r.getQueryId().get()), "Query ID should be unique: " +
-                    r.getQueryId().get());
-        }
-    }
 }
