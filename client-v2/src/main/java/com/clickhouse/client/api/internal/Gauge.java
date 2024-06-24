@@ -18,9 +18,4 @@ public class Gauge implements Metric {
     public long getLong() {
         return value;
     }
-
-    @Override
-    public String getString() {
-        return String.valueOf(value);
-    }
 }
