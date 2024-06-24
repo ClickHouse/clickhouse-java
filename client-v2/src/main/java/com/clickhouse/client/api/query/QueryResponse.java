@@ -154,10 +154,10 @@ public class QueryResponse implements AutoCloseable {
     }
 
     /**
-     * Alias for {@link ServerMetrics#QUERY_ID}
+     * Alias for {@link OperationMetrics#getQueryId()}
      * @return query id of the request
      */
     public String getQueryId() {
-        return operationMetrics.getMetric(ServerMetrics.QUERY_ID).getString();
+        return operationMetrics.getQueryId();
     }
 }

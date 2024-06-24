@@ -41,12 +41,7 @@ public enum ServerMetrics {
     /**
      * Elapsed time in nanoseconds.
      */
-    ELAPSED_TIME("server.elapsedTime"),
-
-    /**
-     * Query id of the request
-     */
-    QUERY_ID("server.queryId");
+    ELAPSED_TIME("server.elapsedTime");
 
     private final String key;
 

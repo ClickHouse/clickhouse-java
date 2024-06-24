@@ -948,7 +948,7 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
         Assert.assertEquals(response.getReadRows(), rowsToInsert);
         Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.QUERY_ID).getString(), uuid);
+        Assert.assertEquals(metrics.getQueryId(), uuid);
         Assert.assertEquals(response.getQueryId(), uuid);
 
     }

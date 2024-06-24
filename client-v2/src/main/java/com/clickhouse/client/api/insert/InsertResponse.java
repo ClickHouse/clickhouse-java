@@ -87,10 +87,10 @@ public class InsertResponse implements AutoCloseable {
     }
 
     /**
-     * Alias for {@link ServerMetrics#QUERY_ID}
+     * Alias for {@link OperationMetrics#getQueryId()}
      * @return number of returned bytes
      */
     public String getQueryId() {
-        return operationMetrics.getMetric(ServerMetrics.QUERY_ID).getString();
+        return operationMetrics.getQueryId();
     }
 }
