@@ -45,9 +45,4 @@ public class StopWatch implements Metric {
     public long getLong() {
         return getElapsedTime();
     }
-
-    @Override
-    public String getString() {
-        return String.valueOf(getElapsedTime());
-    }
 }
