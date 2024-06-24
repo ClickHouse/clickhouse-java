@@ -1,0 +1,15 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.clickhouse.samples.protos";
+option java_outer_classname = "UIStatsEventProtos";
+
+message UIEvent {
+    string url = 1;
+    string user_id = 2;
+    string session_id = 3;
+    int64 timestamp = 4;
+    int64 duration = 5;
+    string event = 6;
+}

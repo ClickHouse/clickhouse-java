@@ -67,6 +67,9 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <clickhouse-java.version>0.6.0</clickhouse-java.version>
+        <!-- Nightly snapshot version from https://s01.oss.sonatype.org/content/repositories/snapshots/ or latest from local -->
+<!--        <clickhouse-java.version>0.6.0-SNAPSHOT</clickhouse-java.version>-->
+
         <apache-httpclient.version>5.2.1</apache-httpclient.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
@@ -98,6 +101,20 @@
             <artifactId>httpclient5</artifactId>
             <version>${apache-httpclient.version}</version>
         </dependency>
+
+        <!-- Required for Protobuf example -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>4.27.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+            <version>4.27.1</version>
+        </dependency>
+
     </dependencies>
 
     <build>
