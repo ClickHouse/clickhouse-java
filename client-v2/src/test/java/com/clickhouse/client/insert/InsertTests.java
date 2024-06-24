@@ -53,6 +53,15 @@ public class InsertTests extends BaseIntegrationTest {
         }
     }
 
+    private void dropTable(String tableName) throws ClickHouseException {
+        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .build()) {
+            String tableQuery = "DROP TABLE IF EXISTS " + tableName;
+            client.read(getServer(ClickHouseProtocol.HTTP)).query(tableQuery).executeAndWait().close();
+        }
+    }
+
     @Test(groups = { "integration" }, enabled = true)
     public void insertSimplePOJOs() throws Exception {
         String tableName = "simple_pojo_table";
@@ -76,5 +85,6 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
         assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
+        dropTable(tableName);
     }
 }
