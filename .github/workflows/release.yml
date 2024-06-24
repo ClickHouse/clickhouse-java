@@ -6,7 +6,7 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "0.6.0-SNAPSHOT"
+        default: "0.6.1-SNAPSHOT"
 
 jobs:
   release:
@@ -57,8 +57,8 @@ jobs:
           maven_args: -q --batch-mode
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_USER }}
-          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
+          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
       - name: Release R2DBC 0.9.1
         uses: samuelmeuli/action-maven-publish@v1
         with:
@@ -67,8 +67,8 @@ jobs:
           maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_USER }}
-          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
+          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
       - name: Create Pre-release on Github
         uses: "zhicwu/action-automatic-releases@latest"
         with:

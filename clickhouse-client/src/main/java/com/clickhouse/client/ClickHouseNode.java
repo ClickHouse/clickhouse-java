@@ -787,7 +787,10 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         String scheme = normalizedUri.getScheme();
         ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
         int port = extract(scheme, normalizedUri.getPort(), protocol, params);
-
+        if ((options == null || options.get(ClickHouseClientOption.SSL.getKey()) == null)
+                && scheme.equalsIgnoreCase("https")) {
+            params.put(ClickHouseClientOption.SSL.getKey(), "true");
+        }
         ClickHouseCredentials credentials = extract(normalizedUri.getRawUserInfo(), params, null);
 
         return new ClickHouseNode(normalizedUri.getHost(), protocol, port, credentials, params, tags);
