@@ -74,7 +74,7 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(simplePOJOs.size(), response.getWrittenRows());
         assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
-        assertEquals(metrics.getMetric(ServerMetrics.QUERY_ID).getString(), uuid);
+        assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
     }
 }
