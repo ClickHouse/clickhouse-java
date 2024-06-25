@@ -5,7 +5,9 @@ import java.sql.Array;
 import java.sql.Date;
 import java.sql.ParameterMetaData;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -35,7 +37,9 @@ import com.clickhouse.data.value.ClickHouseDateValue;
 import com.clickhouse.data.value.ClickHouseStringValue;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
+import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
+import com.clickhouse.jdbc.ClickHouseResultSetMetaData;
 import com.clickhouse.jdbc.JdbcParameterizedQuery;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
@@ -237,6 +241,39 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
     @Override
     protected int getMaxParameterIndex() {
         return templates.length;
+    }
+
+    @Override
+    public ResultSetMetaData describeQueryResult() throws SQLException {
+        if (parsedStmt.isRecognized() && !parsedStmt.isQuery()) {
+            return null;
+        }
+
+        final String[] vals;
+        final int len = values.length;
+        if (batch.isEmpty()) {
+            vals = new String[len];
+            System.arraycopy(this.values, 0, vals, 0, len);
+        } else {
+            vals = batch.get(0);
+        }
+        for (int i = 0; i < len; i++) {
+            if (vals[i] == null) {
+                vals[i] = ClickHouseValues.NULL_EXPR;
+            }
+        }
+
+        final ClickHouseConnection conn = getConnection();
+        StringBuilder sb = new StringBuilder("desc (");
+        preparedQuery.apply(sb, vals);
+        List<ClickHouseColumn> columns = new LinkedList<>();
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sb.append(')').toString())) {
+            while (rs.next()) {
+                columns.add(ClickHouseColumn.of(rs.getString(1), rs.getString(2)));
+            }
+        }
+        return ClickHouseResultSetMetaData.of(conn.getJdbcConfig(), conn.getCurrentDatabase(), "",
+                Collections.unmodifiableList(new ArrayList<>(columns)), mapper, conn.getTypeMap());
     }
 
     @Override
