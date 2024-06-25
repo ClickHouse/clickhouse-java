@@ -215,7 +215,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, byte[] boundary,
             String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, ClickHouseOutputStream output,
             Runnable postAction) throws IOException {
-        try {
+
             ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config);
             reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
@@ -240,12 +240,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
 
             return buildResponse(config, r, output, postAction);
-        }
     }
 
     private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql,
             ClickHouseOutputStream output, Runnable postAction) throws IOException {
-        try {
+
             reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
             HttpResponse<InputStream> r;
             try {
@@ -262,7 +261,6 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 }
             }
             return buildResponse(config, r, output, postAction);
-        }
     }
 
     @Override
