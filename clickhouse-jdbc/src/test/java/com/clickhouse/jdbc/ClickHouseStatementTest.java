@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
@@ -1408,14 +1409,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             ScheduledExecutorService executor = Executors.newScheduledThreadPool(3);
 
-            final AtomicBoolean failed = new AtomicBoolean(false);
+            final WeakReference<Exception> failedException = new WeakReference<>(null);
             for (int i = 0; i < 3; i++) {
                 executor.scheduleWithFixedDelay(() -> {
                     try {
                         stmt.execute("select 1");
                     } catch (Exception e) {
-                        e.printStackTrace();
-                        failed.set(true);
+                        failedException.refersTo(e);
                     }
                 }, 100, 100, TimeUnit.MILLISECONDS);
             }
@@ -1429,7 +1429,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             executor.shutdown();
             executor.awaitTermination(10, TimeUnit.SECONDS);
 
-            Assert.assertFalse(failed.get());
+            Assert.assertNull(failedException.get(), "Failed because of exception: " + failedException.get());
          }
     }
 }
