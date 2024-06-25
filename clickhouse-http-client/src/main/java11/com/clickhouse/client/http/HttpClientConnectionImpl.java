@@ -205,7 +205,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected boolean isReusable() {
-        return busy.get();
+        return !busy.get();
     }
 
     private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
