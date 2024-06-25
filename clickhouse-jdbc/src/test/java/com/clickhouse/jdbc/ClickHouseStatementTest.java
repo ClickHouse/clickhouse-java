@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseException;
@@ -1409,13 +1410,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             ScheduledExecutorService executor = Executors.newScheduledThreadPool(3);
 
-            final WeakReference<Exception> failedException = new WeakReference<>(null);
+            final AtomicReference<Exception> failedException = new AtomicReference<>(null);
             for (int i = 0; i < 3; i++) {
                 executor.scheduleWithFixedDelay(() -> {
                     try {
                         stmt.execute("select 1");
                     } catch (Exception e) {
-                        failedException.refersTo(e);
+                        failedException.set(e);
                     }
                 }, 100, 100, TimeUnit.MILLISECONDS);
             }
