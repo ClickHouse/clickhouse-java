@@ -191,7 +191,11 @@ public class Client {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
-
+            if (secure) {
+                // For some reason com.clickhouse.client.http.ApacheHttpConnectionImpl.newConnection checks only client config
+                // for SSL, so we need to set it here. But it actually should be set for each node separately.
+                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
+            }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
             this.addEndpoint(endpoint);
             return this;

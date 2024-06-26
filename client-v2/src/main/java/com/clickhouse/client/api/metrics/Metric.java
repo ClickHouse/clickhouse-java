@@ -7,4 +7,5 @@ public interface Metric {
      * @return value of the metric as a long
      */
     long getLong();
+
 }

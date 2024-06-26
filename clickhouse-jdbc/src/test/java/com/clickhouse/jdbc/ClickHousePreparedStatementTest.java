@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.MalformedURLException;
@@ -16,6 +17,7 @@ import java.sql.Date;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -2003,6 +2005,80 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetMetadataTypes() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+            PreparedStatement ps = conn.prepareStatement("select ? a, ? b")) {
+            ResultSetMetaData md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "Nullable(Nothing)");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
+
+            ps.setString(1, "x");
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
+
+            ps.setObject(2, new BigInteger("12345"));
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "UInt16");
+
+            ps.addBatch();
+            ps.setInt(1, 2);
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "UInt16");
+
+            ps.clearBatch();
+            ps.clearParameters();
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "Nullable(Nothing)");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetMetadataStatements() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+            PreparedStatement createPs = conn.prepareStatement("create table test_get_metadata_statements (col String) Engine=Log");
+            PreparedStatement selectPs = conn.prepareStatement("select 'Hello, World!'");
+            PreparedStatement insertPs = conn.prepareStatement(
+                "insert into test_get_metadata_statements select 'Hello, World!'");
+            PreparedStatement updatePs = conn.prepareStatement(
+                "update test_get_metadata_statements set col = 'Bye, World!'");
+            PreparedStatement grantPs = conn.prepareStatement("grant select on * to default");
+            PreparedStatement commitPS = conn.prepareStatement("commit");) {
+
+            // Only select shall have valid metadata
+            ResultSetMetaData selectMetaData = selectPs.getMetaData();
+            Assert.assertNotNull(selectMetaData);
+            Assert.assertEquals(selectMetaData.getColumnCount(), 1);
+            Assert.assertEquals(selectMetaData.getColumnTypeName(1), "String");
+
+            // The rest shall return null
+            Assert.assertNull(createPs.getMetaData());
+            Assert.assertNull(insertPs.getMetaData());
+            Assert.assertNull(updatePs.getMetaData());
+            Assert.assertNull(grantPs.getMetaData());
+            Assert.assertNull(commitPS.getMetaData());
         }
     }
 
