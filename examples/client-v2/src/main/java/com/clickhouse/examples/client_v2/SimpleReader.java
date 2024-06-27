@@ -78,4 +78,5 @@ public class SimpleReader {
             log.error("Failed to read data", e);
         }
     }
+
 }

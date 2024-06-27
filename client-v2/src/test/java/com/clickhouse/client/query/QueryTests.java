@@ -47,6 +47,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -74,9 +75,11 @@ public class QueryTests extends BaseIntegrationTest {
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .addEndpoint("https://mycloud.local:8443")
                 .setUsername("default")
                 .setPassword("")
+                .setSocketTimeout(3, ChronoUnit.SECONDS)
+                .compressClientRequest(true)
                 .build();
 
         delayForProfiler(0);

@@ -44,6 +44,7 @@ import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpException;
@@ -892,9 +893,11 @@ public class Client {
                     ClickHouseNode selectedNode = getNextAliveNode();
 
                     // Execute request
-                    CompletableFuture<SimpleHttpResponse> responseFuture = httpClientHelper.executeRequest(selectedNode, null);
+                    final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
+                    CompletableFuture<ClassicHttpResponse> responseFuture = httpClientHelper
+                            .executeRequest(Collections.singletonList(selectedNode), sql,  null);
 
-                    SimpleHttpResponse httpResponse = responseFuture.get();
+                    ClassicHttpResponse httpResponse = responseFuture.get();
                     StatusLine statusLine = new StatusLine(httpResponse);
                     if (canRetry(statusLine)) {
                         LOG.warn("Failed to get table schema: {}. Retrying...", statusLine.getStatusCode());
@@ -904,7 +907,7 @@ public class Client {
                     if (error != null) {
                         throw new ClientException("Failed to get table schema: " + error);
                     }
-                    return new TableSchemaParser().createFromBytes(httpResponse.getBody().getBodyBytes(), table, database);
+                    return new TableSchemaParser().createFromBytes(httpResponse.getEntity().getContent().readAllBytes(), table, database);
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
             } catch (Exception e) {
