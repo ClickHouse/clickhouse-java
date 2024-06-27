@@ -4,6 +4,8 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
@@ -672,8 +674,6 @@ public class Client {
         return query(sqlQuery, null, settings);
     }
 
-
-
     /**
      * <p>Sends SQL query to server with parameters. The map `queryParams` should contain keys that
      * match the placeholders in the SQL query.</p>
@@ -846,6 +846,43 @@ public class Client {
                 throw new ClientException("Failed to get table schema", e);
             }
         }
+    }
+
+    /**
+     * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
+     * Method however returns execution errors from a server or summary in case of successful execution. </p>
+     *
+     * @param sql      - SQL command
+     * @param settings - execution settings
+     * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
+     */
+    public CompletableFuture<CommandResponse> execute(String sql, CommandSettings settings) {
+        return query(sql, settings)
+                .thenApplyAsync(response -> {
+                    try {
+                        return new CommandResponse(response);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to get command response", e);
+                    }
+                });
+    }
+
+    /**
+     * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
+     * Method however returns execution errors from a server or summary in case of successful execution. </p>
+     *
+     * @param sql - SQL command
+     * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
+     */
+    public CompletableFuture<CommandResponse> execute(String sql) {
+        return query(sql)
+                .thenApplyAsync(response -> {
+                    try {
+                        return new CommandResponse(response);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to get command response", e);
+                    }
+                });
     }
 
     private String startOperation() {
