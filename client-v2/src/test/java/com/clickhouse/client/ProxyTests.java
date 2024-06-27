@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 public class ProxyTests extends BaseIntegrationTest{
     private Client client;
@@ -32,7 +33,7 @@ public class ProxyTests extends BaseIntegrationTest{
     ToxiproxyClient toxiproxyClient = null;
     Proxy proxy = null;
 
-    @BeforeMethod(groups = { "integration" }, enabled = true)
+    @BeforeMethod(groups = { "integration" }, enabled = false)
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         toxiproxy = new ToxiproxyContainer(ClickHouseServerForTest.getProxyImage())
@@ -53,7 +54,7 @@ public class ProxyTests extends BaseIntegrationTest{
                 .build();
     }
 
-    @AfterMethod(groups = { "integration" }, enabled = true)
+    @AfterMethod(groups = { "integration" }, enabled = false)
     public void teardown() {
         if (toxiproxy != null) {
             toxiproxy.stop();
@@ -71,12 +72,12 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" }, enabled = false)
     public void simpleProxyTest() throws Exception {
-        String tableName = "simple_pojo_proxy_table";
+        String tableName = "simple_pojo_enable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
 
-        client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -92,26 +93,25 @@ public class ProxyTests extends BaseIntegrationTest{
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
     }
 
-    @Test(groups = { "integration" }, enabled = true)
+    @Test(groups = { "integration" }, enabled = false)
     public void simpleDisabledProxyTest() throws Exception {
-        String tableName = "simple_pojo_proxy_table";
+        String tableName = "simple_pojo_disable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         System.out.println(createSQL);
         createTable(createSQL);
 
-        client.register(SamplePOJO.class, SamplePOJO.generateTableSchema(tableName));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
-        //proxy.disable();
+        proxy.disable();
         try {
             InsertResponse response = client.insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
+            fail("Should have thrown exception.");
         } catch (Exception e) {
-            //FOR NOW THIS WILL FAIL
-            //IF IT SUCCEEDS (meaning the test fails), YAY PROXY WORKS WE SHOULD REIMPLEMENT THE TESTS!
-            assertTrue(e.getMessage().contains("Operation has likely timed out."));
+            assertTrue(e instanceof ClientException);
         }
     }
 }

@@ -22,7 +22,7 @@ public class TableSchemaParser {
             try {
                 p.clear();
                 p.load(new StringReader(values));
-                schema.addColumn(p.getProperty("name"), p.getProperty("type"));
+                schema.addColumn(p.getProperty("name"), p.getProperty("type"), p.getProperty("default_type"));
             } catch ( IOException e) {
                 throw new RuntimeException("Failed to parse table schema", e);
             }
