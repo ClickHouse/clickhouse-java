@@ -790,9 +790,10 @@ public class Client {
 
     /**
      * <p>Queries data in descriptive format and reads result to a collection.</p>
-     * <p>Use this method for queries that would return only a few records only.</p>
-     * @param sqlQuery
-     * @return
+     * <p>Use this method for queries that would return only a few records only because client
+     * will read whole dataset and convert it into a list of GenericRecord</p>
+     * @param sqlQuery - SQL query
+     * @return - complete list of records
      */
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
@@ -859,10 +860,18 @@ public class Client {
                 '}';
     }
 
+    /**
+     * Returns unmodifiable map of configuration options.
+     * @return - configuration options
+     */
     public Map<String, String> getConfiguration() {
         return Collections.unmodifiableMap(configuration);
     }
 
+    /**
+     * Returns unmodifiable set of endpoints.
+     * @return - set of endpoints
+     */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
     }
