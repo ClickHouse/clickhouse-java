@@ -884,31 +884,6 @@ public class Client {
                 });
     }
 
-    private ClickHouseClient createClient() {
-        ClickHouseConfig clientConfig = new ClickHouseConfig();
-        ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
-                .config(clientConfig)
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
-        return clientV1.build();
-    }
-
-    private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
-        if (settings == null) return request.table(tableName);
-
-        if (settings.getQueryId() != null) {//This has to be handled separately
-            request.table(tableName, settings.getQueryId());
-        } else {
-            request.table(tableName);
-        }
-
-        //For each setting, set the value in the request
-        for (Map.Entry<String, Object> entry : settings.getAllSettings().entrySet()) {
-            request.set(entry.getKey(), String.valueOf(entry.getValue()));
-        }
-
-        return request;
-    }
-
     private String startOperation() {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
