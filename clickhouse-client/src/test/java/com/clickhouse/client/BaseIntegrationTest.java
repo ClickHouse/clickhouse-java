@@ -26,11 +26,11 @@ public abstract class BaseIntegrationTest {
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), ClickHouseNode.builder().build());
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, base);
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), base);
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
