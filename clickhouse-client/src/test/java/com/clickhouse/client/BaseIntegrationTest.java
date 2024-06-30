@@ -26,11 +26,11 @@ public abstract class BaseIntegrationTest {
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), ClickHouseNode.builder().build());
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, base);
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), base);
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
@@ -52,4 +52,19 @@ public abstract class BaseIntegrationTest {
         return ipAddress;
     }
 
+    protected boolean isCloud() {
+        return ClickHouseServerForTest.isCloud();
+    }
+
+    protected String getConnectionProtocol() {
+        if (isCloud()) {
+            return "https";
+        } else {
+            return "http";
+        }
+    }
+
+    protected String getPassword() {
+        return ClickHouseServerForTest.getPassword();
+    }
 }
