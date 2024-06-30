@@ -18,6 +18,7 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -34,6 +35,33 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.hc.client5.http.ContextBuilder;
+import org.apache.hc.client5.http.async.HttpAsyncClient;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleRequestProducer;
+import org.apache.hc.client5.http.async.methods.SimpleResponseConsumer;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.EntityDetails;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.hc.core5.http.nio.AsyncDataConsumer;
+import org.apache.hc.core5.http.nio.AsyncEntityProducer;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.CapacityChannel;
+import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
+import org.apache.hc.core5.http.nio.support.AsyncRequestBuilder;
+import org.apache.hc.core5.http.nio.support.BasicRequestConsumer;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +72,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -59,6 +88,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -96,6 +126,7 @@ public class Client {
     private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(30);
 
     private static final String DEFAULT_DB_NAME = "default";
+    private HttpAPIClientHelper httpClientHelper = null;
 
     private Set<String> endpoints;
     private Map<String, String> configuration;
@@ -108,7 +139,10 @@ public class Client {
 
     private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
-    private Client(Set<String> endpoints, Map<String,String> configuration) {
+    private boolean useNewImplementation = false;
+
+
+    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -129,6 +163,10 @@ public class Client {
             return t;
         });
         LOG.debug("Query executor created with {} threads", numThreads);
+        this.useNewImplementation = useNewImplementation;
+        if (useNewImplementation) {
+            this.httpClientHelper = new HttpAPIClientHelper(configuration);
+        }
     }
 
     /**
@@ -143,6 +181,7 @@ public class Client {
     public static class Builder {
         private Set<String> endpoints;
         private Map<String, String> configuration;
+        private boolean useNewImplementation;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -394,6 +433,15 @@ public class Client {
             return this;
         }
 
+        /**
+         * Switches to new implementation of the client.
+         * @deprecated - do not use - it is only for development
+         */
+        public Builder useNewImplementation() {
+            this.useNewImplementation = true;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -407,7 +455,7 @@ public class Client {
             if (!this.configuration.containsKey("database")) {
                 this.configuration.put("database", DEFAULT_DB_NAME);
             }
-            return new Client(this.endpoints, this.configuration);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation);
         }
     }
 
@@ -836,14 +884,43 @@ public class Client {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
-            ClickHouseRequest<?> request = clientQuery.read(getServerNode());
-            // XML - because java has a built-in XML parser. Will consider CSV later.
-            request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
+        if (useNewImplementation) {
             try {
-                return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
+                String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
+                final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
+                for (int i = 0; i <= maxRetries; i++) {
+                    // Selecting some node
+                    ClickHouseNode selectedNode = getNextAliveNode();
+
+                    // Execute request
+                    CompletableFuture<SimpleHttpResponse> responseFuture = httpClientHelper.executeRequest(selectedNode, null);
+
+                    SimpleHttpResponse httpResponse = responseFuture.get();
+                    StatusLine statusLine = new StatusLine(httpResponse);
+                    if (canRetry(statusLine)) {
+                        LOG.warn("Failed to get table schema: {}. Retrying...", statusLine.getStatusCode());
+                        continue;
+                    }
+                    String error = httpClientHelper.readError(httpResponse, statusLine);
+                    if (error != null) {
+                        throw new ClientException("Failed to get table schema: " + error);
+                    }
+                    return new TableSchemaParser().createFromBytes(httpResponse.getBody().getBodyBytes(), table, database);
+                }
+                throw new ClientException("Failed to get table schema: too many retries");
             } catch (Exception e) {
-                throw new ClientException("Failed to get table schema", e);
+                throw new ClientException("Failed to create HTTP client", e);
+            }
+        } else {
+            try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
+                ClickHouseRequest<?> request = clientQuery.read(getServerNode());
+                // XML - because java has a built-in XML parser. Will consider CSV later.
+                request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
+                try {
+                    return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
+                } catch (Exception e) {
+                    throw new ClientException("Failed to get table schema", e);
+                }
             }
         }
     }
@@ -911,5 +988,14 @@ public class Client {
      */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
+    }
+
+
+    private ClickHouseNode getNextAliveNode() {
+        return serverNodes.get(0);
+    }
+
+    private boolean canRetry(StatusLine statusLine) {
+        return statusLine.getStatusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE;
     }
 }
