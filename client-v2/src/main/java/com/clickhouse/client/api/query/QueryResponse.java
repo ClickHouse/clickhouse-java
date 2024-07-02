@@ -68,7 +68,9 @@ public class QueryResponse implements AutoCloseable {
             ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
             completed = true;
             operationMetrics.operationComplete(response.getSummary());
-        } catch (TimeoutException | InterruptedException | ExecutionException e) {
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get command response", e.getCause());
+        } catch (TimeoutException | InterruptedException e) {
             throw new ClientException("Query request failed", e);
         }
     }

@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -174,7 +175,10 @@ public class Client {
                         endpointURL.getProtocol().equalsIgnoreCase("http"))) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
-            } catch (java.net.MalformedURLException e) {
+                if (endpointURL.toURI().getScheme().equalsIgnoreCase("https")) {
+                    this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
+                }
+            } catch (java.net.MalformedURLException | URISyntaxException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
             }
             this.endpoints.add(endpoint);
@@ -640,7 +644,9 @@ public class Client {
                 try {
                     InsertResponse response = new InsertResponse(client, future.get(), clientStats);
                     responseFuture.complete(response);
-                } catch (InterruptedException | ExecutionException e) {
+                } catch (ExecutionException e) {
+                    responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
+                } catch (InterruptedException e) {
                     responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
                 }
             }
@@ -807,6 +813,8 @@ public class Client {
                 }
                 return records;
             }
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get query response", e.getCause());
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
