@@ -87,6 +87,12 @@ public class QueryResponse implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
+            responseRef.get(completeTimeout, TimeUnit.MILLISECONDS ).close();
+        } catch (Exception e) {
+            throw new ClientException("Failed to close response", e);
+        }
+
+        try {
             client.close();
         } catch (Exception e) {
             throw new ClientException("Failed to close client", e);

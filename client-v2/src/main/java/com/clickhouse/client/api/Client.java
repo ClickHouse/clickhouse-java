@@ -61,6 +61,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -98,6 +99,8 @@ public class Client {
 
     private static final String DEFAULT_DB_NAME = "default";
 
+    private static final String DEFAULT_THREADS_PER_CLIENT = "10";
+
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
@@ -105,7 +108,7 @@ public class Client {
     private Map<Class<?>, Map<String, Method>> getterMethods;
     private Map<Class<?>, Boolean> hasDefaults;
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
-    private ExecutorService queryExecutor;
+    private ExecutorService sharedOperationExecutor;
 
     private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
@@ -120,8 +123,9 @@ public class Client {
         this.hasDefaults = new HashMap<>();
 
         final int numThreads = Integer.parseInt(configuration.getOrDefault(
-                ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), "3"));
-        this.queryExecutor = Executors.newFixedThreadPool(numThreads, r -> {
+                ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), DEFAULT_THREADS_PER_CLIENT));
+
+        this.sharedOperationExecutor = Executors.newFixedThreadPool(numThreads, r -> {
             Thread t = new Thread(r);
             t.setName("ClickHouse-Query-Executor");
             t.setUncaughtExceptionHandler((t1, e) -> {
@@ -642,11 +646,11 @@ public class Client {
 
             if (!responseFuture.isCompletedExceptionally()) {
                 try {
-                    InsertResponse response = new InsertResponse(client, future.get(), clientStats);
+                    InsertResponse response = new InsertResponse(client, future.get(TIMEOUT, TimeUnit.MILLISECONDS), clientStats);
                     responseFuture.complete(response);
                 } catch (ExecutionException e) {
                     responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
-                } catch (InterruptedException e) {
+                } catch (InterruptedException | TimeoutException e) {
                     responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
                 }
             }
@@ -721,6 +725,7 @@ public class Client {
         ClickHouseRequest<?> request = client.read(getServerNode());
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
+        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
         request.query(sqlQuery, settings.getQueryId());
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
@@ -737,7 +742,7 @@ public class Client {
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
-        }, queryExecutor);
+        }, sharedOperationExecutor);
         return future;
     }
 
@@ -773,6 +778,7 @@ public class Client {
         ClickHouseRequest<?> request = client.read(getServerNode());
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
+        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
         request.query(sqlQuery, settings.getQueryId());
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
@@ -789,7 +795,7 @@ public class Client {
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
-        }, queryExecutor);
+        }, sharedOperationExecutor);
 
         return future;
     }
