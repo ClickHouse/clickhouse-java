@@ -4,6 +4,8 @@ import java.util.Optional;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+
+import com.clickhouse.client.config.ClickhouseSSLSocketFactory;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.okhttp.OkHttpChannelBuilder;
 import com.clickhouse.client.ClickHouseConfig;
@@ -47,7 +49,7 @@ final class OkHttpChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
                 Optional<SSLContext> sslContext = ClickHouseSslContextProvider.getProvider()
                         .getSslContext(SSLContext.class, config);
                 if (sslContext.isPresent()) {
-                    builder.useTransportSecurity().sslSocketFactory(sslContext.get().getSocketFactory());
+                    builder.useTransportSecurity().sslSocketFactory(new ClickhouseSSLSocketFactory(sslContext.get().getSocketFactory(), config));
                 }
             } catch (SSLException e) {
                 throw new IllegalStateException(e);
