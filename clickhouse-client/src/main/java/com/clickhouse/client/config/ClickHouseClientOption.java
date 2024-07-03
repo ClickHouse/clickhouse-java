@@ -420,7 +420,12 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
+            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
+
+    /**
+     * Query ID to be attached to an operation
+     */
+    QUERY_ID("query_id", "", "Query id");
 
     private final String key;
     private final Serializable defaultValue;

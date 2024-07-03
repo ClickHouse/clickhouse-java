@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -20,7 +21,8 @@ public class SettingsConverter {
         Map<String, Serializable> requestSettings = new HashMap<>();
 
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
-            if (!REQUEST_SETTINGS.contains(entry.getKey())) {
+            if (REQUEST_OPTIONS.get(entry.getKey()) != null) {
+                // This definitely is a request option
                 continue;
             }
 
@@ -89,17 +91,11 @@ public class SettingsConverter {
     }
 
     private static final Map<String, ClickHouseOption> REQUEST_OPTIONS = createMapOfRequestOptions();
-    private static final Set<String> REQUEST_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
-            ClickHouseClientOption.MAX_RESULT_ROWS.getKey(),
-            "extremes",
-            "role",
-            "describe_include_subcolumns",
-            "allow_experimental_variant_type"
-    )));
+
 
     public static Map<String, ClickHouseOption> createMapOfRequestOptions() {
         Map<String, ClickHouseOption> map = new HashMap<>();
+
 
         Arrays.asList(ClickHouseClientOption.FORMAT,
                         ClickHouseClientOption.MAX_EXECUTION_TIME,
