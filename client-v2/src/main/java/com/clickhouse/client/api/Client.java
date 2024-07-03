@@ -29,6 +29,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -96,18 +96,13 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *
  */
 public class Client {
-    private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(30);
-
-    private static final String DEFAULT_DB_NAME = "default";
-
-    private static final String DEFAULT_THREADS_PER_CLIENT = "10";
 
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private Map<Class<?>, List<POJOSerializer>> serializers;//Order is important to preserve for RowBinary
+    private Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
     private Map<Class<?>, Map<String, Method>> getterMethods;
-    private Map<Class<?>, Boolean> hasDefaults;
+    private Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private ExecutorService sharedOperationExecutor;
 
@@ -123,9 +118,7 @@ public class Client {
         this.getterMethods = new HashMap<>();
         this.hasDefaults = new HashMap<>();
 
-        final int numThreads = Integer.parseInt(configuration.getOrDefault(
-                ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), DEFAULT_THREADS_PER_CLIENT));
-
+        final int numThreads = Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey()));
         this.sharedOperationExecutor = Executors.newFixedThreadPool(numThreads, new DefaultThreadFactory("chc-operation"));
         LOG.debug("Query executor created with {} threads", numThreads);
     }
@@ -141,6 +134,8 @@ public class Client {
 
     public static class Builder {
         private Set<String> endpoints;
+
+        // Read-only configuration
         private Map<String, String> configuration;
 
         public Builder() {
@@ -396,6 +391,17 @@ public class Client {
             return this;
         }
 
+        /**
+         * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
+         * @param timeout
+         * @param timeUnit
+         * @return
+         */
+        public Builder setExecutionTimeout(long timeout, TimeUnit timeUnit) {
+            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(timeUnit.toMillis(timeout)));
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -405,11 +411,30 @@ public class Client {
             if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
                 throw new IllegalArgumentException("Username and password are required");
             }
-            // set default database name if not specified
-            if (!this.configuration.containsKey("database")) {
-                this.configuration.put("database", DEFAULT_DB_NAME);
-            }
+
+            this.configuration = setDefaults(this.configuration);
+
             return new Client(this.endpoints, this.configuration);
+        }
+
+        private Map<String, String> setDefaults(Map<String, String> userConfig) {
+
+            // set default database name if not specified
+            if (!userConfig.containsKey("database")) {
+                userConfig.put("database", (String) ClickHouseDefaults.DATABASE.getDefaultValue());
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
+                userConfig.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
+                        String.valueOf(ClickHouseClientOption.MAX_EXECUTION_TIME.getDefaultValue()));
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
+                userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
+                        String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
+            }
+
+            return userConfig;
         }
     }
 
@@ -423,7 +448,7 @@ public class Client {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping() {
-        return ping(Client.TIMEOUT);
+        return ping(getOperationTimeout());
     }
 
     /**
@@ -641,7 +666,14 @@ public class Client {
 
             if (!responseFuture.isCompletedExceptionally()) {
                 try {
-                    InsertResponse response = new InsertResponse(client, future.get(TIMEOUT, TimeUnit.MILLISECONDS), clientStats);
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = future.get();
+                    }
+                    InsertResponse response = new InsertResponse(client, clickHouseResponse, clientStats);
                     responseFuture.complete(response);
                 } catch (ExecutionException e) {
                     responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
@@ -729,9 +761,16 @@ public class Client {
         CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
-                queryResponse.ensureDone();
-                return queryResponse;
+
+                int operationTimeout = getOperationTimeout();
+                ClickHouseResponse clickHouseResponse;
+                if (operationTimeout > 0) {
+                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                } else {
+                    clickHouseResponse = request.execute().get();
+                }
+
+                return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
             } catch (ClientException e) {
                 throw e;
             } catch (Exception e) {
@@ -782,8 +821,15 @@ public class Client {
         CompletableFuture<Records> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
-                queryResponse.ensureDone();
+                int operationTimeout = getOperationTimeout();
+                ClickHouseResponse clickHouseResponse;
+                if (operationTimeout > 0) {
+                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                } else {
+                    clickHouseResponse = request.execute().get();
+                }
+
+                QueryResponse queryResponse = new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
                 return new Records(queryResponse, finalSettings);
             } catch (ClientException e) {
                 throw e;
@@ -804,7 +850,10 @@ public class Client {
      */
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
-            try (QueryResponse response = query(sqlQuery).get(TIMEOUT, TimeUnit.MILLISECONDS)) {
+            int operationTimeout = getOperationTimeout();
+            QueryResponse response = operationTimeout == 0 ? query(sqlQuery).get() :
+                    query(sqlQuery).get(operationTimeout, TimeUnit.MILLISECONDS);
+            try (response) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
@@ -912,6 +961,10 @@ public class Client {
      */
     public Map<String, String> getConfiguration() {
         return Collections.unmodifiableMap(configuration);
+    }
+
+    protected int getOperationTimeout() {
+        return Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey()));
     }
 
     /**
