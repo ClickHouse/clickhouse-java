@@ -219,8 +219,7 @@ public class ClickHouseServerForTest {
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
             return ClickHouseNode.builder(template)
                     .address(protocol, new InetSocketAddress(host, port))
-                    .addOption("password", getPassword())
-                    .addOption("user", "default")
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
                     .build();
         } else if (container != null) {
             host = container.getHost();
@@ -243,10 +242,9 @@ public class ClickHouseServerForTest {
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
             port = 8443;
             return ClickHouseNode.builder().
-                    address(protocol, new InetSocketAddress(host, port)).
-                    addOption("user", "default").
-                    addOption("password", getPassword()).
-                    build();
+                    address(protocol, new InetSocketAddress(host, port))
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .build();
         }
         if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
