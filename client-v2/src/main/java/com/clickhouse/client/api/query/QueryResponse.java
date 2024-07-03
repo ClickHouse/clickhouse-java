@@ -49,6 +49,7 @@ public class QueryResponse implements AutoCloseable {
         this.format = format;
         this.settings = settings;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
+        this.operationMetrics.operationComplete(clickHouseResponse.getSummary());
     }
 
     public ClickHouseInputStream getInputStream() {

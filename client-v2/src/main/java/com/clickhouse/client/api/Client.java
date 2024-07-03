@@ -118,9 +118,7 @@ public class Client {
         this.getterMethods = new HashMap<>();
         this.hasDefaults = new HashMap<>();
 
-        final int numThreads = Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey()));
-        this.sharedOperationExecutor = Executors.newFixedThreadPool(numThreads, new DefaultThreadFactory("chc-operation"));
-        LOG.debug("Query executor created with {} threads", numThreads);
+        this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
     }
 
     /**
@@ -458,9 +456,6 @@ public class Client {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
-        ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
-                "timeout");
-
         try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
             return client.ping(getServerNode(), Math.toIntExact(timeout));
         }
@@ -851,9 +846,9 @@ public class Client {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-            QueryResponse response = operationTimeout == 0 ? query(sqlQuery).get() :
-                    query(sqlQuery).get(operationTimeout, TimeUnit.MILLISECONDS);
-            try (response) {
+
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery).get() :
+                    query(sqlQuery).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
