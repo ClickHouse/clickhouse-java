@@ -177,6 +177,9 @@ public class Client {
             } catch (java.net.MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
             }
+            if (endpoint.startsWith("https://")) {
+                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
+            }
             this.endpoints.add(endpoint);
             return this;
         }
