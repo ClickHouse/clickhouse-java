@@ -34,6 +34,7 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -125,14 +126,7 @@ public class Client {
         final int numThreads = Integer.parseInt(configuration.getOrDefault(
                 ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), DEFAULT_THREADS_PER_CLIENT));
 
-        this.sharedOperationExecutor = Executors.newFixedThreadPool(numThreads, r -> {
-            Thread t = new Thread(r);
-            t.setName("ClickHouse-Query-Executor");
-            t.setUncaughtExceptionHandler((t1, e) -> {
-                LOG.error("Uncaught exception in thread {}", t1.getName(), e);
-            });
-            return t;
-        });
+        this.sharedOperationExecutor = Executors.newFixedThreadPool(numThreads, new DefaultThreadFactory("chc-operation"));
         LOG.debug("Query executor created with {} threads", numThreads);
     }
 
@@ -630,6 +624,7 @@ public class Client {
         try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
             ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
                     .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
+
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
