@@ -152,4 +152,12 @@ public class QueryResponse implements AutoCloseable {
     public long getResultRows() {
         return operationMetrics.getMetric(ServerMetrics.RESULT_ROWS).getLong();
     }
+
+    /**
+     * Alias for {@link OperationMetrics#getQueryId()}
+     * @return query id of the request
+     */
+    public String getQueryId() {
+        return operationMetrics.getQueryId();
+    }
 }

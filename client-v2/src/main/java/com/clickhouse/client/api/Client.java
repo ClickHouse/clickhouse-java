@@ -1,13 +1,11 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseClientBuilder;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
@@ -19,6 +17,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -194,7 +193,11 @@ public class Client {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
-
+            if (secure) {
+                // For some reason com.clickhouse.client.http.ApacheHttpConnectionImpl.newConnection checks only client config
+                // for SSL, so we need to set it here. But it actually should be set for each node separately.
+                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
+            }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
             this.addEndpoint(endpoint);
             return this;
@@ -385,9 +388,9 @@ public class Client {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_TYPE), type.toString());
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_HOST), host);
-            this.configuration.put(String.valueOf(ClickHouseClientOption.PROXY_PORT), String.valueOf(port));
+            this.configuration.put(ClickHouseClientOption.PROXY_TYPE.getKey(), type.toString());
+            this.configuration.put(ClickHouseClientOption.PROXY_HOST.getKey(), host);
+            this.configuration.put(ClickHouseClientOption.PROXY_PORT.getKey(), String.valueOf(port));
             return this;
         }
 
@@ -430,10 +433,11 @@ public class Client {
     public boolean ping(long timeout) {
         ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
                 "timeout");
-        ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-        return clientPing.ping(getServerNode(), Math.toIntExact(timeout));
-    }
 
+        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
+            return client.ping(getServerNode(), Math.toIntExact(timeout));
+        }
+    }
 
     /**
      * <p>Registers a POJO class and maps its fields to a table schema</p>
@@ -461,7 +465,7 @@ public class Client {
         this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
 
         for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "");
+            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".","");
             serializers.add((obj, stream) -> {
                 if (!getterMethods.containsKey(columnName)) {
                     LOG.warn("No getter method found for column: {}", columnName);
@@ -615,8 +619,9 @@ public class Client {
 
         CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
-        try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings).format(format);
+        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
+            ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
+                    .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -669,8 +674,6 @@ public class Client {
         return query(sqlQuery, null, settings);
     }
 
-
-
     /**
      * <p>Sends SQL query to server with parameters. The map `queryParams` should contain keys that
      * match the placeholders in the SQL query.</p>
@@ -708,10 +711,8 @@ public class Client {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
-        ClickHouseClient client = createClient();
+        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
         ClickHouseRequest<?> request = client.read(getServerNode());
-
-
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
         request.query(sqlQuery, settings.getQueryId());
@@ -762,10 +763,8 @@ public class Client {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start("query");
-        ClickHouseClient client = createClient();
+        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
         ClickHouseRequest<?> request = client.read(getServerNode());
-
-
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
         request.query(sqlQuery, settings.getQueryId());
@@ -791,9 +790,10 @@ public class Client {
 
     /**
      * <p>Queries data in descriptive format and reads result to a collection.</p>
-     * <p>Use this method for queries that would return only a few records only.</p>
-     * @param sqlQuery
-     * @return
+     * <p>Use this method for queries that would return only a few records only because client
+     * will read whole dataset and convert it into a list of GenericRecord</p>
+     * @param sqlQuery - SQL query
+     * @return - complete list of records
      */
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
@@ -836,8 +836,8 @@ public class Client {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        try (ClickHouseClient clientQuery = createClient()) {
-            ClickHouseRequest request = clientQuery.read(getServerNode());
+        try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
+            ClickHouseRequest<?> request = clientQuery.read(getServerNode());
             // XML - because java has a built-in XML parser. Will consider CSV later.
             request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
             try {
@@ -848,29 +848,41 @@ public class Client {
         }
     }
 
-    private ClickHouseClient createClient() {
-        ClickHouseConfig clientConfig = new ClickHouseConfig();
-        ClickHouseClientBuilder clientV1 = ClickHouseClient.builder()
-                .config(clientConfig)
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP));
-        return clientV1.build();
+    /**
+     * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
+     * Method however returns execution errors from a server or summary in case of successful execution. </p>
+     *
+     * @param sql      - SQL command
+     * @param settings - execution settings
+     * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
+     */
+    public CompletableFuture<CommandResponse> execute(String sql, CommandSettings settings) {
+        return query(sql, settings)
+                .thenApplyAsync(response -> {
+                    try {
+                        return new CommandResponse(response);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to get command response", e);
+                    }
+                });
     }
 
-    private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
-        if (settings == null) return request.table(tableName);
-
-        if (settings.getQueryId() != null) {//This has to be handled separately
-            request.table(tableName, settings.getQueryId());
-        } else {
-            request.table(tableName);
-        }
-
-        //For each setting, set the value in the request
-        for (Map.Entry<String, Object> entry : settings.getAllSettings().entrySet()) {
-            request.set(entry.getKey(), String.valueOf(entry.getValue()));
-        }
-
-        return request;
+    /**
+     * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
+     * Method however returns execution errors from a server or summary in case of successful execution. </p>
+     *
+     * @param sql - SQL command
+     * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
+     */
+    public CompletableFuture<CommandResponse> execute(String sql) {
+        return query(sql)
+                .thenApplyAsync(response -> {
+                    try {
+                        return new CommandResponse(response);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to get command response", e);
+                    }
+                });
     }
 
     private String startOperation() {
@@ -885,10 +897,18 @@ public class Client {
                 '}';
     }
 
+    /**
+     * Returns unmodifiable map of configuration options.
+     * @return - configuration options
+     */
     public Map<String, String> getConfiguration() {
         return Collections.unmodifiableMap(configuration);
     }
 
+    /**
+     * Returns unmodifiable set of endpoints.
+     * @return - set of endpoints
+     */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
     }

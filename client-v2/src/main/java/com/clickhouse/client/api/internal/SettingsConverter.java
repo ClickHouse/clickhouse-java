@@ -93,7 +93,9 @@ public class SettingsConverter {
             ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
             ClickHouseClientOption.MAX_RESULT_ROWS.getKey(),
             "extremes",
-            "role"
+            "role",
+            "describe_include_subcolumns",
+            "allow_experimental_variant_type"
     )));
 
     public static Map<String, ClickHouseOption> createMapOfRequestOptions() {

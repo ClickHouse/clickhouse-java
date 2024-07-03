@@ -58,10 +58,16 @@ public class TableSchema {
     }
 
     public void addColumn(String name, String type) {
-        columns.add(ClickHouseColumn.of(name, type));
-        if (type.toUpperCase().contains("DEFAULT")) {
+        addColumn(name, type, "");
+    }
+    public void addColumn(String name, String type, String defaultType) {
+        ClickHouseColumn column = ClickHouseColumn.of(name, type);
+        if (defaultType.toUpperCase().contains("DEFAULT")) {
             hasDefaults = true;
+            column.setHasDefault(true);
         }
+        columns.add(column);
+
         Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
             columnMetadata.put("type", type);
         colIndex.put(name, columns.size() - 1);
@@ -83,6 +89,18 @@ public class TableSchema {
 
     public int nameToIndex(String name) {
         return colIndex.get(name).intValue();
+    }
+
+    @Override
+    public String toString() {
+        return "TableSchema{" +
+                "tableName='" + tableName + '\'' +
+                ", databaseName='" + databaseName + '\'' +
+                ", columns=" + columns +
+                ", metadata=" + metadata +
+                ", colIndex=" + colIndex +
+                ", hasDefaults=" + hasDefaults +
+                '}';
     }
 }
 

@@ -36,9 +36,6 @@ public class SerializerUtils {
             case Map:
                 serializeMapData(stream, value, column);
                 break;
-            case Nested:
-                LOG.error("Nested data type is not supported.");
-                break;
             default:
                 serializePrimitiveData(stream, value, column);
                 break;

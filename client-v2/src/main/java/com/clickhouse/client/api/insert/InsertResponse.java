@@ -85,4 +85,12 @@ public class InsertResponse implements AutoCloseable {
     public long getResultRows() {
         return operationMetrics.getMetric(ServerMetrics.RESULT_ROWS).getLong();
     }
+
+    /**
+     * Alias for {@link OperationMetrics#getQueryId()}
+     * @return number of returned bytes
+     */
+    public String getQueryId() {
+        return operationMetrics.getQueryId();
+    }
 }

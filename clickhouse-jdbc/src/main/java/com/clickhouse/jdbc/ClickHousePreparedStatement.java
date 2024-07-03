@@ -109,7 +109,17 @@ public interface ClickHousePreparedStatement extends PreparedStatement {
     @Override
     default ResultSetMetaData getMetaData() throws SQLException {
         ResultSet currentResult = getResultSet();
-        return currentResult != null ? currentResult.getMetaData() : null;
+        if (currentResult != null) {
+            return currentResult.getMetaData();
+        } else if (getLargeUpdateCount() != -1L) {
+            return null; // Update query
+        }
+
+        return describeQueryResult();
+    }
+
+    default ResultSetMetaData describeQueryResult() throws SQLException {
+        return null;
     }
 
     @Override

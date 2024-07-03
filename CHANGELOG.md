@@ -1,5 +1,15 @@
 ## Latest 
 
+## 0.6.2
+
+### New Features
+- Describe non-executed SELECT queries in prepared statements to provide metadata (https://github.com/ClickHouse/clickhouse-java/issues/1430)
+- Command execution in the client API (https://github.com/ClickHouse/clickhouse-java/pull/1693)
+- Added `com.clickhouse.client.ClickHouseResponseSummary#getQueryId()` (https://github.com/ClickHouse/clickhouse-java/issues/1636)
+- Added support for SSL for the Client V2
+- Added proxy support for Client V2 (https://github.com/ClickHouse/clickhouse-java/pull/1694)
+- Added more examples for Client V2 (https://github.com/ClickHouse/clickhouse-java/pull/1709)
+
 ## 0.6.1
 
 ### New Features

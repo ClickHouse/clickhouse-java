@@ -12,7 +12,9 @@ import java.net.Inet6Address;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +73,8 @@ public class SamplePOJO {
     private List<String> array;
     private List<Integer> tuple;
     private Map<String, Integer> map;
-    private SamplePOJOInner inner;
+    private List<Integer> nestedInnerInt;
+    private List<String> nestedInnerString;
 
     public SamplePOJO() {
         final Random random = new Random();
@@ -110,7 +113,7 @@ public class SamplePOJO {
 
         bool = random.nextBoolean();
 
-        string = RandomStringUtils.randomAlphabetic(1, 512);
+        string = RandomStringUtils.randomAlphabetic(1, 256);
         fixedString = RandomStringUtils.randomAlphabetic(3);
 
         date = LocalDate.now();
@@ -143,7 +146,14 @@ public class SamplePOJO {
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
         }
-        inner = new SamplePOJOInner();
+
+        List<Integer> innerInt = new ArrayList<>();
+        innerInt.add(random.nextInt(Integer.MAX_VALUE));
+        nestedInnerInt = innerInt;
+
+        List<String> innerString = new ArrayList<>();
+        innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
+        nestedInnerString = innerString;
     }
 
     public int getInt8() {
@@ -434,122 +444,64 @@ public class SamplePOJO {
         this.map = map;
     }
 
-    public SamplePOJOInner getInner() {
-        return inner;
+    public List<Integer> getNestedInnerInt() {
+        return nestedInnerInt;
     }
 
-    public void setInner(SamplePOJOInner inner) {
-        this.inner = inner;
+    public void setNestedInnerInt(List<Integer> nestedInnerInt) {
+        this.nestedInnerInt = nestedInnerInt;
     }
 
-    public static TableSchema generateTableSchema(String tableName) {
-        TableSchema schema = new TableSchema();
-        schema.setDatabaseName("default");
-        schema.setTableName(tableName);
-        schema.addColumn("int8", "Int8");
-        schema.addColumn("int8_default", "Int8 DEFAULT 0");
-        schema.addColumn("int16", "Int16");
-        schema.addColumn("int16_default", "Int16 DEFAULT 0");
-        schema.addColumn("int32", "Int32");
-        schema.addColumn("int32_default", "Int32 DEFAULT 0");
-        schema.addColumn("int64", "Int64");
-        schema.addColumn("int64_default", "Int64 DEFAULT 0");
-        schema.addColumn("int128", "Int128");
-        schema.addColumn("int128_default", "Int128 DEFAULT 0");
-        schema.addColumn("int256", "Int256");
-        schema.addColumn("int256_default", "Int256 DEFAULT 0");
+    public List<String> getNestedInnerString() {
+        return nestedInnerString;
+    }
 
-        schema.addColumn("uint8", "UInt8");
-        schema.addColumn("uint16", "UInt16");
-        schema.addColumn("uint32", "UInt32");
-        schema.addColumn("uint64", "UInt64");
-        schema.addColumn("uint128", "UInt128");
-        schema.addColumn("uint256", "UInt256");
-
-        schema.addColumn("float32", "Float32");
-        schema.addColumn("float64", "Float64");
-
-        schema.addColumn("decimal32", "Decimal32(2)");
-        schema.addColumn("decimal64", "Decimal64(3)");
-        schema.addColumn("decimal128", "Decimal128(4)");
-        schema.addColumn("decimal256", "Decimal256(5)");
-
-        schema.addColumn("bool", "UInt8");
-
-        schema.addColumn("string", "String");
-        schema.addColumn("fixedString", "FixedString(3)");
-
-        schema.addColumn("date", "Date");
-        schema.addColumn("date32", "Date");
-
-        schema.addColumn("dateTime", "DateTime");
-        schema.addColumn("dateTime64", "DateTime64(3)");
-
-        schema.addColumn("uuid", "UUID");
-
-        schema.addColumn("enum8", "Enum8('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26)");
-        schema.addColumn("enum16", "Enum16('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26)");
-
-        schema.addColumn("ipv4", "IPv4");
-        schema.addColumn("ipv6", "IPv6");
-
-        schema.addColumn("array", "Array(String)");
-        schema.addColumn("tuple", "Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32)");
-        schema.addColumn("map", "Map(String, Int32)");
-
-        //schema.addColumn("inner", "Nested (innerInt Int32, innerString String)");
-
-        return schema;
+    public void setNestedInnerString(List<String> nestedInnerString) {
+        this.nestedInnerString = nestedInnerString;
     }
 
     public static String generateTableCreateSQL(String tableName) {
-        TableSchema schema = generateTableSchema(tableName);
-        StringBuilder sb = new StringBuilder();
-        sb.append("CREATE TABLE ").append(schema.getTableName()).append(" (");
-        for (int i = 0; i < schema.getColumns().size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            ClickHouseColumn column = schema.getColumns().get(i);
-            sb.append(column.getColumnName()).append(" ").append(column.getOriginalTypeName()).append(column.hasDefault() ? 0 : "");
-        }
-        sb.append(") ENGINE = Memory");
-        return sb.toString();
-    }
-
-    public static class SamplePOJOInner {
-        private int innerInt;
-        private String innerString;
-
-        public SamplePOJOInner() {
-            final Random random = new Random();
-            innerInt = random.nextInt();
-            innerString = "inner" + random.nextInt();
-        }
-
-        public static TableSchema generateTableSchema(String tableName) {
-            TableSchema schema = new TableSchema();
-            schema.setDatabaseName("default");
-            schema.setTableName(tableName);
-            schema.addColumn("innerInt", "Int32");
-            schema.addColumn("innerString", "String");
-            return schema;
-        }
-
-        public int getInnerInt() {
-            return innerInt;
-        }
-
-        public void setInnerInt(int innerInt) {
-            this.innerInt = innerInt;
-        }
-
-        public String getInnerString() {
-            return innerString;
-        }
-
-        public void setInnerString(String innerString) {
-            this.innerString = innerString;
-        }
+        return "CREATE TABLE " + tableName + " (" +
+                "int8 Int8, " +
+                "int8_default Int8 DEFAULT 0, " +
+                "int16 Int16, " +
+                "int16_default Int16 DEFAULT 0, " +
+                "int32 Int32, " +
+                "int32_default Int32 DEFAULT 0, " +
+                "int64 Int64, " +
+                "int64_default Int64 DEFAULT 0, " +
+                "int128 Int128, " +
+                "int128_default Int128 DEFAULT 0, " +
+                "int256 Int256, " +
+                "int256_default Int256 DEFAULT 0, " +
+                "uint8 UInt8, " +
+                "uint16 UInt16, " +
+                "uint32 UInt32, " +
+                "uint64 UInt64, " +
+                "uint128 UInt128, " +
+                "uint256 UInt256, " +
+                "float32 Float32, " +
+                "float64 Float64, " +
+                "decimal32 Decimal32(2), " +
+                "decimal64 Decimal64(3), " +
+                "decimal128 Decimal128(4), " +
+                "decimal256 Decimal256(5), " +
+                "bool UInt8, " +
+                "string String, " +
+                "fixedString FixedString(3), " +
+                "date Date, " +
+                "date32 Date, " +
+                "dateTime DateTime, " +
+                "dateTime64 DateTime64(3), " +
+                "uuid UUID, " +
+                "enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26), " +
+                "enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26), " +
+                "ipv4 IPv4, " +
+                "ipv6 IPv6, " +
+                "array Array(String), " +
+                "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
+                "map Map(String, Int32), " +
+                "nested Nested (innerInt Int32, innerString String)" +
+                ") ENGINE = Memory";
     }
 }
