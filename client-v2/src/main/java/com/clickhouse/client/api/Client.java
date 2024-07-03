@@ -173,10 +173,7 @@ public class Client {
                         endpointURL.getProtocol().equalsIgnoreCase("http"))) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
-                if (endpointURL.toURI().getScheme().equalsIgnoreCase("https")) {
-                    this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
-                }
-            } catch (java.net.MalformedURLException | URISyntaxException e) {
+            } catch (java.net.MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
             }
             if (endpoint.startsWith("https://")) {
