@@ -133,9 +133,7 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                     .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
 
             ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
-            Map<ClickHouseOption, Serializable> options = new HashMap<>();
-            options.put(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE, false);
-            ClickHouseConfig config = new ClickHouseConfig(options);
+            ClickHouseConfig config = new ClickHouseConfig();
             httpClient.init(config);
             ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
 
@@ -174,7 +172,9 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                     .build());
 
             ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
-            ClickHouseConfig config = new ClickHouseConfig();
+            Map<ClickHouseOption, Serializable> options = new HashMap<>();
+            options.put(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE, true);
+            ClickHouseConfig config = new ClickHouseConfig(options);
             httpClient.init(config);
             ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
 
