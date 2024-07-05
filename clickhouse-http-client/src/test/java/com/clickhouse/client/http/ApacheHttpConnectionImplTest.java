@@ -24,8 +24,10 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.admin.model.ScenarioState;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -140,6 +142,43 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
             } catch (ClickHouseException e) {
                 Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_NETWORK);
             }
+        } finally {
+            faultyServer.stop();
+        }
+    }
+
+    @Test(groups = {"unit"})
+    public void testRetryOnFailure() {
+        faultyServer = new WireMockServer(9090);
+        faultyServer.start();
+        try {
+            faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .inScenario("Retry")
+                            .whenScenarioStateIs(Scenario.STARTED)
+                            .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE))
+                            .willSetStateTo("Failed")
+                    .build());
+            faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .inScenario("Retry")
+                            .whenScenarioStateIs("Failed")
+                            .willReturn(WireMock.aResponse()
+                                    .withHeader("X-ClickHouse-Summary",
+                                            "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
+            ClickHouseConfig config = new ClickHouseConfig();
+            httpClient.init(config);
+            ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
+
+            ClickHouseResponse response = null;
+            try {
+                response = httpClient.executeAndWait(request);
+            } catch (ClickHouseException e) {
+                Assert.fail("Should not throw exception", e);
+            }
+            Assert.assertEquals(response.getSummary().getReadBytes(), 10);
+            Assert.assertEquals(response.getSummary().getReadRows(), 1);
         } finally {
             faultyServer.stop();
         }

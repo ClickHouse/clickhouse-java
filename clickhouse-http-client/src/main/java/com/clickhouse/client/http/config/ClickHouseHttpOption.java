@@ -4,6 +4,7 @@ import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 
 import java.io.Serializable;
+import java.net.UnknownHostException;
 
 /**
  * Http client options.
@@ -64,7 +65,28 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      * Only one role can be set at a time.
      */
     REMEMBER_LAST_SET_ROLES("remember_last_set_roles", false,
-            "Whether to remember last set role and send them in every next requests as query parameters.");
+            "Whether to remember last set role and send them in every next requests as query parameters."),
+
+    /**
+     * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
+     * <ul>
+     *     <li>{@code java.net.UnknownHostException}</li>
+     *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
+     *     <li>{@code org.apache.hc.core5.http.NoHttpResponseException}</li>
+     * </ul>
+     *
+     * And next status codes:
+     * <ul>
+     *     <li>{@code 503 Service Unavailable}</li>
+     * </ul>
+     */
+    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", true, "Whether to retry on failure with AsyncHttpClient."),
+
+    /**
+     * Retry interval in milliseconds for AsyncHttpClient (if {@link #AHC_RETRY_ON_FAILURE} is enabled).
+     */
+    AHC_RETRY_INTERVAL("ahc_retry_interval", 100, "Retry interval in milliseconds."),
+    ;
 
     private final String key;
     private final Serializable defaultValue;

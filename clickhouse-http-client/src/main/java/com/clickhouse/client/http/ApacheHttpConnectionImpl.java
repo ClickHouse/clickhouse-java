@@ -3,7 +3,6 @@ package com.clickhouse.client.http;
 import com.clickhouse.client.AbstractSocketClient;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSocketFactory;
@@ -34,6 +33,7 @@ import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -45,7 +45,6 @@ import org.apache.hc.core5.util.VersionInfo;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -58,7 +57,6 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.StandardSocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -251,11 +249,28 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary,
                 sql, data, tables);
         post.setEntity(postBody);
-        CloseableHttpResponse response;
-        try {
-            response = client.execute(post);
-        } catch (IOException e) {
-            throw new ConnectException(ClickHouseUtils.format("HTTP request failed: %s", e.getMessage()));
+        CloseableHttpResponse response = null;
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            log.debug("HTTP request attempt {}", attempt);
+            try {
+                response = client.execute(post);
+                break;
+            } catch (NoHttpResponseException e) {
+                log.warn("HTTP request failed: ", e.getMessage());
+                if (attempt > 0) {
+                    throw new ConnectException(e.getMessage());
+                } else {
+                    continue;
+                }
+            } catch (IOException e) {
+                log.error("HTTP request failed", e);
+                throw new ConnectException(e.getMessage());
+            }
+        }
+        if (response == null) {
+            // Should not happen but needed for compiler
+            throw new ConnectException("HTTP request failed");
         }
 
         checkResponse(config, response);
@@ -376,6 +391,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
+                    .setTimeToLive(20, TimeUnit.SECONDS)
+                    .setValidateAfterInactivity(10, TimeUnit.SECONDS)
                     .build();
             setDefaultConnectionConfig(connConfig);
 
