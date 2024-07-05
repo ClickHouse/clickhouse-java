@@ -80,12 +80,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      *     <li>{@code 503 Service Unavailable}</li>
      * </ul>
      */
-    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", true, "Whether to retry on failure with AsyncHttpClient."),
-
-    /**
-     * Retry interval in milliseconds for AsyncHttpClient (if {@link #AHC_RETRY_ON_FAILURE} is enabled).
-     */
-    AHC_RETRY_INTERVAL("ahc_retry_interval", 100, "Retry interval in milliseconds."),
+    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", true, "Whether to retry on failure with AsyncHttpClient.")
     ;
 
     private final String key;

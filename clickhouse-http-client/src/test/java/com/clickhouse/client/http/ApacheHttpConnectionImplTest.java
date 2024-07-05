@@ -133,7 +133,9 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                     .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
 
             ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
-            ClickHouseConfig config = new ClickHouseConfig();
+            Map<ClickHouseOption, Serializable> options = new HashMap<>();
+            options.put(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE, false);
+            ClickHouseConfig config = new ClickHouseConfig(options);
             httpClient.init(config);
             ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
 
@@ -141,7 +143,10 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                 httpClient.executeAndWait(request);
             } catch (ClickHouseException e) {
                 Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_NETWORK);
+                return;
             }
+
+            Assert.fail("Should throw exception");
         } finally {
             faultyServer.stop();
         }
@@ -153,12 +158,14 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
         faultyServer.start();
         try {
             faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .withRequestBody(WireMock.equalTo("SELECT 1"))
                             .inScenario("Retry")
                             .whenScenarioStateIs(Scenario.STARTED)
                             .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE))
                             .willSetStateTo("Failed")
                     .build());
             faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .withRequestBody(WireMock.equalTo("SELECT 1"))
                             .inScenario("Retry")
                             .whenScenarioStateIs("Failed")
                             .willReturn(WireMock.aResponse()

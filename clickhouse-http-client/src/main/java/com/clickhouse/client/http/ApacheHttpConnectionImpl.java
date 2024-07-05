@@ -251,14 +251,14 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         post.setEntity(postBody);
         CloseableHttpResponse response = null;
 
-        for (int attempt = 0; attempt < 2; attempt++) {
-            log.debug("HTTP request attempt {}", attempt);
+        int retryAttempts = config.getBoolOption(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE) ? 2 : 1;
+        for (int attempt = 0; attempt < retryAttempts; attempt++) {
+            log.debug("HTTP request attempt " + attempt);
             try {
                 response = client.execute(post);
                 break;
             } catch (NoHttpResponseException e) {
-                log.warn("HTTP request failed: ", e.getMessage());
-                if (attempt > 0) {
+                if ((retryAttempts - attempt - 1) == 0) {
                     throw new ConnectException(e.getMessage());
                 } else {
                     continue;
