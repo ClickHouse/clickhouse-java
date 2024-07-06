@@ -28,8 +28,11 @@ import com.github.tomakehurst.wiremock.admin.model.ScenarioState;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
+import com.github.tomakehurst.wiremock.stubbing.StubMapping;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
@@ -150,18 +153,12 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
         }
     }
 
-    @Test(groups = {"unit"})
-    public void testRetryOnFailure() {
+    @Test(groups = {"unit"}, dataProvider = "retryOnFailureProvider")
+    public void testRetryOnFailure(StubMapping failureStub) {
         faultyServer = new WireMockServer(9090);
         faultyServer.start();
         try {
-            faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                            .withRequestBody(WireMock.equalTo("SELECT 1"))
-                            .inScenario("Retry")
-                            .whenScenarioStateIs(Scenario.STARTED)
-                            .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE))
-                            .willSetStateTo("Failed")
-                    .build());
+            faultyServer.addStubMapping(failureStub);
             faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                             .withRequestBody(WireMock.equalTo("SELECT 1"))
                             .inScenario("Retry")
@@ -189,5 +186,25 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
         } finally {
             faultyServer.stop();
         }
+    }
+
+    @DataProvider(name = "retryOnFailureProvider")
+    private static StubMapping[] retryOnFailureProvider() {
+        return new StubMapping[] {
+                WireMock.post(WireMock.anyUrl())
+                        .withRequestBody(WireMock.equalTo("SELECT 1"))
+                        .inScenario("Retry")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE))
+                        .willSetStateTo("Failed")
+                        .build()
+                ,WireMock.post(WireMock.anyUrl())
+                        .withRequestBody(WireMock.equalTo("SELECT 1"))
+                        .inScenario("Retry")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(WireMock.aResponse().withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE))
+                        .willSetStateTo("Failed")
+                        .build()
+        };
     }
 }

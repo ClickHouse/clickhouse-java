@@ -70,7 +70,6 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
      * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
      * <ul>
-     *     <li>{@code java.net.UnknownHostException}</li>
      *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
      *     <li>{@code org.apache.hc.core5.http.NoHttpResponseException}</li>
      * </ul>

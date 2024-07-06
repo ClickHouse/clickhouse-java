@@ -30,6 +30,7 @@ import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
@@ -253,12 +254,19 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         int retryAttempts = config.getBoolOption(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE) ? 2 : 1;
         for (int attempt = 0; attempt < retryAttempts; attempt++) {
+            boolean isLastAttempt = attempt == retryAttempts - 1;
             log.debug("HTTP request attempt " + attempt);
             try {
                 response = client.execute(post);
+
+                if (!isLastAttempt && (response.getCode() == HttpURLConnection.HTTP_UNAVAILABLE)) {
+                    log.debug("HTTP request failed with status code 503, retrying...");
+                    continue;
+                }
+
                 break;
-            } catch (NoHttpResponseException e) {
-                if ((retryAttempts - attempt - 1) == 0) {
+            } catch (NoHttpResponseException | ConnectionClosedException e) {
+                if (isLastAttempt) {
                     throw new ConnectException(e.getMessage());
                 } else {
                     continue;
