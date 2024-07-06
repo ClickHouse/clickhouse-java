@@ -64,7 +64,16 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      * Only one role can be set at a time.
      */
     REMEMBER_LAST_SET_ROLES("remember_last_set_roles", false,
-            "Whether to remember last set role and send them in every next requests as query parameters.");
+            "Whether to remember last set role and send them in every next requests as query parameters."),
+
+    /**
+     * The time in milliseconds after which the connection is validated after inactivity.
+     * Default value is 5000 ms. If set to negative value, the connection is never validated.
+     * It is used only for Apache Http Client connection provider.
+     */
+    AHC_VALIDATE_AFTER_INACTIVITY("ahc_validate_after_inactivity", 5000L,
+            "The time in milliseconds after which the connection is validated after inactivity."),
+    ;
 
     private final String key;
     private final Serializable defaultValue;
