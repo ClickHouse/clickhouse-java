@@ -55,7 +55,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     static {
         Set<String> set = new HashSet<>();
-        set.add("query_id");
+        set.add(ClickHouseClientOption.QUERY_ID.getKey());
         set.add(ClickHouseClientOption.SESSION_ID.getKey());
         set.add(ClickHouseClientOption.SESSION_CHECK.getKey());
         set.add(ClickHouseClientOption.SESSION_TIMEOUT.getKey());

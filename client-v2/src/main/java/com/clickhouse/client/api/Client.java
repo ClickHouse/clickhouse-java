@@ -29,11 +29,13 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +62,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -93,18 +96,15 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *
  */
 public class Client {
-    private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(30);
-
-    private static final String DEFAULT_DB_NAME = "default";
 
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private Map<Class<?>, List<POJOSerializer>> serializers;//Order is important to preserve for RowBinary
+    private Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
     private Map<Class<?>, Map<String, Method>> getterMethods;
-    private Map<Class<?>, Boolean> hasDefaults;
+    private Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
-    private ExecutorService queryExecutor;
+    private ExecutorService sharedOperationExecutor;
 
     private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
@@ -118,17 +118,7 @@ public class Client {
         this.getterMethods = new HashMap<>();
         this.hasDefaults = new HashMap<>();
 
-        final int numThreads = Integer.parseInt(configuration.getOrDefault(
-                ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), "3"));
-        this.queryExecutor = Executors.newFixedThreadPool(numThreads, r -> {
-            Thread t = new Thread(r);
-            t.setName("ClickHouse-Query-Executor");
-            t.setUncaughtExceptionHandler((t1, e) -> {
-                LOG.error("Uncaught exception in thread {}", t1.getName(), e);
-            });
-            return t;
-        });
-        LOG.debug("Query executor created with {} threads", numThreads);
+        this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
     }
 
     /**
@@ -142,6 +132,8 @@ public class Client {
 
     public static class Builder {
         private Set<String> endpoints;
+
+        // Read-only configuration
         private Map<String, String> configuration;
 
         public Builder() {
@@ -397,6 +389,17 @@ public class Client {
             return this;
         }
 
+        /**
+         * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
+         * @param timeout
+         * @param timeUnit
+         * @return
+         */
+        public Builder setExecutionTimeout(long timeout, TimeUnit timeUnit) {
+            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(timeUnit.toMillis(timeout)));
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -406,11 +409,30 @@ public class Client {
             if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
                 throw new IllegalArgumentException("Username and password are required");
             }
-            // set default database name if not specified
-            if (!this.configuration.containsKey("database")) {
-                this.configuration.put("database", DEFAULT_DB_NAME);
-            }
+
+            this.configuration = setDefaults(this.configuration);
+
             return new Client(this.endpoints, this.configuration);
+        }
+
+        private Map<String, String> setDefaults(Map<String, String> userConfig) {
+
+            // set default database name if not specified
+            if (!userConfig.containsKey("database")) {
+                userConfig.put("database", (String) ClickHouseDefaults.DATABASE.getDefaultValue());
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
+                userConfig.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
+                        String.valueOf(ClickHouseClientOption.MAX_EXECUTION_TIME.getDefaultValue()));
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
+                userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
+                        String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
+            }
+
+            return userConfig;
         }
     }
 
@@ -424,7 +446,7 @@ public class Client {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping() {
-        return ping(Client.TIMEOUT);
+        return ping(getOperationTimeout());
     }
 
     /**
@@ -434,9 +456,6 @@ public class Client {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
-        ValidationUtils.checkRange(timeout, TimeUnit.SECONDS.toMillis(1), TimeUnit.MINUTES.toMillis(10),
-                "timeout");
-
         try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
             return client.ping(getServerNode(), Math.toIntExact(timeout));
         }
@@ -625,6 +644,7 @@ public class Client {
         try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
             ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
                     .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
+
             CompletableFuture<ClickHouseResponse> future = null;
             try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
                 future = request.data(stream.getInputStream()).execute();
@@ -641,9 +661,18 @@ public class Client {
 
             if (!responseFuture.isCompletedExceptionally()) {
                 try {
-                    InsertResponse response = new InsertResponse(client, future.get(), clientStats);
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = future.get();
+                    }
+                    InsertResponse response = new InsertResponse(client, clickHouseResponse, clientStats);
                     responseFuture.complete(response);
-                } catch (InterruptedException | ExecutionException e) {
+                } catch (ExecutionException e) {
+                    responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
+                } catch (InterruptedException | TimeoutException e) {
                     responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
                 }
             }
@@ -718,6 +747,7 @@ public class Client {
         ClickHouseRequest<?> request = client.read(getServerNode());
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
+        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
         request.query(sqlQuery, settings.getQueryId());
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
@@ -726,15 +756,22 @@ public class Client {
         CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
-                queryResponse.ensureDone();
-                return queryResponse;
+
+                int operationTimeout = getOperationTimeout();
+                ClickHouseResponse clickHouseResponse;
+                if (operationTimeout > 0) {
+                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                } else {
+                    clickHouseResponse = request.execute().get();
+                }
+
+                return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
             } catch (ClientException e) {
                 throw e;
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
-        }, queryExecutor);
+        }, sharedOperationExecutor);
         return future;
     }
 
@@ -770,6 +807,7 @@ public class Client {
         ClickHouseRequest<?> request = client.read(getServerNode());
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
+        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
         request.query(sqlQuery, settings.getQueryId());
         final ClickHouseFormat format = settings.getFormat();
         request.format(format);
@@ -778,15 +816,22 @@ public class Client {
         CompletableFuture<Records> future = CompletableFuture.supplyAsync(() -> {
             LOG.trace("Executing request: {}", request);
             try {
-                QueryResponse queryResponse = new QueryResponse(client, request.execute(), finalSettings, format, clientStats);
-                queryResponse.ensureDone();
+                int operationTimeout = getOperationTimeout();
+                ClickHouseResponse clickHouseResponse;
+                if (operationTimeout > 0) {
+                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                } else {
+                    clickHouseResponse = request.execute().get();
+                }
+
+                QueryResponse queryResponse = new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
                 return new Records(queryResponse, finalSettings);
             } catch (ClientException e) {
                 throw e;
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
-        }, queryExecutor);
+        }, sharedOperationExecutor);
 
         return future;
     }
@@ -800,7 +845,10 @@ public class Client {
      */
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
-            try (QueryResponse response = query(sqlQuery).get(TIMEOUT, TimeUnit.MILLISECONDS)) {
+            int operationTimeout = getOperationTimeout();
+
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery).get() :
+                    query(sqlQuery).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
@@ -810,6 +858,8 @@ public class Client {
                 }
                 return records;
             }
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get query response", e.getCause());
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
@@ -906,6 +956,10 @@ public class Client {
      */
     public Map<String, String> getConfiguration() {
         return Collections.unmodifiableMap(configuration);
+    }
+
+    protected int getOperationTimeout() {
+        return Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey()));
     }
 
     /**
