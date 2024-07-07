@@ -16,6 +16,7 @@ import java.util.Map;
 public class OperationMetrics {
 
     public Map<String, Metric> metrics = new HashMap<>();
+    private String queryId;
 
     private final ClientStatisticsHolder clientStatistics;
 
@@ -31,6 +32,10 @@ public class OperationMetrics {
         return metrics.get(metric.getKey());
     }
 
+    public String getQueryId() {
+        return queryId;
+    }
+
     public void operationComplete(ClickHouseResponseSummary serverStats) {
         for (Map.Entry<String, StopWatch> sw : clientStatistics.getStopWatches().entrySet()) {
             sw.getValue().stop();
@@ -43,11 +48,13 @@ public class OperationMetrics {
         metrics.put(ServerMetrics.NUM_BYTES_WRITTEN.getKey(), new Gauge(serverStats.getWrittenBytes()));
         metrics.put(ServerMetrics.RESULT_ROWS.getKey(), new Gauge(serverStats.getResultRows()));
         metrics.put(ServerMetrics.ELAPSED_TIME.getKey(), new Gauge(serverStats.getElapsedTime()));
+        this.queryId = serverStats.getQueryId();
     }
 
     @Override
     public String toString() {
         return "OperationStatistics{" +
+                "\"queryId\"=\"" + queryId + "\", " +
                 "\"metrics\"=" + metrics +
                 '}';
     }

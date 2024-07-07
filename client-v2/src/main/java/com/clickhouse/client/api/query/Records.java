@@ -13,7 +13,7 @@ import java.util.Spliterator;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public class Records implements Iterable<GenericRecord> {
+public class Records implements Iterable<GenericRecord>, AutoCloseable {
 
     private final QueryResponse response;
 
@@ -127,5 +127,10 @@ public class Records implements Iterable<GenericRecord> {
      */
     public long getResultRows() {
         return response.getMetrics().getMetric(ServerMetrics.RESULT_ROWS).getLong();
+    }
+
+    @Override
+    public void close() throws Exception {
+        response.close();
     }
 }

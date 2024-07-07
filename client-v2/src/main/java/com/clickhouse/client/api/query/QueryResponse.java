@@ -10,7 +10,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeoutException;
  */
 public class QueryResponse implements AutoCloseable {
 
-    private final Future<ClickHouseResponse> responseRef;
+    private final ClickHouseResponse clickHouseResponse;
     private final ClickHouseFormat format;
 
     private long completeTimeout = TimeUnit.MINUTES.toMillis(1);
@@ -42,41 +41,20 @@ public class QueryResponse implements AutoCloseable {
 
     private volatile boolean completed = false;
 
-    public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef,
+    public QueryResponse(ClickHouseClient client, ClickHouseResponse clickHouseResponse,
                          QuerySettings settings, ClickHouseFormat format,
                          ClientStatisticsHolder clientStatisticsHolder) {
         this.client = client;
-        this.responseRef = responseRef;
+        this.clickHouseResponse = clickHouseResponse;
         this.format = format;
         this.settings = settings;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
-    }
-
-    /**
-     * Called internally to finalize the query execution.
-     * Do not call this method directly.
-     */
-    public void ensureDone() {
-        if (!completed) {
-            // TODO: thread-safety
-            makeComplete();
-        }
-    }
-
-    private void makeComplete() {
-        try {
-            ClickHouseResponse response = responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
-            completed = true;
-            operationMetrics.operationComplete(response.getSummary());
-        } catch (TimeoutException | InterruptedException | ExecutionException e) {
-            throw new ClientException("Query request failed", e);
-        }
+        this.operationMetrics.operationComplete(clickHouseResponse.getSummary());
     }
 
     public ClickHouseInputStream getInputStream() {
-        ensureDone();
         try {
-            return responseRef.get().getInputStream();
+            return clickHouseResponse.getInputStream();
         } catch (Exception e) {
             throw new RuntimeException(e); // TODO: handle exception
         }
@@ -84,6 +62,12 @@ public class QueryResponse implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        try {
+            clickHouseResponse.close();
+        } catch (Exception e) {
+            throw new ClientException("Failed to close response", e);
+        }
+
         try {
             client.close();
         } catch (Exception e) {
@@ -101,7 +85,6 @@ public class QueryResponse implements AutoCloseable {
      * @return metrics of this operation
      */
     public OperationMetrics getMetrics() {
-        ensureDone();
         return operationMetrics;
     }
 
@@ -151,5 +134,13 @@ public class QueryResponse implements AutoCloseable {
      */
     public long getResultRows() {
         return operationMetrics.getMetric(ServerMetrics.RESULT_ROWS).getLong();
+    }
+
+    /**
+     * Alias for {@link OperationMetrics#getQueryId()}
+     * @return query id of the request
+     */
+    public String getQueryId() {
+        return operationMetrics.getQueryId();
     }
 }

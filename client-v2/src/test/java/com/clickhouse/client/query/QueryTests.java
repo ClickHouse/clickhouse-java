@@ -918,8 +918,9 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryMetrics() throws Exception {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
+        String uuid = UUID.randomUUID().toString();
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated);
+                .setFormat(ClickHouseFormat.TabSeparated).setQueryId(uuid);
 
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
@@ -950,6 +951,8 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
         Assert.assertEquals(response.getReadRows(), rowsToInsert);
         Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+        Assert.assertEquals(metrics.getQueryId(), uuid);
+        Assert.assertEquals(response.getQueryId(), uuid);
 
     }
 

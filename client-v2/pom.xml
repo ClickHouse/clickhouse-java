@@ -82,13 +82,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <scope>compile</scope>
-        </dependency>
-
         <!-- Test dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
@@ -118,13 +111,6 @@
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>${testng.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <type>test-jar</type>
             <scope>test</scope>
         </dependency>
     </dependencies>

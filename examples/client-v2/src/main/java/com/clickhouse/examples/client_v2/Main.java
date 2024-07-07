@@ -37,6 +37,8 @@ public class Main {
 
         // Read data back
         SimpleReader reader = new SimpleReader(endpoint, user, password, database);
+        reader.readDataUsingBinaryFormat();
+        reader.readDataAll();
         reader.readData();
 
         // Insert data using POJO

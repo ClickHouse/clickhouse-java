@@ -376,6 +376,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
+                    .setValidateAfterInactivity(config.getLongOption(ClickHouseHttpOption.AHC_VALIDATE_AFTER_INACTIVITY), TimeUnit.MILLISECONDS)
                     .build();
             setDefaultConnectionConfig(connConfig);
 
