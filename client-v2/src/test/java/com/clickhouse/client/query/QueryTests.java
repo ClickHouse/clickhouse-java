@@ -4,6 +4,7 @@ package com.clickhouse.client.query;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -12,6 +13,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
@@ -28,6 +30,7 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +58,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -75,11 +79,10 @@ public class QueryTests extends BaseIntegrationTest {
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint("https://mycloud.local:8443")
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .setSocketTimeout(3, ChronoUnit.SECONDS)
-                .compressClientRequest(true)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build();
 
         delayForProfiler(0);
@@ -155,7 +158,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAllNoResult() throws Exception {
-        List<GenericRecord>  records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
+        List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
         Assert.assertTrue(records.isEmpty());
     }
 
@@ -733,23 +736,23 @@ public class QueryTests extends BaseIntegrationTest {
         final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("min_enum16"), "No value for column min_enum16 found");
-            Assert.assertEquals(r.getEnum16("min_enum16"), (short)-32768);
-            Assert.assertEquals(r.getEnum16(1), (short)-32768);
+            Assert.assertEquals(r.getEnum16("min_enum16"), (short) -32768);
+            Assert.assertEquals(r.getEnum16(1), (short) -32768);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum16"), "No value for column max_enum16 found");
-            Assert.assertEquals(r.getEnum16("max_enum16"), (short)32767);
-            Assert.assertEquals(r.getEnum16(2), (short)32767);
+            Assert.assertEquals(r.getEnum16("max_enum16"), (short) 32767);
+            Assert.assertEquals(r.getEnum16(2), (short) 32767);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("min_enum8"), "No value for column min_enum8 found");
-            Assert.assertEquals(r.getEnum8("min_enum8"), (byte)-128);
-            Assert.assertEquals(r.getEnum8(3), (byte)-128);
+            Assert.assertEquals(r.getEnum8("min_enum8"), (byte) -128);
+            Assert.assertEquals(r.getEnum8(3), (byte) -128);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum8"), "No value for column max_enum8 found");
-            Assert.assertEquals(r.getEnum8("max_enum8"), (byte)127);
-            Assert.assertEquals(r.getEnum8(4), (byte)127);
+            Assert.assertEquals(r.getEnum8("max_enum8"), (byte) 127);
+            Assert.assertEquals(r.getEnum8(4), (byte) 127);
         });
 
         testDataTypes(columns, valueGenerators, verifiers);
@@ -790,6 +793,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
     @Test(groups = {"integration"})
     public void testStringDataTypes() {
         final List<String> columns = Arrays.asList(
@@ -1024,7 +1028,7 @@ public class QueryTests extends BaseIntegrationTest {
         return data;
     }
 
-    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators ) {
+    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators) {
         Map<String, Object> values = new HashMap<>();
         Iterator<String> columnIterator = columns.iterator();
         for (Function<String, Object> valueGenerator : valueGenerators) {
@@ -1105,6 +1109,36 @@ public class QueryTests extends BaseIntegrationTest {
 
         try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
             responseBody.lines().forEach(System.out::println);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchema() throws Exception {
+
+        final String table = "table_schema_test";
+        client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE default." + table +
+                " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
+        Assert.assertEquals(schema.getColumns().size(), 2);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.UInt32);
+        Assert.assertEquals(schema.getColumns().get(1).getColumnName(), "col2");
+        Assert.assertEquals(schema.getColumns().get(1).getDataType(), ClickHouseDataType.String);
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchemaError() {
+        try {
+            client.getTableSchema("unknown_table");
+            Assert.fail("no exception");
+        } catch (ServerException e) {
+            Assert.assertEquals(e.getCode(), ServerException.TABLE_NOT_FOUND);
+        } catch (ClientException e) {
+            Assert.assertTrue( e.getCause() instanceof ClickHouseException);
+            Assert.assertEquals(((ClickHouseException) e.getCause()).getErrorCode(), ServerException.TABLE_NOT_FOUND);
         }
     }
 }
