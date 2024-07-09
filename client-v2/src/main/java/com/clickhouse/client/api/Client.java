@@ -9,6 +9,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
+import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.DataSerializationException;
@@ -25,6 +26,7 @@ import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -38,7 +40,9 @@ import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.message.StatusLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -765,36 +769,87 @@ public class Client {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
-        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-        ClickHouseRequest<?> request = client.read(getServerNode());
-        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
-        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
-        request.query(sqlQuery, settings.getQueryId());
-        final ClickHouseFormat format = settings.getFormat();
-        request.format(format);
 
-        final QuerySettings finalSettings = settings;
-        CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
-            LOG.trace("Executing request: {}", request);
-            try {
+        if (useNewImplementation) {
+            String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
+            final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
 
-                int operationTimeout = getOperationTimeout();
-                ClickHouseResponse clickHouseResponse;
-                if (operationTimeout > 0) {
-                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
-                } else {
-                    clickHouseResponse = request.execute().get();
+            final QuerySettings finalSettings = settings;
+            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+                // Selecting some node
+                ClickHouseNode selectedNode = getNextAliveNode();
+                for (int i = 0; i <= maxRetries; i++) {
+
+                    // Execute request
+                    CompletableFuture<ClassicHttpResponse> responseFuture =
+                            httpClientHelper.executeRequest(selectedNode, sqlQuery);
+
+                    try  {
+                        ClassicHttpResponse httpResponse = responseFuture.get();
+                        // Check response
+                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                            selectedNode = getNextAliveNode();
+                            continue;
+                        }
+
+                        OperationMetrics metrics = new OperationMetrics(clientStats);
+                        Header hSummary = httpResponse.getFirstHeader("X-ClickHouse-Summary");
+                        if (hSummary != null) {
+                            ProcessParser.parseSummary(hSummary.getValue(), metrics);
+                        }
+                        Header hQueryId = httpResponse.getFirstHeader("X-ClickHouse-Query-Id");
+                        metrics.operationComplete();
+                        metrics.setQueryId(hQueryId != null ? hQueryId.getValue() : finalSettings.getQueryId());
+
+                        return new QueryResponse(httpResponse, finalSettings, metrics);
+                    } catch (ExecutionException e) {
+                        if (e.getCause() instanceof NoHttpResponseException) {
+                            LOG.warn("Failed to get response. Retrying.", e);
+                            selectedNode = getNextAliveNode();
+                            continue;
+                        }
+                        throw new ClientException("Failed to get query response", e.getCause());
+                    } catch (InterruptedException e) {
+                        LOG.info("Interrupted while waiting for response.");
+                        throw new ClientException("Failed to get query response", e);
+                    }
                 }
+                throw new ClientException("Failed to get table schema: too many retries");
+            }, sharedOperationExecutor);
+            return future;
+        } else {
+            ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
+            ClickHouseRequest<?> request = client.read(getServerNode());
+            request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
+            request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
+            request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
+            request.query(sqlQuery, settings.getQueryId());
+            final ClickHouseFormat format = settings.getFormat();
+            request.format(format);
 
-                return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
-            } catch (ClientException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new ClientException("Failed to get query response", e);
-            }
-        }, sharedOperationExecutor);
-        return future;
+            final QuerySettings finalSettings = settings;
+            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+                LOG.trace("Executing request: {}", request);
+                try {
+
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = request.execute().get();
+                    }
+
+                    return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
+                } catch (ClientException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new ClientException("Failed to get query response", e);
+                }
+            }, sharedOperationExecutor);
+            return future;
+        }
     }
 
     /**

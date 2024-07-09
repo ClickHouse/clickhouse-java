@@ -3,6 +3,7 @@ package com.clickhouse.client.api.insert;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 
@@ -17,7 +18,9 @@ public class InsertResponse implements AutoCloseable {
         this.responseRef = responseRef;
         this.client = client;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
-        this.operationMetrics.operationComplete(responseRef.getSummary());
+        this.operationMetrics.operationComplete();
+        this.operationMetrics.setQueryId(responseRef.getSummary().getQueryId());
+        ClientV1AdaptorHelper.setServerStats(responseRef.getSummary().getProgress(), this.operationMetrics);
     }
 
     @Override

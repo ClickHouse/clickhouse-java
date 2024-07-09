@@ -28,8 +28,8 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
 
     private void readSchema() {
         try {
-            if (inputStream.available() < 1) {
-                return;
+            if (chInputStream.available() < 1) {
+                throw new ClientException("No data available but schema is expected");
             }
             TableSchema headerSchema = new TableSchema();
             List<String> columns = new ArrayList<>();

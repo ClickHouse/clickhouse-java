@@ -92,12 +92,5 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
-    public void testProtocolURL() throws Exception {
 
-        URI uriTCP = URI.create("tcp://localhost:9000/");
-        URL urlTCP = new URL("tcp://localhost:9000/");
-
-        System.out.println("URI schema: " + uriTCP.getScheme());
-    }
 }
