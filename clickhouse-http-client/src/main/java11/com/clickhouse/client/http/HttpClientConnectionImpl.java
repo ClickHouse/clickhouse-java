@@ -81,7 +81,6 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "HttpClient");
 
-    private final AtomicBoolean busy;
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
@@ -197,15 +196,13 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             builder.sslContext(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
                     .orElse(null));
         }
-
-        busy = new AtomicBoolean(false);
         httpClient = builder.build();
         pingRequest = newRequest(getBaseUrl() + "ping");
     }
 
     @Override
     protected boolean isReusable() {
-        return busy.get();
+        return true; // httpClient is stateless and can be reused
     }
 
     private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
@@ -218,7 +215,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, byte[] boundary,
             String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, ClickHouseOutputStream output,
             Runnable postAction) throws IOException {
-        try {
+
             ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config);
             reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
@@ -243,14 +240,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
 
             return buildResponse(config, r, output, postAction);
-        } finally {
-            busy.set(false);
-        }
     }
 
     private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql,
             ClickHouseOutputStream output, Runnable postAction) throws IOException {
-        try {
+
             reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
             HttpResponse<InputStream> r;
             try {
@@ -267,9 +261,6 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 }
             }
             return buildResponse(config, r, output, postAction);
-        } finally {
-            busy.set(false);
-        }
     }
 
     @Override
@@ -281,9 +272,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
             List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
             Map<String, String> headers, Runnable postAction) throws IOException {
-        if (!busy.compareAndSet(false, true)) {
-            throw new ConnectException("Connection is busy");
-        }
+
         ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
