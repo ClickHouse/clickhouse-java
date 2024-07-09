@@ -25,12 +25,16 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.admin.model.ScenarioState;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
+import com.github.tomakehurst.wiremock.stubbing.StubMapping;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -144,10 +148,68 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                 httpClient.executeAndWait(request);
             } catch (ClickHouseException e) {
                 Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_NETWORK);
+                return;
             }
+
+            Assert.fail("Should throw exception");
         } finally {
             faultyServer.stop();
         }
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "retryOnFailureProvider")
+    public void testRetryOnFailure(StubMapping failureStub) {
+        faultyServer = new WireMockServer(9090);
+        faultyServer.start();
+        try {
+            faultyServer.addStubMapping(failureStub);
+            faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .withRequestBody(WireMock.equalTo("SELECT 1"))
+                            .inScenario("Retry")
+                            .whenScenarioStateIs("Failed")
+                            .willReturn(WireMock.aResponse()
+                                    .withHeader("X-ClickHouse-Summary",
+                                            "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
+            Map<ClickHouseOption, Serializable> options = new HashMap<>();
+            options.put(ClickHouseHttpOption.AHC_RETRY_ON_FAILURE, true);
+            ClickHouseConfig config = new ClickHouseConfig(options);
+            httpClient.init(config);
+            ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
+
+            ClickHouseResponse response = null;
+            try {
+                response = httpClient.executeAndWait(request);
+            } catch (ClickHouseException e) {
+                Assert.fail("Should not throw exception", e);
+            }
+            Assert.assertEquals(response.getSummary().getReadBytes(), 10);
+            Assert.assertEquals(response.getSummary().getReadRows(), 1);
+        } finally {
+            faultyServer.stop();
+        }
+    }
+
+    @DataProvider(name = "retryOnFailureProvider")
+    private static StubMapping[] retryOnFailureProvider() {
+        return new StubMapping[] {
+                WireMock.post(WireMock.anyUrl())
+                        .withRequestBody(WireMock.equalTo("SELECT 1"))
+                        .inScenario("Retry")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE))
+                        .willSetStateTo("Failed")
+                        .build()
+                ,WireMock.post(WireMock.anyUrl())
+                        .withRequestBody(WireMock.equalTo("SELECT 1"))
+                        .inScenario("Retry")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(WireMock.aResponse().withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE))
+                        .willSetStateTo("Failed")
+                        .build()
+        };
     }
 
     @Test(groups = {"unit"}, dataProvider = "validationTimeoutProvider")
