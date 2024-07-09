@@ -16,6 +16,7 @@ import com.clickhouse.data.ClickHouseUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.ConnectException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,10 +27,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.admin.model.ScenarioState;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -206,5 +210,64 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                         .willSetStateTo("Failed")
                         .build()
         };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "validationTimeoutProvider")
+    public void testNoHttpResponseExceptionWithValidation(long validationTimeout) {
+
+        faultyServer = new WireMockServer(9090);
+        faultyServer.start();
+
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("validateOnStaleConnection")
+                .withRequestBody(WireMock.equalTo("SELECT 100"))
+                .willReturn(WireMock.aResponse()
+                    .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                .build());
+
+
+        ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        options.put(ClickHouseHttpOption.AHC_VALIDATE_AFTER_INACTIVITY, validationTimeout);
+        options.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS, 1);
+        ClickHouseConfig config = new ClickHouseConfig(options);
+        httpClient.init(config);
+        ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 100");
+
+        Runnable powerBlink = () -> {
+            try {
+                Thread.sleep(100);
+                faultyServer.stop();
+                Thread.sleep(50);
+                faultyServer.start();
+            } catch (InterruptedException e) {
+                Assert.fail("Unexpected exception", e);
+            }
+        };
+        try {
+            ClickHouseResponse response = httpClient.executeAndWait(request);
+            Assert.assertEquals(response.getSummary().getReadRows(), 1);
+            response.close();
+            new Thread(powerBlink).start();
+            Thread.sleep(200);
+            response = httpClient.executeAndWait(request);
+            Assert.assertEquals(response.getSummary().getReadRows(), 1);
+            response.close();
+        } catch (Exception e) {
+            if (validationTimeout < 0) {
+                Assert.assertTrue(e instanceof ClickHouseException);
+                Assert.assertTrue(e.getCause() instanceof ConnectException);
+            } else {
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            faultyServer.stop();
+        }
+    }
+
+    @DataProvider(name = "validationTimeoutProvider")
+    public static Object[] validationTimeoutProvider() {
+        return new Long[] {-1L , 100L };
     }
 }

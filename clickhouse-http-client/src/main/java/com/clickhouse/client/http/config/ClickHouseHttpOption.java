@@ -68,6 +68,14 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
             "Whether to remember last set role and send them in every next requests as query parameters."),
 
     /**
+     * The time in milliseconds after which the connection is validated after inactivity.
+     * Default value is 5000 ms. If set to negative value, the connection is never validated.
+     * It is used only for Apache Http Client connection provider.
+     */
+    AHC_VALIDATE_AFTER_INACTIVITY("ahc_validate_after_inactivity", 5000L,
+            "The time in milliseconds after which the connection is validated after inactivity."),
+
+    /**
      * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
      * <ul>
      *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
