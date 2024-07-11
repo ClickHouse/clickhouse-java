@@ -65,7 +65,6 @@ public class BinaryStreamReader {
                     return (T) new String(bytes, 0, end, StandardCharsets.UTF_8);
                 }
                 case String: {
-                    // TODO: BinaryStreamUtils.readString() - requires reader that may be causing EOF exception
                     int len =  readVarInt(input);
                     if ( len == 0 ) {
                         return (T) "";
@@ -230,7 +229,7 @@ public class BinaryStreamReader {
     }
 
     public static float readFloatLE(InputStream input) throws IOException {
-        return Float.floatToRawIntBits(readIntLE(input));
+        return Float.intBitsToFloat(readIntLE(input));
     }
 
     public static double readDoubleLE(InputStream input) throws IOException {
@@ -488,5 +487,13 @@ public class BinaryStreamReader {
 
         return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds),
                 tz != null ? tz.toZoneId() : TimeZone.getTimeZone("UTC").toZoneId());
+    }
+
+    public static String readString(InputStream input) throws IOException {
+        int len =  readVarInt(input);
+        if ( len == 0 ) {
+            return "";
+        }
+        return new String(readNBytes(input, len), StandardCharsets.UTF_8);
     }
 }
