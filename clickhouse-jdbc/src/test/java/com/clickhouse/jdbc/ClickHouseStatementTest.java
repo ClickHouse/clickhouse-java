@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
@@ -20,6 +21,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -30,9 +32,14 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
@@ -48,6 +55,7 @@ import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
@@ -1391,5 +1399,38 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = "integration")
+    public void testMultiThreadedExecution() throws Exception {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement stmt = conn.createStatement()) {
+
+
+            ScheduledExecutorService executor = Executors.newScheduledThreadPool(3);
+
+            final AtomicReference<Exception> failedException = new AtomicReference<>(null);
+            for (int i = 0; i < 3; i++) {
+                executor.scheduleWithFixedDelay(() -> {
+                    try {
+                        stmt.execute("select 1");
+                    } catch (Exception e) {
+                        failedException.set(e);
+                    }
+                }, 100, 100, TimeUnit.MILLISECONDS);
+            }
+
+            try {
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                Assert.fail("Test interrupted", e);
+            }
+
+            executor.shutdown();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+
+            Assert.assertNull(failedException.get(), "Failed because of exception: " + failedException.get());
+         }
     }
 }

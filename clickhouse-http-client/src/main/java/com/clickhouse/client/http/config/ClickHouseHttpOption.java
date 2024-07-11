@@ -4,6 +4,7 @@ import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 
 import java.io.Serializable;
+import java.net.UnknownHostException;
 
 /**
  * Http client options.
@@ -73,6 +74,20 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     AHC_VALIDATE_AFTER_INACTIVITY("ahc_validate_after_inactivity", 5000L,
             "The time in milliseconds after which the connection is validated after inactivity."),
+
+    /**
+     * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
+     * <ul>
+     *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
+     *     <li>{@code org.apache.hc.core5.http.NoHttpResponseException}</li>
+     * </ul>
+     *
+     * And next status codes:
+     * <ul>
+     *     <li>{@code 503 Service Unavailable}</li>
+     * </ul>
+     */
+    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", false, "Whether to retry on failure with AsyncHttpClient.")
     ;
 
     private final String key;
