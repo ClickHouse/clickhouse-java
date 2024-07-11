@@ -783,7 +783,7 @@ public class Client {
 
                     // Execute request
                     CompletableFuture<ClassicHttpResponse> responseFuture =
-                            httpClientHelper.executeRequest(selectedNode, sqlQuery);
+                            httpClientHelper.executeRequest(selectedNode, sqlQuery, finalSettings.getAllSettings());
 
                     try  {
                         ClassicHttpResponse httpResponse = responseFuture.get();
@@ -978,7 +978,8 @@ public class Client {
 
                     // Execute request
                     final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
-                    CompletableFuture<ClassicHttpResponse> responseFuture = httpClientHelper.executeRequest(selectedNode, sql);
+                    CompletableFuture<ClassicHttpResponse> responseFuture = httpClientHelper.executeRequest(selectedNode, sql
+                        , null);
 
                     try (ClassicHttpResponse httpResponse = responseFuture.get()) {
                         // Check response

@@ -7,6 +7,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -27,9 +28,6 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
 
     private void readSchema() {
         try {
-            if (input.available() < 1) {
-                return;
-            }
             TableSchema headerSchema = new TableSchema();
             List<String> columns = new ArrayList<>();
             int nCol = BinaryStreamReader.readVarInt(input);

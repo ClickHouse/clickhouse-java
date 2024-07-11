@@ -270,9 +270,13 @@ public class BinaryStreamReader {
 
     public static byte[] readNBytes(InputStream inputStream, int len) throws IOException {
         byte[] bytes = new byte[len];
-        int r = inputStream.read(bytes, 0, len);
-        if (r < len) {
-            throw new EOFException("Failed to read " + len + " bytes, only " + r + " bytes available");
+        int total = 0;
+        while (total < len) {
+            int r = inputStream.read(bytes, total, len - total);
+            if (r == -1) {
+                throw new EOFException("End of stream reached before reading all data");
+            }
+            total += r;
         }
         return bytes;
     }
