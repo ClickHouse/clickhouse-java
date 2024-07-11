@@ -115,7 +115,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         // {"read_rows":"0","read_bytes":"0","written_rows":"0","written_bytes":"0","total_rows_to_read":"0"}
         String displayName = getResponseHeader(response, "X-ClickHouse-Server-Display-Name", server.getHost());
         String queryId = getResponseHeader(response, "X-ClickHouse-Query-Id", "");
-        String summary = getResponseHeader(response, "X-ClickHouse-Summary", "{}");
+        Header hSum = response.getLastHeader("X-ClickHouse-Summary");
+        String summary = hSum == null ? "{}" : hSum.getValue(); // getResponseHeader(response, "X-ClickHouse-Summary", "{}");
 
         ClickHouseFormat format = config.getFormat();
         TimeZone timeZone = config.getServerTimeZone();

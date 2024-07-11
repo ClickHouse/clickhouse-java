@@ -11,6 +11,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 
 import java.io.InputStream;
+import java.io.InputStream;
 
 /**
  * Response class provides interface to input stream of response data.

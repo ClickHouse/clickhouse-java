@@ -116,4 +116,12 @@ public class QuerySettings {
     public String getDatabase() {
         return (String) rawSettings.get("database");
     }
+
+    /**
+     * Requests the server to wait for the and of the query before sending response. Useful for getting accurate summary.
+     */
+    public QuerySettings waitEndOfQuery(Boolean waitEndOfQuery) {
+        rawSettings.put("wait_end_of_query", waitEndOfQuery);
+        return this;
+    }
 }

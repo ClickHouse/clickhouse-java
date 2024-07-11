@@ -33,6 +33,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
@@ -878,6 +879,7 @@ public class Client {
             settings = new QuerySettings();
         }
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        settings.waitEndOfQuery(true); // we rely on the summery
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start("query");
         ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
@@ -923,9 +925,9 @@ public class Client {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-
-            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery).get() :
-                    query(sqlQuery).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+            QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
+                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());

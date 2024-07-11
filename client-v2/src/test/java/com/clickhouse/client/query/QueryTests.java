@@ -82,6 +82,8 @@ public class QueryTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
+                .compressClientRequest(false)
+                .compressServerResponse(false)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build();
 
@@ -124,9 +126,13 @@ public class QueryTests extends BaseIntegrationTest {
         prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
         Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
-        Assert.assertTrue(records.getResultRows() == 10, "Unexpected number of rows");
+        Assert.assertEquals(records.getResultRows(), 10, "Unexpected number of rows");
         for (GenericRecord record : records) {
-            record.getString(3); // string column col3
+            System.out.println(record.getLong(1)); // UInt32 column col1
+            System.out.println(record.getInteger(2)); // Int32 column col2
+            System.out.println(record.getString(3)); // string column col3
+            System.out.println(record.getLong(4)); // Int64 column col4
+            System.out.println(record.getString(5)); // string column col5
         }
     }
 
@@ -806,7 +812,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq("utf8 string с кириллицей そして他のホイッスル"),
-                () -> sq("ten chars"),
+                () -> sq("7 chars"),
                 () -> "NULL",
                 () -> sq("not null string")
         );
@@ -851,7 +857,7 @@ public class QueryTests extends BaseIntegrationTest {
             // Drop table
             ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query("DROP TABLE IF EXISTS default." + table);
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -863,7 +869,7 @@ public class QueryTests extends BaseIntegrationTest {
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
             request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
 
             // Insert data
@@ -880,8 +886,9 @@ public class QueryTests extends BaseIntegrationTest {
 
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
-            ClickHouseResponse response = request.executeAndWait();
-            Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
+            try (ClickHouseResponse response = request.executeAndWait()) {
+                Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
+            }
         } catch (Exception e) {
             Assert.fail("Failed at prepare stage", e);
         }
@@ -908,6 +915,7 @@ public class QueryTests extends BaseIntegrationTest {
                 colIndex++;
                 try {
                     verifier.accept(reader);
+                    System.out.println("Verified " + colIndex);
                 } catch (Exception e) {
                     Assert.fail("Failed to verify " + columns.get(colIndex), e);
                 }
@@ -924,7 +932,9 @@ public class QueryTests extends BaseIntegrationTest {
 
         String uuid = UUID.randomUUID().toString();
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated).setQueryId(uuid);
+                .setFormat(ClickHouseFormat.TabSeparated)
+                .waitEndOfQuery(true)
+                .setQueryId(uuid);
 
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
@@ -992,7 +1002,7 @@ public class QueryTests extends BaseIntegrationTest {
             // Drop table
             ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query("DROP TABLE IF EXISTS default." + table);
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
 
             // Create table
@@ -1005,8 +1015,7 @@ public class QueryTests extends BaseIntegrationTest {
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
             request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
-            request.executeAndWait();
-
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1021,7 +1030,7 @@ public class QueryTests extends BaseIntegrationTest {
             System.out.println("Insert statement: " + insertStmtBuilder);
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
         } catch (Exception e) {
             Assert.fail("failed to prepare data set", e);
         }
@@ -1037,8 +1046,8 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
             } else if (value instanceof BaseStream<?, ?>) {
                 insertStmtBuilder.append('[');
-                BaseStream stream = ((BaseStream<?, ?>) value);
-                for (Iterator it = stream.iterator(); it.hasNext(); ) {
+                BaseStream<?, ?> stream = ((BaseStream<?, ?>) value);
+                for (Iterator<?> it = stream.iterator(); it.hasNext(); ) {
                     insertStmtBuilder.append(quoteValue(it.next())).append(", ");
                 }
                 insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
