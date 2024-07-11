@@ -58,7 +58,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     // "Enables or disables X-ClickHouse-Progress HTTP response headers in
     // clickhouse-server responses."),
     // SEND_PROGRESS_INTERVAL("http_headers_progress_interval_ms", 3000, ""),
-    // WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
+     WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
 
     /**
      * Whether to remember last set role and send them in every next requests as query parameters.

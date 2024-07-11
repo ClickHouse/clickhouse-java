@@ -925,7 +925,9 @@ public class QueryTests extends BaseIntegrationTest {
 
         String uuid = UUID.randomUUID().toString();
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated).setQueryId(uuid);
+                .setFormat(ClickHouseFormat.TabSeparated)
+                .waitEndOfQuery(true)
+                .setQueryId(uuid);
 
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
