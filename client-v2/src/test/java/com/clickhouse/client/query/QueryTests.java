@@ -77,6 +77,8 @@ public class QueryTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
+                .compressClientRequest(false)
+                .compressServerResponse(false)
                 .build();
 
         delayForProfiler(0);
@@ -799,7 +801,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq("utf8 string с кириллицей そして他のホイッスル"),
-                () -> sq("ten chars"),
+                () -> sq("7 chars"),
                 () -> "NULL",
                 () -> sq("not null string")
         );
@@ -901,6 +903,7 @@ public class QueryTests extends BaseIntegrationTest {
                 colIndex++;
                 try {
                     verifier.accept(reader);
+                    System.out.println("Verified " + colIndex);
                 } catch (Exception e) {
                     Assert.fail("Failed to verify " + columns.get(colIndex), e);
                 }
