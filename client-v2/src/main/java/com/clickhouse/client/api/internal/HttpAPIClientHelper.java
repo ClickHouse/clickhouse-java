@@ -163,6 +163,12 @@ public class HttpAPIClientHelper {
             if (requestConfig.containsKey("query_id")) {
                 req.addParameter("query_id", requestConfig.get("query_id").toString());
             }
+            if (requestConfig.containsKey("statement_params")) {
+                Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
+                for (Map.Entry<String, Object> entry : params.entrySet()) {
+                    req.addParameter("param_" + entry.getKey(), String.valueOf(entry.getValue()));
+                }
+            }
         }
     }
 }

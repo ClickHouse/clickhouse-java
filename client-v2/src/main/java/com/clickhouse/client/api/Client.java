@@ -775,6 +775,9 @@ public class Client {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
             final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
 
+            if (queryParams != null) {
+                settings.setOption("statement_params", queryParams);
+            }
             final QuerySettings finalSettings = settings;
             CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
                 // Selecting some node
