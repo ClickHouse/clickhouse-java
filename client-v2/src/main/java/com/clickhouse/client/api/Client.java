@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -95,7 +96,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
  *
  */
-public class Client {
+public class Client implements AutoCloseable {
 
     private Set<String> endpoints;
     private Map<String, String> configuration;
@@ -128,6 +129,24 @@ public class Client {
      */
     public String getDefaultDatabase() {
         return this.configuration.get("database");
+    }
+
+
+    /**
+     * Frees the resources associated with the client.
+     * <ul>
+     *     <li>Shuts down the shared operation executor by calling {@code shutdownNow()}</li>
+     * </ul>
+     */
+    @Override
+    public void close() {
+        try {
+            if (!sharedOperationExecutor.isShutdown()) {
+                this.sharedOperationExecutor.shutdownNow();
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to close shared operation executor", e);
+        }
     }
 
     public static class Builder {

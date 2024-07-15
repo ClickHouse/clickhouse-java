@@ -11,11 +11,11 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -32,7 +32,7 @@ public class InsertTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;
 
-    @BeforeMethod(groups = { "integration" }, enabled = true)
+    @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
@@ -43,6 +43,11 @@ public class InsertTests extends BaseIntegrationTest {
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
+    }
+
+    @AfterMethod(groups = { "integration" })
+    public void tearDown() {
+        client.close();
     }
 
     private void createTable(String tableQuery) throws ClickHouseException {

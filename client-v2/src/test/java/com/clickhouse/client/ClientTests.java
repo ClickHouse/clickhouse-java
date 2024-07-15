@@ -37,6 +37,8 @@ public class ClientTests extends BaseIntegrationTest {
                 return;
             }
             Assert.fail(e.getMessage());
+        } finally {
+            client.close();
         }
     }
 
@@ -87,6 +89,8 @@ public class ClientTests extends BaseIntegrationTest {
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail(e.getMessage());
+        } finally {
+            client.close();
         }
     }
 }
