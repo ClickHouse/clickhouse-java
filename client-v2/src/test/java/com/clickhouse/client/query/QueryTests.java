@@ -32,6 +32,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -81,6 +82,11 @@ public class QueryTests extends BaseIntegrationTest {
 
         delayForProfiler(0);
         System.out.println("Real port: " + node.getPort());
+    }
+
+    @AfterMethod(groups = {"integration"})
+    public void tearDown() {
+        client.close();
     }
 
     private static void delayForProfiler(long millis) {
