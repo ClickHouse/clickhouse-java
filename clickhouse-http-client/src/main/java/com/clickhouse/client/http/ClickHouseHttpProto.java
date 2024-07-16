@@ -14,4 +14,6 @@ public class ClickHouseHttpProto {
 
     public static final String HEADER_EXCEPTION_CODE = "X-ClickHouse-Exception-Code";
 
+    public static final String QPARAM_QUERY_ID = "query_id";
+
 }

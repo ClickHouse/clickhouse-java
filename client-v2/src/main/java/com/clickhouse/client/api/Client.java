@@ -33,6 +33,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -817,11 +818,11 @@ public class Client implements AutoCloseable {
                         }
 
                         OperationMetrics metrics = new OperationMetrics(clientStats);
-                        Header hSummary = httpResponse.getFirstHeader("X-ClickHouse-Summary");
+                        Header hSummary = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY);
                         if (hSummary != null) {
                             ProcessParser.parseSummary(hSummary.getValue(), metrics);
                         }
-                        Header hQueryId = httpResponse.getFirstHeader("X-ClickHouse-Query-Id");
+                        Header hQueryId = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
                         metrics.operationComplete();
                         metrics.setQueryId(hQueryId != null ? hQueryId.getValue() : finalSettings.getQueryId());
 

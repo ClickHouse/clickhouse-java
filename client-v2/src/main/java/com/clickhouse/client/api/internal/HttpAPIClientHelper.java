@@ -4,6 +4,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -13,8 +14,10 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.net.URIBuilder;
@@ -148,12 +151,12 @@ public class HttpAPIClientHelper {
     }
 
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
-        req.addHeader("Content-Type", "text/plain");
-        req.addHeader("Accept", "text/plain");
+        req.addHeader(HttpHeaders.CONTENT_TYPE, ContentType.TEXT_PLAIN.getMimeType());
+        req.addHeader(HttpHeaders.ACCEPT, ContentType.TEXT_PLAIN.getMimeType());
 
         if (requestConfig != null) {
-            if (requestConfig.containsKey("format")) {
-                req.addHeader("x-clickhouse-format", requestConfig.get("format"));
+            if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {
+                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClickHouseClientOption.FORMAT.getKey()));
             }
         }
     }
@@ -164,8 +167,8 @@ public class HttpAPIClientHelper {
                 req.addParameter(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey(),
                         requestConfig.get(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey()).toString());
             }
-            if (requestConfig.containsKey("query_id")) {
-                req.addParameter("query_id", requestConfig.get("query_id").toString());
+            if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
+                req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
             }
             if (requestConfig.containsKey("statement_params")) {
                 Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
