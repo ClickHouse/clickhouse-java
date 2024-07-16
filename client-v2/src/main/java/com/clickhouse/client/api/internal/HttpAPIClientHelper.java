@@ -4,6 +4,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -12,6 +13,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.StringEntity;
@@ -33,9 +35,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
+
+    private static int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
     private CloseableHttpClient httpClient;
 
@@ -70,12 +76,10 @@ public class HttpAPIClientHelper {
      * @return
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream(8192)) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE)) {
             httpResponse.getEntity().writeTo(out);
             String message = new String(out.toByteArray(), StandardCharsets.UTF_8);
-            int serverCode = httpResponse.getFirstHeader("X-ClickHouse-Exception-Code") != null
-                    ? Integer.parseInt(httpResponse.getFirstHeader("X-ClickHouse-Exception-Code").getValue())
-                    : 0;
+            int serverCode =getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
             return new ServerException(serverCode, message);
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
@@ -170,5 +174,17 @@ public class HttpAPIClientHelper {
                 }
             }
         }
+    }
+
+    private int getHeaderInt(Header header, int defaultValue) {
+        return getHeaderVal(header, defaultValue, Integer::parseInt);
+    }
+
+    private <T> T getHeaderVal(Header header, T defaultValue, Function<String, T> converter) {
+        if (header == null) {
+            return defaultValue;
+        }
+
+        return converter.apply(header.getValue());
     }
 }
