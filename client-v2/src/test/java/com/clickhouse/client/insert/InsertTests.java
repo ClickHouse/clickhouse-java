@@ -14,12 +14,17 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseFormat;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -75,6 +80,7 @@ public class InsertTests extends BaseIntegrationTest {
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         String uuid = UUID.randomUUID().toString();
         System.out.println(createSQL);
+        dropTable(tableName);
         createTable(createSQL);
         client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
@@ -92,6 +98,29 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
         assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertRawData() throws Exception {
+        final String tableName = "raw_data_table";
+        final String createSQL = "CREATE TABLE " + tableName +
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
         dropTable(tableName);
+        createTable(createSQL);
+
+        settings.setInputStreamCopyBufferSize(8198 * 2);
+        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(data);
+        for (int i = 0; i < 1000; i++) {
+            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+        }
+        writer.flush();
+        InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
+                ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals((int)response.getWrittenRows(), 1000 );
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
+        assertEquals(records.size(), 1000);
     }
 }
