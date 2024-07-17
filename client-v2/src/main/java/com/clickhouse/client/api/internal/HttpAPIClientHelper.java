@@ -81,9 +81,8 @@ public class HttpAPIClientHelper {
     public Exception readError(ClassicHttpResponse httpResponse) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE)) {
             httpResponse.getEntity().writeTo(out);
-            String message = new String(out.toByteArray(), StandardCharsets.UTF_8);
-            int serverCode =getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-            return new ServerException(serverCode, message);
+            int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
+            return new ServerException(serverCode, out.toString(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
         }
