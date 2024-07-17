@@ -7,6 +7,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -19,27 +20,28 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
@@ -81,8 +83,9 @@ public class HttpAPIClientHelper {
     public Exception readError(ClassicHttpResponse httpResponse) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE)) {
             httpResponse.getEntity().writeTo(out);
+            String message = out.toString();
             int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-            return new ServerException(serverCode, out.toString(StandardCharsets.UTF_8));
+            return new ServerException(serverCode, message);
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
         }
@@ -97,8 +100,6 @@ public class HttpAPIClientHelper {
                                                                  HttpEntity httpEntity, final Map<String, Object> requestConfig) {
 
         CompletableFuture<ClassicHttpResponse> responseFuture = CompletableFuture.supplyAsync(() -> {
-
-
             HttpHost target = new HttpHost(server.getHost(), server.getPort());
 
             URI uri;
@@ -149,9 +150,60 @@ public class HttpAPIClientHelper {
         return responseFuture;
     }
 
+    public ClassicHttpResponse insertRequest(ClickHouseNode server, Map<String, Object> requestConfig,
+                                             IOCallback<OutputStream> writeCallback) {
+        HttpHost target = new HttpHost(server.getHost(), server.getPort());
+
+        URI uri;
+        try {
+            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
+            addQueryParams(uriBuilder, chConfiguration, requestConfig);
+            uri = uriBuilder.build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        HttpPost req = new HttpPost(uri);
+        addHeaders(req, chConfiguration, requestConfig);
+
+
+        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
+                .build();
+        req.setConfig(httpReqConfig);
+        req.setEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback));
+
+        HttpClientContext context = HttpClientContext.create();
+
+        try {
+            ClassicHttpResponse httpResponse = httpClient.executeOpen(target, req, context);
+            if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
+                try {
+                    throw readError(httpResponse);
+                } finally {
+                    httpResponse.close();
+                }
+            } else if (httpResponse.getCode() >= 500) {
+                httpResponse.close();
+                return httpResponse;
+            }
+            return httpResponse;
+
+        } catch (UnknownHostException e) {
+            LOG.warn("Host '{}' unknown", target);
+        } catch (ConnectException | NoRouteToHostException e) {
+            LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
+        } catch (ServerException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ClientException("Failed to execute request", e);
+        }
+
+        return null;
+    }
+
+    private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
+
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
-        req.addHeader(HttpHeaders.CONTENT_TYPE, ContentType.TEXT_PLAIN.getMimeType());
-        req.addHeader(HttpHeaders.ACCEPT, ContentType.TEXT_PLAIN.getMimeType());
+        req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
 
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {

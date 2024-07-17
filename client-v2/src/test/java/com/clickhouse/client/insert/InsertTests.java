@@ -39,6 +39,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .compressClientRequest(false)
                 .build();
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
