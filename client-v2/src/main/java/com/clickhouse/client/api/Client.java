@@ -34,7 +34,6 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
@@ -42,16 +41,13 @@ import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
-import org.apache.hc.core5.http.message.StatusLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -818,13 +814,13 @@ public class Client implements AutoCloseable {
                         }
 
                         OperationMetrics metrics = new OperationMetrics(clientStats);
-                        Header hSummary = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY);
-                        if (hSummary != null) {
-                            ProcessParser.parseSummary(hSummary.getValue(), metrics);
-                        }
-                        Header hQueryId = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
+                                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+                        ProcessParser.parseSummary(summary, metrics);
+                        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
+                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId());
+                        metrics.setQueryId(queryId);
                         metrics.operationComplete();
-                        metrics.setQueryId(hQueryId != null ? hQueryId.getValue() : finalSettings.getQueryId());
 
                         return new QueryResponse(httpResponse, finalSettings, metrics);
                     } catch (ExecutionException e) {

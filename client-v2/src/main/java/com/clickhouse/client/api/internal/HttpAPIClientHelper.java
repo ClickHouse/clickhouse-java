@@ -179,11 +179,15 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private int getHeaderInt(Header header, int defaultValue) {
+    public static int getHeaderInt(Header header, int defaultValue) {
         return getHeaderVal(header, defaultValue, Integer::parseInt);
     }
 
-    private <T> T getHeaderVal(Header header, T defaultValue, Function<String, T> converter) {
+    public static String getHeaderVal(Header header, String defaultValue) {
+        return getHeaderVal(header, defaultValue, Function.identity());
+    }
+
+    public static <T> T getHeaderVal(Header header, T defaultValue, Function<String, T> converter) {
         if (header == null) {
             return defaultValue;
         }
