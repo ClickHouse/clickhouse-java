@@ -2644,7 +2644,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.assertEquals(timezone, "America/Los_Angeles", "Timezone should be applied from the query settings");
             Assert.assertEquals(serverTimezone, "UTC", "Server timezone should be 'UTC'");
             ZonedDateTime serverNowUtc = ZonedDateTime.of(now, ZoneId.of(timezone)).withZoneSameInstant(ZoneOffset.UTC);
-            System.out.println("Server time: " + serverNowUtc + " (UTC), Client time: " + nowUtc + " (" + timezone + ")");
+            System.out.println("Server time: " + serverNowUtc + " (UTC), Client time: " + nowUtc + " (UTC)");
             Assert.assertTrue(Duration.between(serverNowUtc, nowUtc).abs().getSeconds() < 60, "Server time should be close to the client time");
         }
     }
