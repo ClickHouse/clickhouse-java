@@ -41,10 +41,18 @@ public class ClickHouseHttpResponse {
 
     protected ClickHouseConfig getConfig(ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
+        Map<ClickHouseOption, Serializable> options = null;
         if (format != null && format != config.getFormat()) {
-            Map<ClickHouseOption, Serializable> options = new HashMap<>();
-            options.putAll(config.getAllOptions());
+            options = options == null ? new HashMap<>(config.getAllOptions()) : options;
             options.put(ClickHouseClientOption.FORMAT, format);
+        }
+
+        if (timeZone != null && timeZone != config.getServerTimeZone()) {
+            options = options == null ? new HashMap<>(config.getAllOptions()) : options;
+            options.put(ClickHouseClientOption.SERVER_TIME_ZONE, timeZone.getID());
+        }
+
+        if (options != null) {
             config = new ClickHouseConfig(options, config.getDefaultCredentials(), config.getNodeSelector(),
                     config.getMetricRegistry());
         }
