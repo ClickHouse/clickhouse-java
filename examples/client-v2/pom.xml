@@ -12,7 +12,7 @@
     <name>java-client-examples</name>
     <description>Java Client Examples</description>
     <url>https://github.com/ClickHouse/clickhouse-java</url>
-    <inceptionYear>2022</inceptionYear>
+    <inceptionYear>2024</inceptionYear>
 
     <organization>
         <name>ClickHouse, Inc.</name>

@@ -12,7 +12,7 @@
     <name>clickhouse-java</name>
     <description>Java libraries for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-java</url>
-    <inceptionYear>2024</inceptionYear>
+    <inceptionYear>2015</inceptionYear>
 
     <organization>
         <name>ClickHouse, Inc.</name>

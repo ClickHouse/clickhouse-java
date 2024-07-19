@@ -12,7 +12,7 @@
     <name>JDBC Examples</name>
     <description>JDBC Examples</description>
     <url>https://github.com/ClickHouse/clickhouse-java</url>
-    <inceptionYear>2024</inceptionYear>
+    <inceptionYear>2022</inceptionYear>
 
     <organization>
         <name>ClickHouse, Inc.</name>
