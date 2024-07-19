@@ -12,7 +12,7 @@
     <name>clickhouse-java</name>
     <description>Java libraries for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-java</url>
-    <inceptionYear>2015</inceptionYear>
+    <inceptionYear>2024</inceptionYear>
 
     <organization>
         <name>ClickHouse, Inc.</name>
@@ -85,7 +85,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.6.2-SNAPSHOT</revision>
+        <revision>0.6.3-SNAPSHOT</revision>
         <project.current.year>2024</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
