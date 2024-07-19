@@ -436,6 +436,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     private static final Map<String, ClickHouseClientOption> options;
 
     static final String UNKNOWN = "unknown";
+    public static final String LATEST_KNOWN_VERSION = "0.6.3";
 
     /**
      * Semantic version of the product.
@@ -480,7 +481,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
             ver = parts[3];
             PRODUCT_REVISION = ver.substring(0, ver.length() - 1);
         } else { // perhaps try harder by checking version from pom.xml?
-            PRODUCT_VERSION = "";
+            PRODUCT_VERSION = LATEST_KNOWN_VERSION;
             PRODUCT_REVISION = UNKNOWN;
         }
 
@@ -517,7 +518,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
         StringBuilder builder = new StringBuilder(productName).append(PRODUCT_VERSION.isEmpty() ? "" : "/" + PRODUCT_VERSION);
 
         if (!String.valueOf(PRODUCT_NAME.getDefaultValue()).equals(productName)) {//Append if someone changed the original value
-            builder.append(" ").append(PRODUCT_NAME.getDefaultValue()).append(PRODUCT_VERSION.isEmpty() ? "" : "/" + PRODUCT_VERSION);
+            builder.append(" ").append(PRODUCT_NAME.getDefaultValue()).append(LATEST_KNOWN_VERSION);
         }
         builder.append(" (").append(CLIENT_JVM_INFO);
         if (additionalProperty != null && !additionalProperty.isEmpty()) {

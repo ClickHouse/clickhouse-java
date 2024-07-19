@@ -427,6 +427,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         name = c.getProductName();
+        String version = c.getProductVersion();
+        if (!ClickHouseClientOption.PRODUCT_VERSION.equals(version)) {
+            name = name + "/" + c.getProductVersion();
+        }
         return ClickHouseClientOption.PRODUCT_NAME.getDefaultValue().equals(name) ? userAgent : name + " " + userAgent;
     }
 
