@@ -7,7 +7,9 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -218,8 +220,9 @@ public class ClickHouseServerForTest {
             port = 8443;
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
             return ClickHouseNode.builder(template)
-                    .address(protocol, new InetSocketAddress(host, port))
+                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(host, port))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
                     .build();
         } else if (container != null) {
             host = container.getHost();
@@ -305,6 +308,10 @@ public class ClickHouseServerForTest {
 
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
+        if (isCloud()) {
+            return;
+        }
+
         if (clickhouseContainer != null) {
             if (clickhouseContainer.isRunning()) {
                 return;

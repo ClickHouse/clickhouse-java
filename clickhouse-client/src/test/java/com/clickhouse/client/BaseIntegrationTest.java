@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import org.testng.annotations.AfterSuite;
+import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 
 /**
