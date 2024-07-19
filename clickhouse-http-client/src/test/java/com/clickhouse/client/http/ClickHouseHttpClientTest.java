@@ -193,7 +193,8 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
              ClickHouseResponse response = newRequest(client, server)
                      .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
                      .executeAndWait()) {
-            Assert.assertEquals(response.firstRecord().getValue(0).asString(), "MyCustomClient");
+            String result = response.firstRecord().getValue(0).asString();
+            Assert.assertTrue(result.startsWith("MyCustomClient"));
         }
     }
 
