@@ -71,6 +71,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -2626,13 +2627,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "testServerTimezoneAppliedFromHeaderProvider")
     public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
+        System.out.println("Testing with " + format + " format");
         ClickHouseNode server = getServer();
 
-        final ZonedDateTime nowUtc = ZonedDateTime.now(ZoneOffset.UTC);
+
         final String sql = "select now(), timezone(), serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
         try (ClickHouseClient client = getClient();
              ClickHouseResponse response = newRequest(client, server)
-                     .query(sql)
+                     .query(sql, UUID.randomUUID().toString())
                      .option(ClickHouseClientOption.FORMAT, format)
                      .executeAndWait()) {
 
@@ -2643,9 +2645,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             System.out.println("now: " + now + ", timezone: " + timezone + ", serverTimezone: " + serverTimezone);
             Assert.assertEquals(timezone, "America/Los_Angeles", "Timezone should be applied from the query settings");
             Assert.assertEquals(serverTimezone, "UTC", "Server timezone should be 'UTC'");
-            ZonedDateTime serverNowUtc = ZonedDateTime.of(now, ZoneId.of(timezone)).withZoneSameInstant(ZoneOffset.UTC);
-            System.out.println("Server time: " + serverNowUtc + " (UTC), Client time: " + nowUtc + " (UTC)");
-            Assert.assertTrue(Duration.between(serverNowUtc, nowUtc).abs().getSeconds() < 60, "Server time should be close to the client time");
+            final ZonedDateTime nowAtTimezone = Instant.now().atZone(ZoneId.of(timezone));
+            ZonedDateTime serverTimeNow = ZonedDateTime.of(now, ZoneId.of(timezone));
+            System.out.println("Server time: " + serverTimeNow + " (" + timezone + "), Client time: " + nowAtTimezone + " (" + timezone + ")");
+            Assert.assertTrue(Duration.between(serverTimeNow, nowAtTimezone).abs().getSeconds() < 60,
+                    "Server time (" + serverTimeNow + " ) should be close to the client time (" + nowAtTimezone + ")");
         }
     }
 
