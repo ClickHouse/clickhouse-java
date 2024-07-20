@@ -420,14 +420,18 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final String getUserAgent() {
         final ClickHouseConfig c = config;
         String name = c.getClientName();
+        String userAgent = getDefaultUserAgent();
+
         if (!ClickHouseClientOption.CLIENT_NAME.getDefaultValue().equals(name)) {
-            return name;
+            return name + " " + userAgent;
         }
 
-        String userAgent = getDefaultUserAgent();
         name = c.getProductName();
-        return ClickHouseClientOption.PRODUCT_NAME.getDefaultValue().equals(name) ? userAgent
-                : new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString();
+        String version = c.getProductVersion();
+        if (!ClickHouseClientOption.PRODUCT_VERSION.equals(version)) {
+            name = name + "/" + c.getProductVersion();
+        }
+        return ClickHouseClientOption.PRODUCT_NAME.getDefaultValue().equals(name) ? userAgent : name + " " + userAgent;
     }
 
     /**

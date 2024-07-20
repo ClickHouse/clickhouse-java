@@ -1,4 +1,27 @@
-## Latest 
+## Latest
+
+## 0.6.3
+
+### Important Changes
+- [Client-V1] Changed how `User-Agent` string is generated. Now `ClickHouse-JavaClient` portion is appended in all cases.
+It is still possible to set custom product name that will be the first part in `User-Agent` value. 
+(https://github.com/ClickHouse/clickhouse-java/issues/1698)
+
+### New Features
+- [Client-V1/Apache HTTP] Retry on NoHttpResponseException in Apache HTTP client.
+Should be used with causes because it is not always possible to resend request body. 
+Behaviour is controlled by `com.clickhouse.client.http.config.ClickHouseHttpOption#AHC_RETRY_ON_FAILURE`.
+Works only for Apache HTTP client because based on its specific behavior(https://github.com/ClickHouse/clickhouse-java/pull/1721)
+- [Client-V1/Apache HTTP] Connection validation before sending request.
+Behaviour is controlled by `com.clickhouse.client.http.config.ClickHouseHttpOption#AHC_VALIDATE_AFTER_INACTIVITY`.
+By default, connection is validated after being in the pool for 5 seconds. (https://github.com/ClickHouse/clickhouse-java/pull/1722)
+
+### Bug Fixes
+- [Client-V2] Fix parsing endpoint URL to detect HTTPs (https://github.com/ClickHouse/clickhouse-java/issues/1718)
+- [Client-V2] Fix handling asynchronous operations. Less extra threads created now. (https://github.com/ClickHouse/clickhouse-java/issues/1691)
+- [Client-V2] Fix way of how settings are validated to let unsupported options to be added (https://github.com/ClickHouse/clickhouse-java/issues/1691)
+- [Client-V1] Fix getting `localhost` effective IP address (https://github.com/ClickHouse/clickhouse-java/issues/1729)
+- [Client-V2] Make client instance closeable to free underlying resource (https://github.com/ClickHouse/clickhouse-java/pull/1733)
 
 ## 0.6.2
 
