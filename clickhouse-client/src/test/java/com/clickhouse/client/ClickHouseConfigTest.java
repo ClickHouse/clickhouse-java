@@ -74,7 +74,7 @@ public class ClickHouseConfigTest {
     @Test(groups = { "unit" })
     public void testClientInfo() throws UnknownHostException {
         ClickHouseConfig config = new ClickHouseConfig();
-        Assert.assertEquals(config.getProductVersion(), "unknown");
+        Assert.assertEquals(config.getProductVersion(), ClickHouseClientOption.LATEST_KNOWN_VERSION);
         Assert.assertEquals(config.getProductRevision(), "unknown");
         Assert.assertEquals(config.getClientOsInfo(),
                 System.getProperty("os.name") + "/" + System.getProperty("os.version"));
@@ -85,11 +85,10 @@ public class ClickHouseConfigTest {
         Assert.assertEquals(config.getClientHost(), InetAddress.getLocalHost().getHostName());
 
         Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
-                "ClickHouse-JavaClient/unknown (" + System.getProperty("os.name") + "/"
-                        + System.getProperty("os.version") + "; " + System.getProperty("java.vm.name") + "/"
+                "ClickHouse-JavaClient/"+ ClickHouseClientOption.PRODUCT_VERSION + " (" + System.getProperty("java.vm.name") + "/"
                         + System.getProperty("java.vendor.version",
                                 System.getProperty("java.vm.version", System.getProperty("java.version", "unknown")))
-                        + "; rv:unknown)");
+                        + ")");
         Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
                 ClickHouseClientOption.buildUserAgent("", null));
 
