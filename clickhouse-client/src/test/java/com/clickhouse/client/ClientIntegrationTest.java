@@ -1351,7 +1351,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
         // INSERT INTO test_table VALUES (10223372036854775100)
         sendAndWait(server, "drop table if exists test_uint64_values",
-                "create table test_uint64_values(no UInt8, v0 UInt64, v1 UInt64, v2 UInt64, v3 UInt64) engine=Memory");
+                "create table test_uint64_values(no UInt8, v0 UInt64, v1 UInt64, v2 UInt64, v3 UInt64) engine=MergeTree ORDER BY no");
         sendAndWait(server, "insert into test_uint64_values values(:no, :v0, :v1, :v2, :v3)",
                 new ClickHouseValue[] { ClickHouseIntegerValue.ofNull(),
                         ClickHouseLongValue.ofNull(true), ClickHouseStringValue.ofNull(),
@@ -1363,14 +1363,12 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 new Object[] { 3, -8223372036854776516L, "10223372036854775100", new BigInteger("10223372036854775100"),
                         new BigDecimal("10223372036854775100") });
 
-        String selectQuery = "select * except(no) from test_uint64_values order by no";
-        if (isCloud()) {
-            selectQuery = "SELECT * EXCEPT(no) FROM clusterAllReplicas(default, 'default', test_uint64_values) ORDER BY no";
-        }
+        String selectQuery = "SELECT * EXCEPT(no) FROM test_uint64_values ORDER BY no";
 
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = newRequest(client, server)
                         .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .set("select_sequential_consistency", isCloud() ? 1 : null)
                         .query(selectQuery).executeAndWait()) {
             int count = 0;
             for (ClickHouseRecord r : resp.records()) {

@@ -395,7 +395,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testLogComment() throws ClickHouseException, IOException {
+    public void testLogComment() throws ClickHouseException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         String uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
@@ -417,11 +417,11 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                     .query("SYSTEM FLUSH LOGS", uuid).executeAndWait()) {
             }
 
-            String selectQuery = "SELECT log_comment from system.query_log where query_id = :qid";
+            String selectQuery = "SELECT log_comment FROM system.query_log WHERE query_id = :qid";
             if (isCloud()) {
-                selectQuery = "SELECT log_comment FROM clusterAllReplicas(default, 'system', query_log) WHERE query_id = :qid";
+                selectQuery = "SELECT log_comment FROM clusterAllReplicas(default, 'system', query_log) WHERE log_comment != '' AND query_id = :qid";
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(30000);
                 } catch (InterruptedException e) {
                     // ignore
                 }
