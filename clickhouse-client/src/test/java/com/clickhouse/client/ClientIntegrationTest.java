@@ -1988,7 +1988,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testInsertWithInputFunction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_input_function",
-                "create table test_input_function(name String, value Nullable(Int32)) engine=MergeTree ORDER BY value");
+                "create table test_input_function(name String, value Nullable(Int32)) engine=MergeTree ORDER BY name");
 
         try (ClickHouseClient client = getClient()) {
             // default format ClickHouseFormat.TabSeparated
