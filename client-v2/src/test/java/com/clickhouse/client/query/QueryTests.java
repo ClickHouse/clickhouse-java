@@ -1152,8 +1152,15 @@ public class QueryTests extends BaseIntegrationTest {
         } catch (ServerException e) {
             Assert.assertEquals(e.getCode(), ServerException.TABLE_NOT_FOUND);
         } catch (ClientException e) {
-            Assert.assertTrue( e.getCause() instanceof ClickHouseException);
-            Assert.assertEquals(((ClickHouseException) e.getCause()).getErrorCode(), ServerException.TABLE_NOT_FOUND);
+            e.printStackTrace();
+            if (e.getCause().getCause() instanceof ServerException) {
+                ServerException se = (ServerException) e.getCause().getCause();
+                Assert.assertEquals(se.getCode(), ServerException.TABLE_NOT_FOUND);
+            } else {
+                Assert.assertEquals(((ClickHouseException) e.getCause().getCause().getCause()).getErrorCode(),
+                        ServerException.TABLE_NOT_FOUND);
+            }
+
         }
     }
 }

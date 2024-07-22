@@ -53,6 +53,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -799,13 +800,13 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
                 for (int i = 0; i <= maxRetries; i++) {
+                    try {
+                        ClassicHttpResponse httpResponse =
+                                httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
+                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
+                                    output.flush();
+                                });
 
-                    // Execute request
-                    CompletableFuture<ClassicHttpResponse> responseFuture =
-                            httpClientHelper.executeRequest(selectedNode, sqlQuery, finalSettings.getAllSettings());
-
-                    try  {
-                        ClassicHttpResponse httpResponse = responseFuture.get();
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
@@ -823,16 +824,8 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings, metrics);
-                    } catch (ExecutionException e) {
-                        if (e.getCause() instanceof NoHttpResponseException) {
-                            LOG.warn("Failed to get response. Retrying.", e);
-                            selectedNode = getNextAliveNode();
-                            continue;
-                        }
-                        throw new ClientException("Failed to get query response", e.getCause());
-                    } catch (InterruptedException e) {
-                        LOG.info("Interrupted while waiting for response.");
-                        throw new ClientException("Failed to get query response", e);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to execute query", e);
                     }
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
@@ -899,39 +892,15 @@ public class Client implements AutoCloseable {
         }
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
-        ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
-        clientStats.start("query");
-        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-        ClickHouseRequest<?> request = client.read(getServerNode());
-        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
-        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
-        request.query(sqlQuery, settings.getQueryId());
-        final ClickHouseFormat format = settings.getFormat();
-        request.format(format);
 
         final QuerySettings finalSettings = settings;
-        CompletableFuture<Records> future = CompletableFuture.supplyAsync(() -> {
-            LOG.trace("Executing request: {}", request);
+        return query(sqlQuery, settings).thenApplyAsync(response -> {
             try {
-                int operationTimeout = getOperationTimeout();
-                ClickHouseResponse clickHouseResponse;
-                if (operationTimeout > 0) {
-                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
-                } else {
-                    clickHouseResponse = request.execute().get();
-                }
-
-                QueryResponse queryResponse = new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
-                return new Records(queryResponse, finalSettings);
-            } catch (ClientException e) {
-                throw e;
+                return new Records(response, finalSettings);
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
         }, sharedOperationExecutor);
-
-        return future;
     }
 
     /**
@@ -987,56 +956,19 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        if (useNewImplementation) {
-            try {
-                String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
-                final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
-                // Selecting some node
-                ClickHouseNode selectedNode = getNextAliveNode();
-                for (int i = 0; i <= maxRetries; i++) {
+        final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
 
-                    // Execute request
-                    final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
-                    CompletableFuture<ClassicHttpResponse> responseFuture = httpClientHelper.executeRequest(selectedNode, sql
-                        , null);
+        int operationTimeout = getOperationTimeout();
 
-                    try (ClassicHttpResponse httpResponse = responseFuture.get()) {
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
-                            selectedNode = getNextAliveNode();
-                            continue;
-                        }
-
-                        return new TableSchemaParser().readTSKV(httpResponse.getEntity().getContent()
-                                , table, database);
-                    }
-                }
-                throw new ClientException("Failed to get table schema: too many retries");
-            } catch (Exception e) {
-                if (e instanceof ExecutionException) {
-                    if (e.getCause() instanceof ServerException) {
-                        throw (ServerException) e.getCause();
-                    } else {
-                        throw new ClientException("Failed to create HTTP client", e.getCause());
-                    }
-                } else {
-                    throw new ClientException("Failed to create HTTP client", e);
-                }
-            }
-        } else {
-            try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
-                ClickHouseRequest<?> request = clientQuery.read(getServerNode());
-                // XML - because java has a built-in XML parser. Will consider CSV later.
-                request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
-                try {
-                    return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
-                } catch (ExecutionException e) {
-                    throw new ClientException("Failed to get table schema", e.getCause());
-                } catch (Exception e) {
-                    throw new ClientException("Failed to get table schema", e);
-                }
-            }
+        try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
+                query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+            return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
+        } catch (TimeoutException e) {
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get table schema", e);
         }
     }
 
@@ -1097,6 +1029,7 @@ public class Client implements AutoCloseable {
         return Collections.unmodifiableMap(configuration);
     }
 
+    /** Returns operation timeout in seconds */
     protected int getOperationTimeout() {
         return Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey()));
     }
