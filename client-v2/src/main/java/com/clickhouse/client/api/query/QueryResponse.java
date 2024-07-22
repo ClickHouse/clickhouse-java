@@ -9,6 +9,7 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 
+import java.io.InputStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -52,7 +53,7 @@ public class QueryResponse implements AutoCloseable {
         this.operationMetrics.operationComplete(clickHouseResponse.getSummary());
     }
 
-    public ClickHouseInputStream getInputStream() {
+    public InputStream getInputStream() {
         try {
             return clickHouseResponse.getInputStream();
         } catch (Exception e) {

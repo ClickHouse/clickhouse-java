@@ -2,18 +2,17 @@ package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Map<String, Object>> {
 
@@ -28,18 +27,18 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
 
     private void readSchema() {
         try {
-            if (inputStream.available() < 1) {
+            if (input.available() < 1) {
                 return;
             }
             TableSchema headerSchema = new TableSchema();
             List<String> columns = new ArrayList<>();
-            int nCol = chInputStream.readVarInt();
+            int nCol = BinaryStreamReader.readVarInt(input);
             for (int i = 0; i < nCol; i++) {
-                columns.add(chInputStream.readUnicodeString());
+                columns.add(BinaryStreamReader.readString(input));
             }
 
             for (int i = 0; i < nCol; i++) {
-                headerSchema.addColumn(columns.get(i), chInputStream.readUnicodeString());
+                headerSchema.addColumn(columns.get(i), BinaryStreamReader.readString(input));
             }
 
             setSchema(headerSchema);

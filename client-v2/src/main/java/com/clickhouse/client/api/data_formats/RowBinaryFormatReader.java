@@ -1,12 +1,10 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
