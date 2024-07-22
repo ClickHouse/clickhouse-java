@@ -1,11 +1,12 @@
-[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?include_prereleases&label=Latest%20Release)](https://github.com/ClickHouse/clickhouse-java/releases/)
-[![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org)](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/)
-[![GitHub milestone](https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-java/16)](https://github.com/ClickHouse/clickhouse-java/milestone/4)
-[![GitHub release (by tag)](https://img.shields.io/github/downloads/ClickHouse/clickhouse-java/latest/total)](https://github.com/ClickHouse/clickhouse-java/releases/)
-
 <div align="center">
-    <img src="https://github.com/ClickHouse/clickhouse-js/blob/a332672bfb70d54dfd27ae1f8f5169a6ffeea780/.static/logo.svg" width="200px" align="center">
-    <h1>ClickHouse Java Client & JDBC Driver</h1>
+<p>
+    <a href="https://github.com/ClickHouse/clickhouse-java/releases/latest"><img src="https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?include_prereleases&label=Latest%20Release"/></a>
+    <a href="https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/"><img src="https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org"/></a>
+    <a href="https://github.com/ClickHouse/clickhouse-java/milestone/4"><img src="https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-java/16"/></a>
+    <a href="https://github.com/ClickHouse/clickhouse-java/releases/"><img src="https://img.shields.io/github/downloads/ClickHouse/clickhouse-java/latest/total"/></a>
+</p>
+<p><img src="https://github.com/ClickHouse/clickhouse-js/blob/a332672bfb70d54dfd27ae1f8f5169a6ffeea780/.static/logo.svg" width="200px" align="center"></p>
+<h1>ClickHouse Java Client & JDBC Driver</h1>
 </div>
 
 Table of Contents
