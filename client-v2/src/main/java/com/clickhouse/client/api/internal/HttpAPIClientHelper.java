@@ -13,15 +13,14 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
-import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
-import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
@@ -29,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.ConnectException;
@@ -38,9 +36,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -53,8 +48,6 @@ public class HttpAPIClientHelper {
 
     private Map<String, String> chConfiguration;
 
-    private ExecutorService executorService;
-
     private RequestConfig baseRequestConfig;
 
     public HttpAPIClientHelper(Map<String, String> configuration) {
@@ -63,7 +56,6 @@ public class HttpAPIClientHelper {
         this.baseRequestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(1000, TimeUnit.MILLISECONDS)
                 .build();
-        this.executorService = Executors.newCachedThreadPool(new DefaultThreadFactory("clickhouse-client"));
     }
 
     public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
@@ -92,64 +84,57 @@ public class HttpAPIClientHelper {
         }
     }
 
-    public CompletableFuture<ClassicHttpResponse> executeRequest(ClickHouseNode server,
-                                                                 String sql, Map<String, Object> requestConfig) {
-        return executeRequest(server, new StringEntity(sql), requestConfig);
-    }
-
-    public CompletableFuture<ClassicHttpResponse> executeRequest(ClickHouseNode server,
-                                                                 HttpEntity httpEntity, final Map<String, Object> requestConfig) {
-
-        CompletableFuture<ClassicHttpResponse> responseFuture = CompletableFuture.supplyAsync(() -> {
+    public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
+                                             IOCallback<OutputStream> writeCallback) {
             HttpHost target = new HttpHost(server.getHost(), server.getPort());
 
-            URI uri;
-            try {
-                URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
-                addQueryParams(uriBuilder, chConfiguration, requestConfig);
-                uri = uriBuilder.build();
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            }
-            HttpPost req = new HttpPost(uri);
-            addHeaders(req, chConfiguration, requestConfig);
+        URI uri;
+        try {
+            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
+            addQueryParams(uriBuilder, chConfiguration, requestConfig);
+            uri = uriBuilder.build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        HttpPost req = new HttpPost(uri);
+        addHeaders(req, chConfiguration, requestConfig);
 
-            RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
-                    .build();
-            req.setConfig(httpReqConfig);
-            req.setEntity(httpEntity);
 
-            HttpClientContext context = HttpClientContext.create();
+        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
+                .build();
+        req.setConfig(httpReqConfig);
+        req.setEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback));
 
-            try {
-                ClassicHttpResponse httpResponse = httpClient.executeOpen(target, req, context);
-                if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
-                    try {
-                        throw readError(httpResponse);
-                    } finally {
-                        httpResponse.close();
-                    }
-                } else if (httpResponse.getCode() >= 500) {
+        HttpClientContext context = HttpClientContext.create();
+
+        try {
+            ClassicHttpResponse httpResponse = httpClient.executeOpen(target, req, context);
+            if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
+                try {
+                    throw readError(httpResponse);
+                } finally {
                     httpResponse.close();
-                    return httpResponse;
                 }
+            } else if (httpResponse.getCode() >= 500) {
+                httpResponse.close();
                 return httpResponse;
-
-            } catch (UnknownHostException e) {
-                LOG.warn("Host '{}' unknown", target);
-            } catch (ConnectException | NoRouteToHostException e) {
-                LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
-            } catch (ServerException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new ClientException("Failed to execute request", e);
             }
+            return httpResponse;
 
-            return null;
-        }, executorService);
+        } catch (UnknownHostException e) {
+            LOG.warn("Host '{}' unknown", target);
+        } catch (ConnectException | NoRouteToHostException e) {
+            LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
+        } catch (ServerException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ClientException("Failed to execute request", e);
+        }
 
-        return responseFuture;
+        return null;
     }
+
+    private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
     public ClassicHttpResponse insertRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) {
@@ -212,7 +197,6 @@ public class HttpAPIClientHelper {
             }
         }
     }
-
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey())) {
