@@ -53,7 +53,6 @@ public class BinaryStreamReader {
             switch (column.getDataType()) {
                 // Primitives
                 case FixedString: {
-                    System.out.println("estimated length: " + column.getEstimatedLength());
                     byte[] bytes = readNBytes(input, column.getEstimatedLength());
                     int end = 0;
                     for (int i = 0; i < bytes.length; i++) {
@@ -270,9 +269,13 @@ public class BinaryStreamReader {
 
     public static byte[] readNBytes(InputStream inputStream, int len) throws IOException {
         byte[] bytes = new byte[len];
-        int r = inputStream.read(bytes, 0, len);
-        if (r < len) {
-            throw new EOFException("Failed to read " + len + " bytes, only " + r + " bytes available");
+        int total = 0;
+        while (total < len) {
+            int r = inputStream.read(bytes, total, len - total);
+            if (r == -1) {
+                throw new EOFException("End of stream reached before reading all data");
+            }
+            total += r;
         }
         return bytes;
     }
@@ -336,7 +339,6 @@ public class BinaryStreamReader {
 
     private Map<?,?> readMap(ClickHouseColumn column) throws IOException {
         int len = readVarInt(input);
-        System.out.println("Map length: " + len + " column: " + column);
         if (len == 0) {
             return Collections.emptyMap();
         }
@@ -349,8 +351,6 @@ public class BinaryStreamReader {
             Object value = readValueImpl(valueType);
             map.put(key, value);
         }
-
-        System.out.println("Map: " + map);
         return map;
     }
 

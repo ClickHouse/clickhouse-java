@@ -113,10 +113,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         // X-ClickHouse-Timezone: UTC
         // X-ClickHouse-Summary:
         // {"read_rows":"0","read_bytes":"0","written_rows":"0","written_bytes":"0","total_rows_to_read":"0"}
-        String displayName = getResponseHeader(response, "X-ClickHouse-Server-Display-Name", server.getHost());
-        String queryId = getResponseHeader(response, "X-ClickHouse-Query-Id", "");
-        Header hSum = response.getLastHeader("X-ClickHouse-Summary");
-        String summary = hSum == null ? "{}" : hSum.getValue(); // getResponseHeader(response, "X-ClickHouse-Summary", "{}");
+        String displayName = getResponseHeader(response, ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, server.getHost());
+        String queryId = getResponseHeader(response, ClickHouseHttpProto.HEADER_QUERY_ID, "");
+        String summary= getResponseHeader(response, ClickHouseHttpProto.HEADER_SRV_SUMMARY, "{}");
 
         ClickHouseFormat format = config.getFormat();
         TimeZone timeZone = config.getServerTimeZone();
@@ -124,12 +123,12 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
-            String value = getResponseHeader(response, "X-ClickHouse-Format", "");
+            String value = getResponseHeader(response, ClickHouseHttpProto.HEADER_FORMAT, "");
             if (!ClickHouseChecker.isNullOrEmpty(value)) {
                 format = ClickHouseFormat.valueOf(value);
                 hasQueryResult = true;
             }
-            value = getResponseHeader(response, "X-ClickHouse-Timezone", "");
+            value = getResponseHeader(response, ClickHouseHttpProto.HEADER_TIMEZONE, "");
             timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
                     : timeZone;
         }
@@ -179,8 +178,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             return;
         }
 
-        final Header errorCode = response.getFirstHeader("X-ClickHouse-Exception-Code");
-        final Header serverName = response.getFirstHeader("X-ClickHouse-Server-Display-Name");
+        final Header errorCode = response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
+        final Header serverName = response.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME);
         if (response.getEntity() == null) {
             throw new ConnectException(
                     ClickHouseUtils.format("HTTP response %d %s(code %s returned from server %s)",

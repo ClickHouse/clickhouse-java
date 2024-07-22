@@ -36,19 +36,19 @@ public class OperationMetrics {
         return queryId;
     }
 
-    public void operationComplete(ClickHouseResponseSummary serverStats) {
+    public void operationComplete() {
         for (Map.Entry<String, StopWatch> sw : clientStatistics.getStopWatches().entrySet()) {
             sw.getValue().stop();
             metrics.put(sw.getKey(), sw.getValue());
         }
-        metrics.put(ServerMetrics.NUM_ROWS_READ.getKey(), new Gauge(serverStats.getReadRows()));
-        metrics.put(ServerMetrics.NUM_ROWS_WRITTEN.getKey(), new Gauge(serverStats.getWrittenRows()));
-        metrics.put(ServerMetrics.TOTAL_ROWS_TO_READ.getKey(), new Gauge(serverStats.getTotalRowsToRead()));
-        metrics.put(ServerMetrics.NUM_BYTES_READ.getKey(), new Gauge(serverStats.getReadBytes()));
-        metrics.put(ServerMetrics.NUM_BYTES_WRITTEN.getKey(), new Gauge(serverStats.getWrittenBytes()));
-        metrics.put(ServerMetrics.RESULT_ROWS.getKey(), new Gauge(serverStats.getResultRows()));
-        metrics.put(ServerMetrics.ELAPSED_TIME.getKey(), new Gauge(serverStats.getElapsedTime()));
-        this.queryId = serverStats.getQueryId();
+    }
+
+    public void updateMetric(ServerMetrics metric, long value) {
+        metrics.put(metric.getKey(), new Gauge(value));
+    }
+
+    public void setQueryId(String queryId) {
+        this.queryId = queryId;
     }
 
     @Override

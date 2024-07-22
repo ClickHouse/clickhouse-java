@@ -14,6 +14,8 @@ import org.testng.annotations.Test;
 
 import java.net.ConnectException;
 import java.sql.Connection;
+import java.net.URI;
+import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -93,4 +95,6 @@ public class ClientTests extends BaseIntegrationTest {
             client.close();
         }
     }
+
+
 }

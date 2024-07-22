@@ -6,7 +6,10 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.config.ClickHouseOption;
@@ -67,5 +70,15 @@ public class ClientV1AdaptorHelper {
         }
 
         return request;
+    }
+
+    public static void setServerStats(ClickHouseResponseSummary.Progress progress, OperationMetrics metrics) {
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_READ, progress.getReadRows());
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_WRITTEN, progress.getWrittenRows());
+        metrics.updateMetric(ServerMetrics.TOTAL_ROWS_TO_READ, progress.getTotalRowsToRead());
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_READ, progress.getReadBytes());
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_WRITTEN, progress.getWrittenBytes());
+        metrics.updateMetric(ServerMetrics.RESULT_ROWS, progress.getResultRows());
+        metrics.updateMetric(ServerMetrics.ELAPSED_TIME, progress.getElapsedTime());
     }
 }

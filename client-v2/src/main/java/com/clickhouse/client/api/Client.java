@@ -9,6 +9,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
+import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.DataSerializationException;
@@ -18,36 +19,41 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -98,6 +104,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *
  */
 public class Client implements AutoCloseable {
+    private HttpAPIClientHelper httpClientHelper = null;
 
     private Set<String> endpoints;
     private Map<String, String> configuration;
@@ -110,7 +117,10 @@ public class Client implements AutoCloseable {
 
     private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
-    private Client(Set<String> endpoints, Map<String,String> configuration) {
+    private boolean useNewImplementation = false;
+
+
+    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -121,6 +131,10 @@ public class Client implements AutoCloseable {
         this.hasDefaults = new HashMap<>();
 
         this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
+        this.useNewImplementation = useNewImplementation;
+        if (useNewImplementation) {
+            this.httpClientHelper = new HttpAPIClientHelper(configuration);
+        }
     }
 
     /**
@@ -155,6 +169,7 @@ public class Client implements AutoCloseable {
 
         // Read-only configuration
         private Map<String, String> configuration;
+        private boolean useNewImplementation = false;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -420,6 +435,15 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Switches to new implementation of the client.
+         * @deprecated - do not use - it is only for development
+         */
+        public Builder useNewImplementation(boolean useNewImplementation) {
+            this.useNewImplementation = useNewImplementation;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -432,7 +456,7 @@ public class Client implements AutoCloseable {
 
             this.configuration = setDefaults(this.configuration);
 
-            return new Client(this.endpoints, this.configuration);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation);
         }
 
         private Map<String, String> setDefaults(Map<String, String> userConfig) {
@@ -763,36 +787,82 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
-        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-        ClickHouseRequest<?> request = client.read(getServerNode());
-        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
-        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
-        request.query(sqlQuery, settings.getQueryId());
-        final ClickHouseFormat format = settings.getFormat();
-        request.format(format);
 
-        final QuerySettings finalSettings = settings;
-        CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
-            LOG.trace("Executing request: {}", request);
-            try {
+        if (useNewImplementation) {
+            String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
+            final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
 
-                int operationTimeout = getOperationTimeout();
-                ClickHouseResponse clickHouseResponse;
-                if (operationTimeout > 0) {
-                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
-                } else {
-                    clickHouseResponse = request.execute().get();
-                }
-
-                return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
-            } catch (ClientException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new ClientException("Failed to get query response", e);
+            if (queryParams != null) {
+                settings.setOption("statement_params", queryParams);
             }
-        }, sharedOperationExecutor);
-        return future;
+            final QuerySettings finalSettings = settings;
+            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+                // Selecting some node
+                ClickHouseNode selectedNode = getNextAliveNode();
+                for (int i = 0; i <= maxRetries; i++) {
+                    try {
+                        ClassicHttpResponse httpResponse =
+                                httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
+                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
+                                    output.flush();
+                                });
+
+                        // Check response
+                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                            selectedNode = getNextAliveNode();
+                            continue;
+                        }
+
+                        OperationMetrics metrics = new OperationMetrics(clientStats);
+                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
+                                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+                        ProcessParser.parseSummary(summary, metrics);
+                        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
+                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId());
+                        metrics.setQueryId(queryId);
+                        metrics.operationComplete();
+
+                        return new QueryResponse(httpResponse, finalSettings, metrics);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to execute query", e);
+                    }
+                }
+                throw new ClientException("Failed to get table schema: too many retries");
+            }, sharedOperationExecutor);
+            return future;
+        } else {
+            ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
+            ClickHouseRequest<?> request = client.read(getServerNode());
+            request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
+            request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
+            request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
+            request.query(sqlQuery, settings.getQueryId());
+            final ClickHouseFormat format = settings.getFormat();
+            request.format(format);
+
+            final QuerySettings finalSettings = settings;
+            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+                LOG.trace("Executing request: {}", request);
+                try {
+
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = request.execute().get();
+                    }
+
+                    return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
+                } catch (ClientException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new ClientException("Failed to get query response", e);
+                }
+            }, sharedOperationExecutor);
+            return future;
+        }
     }
 
     /**
@@ -822,39 +892,15 @@ public class Client implements AutoCloseable {
         }
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
-        ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
-        clientStats.start("query");
-        ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-        ClickHouseRequest<?> request = client.read(getServerNode());
-        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), null));
-        request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
-        request.query(sqlQuery, settings.getQueryId());
-        final ClickHouseFormat format = settings.getFormat();
-        request.format(format);
 
         final QuerySettings finalSettings = settings;
-        CompletableFuture<Records> future = CompletableFuture.supplyAsync(() -> {
-            LOG.trace("Executing request: {}", request);
+        return query(sqlQuery, settings).thenApplyAsync(response -> {
             try {
-                int operationTimeout = getOperationTimeout();
-                ClickHouseResponse clickHouseResponse;
-                if (operationTimeout > 0) {
-                    clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
-                } else {
-                    clickHouseResponse = request.execute().get();
-                }
-
-                QueryResponse queryResponse = new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
-                return new Records(queryResponse, finalSettings);
-            } catch (ClientException e) {
-                throw e;
+                return new Records(response, finalSettings);
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
         }, sharedOperationExecutor);
-
-        return future;
     }
 
     /**
@@ -910,15 +956,19 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        try (ClickHouseClient clientQuery = ClientV1AdaptorHelper.createClient(configuration)) {
-            ClickHouseRequest<?> request = clientQuery.read(getServerNode());
-            // XML - because java has a built-in XML parser. Will consider CSV later.
-            request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
-            try {
-                return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
-            } catch (Exception e) {
-                throw new ClientException("Failed to get table schema", e);
-            }
+        final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
+
+        int operationTimeout = getOperationTimeout();
+
+        try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
+                query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+            return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
+        } catch (TimeoutException e) {
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get table schema", e);
         }
     }
 
@@ -979,6 +1029,7 @@ public class Client implements AutoCloseable {
         return Collections.unmodifiableMap(configuration);
     }
 
+    /** Returns operation timeout in seconds */
     protected int getOperationTimeout() {
         return Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey()));
     }
@@ -989,5 +1040,10 @@ public class Client implements AutoCloseable {
      */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
+    }
+
+
+    private ClickHouseNode getNextAliveNode() {
+        return serverNodes.get(0);
     }
 }
