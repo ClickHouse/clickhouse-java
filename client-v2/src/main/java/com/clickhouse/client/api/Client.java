@@ -647,7 +647,7 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
-                            httpClientHelper.insertRequest(selectedNode, finalSettings.getAllSettings(),
+                            httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
                                     out -> {
                                         out.write("INSERT INTO ".getBytes());
                                         out.write(tableName.getBytes());
@@ -768,7 +768,7 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
-                                 httpClientHelper.insertRequest(selectedNode, finalSettings.getAllSettings(),
+                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
                                          out -> {
                                              out.write("INSERT INTO ".getBytes());
                                              out.write(tableName.getBytes());

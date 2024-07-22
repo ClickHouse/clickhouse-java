@@ -7,7 +7,6 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -19,8 +18,6 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
-import org.apache.hc.core5.http.io.entity.EntityTemplate;
-import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
@@ -87,58 +84,6 @@ public class HttpAPIClientHelper {
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) {
             HttpHost target = new HttpHost(server.getHost(), server.getPort());
-
-        URI uri;
-        try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
-            addQueryParams(uriBuilder, chConfiguration, requestConfig);
-            uri = uriBuilder.build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        HttpPost req = new HttpPost(uri);
-        addHeaders(req, chConfiguration, requestConfig);
-
-
-        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
-                .build();
-        req.setConfig(httpReqConfig);
-        req.setEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback));
-
-        HttpClientContext context = HttpClientContext.create();
-
-        try {
-            ClassicHttpResponse httpResponse = httpClient.executeOpen(target, req, context);
-            if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
-                try {
-                    throw readError(httpResponse);
-                } finally {
-                    httpResponse.close();
-                }
-            } else if (httpResponse.getCode() >= 500) {
-                httpResponse.close();
-                return httpResponse;
-            }
-            return httpResponse;
-
-        } catch (UnknownHostException e) {
-            LOG.warn("Host '{}' unknown", target);
-        } catch (ConnectException | NoRouteToHostException e) {
-            LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
-        } catch (ServerException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ClientException("Failed to execute request", e);
-        }
-
-        return null;
-    }
-
-    private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
-
-    public ClassicHttpResponse insertRequest(ClickHouseNode server, Map<String, Object> requestConfig,
-                                             IOCallback<OutputStream> writeCallback) {
-        HttpHost target = new HttpHost(server.getHost(), server.getPort());
 
         URI uri;
         try {
