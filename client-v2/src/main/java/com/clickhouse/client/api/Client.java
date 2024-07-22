@@ -772,7 +772,7 @@ public class Client implements AutoCloseable {
                                          out -> {
                                              out.write("INSERT INTO ".getBytes());
                                              out.write(tableName.getBytes());
-                                             out.write(" \n FORMAT ".getBytes());
+                                             out.write(" FORMAT ".getBytes());
                                              out.write(format.name().getBytes());
                                              out.write(" \n".getBytes());
 
@@ -800,15 +800,24 @@ public class Client implements AutoCloseable {
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
                     } catch (NoHttpResponseException e) {
-                        LOG.warn("Failed to get response. Retrying.", e);
-                        selectedNode = getNextAliveNode();
+                        if (i < maxRetries) {
+                            try {
+                                data.reset();
+                            } catch (IOException ioe) {
+                                throw new ClientException("Failed to get response", e);
+                            }
+                            LOG.warn("Failed to get response. Retrying.", e);
+                            selectedNode = getNextAliveNode();
+                        } else {
+                            throw new ClientException("Server did not respond", e);
+                        }
                         continue;
                     } catch (IOException e) {
                         LOG.info("Interrupted while waiting for response.");
                         throw new ClientException("Failed to get query response", e);
                     }
                 }
-                throw new ClientException("Failed to get table schema: too many retries");
+                throw new ClientException("Failed to insert data: too many retries");
             }, sharedOperationExecutor);
             return future;
         } else {

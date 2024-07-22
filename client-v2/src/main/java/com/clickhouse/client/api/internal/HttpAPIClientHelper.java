@@ -17,6 +17,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -82,7 +83,7 @@ public class HttpAPIClientHelper {
     }
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
-                                             IOCallback<OutputStream> writeCallback) {
+                                             IOCallback<OutputStream> writeCallback) throws IOException {
             HttpHost target = new HttpHost(server.getHost(), server.getPort());
 
         URI uri;
@@ -123,6 +124,8 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
         } catch (ServerException e) {
+            throw e;
+        } catch (NoHttpResponseException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
