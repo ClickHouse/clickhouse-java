@@ -574,6 +574,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                                         .build())
                         .query("select x.* from x inner join y on x.i = y.i where i in (select i from " + tableName
                                 + ")")
+                        .set("select_sequential_consistency", isCloud() ? 1 : null)
                         .executeAndWait()) {
                     int j = 0;
                     for (ClickHouseRecord r : response.records()) {
