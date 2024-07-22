@@ -11,6 +11,8 @@ import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -45,6 +47,7 @@ import com.clickhouse.data.ClickHouseVersion;
  */
 @SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ClickHouseServerForTest.class);
 
     private static final Network network = Network.newNetwork();
     private static final Properties properties;
@@ -227,6 +230,7 @@ public class ClickHouseServerForTest {
                     .address(ClickHouseProtocol.HTTP, new InetSocketAddress(host, port))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
                     .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .database(database)
                     .build();
         } else if (container != null) {
             host = container.getHost();
@@ -314,8 +318,11 @@ public class ClickHouseServerForTest {
     public static void beforeSuite() {
         if (isCloud()) {
             //Create database for testing
-            ClickHouseNode server = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, true,
-                    ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+            ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
+                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .build();
 
             boolean success = false;
             int retries = 0;
@@ -331,6 +338,7 @@ public class ClickHouseServerForTest {
                     }
                 } catch (Exception e) {
                     success = false;
+                    LOGGER.error("Failed to create database for testing", e);
                 }
             } while(!success && retries++ < 3);
 
@@ -363,8 +371,11 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud()) {
-            ClickHouseNode server = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, true,
-                    ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+            ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
+                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .build();
 
             //Remove database after testing
             boolean success = false;
@@ -381,6 +392,7 @@ public class ClickHouseServerForTest {
                     }
                 } catch (Exception e) {
                     success = false;
+                    LOGGER.error("Failed to drop database after testing", e);
                 }
             } while(!success && retries++ < 3);
         }
