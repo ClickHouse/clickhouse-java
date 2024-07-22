@@ -883,9 +883,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .set("send_logs_level", "trace")
                     .set("enable_optimize_predicate_expression", 1)
-                    .set("log_queries_min_type", "EXCEPTION_WHILE_PROCESSING")
+                    //.set("log_queries_min_type", "EXCEPTION_WHILE_PROCESSING")
                     .set("async_insert", isCloud() ? 0 : null)
-                    .set("select_sequential_consistency", isCloud() ? 1 : null)
                     .query(sql).execute().get()) {
                 Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 List<ClickHouseColumn> columns = response.getColumns();
@@ -1156,7 +1155,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer();
 
         sendAndWait(server, "set allow_experimental_geo_types=1", "drop table if exists test_geo_types",
-                "create table test_geo_types(no UInt8, p Point, r Ring, pg Polygon, mp MultiPolygon) engine=Memory");
+                "create table test_geo_types(no UInt8, p Point, r Ring, pg Polygon, mp MultiPolygon) engine=MergeTree order by no");
 
         // write
         sendAndWait(server,
@@ -1185,21 +1184,25 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 records.add(values);
             }
 
+            System.out.println(records);
+            System.out.println(records.size());
+            System.out.println(records.get(0)[1]);
+
             Assert.assertEquals(records.size(), 3);
-            Assert.assertEquals(records.get(0)[0], "(0.0,0.0)");
-            Assert.assertEquals(records.get(0)[1], "[(0.0,0.0),(0.0,0.0)]");
-            Assert.assertEquals(records.get(0)[2], "[[(0.0,0.0),(0.0,0.0)],[(0.0,0.0),(0.0,0.0)]]");
-            Assert.assertEquals(records.get(0)[3],
+            Assert.assertEquals(records.get(0)[1], "(0.0,0.0)");
+            Assert.assertEquals(records.get(0)[2], "[(0.0,0.0),(0.0,0.0)]");
+            Assert.assertEquals(records.get(0)[3], "[[(0.0,0.0),(0.0,0.0)],[(0.0,0.0),(0.0,0.0)]]");
+            Assert.assertEquals(records.get(0)[4],
                     "[[[(0.0,0.0),(0.0,0.0)],[(0.0,0.0),(0.0,0.0)]],[[(0.0,0.0),(0.0,0.0)],[(0.0,0.0),(0.0,0.0)]]]");
-            Assert.assertEquals(records.get(1)[0], "(-1.0,-1.0)");
-            Assert.assertEquals(records.get(1)[1], "[(-1.0,-1.0),(-1.0,-1.0)]");
-            Assert.assertEquals(records.get(1)[2], "[[(-1.0,-1.0),(-1.0,-1.0)],[(-1.0,-1.0),(-1.0,-1.0)]]");
-            Assert.assertEquals(records.get(1)[3],
+            Assert.assertEquals(records.get(1)[1], "(-1.0,-1.0)");
+            Assert.assertEquals(records.get(1)[2], "[(-1.0,-1.0),(-1.0,-1.0)]");
+            Assert.assertEquals(records.get(1)[3], "[[(-1.0,-1.0),(-1.0,-1.0)],[(-1.0,-1.0),(-1.0,-1.0)]]");
+            Assert.assertEquals(records.get(1)[4],
                     "[[[(-1.0,-1.0),(-1.0,-1.0)],[(-1.0,-1.0),(-1.0,-1.0)]],[[(-1.0,-1.0),(-1.0,-1.0)],[(-1.0,-1.0),(-1.0,-1.0)]]]");
-            Assert.assertEquals(records.get(2)[0], "(1.0,1.0)");
-            Assert.assertEquals(records.get(2)[1], "[(1.0,1.0),(1.0,1.0)]");
-            Assert.assertEquals(records.get(2)[2], "[[(1.0,1.0),(1.0,1.0)],[(1.0,1.0),(1.0,1.0)]]");
-            Assert.assertEquals(records.get(2)[3],
+            Assert.assertEquals(records.get(2)[1], "(1.0,1.0)");
+            Assert.assertEquals(records.get(2)[2], "[(1.0,1.0),(1.0,1.0)]");
+            Assert.assertEquals(records.get(2)[3], "[[(1.0,1.0),(1.0,1.0)],[(1.0,1.0),(1.0,1.0)]]");
+            Assert.assertEquals(records.get(2)[4],
                     "[[[(1.0,1.0),(1.0,1.0)],[(1.0,1.0),(1.0,1.0)]],[[(1.0,1.0),(1.0,1.0)],[(1.0,1.0),(1.0,1.0)]]]");
         }
     }
@@ -1413,7 +1416,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testWriteFixedString() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_write_fixed_string",
-                "create table test_write_fixed_string(a Int8, b FixedString(3))engine=Memory");
+                "create table test_write_fixed_string(a Int8, b FixedString(3)) engine=MergeTree ORDER BY a");
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> req = newRequest(client, server)
                     .set("async_insert", isCloud() ? 0 : null)

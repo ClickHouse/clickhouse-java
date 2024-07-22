@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import org.testng.annotations.AfterSuite;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 
@@ -17,6 +18,11 @@ public abstract class BaseIntegrationTest {
     @BeforeTest(groups = {"integration"})
     public static void setupClickHouseContainer() {
         ClickHouseServerForTest.beforeSuite();
+    }
+
+    @AfterTest(groups = {"integration"})
+    public static void teardownClickHouseContainer() {
+        ClickHouseServerForTest.afterSuite();
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {

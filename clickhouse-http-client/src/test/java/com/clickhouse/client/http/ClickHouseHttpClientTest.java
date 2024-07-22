@@ -420,6 +420,11 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             String selectQuery = "SELECT log_comment from system.query_log where query_id = :qid";
             if (isCloud()) {
                 selectQuery = "SELECT log_comment FROM clusterAllReplicas(default, 'system', query_log) WHERE query_id = :qid";
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    // ignore
+                }
             }
 
             try (ClickHouseResponse resp = request

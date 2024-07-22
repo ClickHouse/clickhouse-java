@@ -10,6 +10,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseFormat;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -57,6 +58,8 @@ public class ClickHouseServerForTest {
     private static final String proxyImage;
     private static boolean isCloud = false;
 
+    private static final String database;
+
     static {
         properties = new Properties();
         try (InputStream in = ClickHouseUtils.getFileInputStream("test.properties")) {
@@ -65,6 +68,7 @@ public class ClickHouseServerForTest {
             // ignore
         }
 
+        database = "clickhouse_java_test_" + System.currentTimeMillis();
         String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
         if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
             int index = proxy.indexOf(':');
@@ -264,7 +268,7 @@ public class ClickHouseServerForTest {
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
             port = 8443;
             options.put("password", getPassword());
-            url = String.format("https://%s:%d/default", host, port);
+            url = String.format("https://%s:%d/%s", host, port, database);
         } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
@@ -309,7 +313,30 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud()) {
-            return;
+            //Create database for testing
+            ClickHouseNode server = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, true,
+                    ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+
+            boolean success = false;
+            int retries = 0;
+            do {
+                try (ClickHouseClient client = ClickHouseClient.builder()
+                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                        .build();
+                     ClickHouseResponse response = client.read(server)
+                             .query("CREATE DATABASE IF NOT EXISTS " + database)
+                             .executeAndWait()) {
+                    if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
+                        success = true;
+                    }
+                } catch (Exception e) {
+                    success = false;
+                }
+            } while(!success && retries++ < 3);
+
+            if (!success) {
+                throw new IllegalStateException("Failed to create database for testing");
+            }
         }
 
         if (clickhouseContainer != null) {
@@ -334,5 +361,32 @@ public class ClickHouseServerForTest {
         if (clickhouseContainer != null) {
             clickhouseContainer.stop();
         }
+
+        if (isCloud()) {
+            ClickHouseNode server = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, true,
+                    ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+
+            //Remove database after testing
+            boolean success = false;
+            int retries = 0;
+            do {
+                try (ClickHouseClient client = ClickHouseClient.builder()
+                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                        .build();
+                     ClickHouseResponse response = client.read(server)
+                             .query("DROP DATABASE IF EXISTS " + database)
+                             .executeAndWait()) {
+                    if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
+                        success = true;
+                    }
+                } catch (Exception e) {
+                    success = false;
+                }
+            } while(!success && retries++ < 3);
+        }
+    }
+
+    public static String getDatabase() {
+        return database;
     }
 }
