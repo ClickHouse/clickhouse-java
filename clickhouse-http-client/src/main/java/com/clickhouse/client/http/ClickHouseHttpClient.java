@@ -48,14 +48,15 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         try {
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
 
+            outer:
             for (NetworkInterface ni : Collections.list(networkInterfaces)) {
                 Enumeration<InetAddress> inetAddresses = ni.getInetAddresses();
                 for (InetAddress ia : Collections.list(inetAddresses)) {
                     // We just use the first non-loopback address
-                    if (!ia.isLoopbackAddress()) {
+                    if (!ia.isLoopbackAddress() && !ia.isLinkLocalAddress()) {
                         hostNameAndAddress.address = ia.getHostAddress();
                         hostNameAndAddress.hostName = ia.getCanonicalHostName();
-                        break;
+                        break outer;
                     }
                 }
             }

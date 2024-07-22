@@ -7,7 +7,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "23.3"
+  PREFERRED_LTS_VERSION: "24.3"
   CLICKHOUSE_TEST_VERSIONS: "[]"
 
 jobs:
