@@ -14,6 +14,7 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -1432,5 +1433,21 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             Assert.assertNull(failedException.get(), "Failed because of exception: " + failedException.get());
          }
+    }
+
+    @Test(groups = "integration")
+    public void testSessionTimezoneSetting() {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT now() SETTINGS session_timezone = 'America/Los_Angeles'");
+            rs.next();
+            LocalDateTime srvNow = (LocalDateTime) rs.getObject(1);
+            LocalDateTime localNow = LocalDateTime.now(ZoneId.of("America/Los_Angeles"));
+            Assert.assertTrue(Duration.between(srvNow, localNow).abs().getSeconds() < 60,
+                    "server time (" + srvNow +") differs from local time (" + localNow + ")");
+        } catch (Exception e) {
+            Assert.fail("Failed to create connection", e);
+        }
     }
 }
