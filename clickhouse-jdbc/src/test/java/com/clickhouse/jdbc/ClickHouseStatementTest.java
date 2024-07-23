@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +56,7 @@ import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
+import com.google.type.DateTime;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
@@ -1446,6 +1448,26 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             LocalDateTime localNow = LocalDateTime.now(ZoneId.of("America/Los_Angeles"));
             Assert.assertTrue(Duration.between(srvNow, localNow).abs().getSeconds() < 60,
                     "server time (" + srvNow +") differs from local time (" + localNow + ")");
+        } catch (Exception e) {
+            Assert.fail("Failed to create connection", e);
+        }
+    }
+
+
+    @Test(groups = "integration")
+    public void testUseOffsetDateTime() {
+        Properties props = new Properties();
+        props.put(ClickHouseClientOption.USE_OFFSET_DATETIME.getKey(), true);
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select toDateTime('2024-01-01 10:00:00', 'America/Los_Angeles'), toDateTime('2024-05-01 10:00:00', " +
+                    " 'America/Los_Angeles'), now() SETTINGS session_timezone = 'America/Los_Angeles'");
+            rs.next();
+            OffsetDateTime dstStart = (OffsetDateTime) rs.getObject(1);
+            OffsetDateTime dstEnd = (OffsetDateTime) rs.getObject(2);
+            OffsetDateTime now = (OffsetDateTime) rs.getObject(3);
+
+            System.out.println("dstStart: " + dstStart + ", dstEnd: " + dstEnd + ", now: " + now);
         } catch (Exception e) {
             Assert.fail("Failed to create connection", e);
         }
