@@ -33,6 +33,12 @@ public class ClickHouseHttpProto {
      */
     public static final String HEADER_PROGRESS = "X-ClickHouse-Progress";
 
+
+    /**
+     * Name of default database to be used if not specified in a table name.
+     */
+    public static final String HEADER_DATABASE = "X-ClickHouse-Database";
+
     /**
      * Query parameter to specify the query ID.
      */
