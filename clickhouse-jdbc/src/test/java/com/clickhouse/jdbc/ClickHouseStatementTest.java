@@ -514,9 +514,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             stmt.execute("drop table if exists test_async_insert; "
-                    + "create table test_async_insert(id UInt32, s String) ENGINE = Memory; "
+                    + "CREATE TABLE test_async_insert(id UInt32, s String) ENGINE = MergeTree ORDER BY id; "
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
-                    + "select * from test_async_insert");
+                    + "SELECT * FROM test_async_insert" + (isCloud() ? " SETTINGS select_sequential_consistency=1" : ""));
             ResultSet rs = stmt.getResultSet();
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
@@ -524,12 +524,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertFalse(rs.next());
         }
 
+        //TODO: I'm not sure this is a valid test...
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
-            stmt.execute("truncate table test_async_insert; "
+            stmt.execute("TRUNCATE TABLE test_async_insert; "
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
-                    + "select * from test_async_insert");
+                    + "SELECT * FROM test_async_insert");
             ResultSet rs = stmt.getResultSet();
             Assert.assertFalse(rs.next(),
                     "Server was probably busy at that time, so the row was inserted before your query");

@@ -1392,7 +1392,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             s.execute(String.format("drop table if exists %s; ", tableName)
                     + String.format("CREATE TABLE %s(id Int8, v %s DEFAULT %s) engine=MergeTree ORDER BY id", tableName, columnType,
                             defaultExpr));
-            s.executeUpdate(String.format("insert into %s values(1, null)", tableName));
+            s.executeUpdate(String.format("INSERT INTO %s values(1, null)", tableName));
             try (PreparedStatement stmt = conn
                     .prepareStatement(String.format("insert into %s values(?,?)", tableName))) {
                 stmt.setInt(1, 2);
