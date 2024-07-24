@@ -418,7 +418,7 @@ public class Client implements AutoCloseable {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            this.configuration.put(ClickHouseClientOption.PROXY_TYPE.getKey(), type.toString());
+            this.configuration.put(ClickHouseClientOption.PROXY_TYPE.getKey(), type.name());
             this.configuration.put(ClickHouseClientOption.PROXY_HOST.getKey(), host);
             this.configuration.put(ClickHouseClientOption.PROXY_PORT.getKey(), String.valueOf(port));
             return this;

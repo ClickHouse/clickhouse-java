@@ -7,10 +7,12 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import org.apache.hc.client5.http.SchemePortResolver;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
@@ -57,12 +59,16 @@ public class HttpAPIClientHelper {
     }
 
     public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
-        final CloseableHttpClient httpclient = HttpClientBuilder.create()
+        HttpClientBuilder httpclient = HttpClientBuilder.create();
 
-                .build();
+        String proxyHost = chConfig.get(ClickHouseClientOption.PROXY_HOST.getKey());
+        String proxyPort = chConfig.get(ClickHouseClientOption.PROXY_PORT.getKey());
+        if (proxyHost != null && proxyPort != null) {
+            HttpHost proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
+            httpclient.setProxy(proxy);
+        }
 
-
-        return httpclient;
+        return httpclient.build();
     }
 
     /**
@@ -88,7 +94,7 @@ public class HttpAPIClientHelper {
 
         URI uri;
         try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
+            URIBuilder uriBuilder = new URIBuilder("/");
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
             uri = uriBuilder.build();
         } catch (URISyntaxException e) {
@@ -138,7 +144,6 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
-
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {
                 req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClickHouseClientOption.FORMAT.getKey()));
