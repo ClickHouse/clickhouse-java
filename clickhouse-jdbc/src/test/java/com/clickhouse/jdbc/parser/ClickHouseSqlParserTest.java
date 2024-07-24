@@ -861,8 +861,6 @@ public class ClickHouseSqlParserTest {
             Assert.assertEquals(stmt.getStatementType(), StatementType.SET);
             Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
         }
-
-
     }
 
     // known issue

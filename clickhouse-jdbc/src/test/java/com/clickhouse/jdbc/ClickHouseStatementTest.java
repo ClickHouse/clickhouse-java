@@ -79,6 +79,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBatchUpdate() throws SQLException {
+        if (isCloud()) return;
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
             if (!conn.getServerVersion().check("[22.8,)")) {

@@ -257,7 +257,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_binary_string; "
                     + "create table test_binary_string(id Int32, "
-                    + "f0 FixedString(3), f1 Nullable(FixedString(3)), s0 String, s1 Nullable(String))engine=Memory");
+                    + "f0 FixedString(3), f1 Nullable(FixedString(3)), s0 String, s1 Nullable(String)) engine=MergeTree ORDER BY id");
         }
 
         byte[] bytes = new byte[256];
@@ -307,8 +307,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
         try (ClickHouseConnection conn = newConnection(props);
                 PreparedStatement ps = conn
-                        .prepareStatement(
-                                "select distinct * except(id) from test_binary_string where f0 = ? order by id")) {
+                        .prepareStatement("SELECT DISTINCT * EXCEPT(id) FROM test_binary_string" +
+                                " WHERE f0 = ? ORDER BY id" + (isCloud() ? " SETTINGS select_sequential_consistency=1" : ""))) {
             ps.setBytes(1, bytes);
             ResultSet rs = ps.executeQuery();
             Assert.assertTrue(rs.next(), "Should have at least one row");
@@ -703,7 +703,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             if (!conn.getServerVersion().check("[22.8,)")) {
                 throw new SkipException("Skip due to error 'unknown key zookeeper_load_balancing'");
             }
-            try (PreparedStatement stmt = conn.prepareStatement(
+            try (PreparedStatement stmt = conn.prepareStatement(isCloud() ?
+                    "drop table if exists test_batch_dll" :
                     "drop table if exists test_batch_dll_on_cluster on cluster single_node_cluster_localhost")) {
                 stmt.addBatch();
                 stmt.addBatch();
@@ -1297,9 +1298,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement();
                 PreparedStatement ps = conn.prepareStatement(
-                        "insert into test_insert_default_value select id, name from input('id UInt32, name Nullable(String)')")) {
-            s.execute("drop table if exists test_insert_default_value;"
-                    + "create table test_insert_default_value(n Int32, s String DEFAULT 'secret') engine=Memory");
+                        "INSERT INTO test_insert_default_value select id, name from input('id UInt32, name Nullable(String)')")) {
+            s.execute("DROP TABLE IF EXISTS test_insert_default_value; CREATE TABLE test_insert_default_value(n Int32, s String DEFAULT 'secret') engine=MergeTree ORDER BY n");
             ps.setInt(1, 1);
             ps.setString(2, null);
             ps.addBatch();
@@ -1307,7 +1307,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ps.setNull(2, Types.ARRAY);
             ps.addBatch();
             ps.executeBatch();
-            try (ResultSet rs = s.executeQuery("select * from test_insert_default_value order by n")) {
+            try (ResultSet rs = s.executeQuery(String.format("SELECT * FROM test_insert_default_value ORDER BY n %s", isCloud() ? "SETTINGS select_sequential_consistency=1" : ""))) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), -1);
                 Assert.assertEquals(rs.getString(2), "secret");
@@ -1390,7 +1390,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 throw new SkipException("Skip test when ClickHouse is older than 21.8");
             }
             s.execute(String.format("drop table if exists %s; ", tableName)
-                    + String.format("create table %s(id Int8, v %s DEFAULT %s)engine=Memory", tableName, columnType,
+                    + String.format("CREATE TABLE %s(id Int8, v %s DEFAULT %s) engine=MergeTree ORDER BY id", tableName, columnType,
                             defaultExpr));
             s.executeUpdate(String.format("insert into %s values(1, null)", tableName));
             try (PreparedStatement stmt = conn
@@ -1404,7 +1404,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             }
 
             int rowCount = 0;
-            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id %s", tableName, isCloud() ? "SETTINGS select_sequential_consistency=1" : ""))) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getString(2), defaultValue);
@@ -1913,7 +1913,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             }
 
             s.execute("drop table if exists test_insert_with_format; "
-                    + "CREATE TABLE test_insert_with_format(i Int32, s String) ENGINE=Memory");
+                    + "CREATE TABLE test_insert_with_format(i Int32, s String) ENGINE=MergeTree ORDER BY i");
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_insert_with_format format CSV")) {
                 Assert.assertTrue(ps instanceof StreamBasedPreparedStatement);
                 Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 1);
@@ -1922,7 +1922,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(ps.executeUpdate(), 2);
             }
 
-            try (ResultSet rs = s.executeQuery("select * from test_insert_with_format order by i")) {
+            try (ResultSet rs = s.executeQuery("SELECT * FROM test_insert_with_format order by i" + (isCloud() ? " SETTINGS select_sequential_consistency=1" : ""))) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getString(2), "");

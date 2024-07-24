@@ -71,7 +71,7 @@ public class ClickHouseServerForTest {
             // ignore
         }
 
-        database = "clickhouse_java_test_" + System.currentTimeMillis();
+        database = "clickhouse_http_test_" + System.currentTimeMillis();
         String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
         if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
             int index = proxy.indexOf(':');
@@ -340,7 +340,15 @@ public class ClickHouseServerForTest {
                     success = false;
                     LOGGER.error("Failed to create database for testing", e);
                 }
-            } while(!success && retries++ < 3);
+
+                if (!success) {
+                    try {
+                        Thread.sleep(15000);
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Failed to sleep", e);
+                    }
+                }
+            } while(!success && retries++ < 5);
 
             if (!success) {
                 throw new IllegalStateException("Failed to create database for testing");
@@ -394,7 +402,15 @@ public class ClickHouseServerForTest {
                     success = false;
                     LOGGER.error("Failed to drop database after testing", e);
                 }
-            } while(!success && retries++ < 3);
+
+                if (!success) {
+                    try {
+                        Thread.sleep(15000);
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Failed to sleep", e);
+                    }
+                }
+            } while(!success && retries++ < 5);
         }
     }
 

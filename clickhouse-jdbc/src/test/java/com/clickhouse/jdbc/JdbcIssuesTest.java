@@ -135,7 +135,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
-        Connection conn = dataSource.getConnection("default", "");
+        Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
         st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
         st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Memory", TABLE_NAME));

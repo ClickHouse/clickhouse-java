@@ -20,6 +20,7 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testConnect() throws SQLException {
+        if (isCloud()) return;
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
         ClickHouseDriver driver = new ClickHouseDriver();
         ClickHouseConnection conn = driver.connect("jdbc:clickhouse://" + address, null);

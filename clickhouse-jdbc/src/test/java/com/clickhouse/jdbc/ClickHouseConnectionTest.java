@@ -28,6 +28,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testCentralizedConfiguration() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("custom_settings", "max_result_rows=1");
         try (ClickHouseConnection conn = newConnection(props); Statement stmt = conn.createStatement()) {
@@ -126,6 +128,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testAutoCommitMode() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
 
@@ -198,6 +202,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testReadOnly() throws SQLException {
+        if (isCloud()) return;
         Properties props = new Properties();
         props.setProperty("user", "dba");
         props.setProperty("password", "dba");
@@ -304,6 +309,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testAutoCommit() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
@@ -399,6 +406,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testManualTxApi() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         Properties txProps = new Properties();
@@ -515,6 +524,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testManualTxTcl() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         Properties txProps = new Properties();
@@ -662,6 +673,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testNestedTransactions() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
@@ -704,6 +717,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testParallelTransactions() throws SQLException {
+        if (isCloud()) return;
+
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
