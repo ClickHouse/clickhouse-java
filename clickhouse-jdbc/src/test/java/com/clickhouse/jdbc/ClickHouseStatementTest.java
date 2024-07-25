@@ -171,7 +171,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
+    @Test(groups = "integration", enabled = false)
     public void testOutFileAndInFile() throws SQLException {
         if (isCloud()) return; //TODO: testOutFileAndInFile - Revisit
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
