@@ -319,41 +319,8 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud()) {
-            //Create database for testing
-            ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
-                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
-                    .credentials(new ClickHouseCredentials("default", getPassword()))
-                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
-                    .build();
-
-            boolean success = false;
-            int retries = 0;
-            do {
-                try (ClickHouseClient client = ClickHouseClient.builder()
-                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                        .build();
-                     ClickHouseResponse response = client.read(server)
-                             .query("CREATE DATABASE IF NOT EXISTS " + database)
-                             .executeAndWait()) {
-                    if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
-                        success = true;
-                    }
-                } catch (Exception e) {
-                    success = false;
-                    LOGGER.warn("Failed to create database for testing", e);
-                }
-
-                if (!success) {
-                    try {
-                        Thread.sleep(15000);
-                    } catch (InterruptedException e) {
-                        LOGGER.error("Failed to sleep", e);
-                    }
-                }
-            } while(!success && retries++ < 10);
-
-            if (!success) {
-                throw new IllegalStateException("Failed to create database for testing");
+            if (!runQuery("CREATE DATABASE IF NOT EXISTS" + database)) {
+                throw new IllegalStateException("Failed to create database for testing.");
             }
         }
 
@@ -381,42 +348,48 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud()) {
-            ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
-                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
-                    .credentials(new ClickHouseCredentials("default", getPassword()))
-                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
-                    .build();
-
-            //Remove database after testing
-            boolean success = false;
-            int retries = 0;
-            do {
-                try (ClickHouseClient client = ClickHouseClient.builder()
-                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                        .build();
-                     ClickHouseResponse response = client.read(server)
-                             .query("DROP DATABASE IF EXISTS " + database)
-                             .executeAndWait()) {
-                    if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
-                        success = true;
-                    }
-                } catch (Exception e) {
-                    success = false;
-                    LOGGER.error("Failed to drop database after testing", e);
-                }
-
-                if (!success) {
-                    try {
-                        Thread.sleep(15000);
-                    } catch (InterruptedException e) {
-                        LOGGER.error("Failed to sleep", e);
-                    }
-                }
-            } while(!success && retries++ < 5);
+            if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
+                LOGGER.warn("Failed to drop database for testing.");
+            }
         }
     }
 
     public static String getDatabase() {
         return database;
+    }
+
+    private static boolean runQuery(String sql) {
+        if (!isCloud()) return false;//We only use this for cloud
+
+        //Create database for testing
+        ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
+                .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
+                .credentials(new ClickHouseCredentials("default", getPassword()))
+                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
+                .build();
+
+        int retries = 0;
+        do {
+            try (ClickHouseClient client = ClickHouseClient.builder()
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                    .build();
+                 ClickHouseResponse response = client.read(server)
+                         .query(sql)
+                         .executeAndWait()) {
+                if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
+                    return true;
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to create database for testing.", e);
+            }
+
+            try {
+                Thread.sleep(15000);
+            } catch (InterruptedException e) {
+                LOGGER.error("Failed to sleep", e);
+            }
+        } while(retries++ < 10);
+
+        return false;
     }
 }
