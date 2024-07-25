@@ -5,6 +5,8 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -229,7 +231,7 @@ public class ClickHouseServerForTest {
             return ClickHouseNode.builder(template)
                     .address(ClickHouseProtocol.HTTP, new InetSocketAddress(host, port))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
-                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
                     .database(database)
                     .build();
         } else if (container != null) {
@@ -321,7 +323,7 @@ public class ClickHouseServerForTest {
             ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
                     .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
-                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
                     .build();
 
             boolean success = false;
@@ -382,7 +384,7 @@ public class ClickHouseServerForTest {
             ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
                     .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
-                    .options(Map.of(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
                     .build();
 
             //Remove database after testing
