@@ -541,6 +541,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "connectionProperties", groups = "integration")
     public void testCancelQuery(Properties props) throws SQLException {
+        if (isCloud()) return; //TODO: Skipping, we should revisit if this is valid online
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
