@@ -43,6 +43,7 @@ import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseDataType;
@@ -284,11 +285,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty("databaseTerm", "catalog");
         props.setProperty("database", "system");
+        String dbName = "test_switch_schema";
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             Assert.assertEquals(conn.getCatalog(), "system");
             Assert.assertEquals(conn.getSchema(), null);
-            String dbName = "test_switch_schema";
             stmt.execute(
                     ClickHouseParameterizedQuery.apply("drop database if exists :db; "
                             + "create database :db; "
@@ -345,6 +346,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
             Assert.assertThrows(SQLException.class,
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
+        } finally {
+            dropDatabase(dbName);
         }
     }
 
@@ -353,11 +356,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty("databaseTerm", "schema");
         props.setProperty("database", "system");
+        String dbName = "test_switch_schema";
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             Assert.assertEquals(conn.getCatalog(), null);
             Assert.assertEquals(conn.getSchema(), "system");
-            String dbName = "test_switch_schema";
             stmt.execute(
                     ClickHouseParameterizedQuery.apply("drop database if exists :db; "
                             + "create database :db; "
@@ -414,6 +417,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
             Assert.assertThrows(SQLException.class,
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
+        } finally {
+            dropDatabase(dbName);
         }
     }
 

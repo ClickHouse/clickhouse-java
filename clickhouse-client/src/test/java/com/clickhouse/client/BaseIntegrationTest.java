@@ -75,4 +75,15 @@ public abstract class BaseIntegrationTest {
     protected String getPassword() {
         return ClickHouseServerForTest.getPassword();
     }
+
+    protected boolean runQuery(String query) {
+        return ClickHouseServerForTest.runQuery(query);
+    }
+
+    protected boolean createDatabase(String dbName) {
+        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS " + dbName);
+    }
+    protected boolean dropDatabase(String dbName) {
+        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS " + dbName);
+    }
 }

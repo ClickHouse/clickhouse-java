@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -73,7 +74,7 @@ public class ClickHouseServerForTest {
             // ignore
         }
 
-        database = "clickhouse_http_test_" + System.currentTimeMillis();
+        database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
         String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
         if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
             int index = proxy.indexOf(':');

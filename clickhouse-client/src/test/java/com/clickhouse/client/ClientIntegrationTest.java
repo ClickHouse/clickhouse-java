@@ -709,8 +709,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.fail("Should not have exception");
         }
 
+        String db = new StringBuilder().append('`').append(UUID.randomUUID().toString()).append('`').toString();
         try (ClickHouseClient client = getClient()) {
-            String db = new StringBuilder().append('`').append(UUID.randomUUID().toString()).append('`').toString();
             try (ClickHouseResponse resp = newRequest(client, server).use("")
                     .query("create database " + db).execute().get()) {
             }
@@ -719,6 +719,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("Should not have exception");
+        } finally {
+            dropDatabase(db);
         }
     }
 
