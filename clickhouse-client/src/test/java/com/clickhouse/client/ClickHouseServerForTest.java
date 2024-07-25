@@ -358,7 +358,7 @@ public class ClickHouseServerForTest {
         return database;
     }
 
-    private static boolean runQuery(String sql) {
+    protected static boolean runQuery(String sql) {
         if (!isCloud()) return false;//We only use this for cloud
 
         //Create database for testing
