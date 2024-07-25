@@ -5,6 +5,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
@@ -21,6 +22,7 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -30,8 +32,8 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.ConnectException;
+import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -56,30 +58,35 @@ public class HttpAPIClientHelper {
 
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
-        this.httpClient = createHttpClient(configuration, null);
+        this.httpClient = createHttpClient();
         this.baseRequestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(1000, TimeUnit.MILLISECONDS)
                 .build();
-
-        if (configuration.containsKey("proxy_password") && configuration.containsKey("proxy_user")) {
-            this.proxyAuthHeaderValue = "Basic " + Base64.getEncoder().encodeToString(
-                    (configuration.get("proxy_user") + ":" + configuration.get("proxy_password")).getBytes());
-        }
     }
 
-    public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
+    public CloseableHttpClient createHttpClient() {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         CredentialsProviderBuilder credProviderBuilder = CredentialsProviderBuilder.create();
+        SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
 
 
-        String proxyHost = chConfig.get(ClickHouseClientOption.PROXY_HOST.getKey());
-        String proxyPort = chConfig.get(ClickHouseClientOption.PROXY_PORT.getKey());
+        String proxyHost = chConfiguration.get(ClickHouseClientOption.PROXY_HOST.getKey());
+        String proxyPort = chConfiguration.get(ClickHouseClientOption.PROXY_PORT.getKey());
         HttpHost proxy = null;
         if (proxyHost != null && proxyPort != null) {
             proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
-            clientBuilder.setProxy(proxy);
         }
 
+        ProxyType proxyType = ProxyType.valueOf(chConfiguration.get(ClickHouseClientOption.PROXY_TYPE.getKey()));
+        if (proxyType == ProxyType.HTTP) {
+            clientBuilder.setProxy(proxy);
+            if (chConfiguration.containsKey("proxy_password") && chConfiguration.containsKey("proxy_user")) {
+                proxyAuthHeaderValue = "Basic " + Base64.getEncoder().encodeToString(
+                        (chConfiguration.get("proxy_user") + ":" + chConfiguration.get("proxy_password")).getBytes());
+            }
+        } else if (proxyType == ProxyType.SOCKS) {
+            soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+        }
         clientBuilder.setDefaultCredentialsProvider(credProviderBuilder.build());
         return clientBuilder.build();
     }
