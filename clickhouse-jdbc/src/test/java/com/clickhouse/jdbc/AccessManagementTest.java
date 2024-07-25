@@ -105,6 +105,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test
     public void testSetRolesAccessingTableRows() throws SQLException {
+        if (isCloud()) return;
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");

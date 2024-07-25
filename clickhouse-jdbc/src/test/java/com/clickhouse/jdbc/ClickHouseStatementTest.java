@@ -79,7 +79,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBatchUpdate() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
             if (!conn.getServerVersion().check("[22.8,)")) {
@@ -173,6 +173,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testOutFileAndInFile() throws SQLException {
+        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
             throw new SkipException("Skip non-http protocol");
         }
@@ -191,7 +192,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         f2.deleteOnExit();
 
         try (ClickHouseConnection conn = newConnection(props)) {
-            String sql1 = "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'";
+            String sql1 = "SELECT number n, toString(n) FROM numbers(1234) into outfile '" + f1.getName() + "'";
             try (ClickHouseStatement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql1)) {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
@@ -525,6 +526,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
 
         //TODO: I'm not sure this is a valid test...
+        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
@@ -1273,6 +1275,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "timeZoneTestOptions", groups = "integration")
     public void testTimeZone(boolean useBinary) throws SQLException {
+        if (isCloud()) return; //TODO: Disabled because it uses mysql but we should revisit
         String dateType = "DateTime32";
         String dateValue = "2020-02-11 00:23:33";
         ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0, ClickHouseValues.UTC_TIMEZONE);

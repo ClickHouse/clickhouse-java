@@ -20,12 +20,11 @@ import java.util.Properties;
 public class JdbcIssuesTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void test01Decompress() throws SQLException {
-        String urlEndpoint = getConnectionProtocol() + "://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "decompress_issue_01";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", urlEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
@@ -56,12 +55,11 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
 
     @Test
     public void test02Decompress() throws SQLException {
-        String urlEndpoint = getConnectionProtocol() + "://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "decompress_issue_02";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", urlEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
@@ -91,12 +89,11 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
     }
     @Test
     public void test03Decompress() throws SQLException {
-        String urlEndpoint = getConnectionProtocol() + "://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "decompress_issue_03";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", urlEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
@@ -128,9 +125,8 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
     }
     @Test
     public void testIssue1373() throws SQLException {
-        String httpEndpoint = getConnectionProtocol() + "://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "issue_1373";
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, new Properties());
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";

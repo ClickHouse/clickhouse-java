@@ -113,6 +113,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     public ClickHouseDataSource newDataSource(String url, Properties properties) throws SQLException {
         if (isCloud()) {
+            if (properties == null) {
+                properties = new Properties();
+            }
             properties.put("password", getPassword());
             properties.put("user", "default");
             url = String.format("jdbc:clickhouse:https://%s/%s", getServerAddress(ClickHouseProtocol.HTTP), ClickHouseServerForTest.getDatabase());
@@ -143,11 +146,11 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             properties.setProperty("user", "default");
         }
         if (!properties.containsKey("password")) {
-            properties.setProperty("password", "");
+            properties.setProperty("password", getPassword());
         }
 
         String url = buildJdbcUrl(ClickHouseProtocol.MYSQL, "jdbc:mysql://", ClickHouseServerForTest.getDatabase());
-        url += url.indexOf('?') > 0 ? "&useSSL=false" : "?useSSL=false";
+        url += url.indexOf('?') > 0 ? "&useSSL="+isCloud() : "?useSSL="+isCloud();
         Connection conn = DriverManager.getConnection(url, properties);
 
         try (Statement stmt = conn.createStatement()) {

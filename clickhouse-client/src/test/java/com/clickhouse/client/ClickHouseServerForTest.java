@@ -338,7 +338,7 @@ public class ClickHouseServerForTest {
                     }
                 } catch (Exception e) {
                     success = false;
-                    LOGGER.error("Failed to create database for testing", e);
+                    LOGGER.warn("Failed to create database for testing", e);
                 }
 
                 if (!success) {

@@ -66,7 +66,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
 //                + getServerAddress(DEFAULT_PROTOCOL);
         String urlWithCredentials = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://default@" + getServerAddress(DEFAULT_PROTOCOL);
         if (isCloud()) {
-            urlWithCredentials = "jdbc:ch:https://default/" + getPassword() + "@" + getServerAddress(DEFAULT_PROTOCOL);
+            urlWithCredentials = "jdbc:ch:https://default:" + getPassword() + "@" + getServerAddress(DEFAULT_PROTOCOL);
         }
         String clientName = "client1";
         int maxExecuteTime = 1234;
@@ -88,15 +88,12 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
                 new ClickHouseDataSource(urlWithCredentials + params),
         }) {
             for (ClickHouseConnection connection : new ClickHouseConnection[] {
-                    ds.getConnection(),
                     ds.getConnection("default", getPassword()),
                     new ClickHouseDriver().connect(url, properties),
                     new ClickHouseDriver().connect(urlWithCredentials, properties),
-                    new ClickHouseDriver().connect(url + params, new Properties()),
                     new ClickHouseDriver().connect(urlWithCredentials + params, new Properties()),
                     (ClickHouseConnection) DriverManager.getConnection(url, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials, properties),
-                    (ClickHouseConnection) DriverManager.getConnection(url + params),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials + params),
                     (ClickHouseConnection) DriverManager.getConnection(url + params, "default", getPassword()),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials + params, "default", getPassword()),

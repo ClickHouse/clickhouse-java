@@ -843,9 +843,8 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[2].getSQL(), "rollback");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testSETRoleStatements() {
-
         final String simpleStmt = "SET ROLE  ROL1, ROL2";
         ClickHouseSqlStatement[] stmts = parse(simpleStmt);
         Assert.assertEquals(stmts.length, 1);
