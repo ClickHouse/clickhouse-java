@@ -7,16 +7,19 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import org.apache.hc.client5.http.SchemePortResolver;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -32,7 +35,6 @@ import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -57,12 +59,16 @@ public class HttpAPIClientHelper {
     }
 
     public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
-        final CloseableHttpClient httpclient = HttpClientBuilder.create()
+        HttpClientBuilder httpclient = HttpClientBuilder.create();
 
-                .build();
+        String proxyHost = chConfig.get(ClickHouseClientOption.PROXY_HOST.getKey());
+        String proxyPort = chConfig.get(ClickHouseClientOption.PROXY_PORT.getKey());
+        if (proxyHost != null && proxyPort != null) {
+            HttpHost proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
+            httpclient.setProxy(proxy);
+        }
 
-
-        return httpclient;
+        return httpclient.build();
     }
 
     /**
@@ -83,12 +89,12 @@ public class HttpAPIClientHelper {
     }
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
-                                             IOCallback<OutputStream> writeCallback) {
-        HttpHost target = new HttpHost(server.getHost(), server.getPort());
+                                             IOCallback<OutputStream> writeCallback) throws IOException {
+            HttpHost target = new HttpHost(server.getHost(), server.getPort());
 
         URI uri;
         try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
+            URIBuilder uriBuilder = new URIBuilder("/");
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
             uri = uriBuilder.build();
         } catch (URISyntaxException e) {
@@ -125,6 +131,8 @@ public class HttpAPIClientHelper {
             LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
         } catch (ServerException e) {
             throw e;
+        } catch (NoHttpResponseException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
         }
@@ -136,12 +144,12 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
-
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {
                 req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClickHouseClientOption.FORMAT.getKey()));
             }
         }
+        req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClickHouseClientOption.DATABASE.getKey()));
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         if (requestConfig != null) {
