@@ -350,7 +350,7 @@ public class ClickHouseServerForTest {
                         LOGGER.error("Failed to sleep", e);
                     }
                 }
-            } while(!success && retries++ < 5);
+            } while(!success && retries++ < 10);
 
             if (!success) {
                 throw new IllegalStateException("Failed to create database for testing");
