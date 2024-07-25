@@ -424,6 +424,12 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        public Builder setProxyCredentials(String user, String pass) {
+            this.configuration.put("proxy_user", user);
+            this.configuration.put("proxy_password", pass);
+            return this;
+        }
+
         /**
          * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
          * @param timeout
@@ -963,6 +969,8 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings, metrics);
+                    } catch (ClientException e) {
+                        throw e;
                     } catch (Exception e) {
                         throw new ClientException("Failed to execute query", e);
                     }
