@@ -79,7 +79,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBatchUpdate() throws SQLException {
-        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
+        if (isCloud()) return; //TODO: testBatchUpdate - Revisit
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
             if (!conn.getServerVersion().check("[22.8,)")) {
@@ -173,7 +173,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testOutFileAndInFile() throws SQLException {
-        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
+        if (isCloud()) return; //TODO: testOutFileAndInFile - Revisit
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
             throw new SkipException("Skip non-http protocol");
         }
@@ -526,7 +526,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
 
         //TODO: I'm not sure this is a valid test...
-        if (isCloud()) return; //TODO: Skipping because it doesn't seem valid, we should revisit
+        if (isCloud()) return; //TODO: testAsyncInsert - Revisit
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
@@ -541,7 +541,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "connectionProperties", groups = "integration")
     public void testCancelQuery(Properties props) throws SQLException {
-        if (isCloud()) return; //TODO: Skipping, we should revisit if this is valid online
+        if (isCloud()) return; //TODO: testCancelQuery - Skipping, we should revisit if this is valid online
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
@@ -1276,7 +1276,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "timeZoneTestOptions", groups = "integration")
     public void testTimeZone(boolean useBinary) throws SQLException {
-        if (isCloud()) return; //TODO: Disabled because it uses mysql but we should revisit
+        if (isCloud()) return; //TODO: testTimeZone - Disabled because it uses mysql but we should revisit
         String dateType = "DateTime32";
         String dateValue = "2020-02-11 00:23:33";
         ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0, ClickHouseValues.UTC_TIMEZONE);

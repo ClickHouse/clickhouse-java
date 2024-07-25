@@ -465,7 +465,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
     public void testCompression(ClickHouseFormat format, ClickHouseBufferingMode bufferingMode, boolean compressRequest,
             boolean compressResponse) throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testCompression - Revisit
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
         sendAndWait(server, "create table if not exists test_compress_decompress(id UUID)engine=Memory");
@@ -2134,7 +2134,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testSessionLock() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testSessionLock - Revisit
         ClickHouseNode server = getServer();
         String sessionId = ClickHouseRequestManager.getInstance().createSessionId();
         try (ClickHouseClient client = getClient()) {
@@ -2170,7 +2170,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testAbortTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testAbortTransaction - Revisit
         ClickHouseNode server = getServer();
         String tableName = "test_abort_transaction";
         sendAndWait(server, "drop table if exists " + tableName,
@@ -2205,7 +2205,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testNewTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testNewTransaction - Revisit
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
             if (!checkServerVersion(client, server, "[22.7,)")) {
@@ -2249,7 +2249,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testJoinTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testJoinTransaction - Revisit
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
             if (!checkServerVersion(client, server, "[22.7,)")) {
@@ -2278,7 +2278,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testCommitTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testCommitTransaction - Revisit
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_tx_commit",
                 "create table test_tx_commit(a Int64, b String)engine=MergeTree order by a");
@@ -2309,7 +2309,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testRollbackTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testRollbackTransaction - Revisit
         String tableName = "test_tx_rollback";
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists " + tableName,
@@ -2375,7 +2375,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testTransactionSnapshot() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testTransactionSnapshot - Revisit
         String tableName = "test_tx_snapshots";
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists " + tableName,
@@ -2460,7 +2460,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testTransactionTimeout() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testTransactionTimeout - Revisit
         String tableName = "test_tx_timeout";
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists " + tableName,
@@ -2554,7 +2554,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testImplicitTransaction() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testImplicitTransaction - Revisit
         ClickHouseNode server = getServer();
         String tableName = "test_implicit_transaction";
         sendAndWait(server, "drop table if exists " + tableName,
@@ -2674,7 +2674,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testFailover() throws ClickHouseException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testFailover - Revisit
         ClickHouseNode availableNode = getServer();
         Properties props = new Properties();
         props.setProperty("failover", "1");

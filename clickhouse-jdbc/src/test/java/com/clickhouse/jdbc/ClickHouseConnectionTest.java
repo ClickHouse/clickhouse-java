@@ -28,7 +28,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testCentralizedConfiguration() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testCentralizedConfiguration - Revisit
 
         Properties props = new Properties();
         props.setProperty("custom_settings", "max_result_rows=1");
@@ -128,7 +128,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testAutoCommitMode() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testAutoCommitMode - Revisit
 
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
@@ -202,7 +202,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testReadOnly() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testReadOnly - Revisit
         Properties props = new Properties();
         props.setProperty("user", "dba");
         props.setProperty("password", "dba");
@@ -309,7 +309,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testAutoCommit() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testAutoCommit - Revisit
 
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
@@ -406,7 +406,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testManualTxApi() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testManualTxApi - Revisit
 
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
@@ -524,7 +524,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testManualTxTcl() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testManualTxTcl - Revisit
 
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
@@ -673,7 +673,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testNestedTransactions() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testNestedTransactions - Revisit
 
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
@@ -717,7 +717,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testParallelTransactions() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testParallelTransactions - Revisit
 
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");

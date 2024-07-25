@@ -19,7 +19,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testHighAvailabilityConfig() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testHighAvailabilityConfig - Revisit
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
@@ -37,7 +37,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
 
     @Test // (groups = "integration")
     public void testMultiEndpoints() throws SQLException {
-        if (isCloud()) return;
+        if (isCloud()) return; //TODO: testMultiEndpoints - Revisit
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
