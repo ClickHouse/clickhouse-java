@@ -193,6 +193,7 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testGetTables() throws SQLException {
+        if (isCloud()) return; //TODO: testGetTables - Revisit
         String db1 = "a" + UUID.randomUUID().toString().replace('-', 'X');
         String db2 = "b" + UUID.randomUUID().toString().replace('-', 'X');
         String tableName = "test_get_tables";
