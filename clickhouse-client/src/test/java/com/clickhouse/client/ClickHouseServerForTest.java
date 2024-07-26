@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -225,6 +227,7 @@ public class ClickHouseServerForTest {
                                                    ClickHouseNode template) {
         String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
+        String database = template != null ? template.getDatabase().orElse("default") : "default";
         GenericContainer<?> container = clickhouseContainer;
         if (isCloud()) {
             port = 8443;
@@ -246,7 +249,7 @@ public class ClickHouseServerForTest {
             }
         }
 
-        return ClickHouseNode.builder(template).address(protocol, new InetSocketAddress(host, port)).build();
+        return ClickHouseNode.builder(template).database(database).address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, int port) {
@@ -258,13 +261,14 @@ public class ClickHouseServerForTest {
             return ClickHouseNode.builder().
                     address(protocol, new InetSocketAddress(host, port))
                     .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .database(database)
                     .build();
         }
         if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         }
-        return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
+        return ClickHouseNode.builder().database(ClickHouseServerForTest.getDatabase()).address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
@@ -279,7 +283,7 @@ public class ClickHouseServerForTest {
         } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
-            url = String.format("http://%s:%d/default", host, port);
+            url = String.format("http://%s:%d/%s", host, port, database);//TODO: Should this always be http?
         }
         return ClickHouseNode.of(url, options);
     }
@@ -359,16 +363,16 @@ public class ClickHouseServerForTest {
         return database;
     }
 
-    protected static boolean runQuery(String sql) {
-        if (!isCloud()) return false;//We only use this for cloud
+    public static boolean runQuery(String sql) {
         LOGGER.info("Run a query for testing...");
 
         //Create database for testing
-        String url = String.format("https://%s:%d/%s", System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443, "default");
-        Map<String, String> options = new HashMap<>();
-        options.put("user", "default");
-        options.put("password", System.getenv("CLICKHOUSE_CLOUD_PASSWORD"));
-        ClickHouseNode server = ClickHouseNode.of(url, options);
+//        String url = String.format("%s://%s:%d/%s", (isCloud() ? "https" : "http"), System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443, "default");
+//        Map<String, String> options = new HashMap<>();
+//        options.put("user", "default");
+//        options.put("password", System.getenv("CLICKHOUSE_CLOUD_PASSWORD"));
+//        ClickHouseNode server = ClickHouseNode.of(url, options);
+        ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
 
         LOGGER.info("SQL: " + sql);
         LOGGER.info("Server: " + server);

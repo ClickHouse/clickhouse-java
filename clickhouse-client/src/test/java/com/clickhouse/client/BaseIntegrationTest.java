@@ -26,7 +26,7 @@ public abstract class BaseIntegrationTest {
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().database(ClickHouseServerForTest.getDatabase()).addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol, ClickHouseNode base) {
@@ -34,7 +34,7 @@ public abstract class BaseIntegrationTest {
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), ClickHouseNode.builder().database(ClickHouseServerForTest.getDatabase()).build());
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
