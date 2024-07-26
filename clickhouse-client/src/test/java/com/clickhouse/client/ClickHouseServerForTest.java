@@ -361,31 +361,31 @@ public class ClickHouseServerForTest {
 
     protected static boolean runQuery(String sql) {
         if (!isCloud()) return false;//We only use this for cloud
+        LOGGER.info("Run a query for testing...");
 
         //Create database for testing
-        ClickHouseNode server = ClickHouseNode.builder(ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build())
-                .address(ClickHouseProtocol.HTTP, new InetSocketAddress(System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443))
-                .credentials(new ClickHouseCredentials("default", getPassword()))
-                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
-                .build();
+        String url = String.format("https://%s:%d/%s", System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443, "default");
+        Map<String, String> options = new HashMap<>();
+        options.put("user", "default");
+        options.put("password", System.getenv("CLICKHOUSE_CLOUD_PASSWORD"));
+        ClickHouseNode server = ClickHouseNode.of(url, options);
+
+        LOGGER.info("SQL: " + sql);
+        LOGGER.info("Server: " + server);
 
         int retries = 0;
         do {
-            try (ClickHouseClient client = ClickHouseClient.builder()
-                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                    .build();
-                 ClickHouseResponse response = client.read(server)
-                         .query(sql)
-                         .executeAndWait()) {
+            try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build();
+                 ClickHouseResponse response = client.read(server).query(sql).executeAndWait()) {
                 if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
                     return true;
                 }
             } catch (Exception e) {
-                LOGGER.warn("Failed to create database for testing...", e);
+                LOGGER.warn("Failed to run query for testing...", e);
             }
 
             try {
-                Thread.sleep(30000);
+                Thread.sleep(15000);
             } catch (InterruptedException e) {
                 LOGGER.error("Failed to sleep", e);
             }
