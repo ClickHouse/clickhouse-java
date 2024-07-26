@@ -385,7 +385,7 @@ public class ClickHouseServerForTest {
             }
 
             try {
-                Thread.sleep(15000);
+                Thread.sleep(30000);
             } catch (InterruptedException e) {
                 LOGGER.error("Failed to sleep", e);
             }
