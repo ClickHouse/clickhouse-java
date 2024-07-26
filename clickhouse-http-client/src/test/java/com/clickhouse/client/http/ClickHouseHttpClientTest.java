@@ -112,7 +112,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = "integration")
     public void testAuthentication() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testAuthentication - Revisit
+        if (isCloud()) return; //TODO: testAuthentication - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String sql = "select currentUser()";
         try (ClickHouseClient client = getClient(
                 new ClickHouseConfig(null, ClickHouseCredentials.fromUserAndPassword("dba", "dba"), null, null));
@@ -246,7 +246,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Override
     @Test(groups = "integration")
     public void testSession() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testSession - Revisit
+        if (isCloud()) return; //TODO: testSession - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         super.testSession();
 
         ClickHouseNode server = getServer();
@@ -288,7 +288,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test // (groups = "integration")
     public void testTransaction() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testTransaction - Revisit
+        if (isCloud()) return; //TODO: testTransaction - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         testAbortTransaction();
         testNewTransaction();
         testJoinTransaction();
@@ -301,7 +301,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSslRootCertificateClientAuth() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testSslRootCertificateClientAuth - Revisit
+        if (isCloud()) return; //TODO: testSslRootCertificateClientAuth - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         // NPE on JDK 8:
         // java.lang.NullPointerException
         // at sun.security.provider.JavaKeyStore.convertToBytes(JavaKeyStore.java:822)
@@ -331,7 +331,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTrustStoreSSLClientAuth() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testTrustStoreSSLClientAuth - Revisit
+        if (isCloud()) return; //TODO: testTrustStoreSSLClientAuth - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.fromUriScheme("https"));
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL, true);
@@ -346,7 +346,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCreateTableAsSelect() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testCreateTableAsSelect - Revisit
+        if (isCloud()) return; //TODO: testCreateTableAsSelect - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
 
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_create_table_as_select");
@@ -378,7 +378,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Override
     @Test(groups = {"integration"})
     public void testMutation() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testMutation - Revisit
+        if (isCloud()) return; //TODO: testMutation - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         super.testMutation();
 
         ClickHouseNode server = getServer();
@@ -624,7 +624,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testLongHttpHeaderReferer() throws ClickHouseException {
-        if (isCloud()) return; //TODO: testLongHttpHeaderReferer - Revisit
+        if (isCloud()) return; //TODO: testLongHttpHeaderReferer - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         super.testMutation();
 
         StringBuilder referer = new StringBuilder();

@@ -16,7 +16,7 @@ import org.testng.annotations.Test;
 public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testManualCommit() throws SQLException {
-        if (isCloud()) return; //TODO: testManualCommit - Revisit
+        if (isCloud()) return; //TODO: testManualCommit - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         try (ClickHouseConnectionImpl conn = (ClickHouseConnectionImpl) newConnection()) {
             Assert.assertEquals(conn.getAutoCommit(), true);
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
@@ -109,7 +109,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testManualRollback() throws SQLException {
-        if (isCloud()) return; //TODO: testManualRollback - Revisit
+        if (isCloud()) return; //TODO: testManualRollback - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         try (ClickHouseConnectionImpl conn = (ClickHouseConnectionImpl) newConnection()) {
             Assert.assertEquals(conn.getAutoCommit(), true);
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
@@ -234,7 +234,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testSwitchAutoCommit() throws SQLException {
-        if (isCloud()) return; //TODO: testSwitchAutoCommit - Revisit
+        if (isCloud()) return; //TODO: testSwitchAutoCommit - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         try (ClickHouseConnection conn = newConnection()) {
             Assert.assertEquals(conn.getAutoCommit(), true);
             conn.setAutoCommit(false);

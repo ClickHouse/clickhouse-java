@@ -1128,7 +1128,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testQueryWithExternalTable() throws SQLException {
-        if (isCloud()) return; //TODO: testQueryWithExternalTable - Revisit
+        if (isCloud()) return; //TODO: testQueryWithExternalTable - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         // FIXME grpc seems has problem dealing with session
         if (DEFAULT_PROTOCOL == ClickHouseProtocol.GRPC) {
             return;
@@ -1323,7 +1323,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration", enabled = false)
     public void testOutFileAndInFile() throws SQLException {
-        if (isCloud()) return; //TODO: testOutFileAndInFile - Revisit
+        if (isCloud()) return; //TODO: testOutFileAndInFile - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
             throw new SkipException("Skip non-http protocol");
         }
@@ -2062,7 +2062,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration", enabled = false)
     public void testGetMetadataStatements() throws SQLException {
-        if (isCloud()) return; //TODO: testGetMetadataStatements - Skipping because it doesn't seem valid, we should revisit
+        if (isCloud()) return; //TODO: testGetMetadataStatements - Skipping because it doesn't seem valid, we should revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         try (Connection conn = newConnection(new Properties());
             PreparedStatement createPs = conn.prepareStatement("create table test_get_metadata_statements (col String) Engine=Log");
             PreparedStatement selectPs = conn.prepareStatement("select 'Hello, World!'");
