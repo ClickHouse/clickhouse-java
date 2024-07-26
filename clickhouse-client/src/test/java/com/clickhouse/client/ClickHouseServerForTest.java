@@ -249,7 +249,7 @@ public class ClickHouseServerForTest {
             }
         }
 
-        return ClickHouseNode.builder(template).database(database).address(protocol, new InetSocketAddress(host, port)).build();
+        return ClickHouseNode.builder(template).address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, int port) {
@@ -268,7 +268,7 @@ public class ClickHouseServerForTest {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         }
-        return ClickHouseNode.builder().database(ClickHouseServerForTest.getDatabase()).address(protocol, new InetSocketAddress(host, port)).build();
+        return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
@@ -283,7 +283,7 @@ public class ClickHouseServerForTest {
         } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
-            url = String.format("http://%s:%d/%s", host, port, database);//TODO: Should this always be http?
+            url = String.format("http://%s:%d/default", host, port);//TODO: Should this always be http?
         }
         return ClickHouseNode.of(url, options);
     }
