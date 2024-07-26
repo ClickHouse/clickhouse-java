@@ -39,6 +39,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -77,7 +78,9 @@ public class HttpAPIClientHelper {
             proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
         }
 
-        ProxyType proxyType = ProxyType.valueOf(chConfiguration.get(ClickHouseClientOption.PROXY_TYPE.getKey()));
+
+        String proxyTypeVal = chConfiguration.get(ClickHouseClientOption.PROXY_TYPE.getKey());
+        ProxyType proxyType = proxyTypeVal == null ? null : ProxyType.valueOf(proxyTypeVal);
         if (proxyType == ProxyType.HTTP) {
             clientBuilder.setProxy(proxy);
             if (chConfiguration.containsKey("proxy_password") && chConfiguration.containsKey("proxy_user")) {
