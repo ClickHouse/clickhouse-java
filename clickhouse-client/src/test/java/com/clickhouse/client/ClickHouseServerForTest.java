@@ -320,7 +320,7 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud()) {
-            if (!runQuery("CREATE DATABASE IF NOT EXISTS" + database)) {
+            if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
                 throw new IllegalStateException("Failed to create database for testing.");
             }
         }
@@ -377,11 +377,11 @@ public class ClickHouseServerForTest {
                  ClickHouseResponse response = client.read(server)
                          .query(sql)
                          .executeAndWait()) {
-                if (response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
+                if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
                     return true;
                 }
             } catch (Exception e) {
-                LOGGER.warn("Failed to create database for testing.", e);
+                LOGGER.warn("Failed to create database for testing...", e);
             }
 
             try {
