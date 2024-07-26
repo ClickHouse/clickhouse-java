@@ -12,6 +12,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
@@ -102,6 +104,31 @@ public class ProxyTests extends BaseIntegrationTest{
         } catch (ClientException e) {
             e.printStackTrace();
             Assert.fail("Should not have thrown exception.", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testProxyWithCookies() {
+        client.set(clientBuilder(initProxy(), true).build());
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                        .inScenario("routeCookies")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withHeader(HttpHeaders.SET_COOKIE, "routeName=routeA")
+                        .proxiedFrom("http://localhost:" + targetPort)).willSetStateTo("cookies").build());
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                        .inScenario("routeCookies")
+                        .whenScenarioStateIs("cookies")
+                        .withHeader(HttpHeaders.COOKIE, equalTo("routeName=routeA"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+
+        try {
+            client.get().execute("select 1").get();
+            client.get().execute("select 1").get();
+        } catch (Exception e) {
+            fail("Should not have thrown exception.", e);
         }
     }
 

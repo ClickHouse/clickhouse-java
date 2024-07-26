@@ -1153,7 +1153,7 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         throw new ClientException("Failed to get command response", e);
                     }
-                });
+                }, sharedOperationExecutor);
     }
 
     private String startOperation() {

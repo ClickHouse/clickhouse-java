@@ -145,7 +145,10 @@ public class HttpAPIClientHelper {
                 } finally {
                     httpResponse.close();
                 }
-            } else if (httpResponse.getCode() >= 500) {
+            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
+                httpResponse.close();
+                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() >= HttpStatus.SC_INTERNAL_SERVER_ERROR) {
                 httpResponse.close();
                 return httpResponse;
             }
