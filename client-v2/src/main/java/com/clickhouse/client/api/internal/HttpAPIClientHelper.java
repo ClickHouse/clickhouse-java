@@ -90,6 +90,11 @@ public class HttpAPIClientHelper {
         } else if (proxyType == ProxyType.SOCKS) {
             soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
         }
+
+        if (chConfiguration.getOrDefault("client.http.cookies_enabled", "true")
+                .equalsIgnoreCase("false")) {
+            clientBuilder.disableCookieManagement();
+        }
         clientBuilder.setDefaultCredentialsProvider(credProviderBuilder.build());
         return clientBuilder.build();
     }

@@ -450,6 +450,12 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        public Builder setHttpCookiesEnabled(boolean enabled) {
+            //TODO: extract to settings string constants
+            this.configuration.put("client.http.cookies_enabled", String.valueOf(enabled));
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {

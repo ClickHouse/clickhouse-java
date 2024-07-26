@@ -24,6 +24,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -129,6 +130,37 @@ public class ProxyTests extends BaseIntegrationTest{
             client.get().execute("select 1").get();
         } catch (Exception e) {
             fail("Should not have thrown exception.", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testProxyWithDisabledCookies() {
+        client.set(clientBuilder(initProxy(), true).setHttpCookiesEnabled(false).build());
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                .inScenario("routeCookies")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withHeader(HttpHeaders.SET_COOKIE, "routeName=routeA")
+                        .proxiedFrom("http://localhost:" + targetPort)).willSetStateTo("cookies").build());
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                .inScenario("routeCookies")
+                .whenScenarioStateIs("cookies")
+                .withHeader(HttpHeaders.COOKIE, equalTo("routeName=routeA"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+
+        try {
+            client.get().execute("select 1").get();
+        } catch (Exception e) {
+            fail("Should not have thrown exception.", e);
+        }
+        try {
+            client.get().execute("select 1").get();
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (Exception e) {
+            fail("Should have thrown exception.", e);
         }
     }
 
