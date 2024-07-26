@@ -367,11 +367,6 @@ public class ClickHouseServerForTest {
         LOGGER.info("Run a query for testing...");
 
         //Create database for testing
-//        String url = String.format("%s://%s:%d/%s", (isCloud() ? "https" : "http"), System.getenv("CLICKHOUSE_CLOUD_HOST"), 8443, "default");
-//        Map<String, String> options = new HashMap<>();
-//        options.put("user", "default");
-//        options.put("password", System.getenv("CLICKHOUSE_CLOUD_PASSWORD"));
-//        ClickHouseNode server = ClickHouseNode.of(url, options);
         ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
 
         LOGGER.info("SQL: " + sql);
@@ -381,7 +376,7 @@ public class ClickHouseServerForTest {
         do {
             try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build();
                  ClickHouseResponse response = client.read(server).query(sql).executeAndWait()) {
-                if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {//If we get here, it's a success
+                if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {
                     return true;
                 }
             } catch (Exception e) {
