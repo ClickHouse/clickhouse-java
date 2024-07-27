@@ -282,6 +282,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testSwitchCatalog() throws SQLException {
+        if (isCloud()) return; //TODO: testSwitchCatalog - Revisit, see:https://github.com/ClickHouse/clickhouse-java/issues/1747
         Properties props = new Properties();
         props.setProperty("databaseTerm", "catalog");
         props.setProperty("database", "system");
