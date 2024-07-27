@@ -281,7 +281,7 @@ jobs:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
