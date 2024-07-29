@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.io.Serializable;
+import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -20,6 +21,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.jdbc.internal.ConnectionImpl;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
@@ -47,9 +49,11 @@ public class ClickHouseDriver implements Driver {
     static final ClickHouseVersion driverVersion;
     static final ClickHouseVersion specVersion;
 
+    private static boolean useClientV2 = false;
     static final java.util.logging.Logger parentLogger = java.util.logging.Logger.getLogger("com.clickhouse.jdbc");
 
     static {
+        useClientV2 = Boolean.getBoolean("com.clickhouse.jdbc.use_client_v2");
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
         if (str != null && !str.isEmpty()) {
             char[] chars = str.toCharArray();
@@ -153,7 +157,9 @@ public class ClickHouseDriver implements Driver {
             return null;
         }
 
-        log.debug("Creating connection");
+        if (useClientV2) {
+            return new ConnectionImpl(url, info);
+        }
         return new ClickHouseConnectionImpl(url, info);
     }
 

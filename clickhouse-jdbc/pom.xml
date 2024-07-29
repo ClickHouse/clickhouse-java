@@ -52,6 +52,18 @@
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>client-v2</artifactId>
+            <version>${revision}</version>
+            <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
             <optional>true</optional>
