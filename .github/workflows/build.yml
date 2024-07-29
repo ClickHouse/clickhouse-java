@@ -413,7 +413,7 @@ jobs:
         clickhouse: ["24.6", "latest"]
       fail-fast: false
     timeout-minutes: 15
-    name: Java client + CH ${{ matrix.clickhouse }}
+    name: Client V2 + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -453,7 +453,7 @@ jobs:
           mvn --also-make --batch-mode --no-transfer-progress --projects client-v2 -Dclient.tests.useNewImplementation=true -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
-#        if: failure()
+        if: failure()
         with:
           name: result ${{ github.job }}
           path: |
