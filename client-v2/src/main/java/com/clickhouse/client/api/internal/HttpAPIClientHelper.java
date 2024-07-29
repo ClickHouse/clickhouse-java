@@ -14,6 +14,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
@@ -60,16 +61,26 @@ public class HttpAPIClientHelper {
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
-        this.baseRequestConfig = RequestConfig.custom()
-                .setConnectionRequestTimeout(1000, TimeUnit.MILLISECONDS)
-                .build();
+
+        RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
+        MapUtils.applyLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
+                (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
+
+        this.baseRequestConfig = reqConfBuilder.build();
     }
 
     public CloseableHttpClient createHttpClient() {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         CredentialsProviderBuilder credProviderBuilder = CredentialsProviderBuilder.create();
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
+        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create();
 
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_TIMEOUT.getKey(),
+                (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_RCVBUF.getKey(),
+                soCfgBuilder::setRcvBufSize);
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_SNDBUF.getKey(),
+                soCfgBuilder::setSndBufSize);
 
         String proxyHost = chConfiguration.get(ClickHouseClientOption.PROXY_HOST.getKey());
         String proxyPort = chConfiguration.get(ClickHouseClientOption.PROXY_PORT.getKey());
@@ -96,6 +107,9 @@ public class HttpAPIClientHelper {
             clientBuilder.disableCookieManagement();
         }
         clientBuilder.setDefaultCredentialsProvider(credProviderBuilder.build());
+
+        connMgrBuilder.setDefaultSocketConfig(soCfgBuilder.build());
+        clientBuilder.setConnectionManager(connMgrBuilder.build());
         return clientBuilder.build();
     }
 
