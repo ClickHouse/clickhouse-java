@@ -134,6 +134,9 @@ public class Client implements AutoCloseable {
         this.useNewImplementation = useNewImplementation;
         if (useNewImplementation) {
             this.httpClientHelper = new HttpAPIClientHelper(configuration);
+            LOG.info("Using new http client implementation");
+        } else {
+            LOG.info("Using old http client implementation");
         }
     }
 
