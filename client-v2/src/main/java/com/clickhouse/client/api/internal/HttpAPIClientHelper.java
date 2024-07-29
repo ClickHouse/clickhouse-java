@@ -5,6 +5,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.ApacheHttpConnectionImpl;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.SchemePortResolver;
@@ -12,20 +13,30 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -61,6 +72,7 @@ public class HttpAPIClientHelper {
     public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
         HttpClientBuilder httpclient = HttpClientBuilder.create();
 
+        
         String proxyHost = chConfig.get(ClickHouseClientOption.PROXY_HOST.getKey());
         String proxyPort = chConfig.get(ClickHouseClientOption.PROXY_PORT.getKey());
         if (proxyHost != null && proxyPort != null) {
@@ -68,6 +80,19 @@ public class HttpAPIClientHelper {
             httpclient.setProxy(proxy);
         }
 
+//        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory>create()
+//                .register("http", socketFactory.create(c, PlainConnectionSocketFactory.class))
+//                .register("https", socketFactory.create(c, SSLConnectionSocketFactory.class));
+
+
+        PoolingHttpClientConnectionManagerBuilder connManagerBuilder = PoolingHttpClientConnectionManagerBuilder
+                .create()
+                .setSSLSocketFactory(new SSLConnectionSocketFactory((SSLSocketFactory) SSLSocketFactory.getDefault(), (HostnameVerifier)
+                        (hostname, session) -> {
+                    return true;
+                }));
+
+        httpclient.setConnectionManager(connManagerBuilder.build());
         return httpclient.build();
     }
 
@@ -90,11 +115,11 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-            HttpHost target = new HttpHost(server.getHost(), server.getPort());
+//            HttpHost target = new HttpHost("https", server.getHost(), server.getPort());
 
         URI uri;
         try {
-            URIBuilder uriBuilder = new URIBuilder("/");
+            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
             uri = uriBuilder.build();
         } catch (URISyntaxException e) {
@@ -112,7 +137,7 @@ public class HttpAPIClientHelper {
         HttpClientContext context = HttpClientContext.create();
 
         try {
-            ClassicHttpResponse httpResponse = httpClient.executeOpen(target, req, context);
+            ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
             if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
                 try {
                     throw readError(httpResponse);
@@ -126,9 +151,11 @@ public class HttpAPIClientHelper {
             return httpResponse;
 
         } catch (UnknownHostException e) {
-            LOG.warn("Host '{}' unknown", target);
+            LOG.warn("Host '{}' unknown", server.getHost());
+            throw new ClientException("Unknown host", e);
         } catch (ConnectException | NoRouteToHostException e) {
-            LOG.warn("Failed to connect to '{}': {}", target, e.getMessage());
+            LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
+            throw new ClientException("Failed to connect", e);
         } catch (ServerException e) {
             throw e;
         } catch (NoHttpResponseException e) {
@@ -136,8 +163,6 @@ public class HttpAPIClientHelper {
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
         }
-
-        return null;
     }
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
