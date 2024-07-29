@@ -3,18 +3,20 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ApacheHttpConnectionImpl;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import org.apache.hc.client5.http.SchemePortResolver;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
@@ -25,6 +27,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -40,12 +43,14 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.ConnectException;
+import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.util.Base64;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -61,39 +66,62 @@ public class HttpAPIClientHelper {
 
     private RequestConfig baseRequestConfig;
 
+    private String proxyAuthHeaderValue;
+
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
-        this.httpClient = createHttpClient(configuration, null);
-        this.baseRequestConfig = RequestConfig.custom()
-                .setConnectionRequestTimeout(1000, TimeUnit.MILLISECONDS)
-                .build();
+        this.httpClient = createHttpClient();
+
+        RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
+        MapUtils.applyLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
+                (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
+
+        this.baseRequestConfig = reqConfBuilder.build();
     }
 
-    public CloseableHttpClient createHttpClient(Map<String, String> chConfig, Map<String, Serializable> requestConfig) {
-        HttpClientBuilder httpclient = HttpClientBuilder.create();
+    public CloseableHttpClient createHttpClient() {
+        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
+        CredentialsProviderBuilder credProviderBuilder = CredentialsProviderBuilder.create();
+        SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
+        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create();
 
-        
-        String proxyHost = chConfig.get(ClickHouseClientOption.PROXY_HOST.getKey());
-        String proxyPort = chConfig.get(ClickHouseClientOption.PROXY_PORT.getKey());
+
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_TIMEOUT.getKey(),
+                (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_RCVBUF.getKey(),
+                soCfgBuilder::setRcvBufSize);
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_SNDBUF.getKey(),
+                soCfgBuilder::setSndBufSize);
+
+        String proxyHost = chConfiguration.get(ClickHouseClientOption.PROXY_HOST.getKey());
+        String proxyPort = chConfiguration.get(ClickHouseClientOption.PROXY_PORT.getKey());
+        HttpHost proxy = null;
         if (proxyHost != null && proxyPort != null) {
-            HttpHost proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
-            httpclient.setProxy(proxy);
+            proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
         }
 
-//        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory>create()
-//                .register("http", socketFactory.create(c, PlainConnectionSocketFactory.class))
-//                .register("https", socketFactory.create(c, SSLConnectionSocketFactory.class));
 
+        String proxyTypeVal = chConfiguration.get(ClickHouseClientOption.PROXY_TYPE.getKey());
+        ProxyType proxyType = proxyTypeVal == null ? null : ProxyType.valueOf(proxyTypeVal);
+        if (proxyType == ProxyType.HTTP) {
+            clientBuilder.setProxy(proxy);
+            if (chConfiguration.containsKey("proxy_password") && chConfiguration.containsKey("proxy_user")) {
+                proxyAuthHeaderValue = "Basic " + Base64.getEncoder().encodeToString(
+                        (chConfiguration.get("proxy_user") + ":" + chConfiguration.get("proxy_password")).getBytes());
+            }
+        } else if (proxyType == ProxyType.SOCKS) {
+            soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+        }
 
-        PoolingHttpClientConnectionManagerBuilder connManagerBuilder = PoolingHttpClientConnectionManagerBuilder
-                .create()
-                .setSSLSocketFactory(new SSLConnectionSocketFactory((SSLSocketFactory) SSLSocketFactory.getDefault(), (HostnameVerifier)
-                        (hostname, session) -> {
-                    return true;
-                }));
+        if (chConfiguration.getOrDefault("client.http.cookies_enabled", "true")
+                .equalsIgnoreCase("false")) {
+            clientBuilder.disableCookieManagement();
+        }
+        clientBuilder.setDefaultCredentialsProvider(credProviderBuilder.build());
 
-        httpclient.setConnectionManager(connManagerBuilder.build());
-        return httpclient.build();
+        connMgrBuilder.setDefaultSocketConfig(soCfgBuilder.build());
+        clientBuilder.setConnectionManager(connMgrBuilder.build());
+        return clientBuilder.build();
     }
 
     /**
@@ -138,13 +166,19 @@ public class HttpAPIClientHelper {
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
-            if (httpResponse.getCode() >= 400 && httpResponse.getCode() < 500) {
+            if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
+                throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
+            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST &&
+                    httpResponse.getCode() < HttpStatus.SC_SERVER_ERROR) {
                 try {
                     throw readError(httpResponse);
                 } finally {
                     httpResponse.close();
                 }
-            } else if (httpResponse.getCode() >= 500) {
+            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
+                httpResponse.close();
+                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() >= HttpStatus.SC_INTERNAL_SERVER_ERROR) {
                 httpResponse.close();
                 return httpResponse;
             }
@@ -159,6 +193,8 @@ public class HttpAPIClientHelper {
         } catch (ServerException e) {
             throw e;
         } catch (NoHttpResponseException e) {
+            throw e;
+        } catch (ClientException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
@@ -175,6 +211,10 @@ public class HttpAPIClientHelper {
             }
         }
         req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClickHouseClientOption.DATABASE.getKey()));
+
+        if (proxyAuthHeaderValue != null) {
+            req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
+        }
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         if (requestConfig != null) {

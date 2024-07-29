@@ -424,6 +424,12 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        public Builder setProxyCredentials(String user, String pass) {
+            this.configuration.put("proxy_user", user);
+            this.configuration.put("proxy_password", pass);
+            return this;
+        }
+
         /**
          * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
          * @param timeout
@@ -441,6 +447,12 @@ public class Client implements AutoCloseable {
          */
         public Builder useNewImplementation(boolean useNewImplementation) {
             this.useNewImplementation = useNewImplementation;
+            return this;
+        }
+
+        public Builder setHttpCookiesEnabled(boolean enabled) {
+            //TODO: extract to settings string constants
+            this.configuration.put("client.http.cookies_enabled", String.valueOf(enabled));
             return this;
         }
 
@@ -963,6 +975,8 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings, metrics);
+                    } catch (ClientException e) {
+                        throw e;
                     } catch (Exception e) {
                         throw new ClientException("Failed to execute query", e);
                     }
@@ -1145,7 +1159,7 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         throw new ClientException("Failed to get command response", e);
                     }
-                });
+                }, sharedOperationExecutor);
     }
 
     private String startOperation() {
