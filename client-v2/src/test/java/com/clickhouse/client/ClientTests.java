@@ -70,8 +70,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .useNewImplementation(true)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build()) {
 
             List<GenericRecord> records = client.queryAll("SELECT timezone()");
