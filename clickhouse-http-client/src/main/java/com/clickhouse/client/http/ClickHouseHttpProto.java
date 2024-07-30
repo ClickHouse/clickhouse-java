@@ -40,6 +40,13 @@ public class ClickHouseHttpProto {
     public static final String HEADER_DATABASE = "X-ClickHouse-Database";
 
     /**
+     * Name of user to be used to authenticate
+     */
+    public static final String HEADER_DB_USER = "X-ClickHouse-User";
+
+    public static final String HEADER_DB_PASSWORD = "X-ClickHouse-Key";
+
+    /**
      * Query parameter to specify the query ID.
      */
     public static final String QPARAM_QUERY_ID = "query_id";

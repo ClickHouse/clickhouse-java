@@ -65,7 +65,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         return startIndex < endIndex ? header.substring(startIndex, endIndex) : defaultAlg;
     }
 
-    static PrivateKey getPrivateKey(String keyFile)
+    public static PrivateKey getPrivateKey(String keyFile)
             throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         String algorithm = (String) ClickHouseDefaults.SSL_KEY_ALGORITHM.getEffectiveDefaultValue();
         StringBuilder builder = new StringBuilder();
@@ -90,7 +90,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         return kf.generatePrivate(keySpec);
     }
 
-    protected KeyStore getKeyStore(String cert, String key) throws NoSuchAlgorithmException, InvalidKeySpecException,
+    public KeyStore getKeyStore(String cert, String key) throws NoSuchAlgorithmException, InvalidKeySpecException,
             IOException, CertificateException, KeyStoreException {
         final KeyStore ks;
         try {
@@ -117,7 +117,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         return ks;
     }
 
-    protected SSLContext getJavaSslContext(ClickHouseConfig config) throws SSLException {
+    public SSLContext getJavaSslContext(ClickHouseConfig config) throws SSLException {
         ClickHouseSslMode sslMode = config.getSslMode();
         String clientCert = config.getSslCert();
         String clientKey = config.getSslKey();
@@ -126,6 +126,20 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         String truststorePassword = config.getTrustStorePassword();
         String keyStoreType = (!config.getKeyStoreType().isEmpty() && config.getKeyStoreType() != null) ? config.getKeyStoreType() : KeyStore.getDefaultType();
 
+        return getSslContextImpl(sslMode, clientCert, clientKey, sslRootCert, truststorePath, truststorePassword,
+                keyStoreType);
+    }
+
+    public SSLContext getSslContextFromCerts(String clientCert, String clientKey, String sslRootCert) throws SSLException {
+        return getSslContextImpl(ClickHouseSslMode.STRICT,
+                clientCert, clientKey, sslRootCert, null, null, KeyStore.getDefaultType());
+    }
+
+    public SSLContext getSslContextFromKeyStore(String truststorePath, String truststorePassword, String keyStoreType) throws SSLException {
+        return getSslContextImpl(ClickHouseSslMode.STRICT, null, null, null, truststorePath, truststorePassword, keyStoreType);
+    }
+
+    private SSLContext getSslContextImpl(ClickHouseSslMode sslMode, String clientCert, String clientKey, String sslRootCert, String truststorePath, String truststorePassword, String keyStoreType) throws SSLException {
         SSLContext ctx;
         try {
             ctx = SSLContext.getInstance((String) ClickHouseDefaults.SSL_PROTOCOL.getEffectiveDefaultValue());
