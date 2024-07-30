@@ -52,14 +52,11 @@ public class SimpleReader {
     }
 
     public void readDataUsingBinaryFormat() {
-        try {
-            // Read data from the table
-            log.info("Reading data from table: {}", TABLE_NAME);
+        log.info("Reading data from table: {}", TABLE_NAME);
+        final String sql = "select * from " + TABLE_NAME + " where title <> '' limit 10";
 
-            final String sql = "select * from " + TABLE_NAME + " where title <> '' limit 10";
-
-            // Default format is RowBinaryWithNamesAndTypesFormatReader so reader have all information about columns
-            QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS);
+        // Default format is RowBinaryWithNamesAndTypesFormatReader so reader have all information about columns
+        try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS);) {
 
             // Create a reader to access the data in a convenient way
             ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
@@ -79,6 +76,7 @@ public class SimpleReader {
         } catch (Exception e) {
             log.error("Failed to read data", e);
         }
+        // Response object must be closed to release resources
     }
 
     public void readDataAll() {
@@ -100,10 +98,9 @@ public class SimpleReader {
     }
 
     public void readData() {
-        try {
-            log.info("Reading data from table: {} using Records iterator", TABLE_NAME);
-            final String sql = "select * from " + TABLE_NAME + " where title <> '' limit 10";
-            Records records = client.queryRecords(sql).get(3, TimeUnit.SECONDS);
+        log.info("Reading data from table: {} using Records iterator", TABLE_NAME);
+        final String sql = "select * from " + TABLE_NAME + " where title <> '' limit 10";
+        try (Records records = client.queryRecords(sql).get(3, TimeUnit.SECONDS);) {
 
             // Get some metrics
             log.info("Data read successfully: {} ms", TimeUnit.NANOSECONDS.toMillis(records.getServerTime()));

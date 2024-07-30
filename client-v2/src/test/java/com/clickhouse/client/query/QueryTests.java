@@ -33,6 +33,7 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -174,34 +175,30 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertTrue(records.isEmpty());
     }
 
-    @Test(groups = {"integration"}, enabled = false)
-    public void testQueryJSONWith64BitIntegers() throws ExecutionException, InterruptedException {
-        // won't work because format settings are set thru separate statement.
-        prepareSimpleDataSet();
-        List<QuerySettings> settingsList = Arrays.asList(
-                new QuerySettings()
-                        .setFormat(ClickHouseFormat.JSONEachRow)
-                        .setOption("format_json_quote_64bit_integers", "true"),
+    @Test(groups = {"integration"})
+    public void testQueryJSON() throws ExecutionException, InterruptedException {
+        Map<String, Object> datasetRecord = prepareSimpleDataSet();
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
+        final ObjectMapper objectMapper = new ObjectMapper();
+        try (QueryResponse queryResponse = response.get(); MappingIterator<JsonNode> jsonIter = objectMapper.readerFor(JsonNode.class)
+                .readValues(queryResponse.getInputStream())) {
 
-                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
-        List<Boolean> expected = Arrays.asList(true, false);
 
-        Iterator<Boolean> expectedIterator = expected.iterator();
-        for (QuerySettings settings : settingsList) {
-            Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
-            QueryResponse queryResponse = response.get();
-            ArrayList<JsonNode> records = new ArrayList<>();
-            final ObjectMapper objectMapper = new ObjectMapper();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
-                String line = null;
-                while ((line = br.readLine()) != null) {
-                    System.out.println(line);
-                    records.add(objectMapper.readTree(line));
-                    Assert.assertEquals(records.get(0).get("param4").isTextual(), expectedIterator.next());
-                }
-            } catch (IOException e) {
-                Assert.fail("failed to read response", e);
+            while (jsonIter.hasNext()) {
+                JsonNode node = jsonIter.next();
+                System.out.println(node);
+                long col1 = node.get("col1").asLong();
+                Assert.assertEquals(col1, datasetRecord.get("col1"));
+                int col2 = node.get("col2").asInt();
+                Assert.assertEquals(col2, datasetRecord.get("col2"));
+                String col3 = node.get("col3").asText();
+                Assert.assertEquals(col3, datasetRecord.get("col3"));
+                long col4 = node.get("col4").asLong();
+                Assert.assertEquals(col4, datasetRecord.get("col4"));
             }
+        } catch (Exception e) {
+            Assert.fail("failed to read response", e);
         }
     }
 
@@ -994,8 +991,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static String DATASET_TABLE = "query_test_table";
 
-    private void prepareSimpleDataSet() {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 1);
+    private Map<String, Object> prepareSimpleDataSet() {
+        return prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 1).get(0);
     }
 
     private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
