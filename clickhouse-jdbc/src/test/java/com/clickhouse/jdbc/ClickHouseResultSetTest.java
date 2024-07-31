@@ -439,9 +439,9 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
+            OffsetDateTime serverNowOffseted = rs.getObject(1, OffsetDateTime.class);
             LocalDateTime serverNow = (LocalDateTime) rs.getObject(1);
             OffsetDateTime tzTime = (OffsetDateTime) rs.getObject(2);
-            OffsetDateTime serverNowOffseted = rs.getObject(1, OffsetDateTime.class);
             Assert.assertTrue(serverNow.isEqual(tzTime.toLocalDateTime()));
             Assert.assertTrue(serverNow.isEqual(serverNowOffseted.toLocalDateTime()));
             Assert.assertEquals(tzTime.getOffset(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId().getRules().getOffset(tzTime.toInstant()));
@@ -451,7 +451,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Timestamp tzTimeTimestamp = rs.getTimestamp(2);
             ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
 
-            
+
             System.out.println("serverNow: " + serverNow + " tzTime: " + tzTime);
             System.out.println("serverNowZoned: " + serverNowZoned + " zone: " + serverNowZoned.getZone() );
             System.out.println("serverNowOffseted: " + serverNowOffseted);

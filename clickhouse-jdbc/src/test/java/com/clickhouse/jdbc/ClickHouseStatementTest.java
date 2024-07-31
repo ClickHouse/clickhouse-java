@@ -1,8 +1,27 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseBitmap;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.UnsignedByte;
+import com.clickhouse.data.value.UnsignedInteger;
+import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.UnsignedShort;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
+import org.testng.Assert;
+import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
 import java.io.File;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
@@ -23,7 +42,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -37,33 +55,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseParameterizedQuery;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseValues;
-import com.clickhouse.data.value.ClickHouseBitmap;
-import com.clickhouse.data.value.ClickHouseDateTimeValue;
-import com.clickhouse.data.value.UnsignedByte;
-import com.clickhouse.data.value.UnsignedInteger;
-import com.clickhouse.data.value.UnsignedLong;
-import com.clickhouse.data.value.UnsignedShort;
-
-import com.google.type.DateTime;
-import org.roaringbitmap.longlong.Roaring64NavigableMap;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
-import org.testng.Assert;
-import org.testng.SkipException;
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
     @DataProvider(name = "timeZoneTestOptions")
@@ -1457,8 +1449,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
              ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("SELECT now() SETTINGS session_timezone = 'America/Los_Angeles'");
             rs.next();
-            LocalDateTime srvNow = (LocalDateTime) rs.getObject(1);
-            LocalDateTime localNow = LocalDateTime.now(ZoneId.of("America/Los_Angeles"));
+            OffsetDateTime srvNow = rs.getObject(1, OffsetDateTime.class);
+            OffsetDateTime localNow = OffsetDateTime.now(ZoneId.of("America/Los_Angeles"));
             Assert.assertTrue(Duration.between(srvNow, localNow).abs().getSeconds() < 60,
                     "server time (" + srvNow +") differs from local time (" + localNow + ")");
         } catch (Exception e) {
@@ -1469,19 +1461,19 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testUseOffsetDateTime() {
-        Properties props = new Properties();
-        props.put(ClickHouseClientOption.USE_OFFSET_DATETIME.getKey(), true);
-        try (ClickHouseConnection conn = newConnection(props);
+        try (ClickHouseConnection conn = newConnection();
              ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select toDateTime('2024-01-01 10:00:00', 'America/Los_Angeles'), toDateTime('2024-05-01 10:00:00', " +
                     " 'America/Los_Angeles'), now() SETTINGS session_timezone = 'America/Los_Angeles'");
             rs.next();
             OffsetDateTime dstStart = (OffsetDateTime) rs.getObject(1);
             OffsetDateTime dstEnd = (OffsetDateTime) rs.getObject(2);
-            OffsetDateTime now = (OffsetDateTime) rs.getObject(3);
-
+            OffsetDateTime now = rs.getObject(3, OffsetDateTime.class);
             System.out.println("dstStart: " + dstStart + ", dstEnd: " + dstEnd + ", now: " + now);
+            Assert.assertEquals(dstStart.getOffset(), ZoneOffset.ofHours(-8));
+            Assert.assertEquals(dstEnd.getOffset(), ZoneOffset.ofHours(-7));
         } catch (Exception e) {
+            e.printStackTrace();
             Assert.fail("Failed to create connection", e);
         }
     }
