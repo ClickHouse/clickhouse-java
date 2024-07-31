@@ -180,7 +180,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                     Thread.sleep(2500);
                 }
             }
-        } while (loopCount++ < 10);
+        } while (loopCount++ < 5);
     }
 
 
