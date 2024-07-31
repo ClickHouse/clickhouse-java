@@ -459,6 +459,75 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+
+        /**
+         * Defines path to the trust store file. It cannot be combined with
+         * certificates. Either trust store or certificates should be used.
+         *
+         * {@see setSSLTrustStorePassword} and {@see setSSLTrustStoreType}
+         * @param path
+         * @return
+         */
+        public Builder setSSLTrustStore(String path) {
+            this.configuration.put(ClickHouseClientOption.TRUST_STORE.getKey(), path);
+            return this;
+        }
+
+        /**
+         * Password for the SSL Trust Store.
+         *
+         * @param password
+         * @return
+         */
+        public Builder setSSLTrustStorePassword(String password) {
+            this.configuration.put(ClickHouseClientOption.KEY_STORE_PASSWORD.getKey(), password);
+            return this;
+        }
+
+        /**
+         * Type of the SSL Trust Store. Usually JKS
+         *
+         * @param type
+         * @return
+         */
+        public Builder setSSLTrustStoreType(String type) {
+            this.configuration.put(ClickHouseClientOption.KEY_STORE_TYPE.getKey(), type);
+            return this;
+        }
+
+        /**
+         * Defines path to the key store file. It cannot be combined with
+         * certificates. Either key store or certificates should be used.
+         *
+         * {@see setSSLKeyStorePassword} and {@see setSSLKeyStoreType}
+         * @param path
+         * @return
+         */
+        public Builder setRootCertificate(String path) {
+            this.configuration.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE.getKey(), path);
+            return this;
+        }
+
+        /**
+         * Client certificate for mTLS.
+         * @param path
+         * @return
+         */
+        public Builder setClientCertificate(String path) {
+            this.configuration.put(ClickHouseClientOption.SSL_CERTIFICATE.getKey(), path);
+            return this;
+        }
+
+        /**
+         * Client key for mTLS.
+         * @param path
+         * @return
+         */
+        public Builder setClientKey(String path) {
+            this.configuration.put(ClickHouseClientOption.SSL_KEY.getKey(), path);
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -467,6 +536,11 @@ public class Client implements AutoCloseable {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
                 throw new IllegalArgumentException("Username and password are required");
+            }
+
+            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE) &&
+                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE)) {
+                throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
             this.configuration = setDefaults(this.configuration);
