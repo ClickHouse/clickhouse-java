@@ -6,7 +6,6 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -41,9 +40,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
 
-    protected InputStream inputStream;
-
-    protected ClickHouseInputStream chInputStream;
+    protected InputStream input;
 
     protected Map<String, Object> settings;
 
@@ -54,14 +51,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected volatile boolean hasNext = true;
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
-        this.inputStream = inputStream;
-        this.chInputStream = inputStream instanceof ClickHouseInputStream ?
-                (ClickHouseInputStream) inputStream : ClickHouseInputStream.of(inputStream);
+        this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        this.binaryStreamReader = new BinaryStreamReader(chInputStream, LOG);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, LOG);
         setSchema(schema);
     }
-
 
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
 
@@ -85,7 +79,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public boolean hasNext() {
         if (hasNext) {
             try {
-                hasNext = chInputStream.available() > 0;
+                hasNext = input.available() > 0;
                 return hasNext;
             } catch (IOException e) {
                 hasNext = false;

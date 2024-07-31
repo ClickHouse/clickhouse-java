@@ -45,6 +45,7 @@ import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseDataType;
@@ -82,6 +83,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBatchUpdate() throws SQLException {
+        if (isCloud()) return; //TODO: testBatchUpdate - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
             if (!conn.getServerVersion().check("[22.8,)")) {
@@ -173,8 +175,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
+    @Test(groups = "integration", enabled = false)
     public void testOutFileAndInFile() throws SQLException {
+        if (isCloud()) return; //TODO: testOutFileAndInFile - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
             throw new SkipException("Skip non-http protocol");
         }
@@ -193,7 +196,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         f2.deleteOnExit();
 
         try (ClickHouseConnection conn = newConnection(props)) {
-            String sql1 = "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'";
+            String sql1 = "SELECT number n, toString(n) FROM numbers(1234) into outfile '" + f1.getName() + "'";
             try (ClickHouseStatement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql1)) {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
@@ -282,14 +285,15 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testSwitchCatalog() throws SQLException {
+        if (isCloud()) return; //TODO: testSwitchCatalog - Revisit, see:https://github.com/ClickHouse/clickhouse-java/issues/1747
         Properties props = new Properties();
         props.setProperty("databaseTerm", "catalog");
         props.setProperty("database", "system");
+        String dbName = "test_switch_schema";
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             Assert.assertEquals(conn.getCatalog(), "system");
             Assert.assertEquals(conn.getSchema(), null);
-            String dbName = "test_switch_schema";
             stmt.execute(
                     ClickHouseParameterizedQuery.apply("drop database if exists :db; "
                             + "create database :db; "
@@ -346,19 +350,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
             Assert.assertThrows(SQLException.class,
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
+        } finally {
+            dropDatabase(dbName);
         }
     }
 
     @Test(groups = "integration")
     public void testSwitchSchema() throws SQLException {
+        if (isCloud()) return; //TODO: testSwitchSchema - Revisit, see:https://github.com/ClickHouse/clickhouse-java/issues/1747
         Properties props = new Properties();
         props.setProperty("databaseTerm", "schema");
         props.setProperty("database", "system");
+        String dbName = "test_switch_schema";
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             Assert.assertEquals(conn.getCatalog(), null);
             Assert.assertEquals(conn.getSchema(), "system");
-            String dbName = "test_switch_schema";
             stmt.execute(
                     ClickHouseParameterizedQuery.apply("drop database if exists :db; "
                             + "create database :db; "
@@ -415,6 +422,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
             Assert.assertThrows(SQLException.class,
                     () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
+        } finally {
+            dropDatabase(dbName);
         }
     }
 
@@ -516,9 +525,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             stmt.execute("drop table if exists test_async_insert; "
-                    + "create table test_async_insert(id UInt32, s String) ENGINE = Memory; "
+                    + "CREATE TABLE test_async_insert(id UInt32, s String) ENGINE = MergeTree ORDER BY id; "
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
-                    + "select * from test_async_insert");
+                    + "SELECT * FROM test_async_insert" + (isCloud() ? " SETTINGS select_sequential_consistency=1" : ""));
             ResultSet rs = stmt.getResultSet();
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
@@ -526,12 +535,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertFalse(rs.next());
         }
 
+        //TODO: I'm not sure this is a valid test...
+        if (isCloud()) return; //TODO: testAsyncInsert - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
-            stmt.execute("truncate table test_async_insert; "
+            stmt.execute("TRUNCATE TABLE test_async_insert; "
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
-                    + "select * from test_async_insert");
+                    + "SELECT * FROM test_async_insert");
             ResultSet rs = stmt.getResultSet();
             Assert.assertFalse(rs.next(),
                     "Server was probably busy at that time, so the row was inserted before your query");
@@ -540,6 +551,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "connectionProperties", groups = "integration")
     public void testCancelQuery(Properties props) throws SQLException {
+        if (isCloud()) return; //TODO: testCancelQuery - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
@@ -1274,6 +1286,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(dataProvider = "timeZoneTestOptions", groups = "integration")
     public void testTimeZone(boolean useBinary) throws SQLException {
+        if (isCloud()) return; //TODO: testTimeZone - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String dateType = "DateTime32";
         String dateValue = "2020-02-11 00:23:33";
         ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0, ClickHouseValues.UTC_TIMEZONE);

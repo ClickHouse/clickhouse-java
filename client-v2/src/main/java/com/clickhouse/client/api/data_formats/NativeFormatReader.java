@@ -1,12 +1,10 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -43,14 +41,15 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     }
 
     private void readBlock() throws IOException {
-        int nColumns = chInputStream.readVarInt();
-        int nRows = chInputStream.readVarInt();
+        int nColumns = BinaryStreamReader.readVarInt(input);
+        int nRows = BinaryStreamReader.readVarInt(input);
 
         List<String> names = new ArrayList<>(nColumns);
         List<String> types = new ArrayList<>(nColumns);
         currentBlock = new Block(names, types, nRows);
         for (int i = 0; i < nColumns; i++) {
-            ClickHouseColumn column = ClickHouseColumn.of(chInputStream.readUnicodeString(), chInputStream.readUnicodeString());
+            ClickHouseColumn column = ClickHouseColumn.of(BinaryStreamReader.readString(input),
+                    BinaryStreamReader.readString(input));
             names.add(column.getColumnName());
             types.add(column.getDataType().name());
 

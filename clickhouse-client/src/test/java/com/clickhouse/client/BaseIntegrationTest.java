@@ -6,6 +6,9 @@ import java.util.Locale;
 import java.util.Map;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import org.testng.annotations.AfterSuite;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 
 /**
@@ -17,6 +20,11 @@ public abstract class BaseIntegrationTest {
         ClickHouseServerForTest.beforeSuite();
     }
 
+    @AfterTest(groups = {"integration"})
+    public static void teardownClickHouseContainer() {
+        ClickHouseServerForTest.afterSuite();
+    }
+
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
     }
@@ -26,11 +34,11 @@ public abstract class BaseIntegrationTest {
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), ClickHouseNode.builder().build());
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, false, base);
+        return ClickHouseServerForTest.getClickHouseNode(protocol, isCloud(), base);
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
@@ -52,4 +60,30 @@ public abstract class BaseIntegrationTest {
         return ipAddress;
     }
 
+    protected boolean isCloud() {
+        return ClickHouseServerForTest.isCloud();
+    }
+
+    protected String getConnectionProtocol() {
+        if (isCloud()) {
+            return "https";
+        } else {
+            return "http";
+        }
+    }
+
+    protected String getPassword() {
+        return ClickHouseServerForTest.getPassword();
+    }
+
+    protected boolean runQuery(String query) {
+        return ClickHouseServerForTest.runQuery(query);
+    }
+
+    protected boolean createDatabase(String dbName) {
+        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS " + dbName);
+    }
+    protected boolean dropDatabase(String dbName) {
+        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS " + dbName);
+    }
 }

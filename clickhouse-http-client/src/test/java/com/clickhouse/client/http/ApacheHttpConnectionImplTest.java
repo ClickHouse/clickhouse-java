@@ -25,18 +25,15 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.admin.model.ScenarioState;
 import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
-import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
-import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
@@ -56,7 +53,6 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                     throw new IOException("socket factory has already created");
                 }
             }
-
             throw new UnsupportedOperationException(ClickHouseUtils.format("Class %s is not supported", clazz));
         }
 
@@ -92,6 +88,7 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     }
 
     @Test(groups = { "integration" })
+    @Ignore("Need to disable the option to provide custom socket factory. note: need to remove it")
     public void testCustomOptions() throws Exception {
         Map<String, String> customOptions = new HashMap<>();
         customOptions.put(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(),

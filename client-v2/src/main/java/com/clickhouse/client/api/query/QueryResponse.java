@@ -4,14 +4,14 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHouseInputStream;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.io.InputStream;
+import java.io.InputStream;
 
 /**
  * Response class provides interface to input stream of response data.
@@ -30,17 +30,15 @@ public class QueryResponse implements AutoCloseable {
 
     private final ClickHouseResponse clickHouseResponse;
     private final ClickHouseFormat format;
-
-    private long completeTimeout = TimeUnit.MINUTES.toMillis(1);
-
     private ClickHouseClient client;
 
     private QuerySettings settings;
 
     private OperationMetrics operationMetrics;
 
-    private volatile boolean completed = false;
+    private ClassicHttpResponse httpResponse;
 
+    @Deprecated
     public QueryResponse(ClickHouseClient client, ClickHouseResponse clickHouseResponse,
                          QuerySettings settings, ClickHouseFormat format,
                          ClientStatisticsHolder clientStatisticsHolder) {
@@ -49,29 +47,60 @@ public class QueryResponse implements AutoCloseable {
         this.format = format;
         this.settings = settings;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
-        this.operationMetrics.operationComplete(clickHouseResponse.getSummary());
+        this.operationMetrics.operationComplete();
+        this.operationMetrics.setQueryId(clickHouseResponse.getSummary().getQueryId());
+        ClientV1AdaptorHelper.setServerStats(clickHouseResponse.getSummary().getProgress(),
+                this.operationMetrics);
     }
 
-    public ClickHouseInputStream getInputStream() {
-        try {
-            return clickHouseResponse.getInputStream();
-        } catch (Exception e) {
-            throw new RuntimeException(e); // TODO: handle exception
+    public QueryResponse(ClassicHttpResponse response, QuerySettings settings, OperationMetrics operationMetrics) {
+        this.clickHouseResponse = null;
+        this.httpResponse = response;
+        this.format = settings.getFormat();
+        this.settings = settings;
+        this.operationMetrics = operationMetrics;
+    }
+
+    public InputStream getInputStream() {
+        if (clickHouseResponse != null) {
+            try {
+                return clickHouseResponse.getInputStream();
+            } catch (Exception e) {
+                throw new RuntimeException(e); // TODO: handle exception
+            }
+        } else {
+            try {
+                return httpResponse.getEntity().getContent();
+            } catch (Exception e) {
+                throw new ClientException("Failed to construct input stream", e);
+            }
         }
     }
 
     @Override
     public void close() throws Exception {
-        try {
-            clickHouseResponse.close();
-        } catch (Exception e) {
-            throw new ClientException("Failed to close response", e);
+        if (clickHouseResponse != null) {
+            try {
+                clickHouseResponse.close();
+            } catch (Exception e) {
+                throw new ClientException("Failed to close response", e);
+            }
         }
 
-        try {
-            client.close();
-        } catch (Exception e) {
-            throw new ClientException("Failed to close client", e);
+        if (httpResponse != null ) {
+            try {
+                httpResponse.close();
+            } catch (Exception e) {
+                throw new ClientException("Failed to close response", e);
+            }
+        }
+
+        if (client !=null) {
+            try {
+                client.close();
+            } catch (Exception e) {
+                throw new ClientException("Failed to close client", e);
+            }
         }
     }
 
