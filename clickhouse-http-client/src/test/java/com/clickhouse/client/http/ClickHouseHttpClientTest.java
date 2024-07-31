@@ -423,7 +423,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 try {
                     Thread.sleep(30000);
                 } catch (InterruptedException e) {
-                    // ignore
+                    throw new RuntimeException(e);
                 }
             }
 

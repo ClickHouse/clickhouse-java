@@ -410,7 +410,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
             }
             int port = p.getDefaultPort();
             if (isCloud()) {
-                port = 8433;
+                port = 8443;
             }
             ClickHouseNode node = getServer(ClickHouseProtocol.ANY, port);
             ClickHouseNode probedNode = node.probe();

@@ -179,7 +179,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["22.8", "23.3", "23.7", "latest"]
+        clickhouse: ["23.8", "24.3", "24.6", "latest"]
       fail-fast: false
     timeout-minutes: 15
     name: Java client + CH ${{ matrix.clickhouse }}
@@ -298,7 +298,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["22.8", "23.3", "23.7", "latest", "cloud"]
+        clickhouse: ["23.8", "24.3", "24.6", "latest", "cloud"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
         protocol: ["http", "http_client", "apache_http_client", "grpc"]
       fail-fast: false
