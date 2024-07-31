@@ -41,6 +41,15 @@ public class Main {
         reader.readDataAll();
         reader.readData();
 
+        // Read as Text format
+        TextFormatsReader textFormatsReader = new TextFormatsReader(endpoint, user, password, database);
+        textFormatsReader.readAsJsonEachRow();
+        textFormatsReader.readAsJsonEachRowButGSon();
+        textFormatsReader.readJSONEachRowIntoArrayOfObject();
+        textFormatsReader.readJSONEachRowIntoArrayOfObjectGson();
+        textFormatsReader.readAsCSV();
+        textFormatsReader.readAsTSV();
+
         // Insert data using POJO
         POJO2DbWriter pojoWriter = new POJO2DbWriter(endpoint, user, password, database);
         pojoWriter.resetTable();
