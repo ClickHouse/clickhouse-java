@@ -427,11 +427,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     QUERY_ID("query_id", "", "Query id"),
 
-    /**
-     * Whether to use OffsetDateTime for DateTime values. If false, LocalDateTime will be used.
-     */
-    USE_OFFSET_DATETIME("use_offset_datetime", false,
-            "Whether to use OffsetDateTime for DateTime values. If false, LocalDateTime will be used."),
     ;
 
     private final String key;

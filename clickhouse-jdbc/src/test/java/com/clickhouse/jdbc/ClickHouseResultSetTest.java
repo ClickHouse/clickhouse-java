@@ -5,10 +5,14 @@ import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +22,7 @@ import java.util.function.BiFunction;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSimpleResponse;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseRecord;
@@ -422,6 +427,36 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 rs.setFetchSize(-1);
                 Assert.assertEquals(rs.getFetchSize(), 1);
             }
+        }
+    }
+
+
+    @Test(groups = "integration")
+    public void testDateTimeWithoutTimezone() throws SQLException {
+        final String sql =  "select now(), toDateTime(now(), 'America/Los_Angeles') as tzTime SETTINGS session_timezone = 'America/Los_Angeles'";
+        // Default behavior
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            LocalDateTime serverNow = (LocalDateTime) rs.getObject(1);
+            OffsetDateTime tzTime = (OffsetDateTime) rs.getObject(2);
+            OffsetDateTime serverNowOffseted = rs.getObject(1, OffsetDateTime.class);
+            Assert.assertTrue(serverNow.isEqual(tzTime.toLocalDateTime()));
+            Assert.assertTrue(serverNow.isEqual(serverNowOffseted.toLocalDateTime()));
+            Assert.assertEquals(tzTime.getOffset(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId().getRules().getOffset(tzTime.toInstant()));
+            Time serverNowTime = rs.getTime(1);
+            Time tzTimeTime = rs.getTime(2);
+            Timestamp serverNowTimestamp = rs.getTimestamp(1);
+            Timestamp tzTimeTimestamp = rs.getTimestamp(2);
+            ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
+
+            
+            System.out.println("serverNow: " + serverNow + " tzTime: " + tzTime);
+            System.out.println("serverNowZoned: " + serverNowZoned + " zone: " + serverNowZoned.getZone() );
+            System.out.println("serverNowOffseted: " + serverNowOffseted);
+            System.out.println("serverNowTime: " + serverNowTime + " tzTimeTime: " + tzTimeTime);
+            System.out.println("serverNowTimestamp: " + serverNowTimestamp + " tzTimeTimestamp: " + tzTimeTimestamp);
         }
     }
 }

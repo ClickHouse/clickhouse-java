@@ -412,10 +412,4 @@ public interface ClickHouseDataConfig extends Serializable {
      * @return non-null preferred time zone
      */
     TimeZone getUseTimeZone();
-
-    /**
-     * Indicates if date/time values should be always having a timezone information
-     * @return
-     */
-    default boolean getUseOffsetDateTime() { return false; }
 }

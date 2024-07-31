@@ -253,8 +253,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     // node selector - pick only interested nodes from given list
     private final ClickHouseNodeSelector nodeSelector;
 
-    private boolean useOffsetDateTime;
-
     /**
      * Construct a new configuration by consolidating given ones.
      *
@@ -365,7 +363,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.useObjectsInArray = getBoolOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useServerTimeZone = getBoolOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDates = getBoolOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
-        this.useOffsetDateTime = getBoolOption(ClickHouseClientOption.USE_OFFSET_DATETIME);
 
         String timeZone = getStrOption(ClickHouseClientOption.USE_TIME_ZONE);
         TimeZone tz = ClickHouseChecker.isNullOrBlank(timeZone) ? TimeZone.getDefault()
@@ -954,8 +951,4 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return (ClickHouseRenameMethod) getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
     }
 
-    @Override
-    public boolean getUseOffsetDateTime() {
-        return useOffsetDateTime;
-    }
 }
