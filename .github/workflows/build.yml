@@ -252,14 +252,14 @@ jobs:
     name: Java client (http) + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
@@ -293,7 +293,7 @@ jobs:
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -491,14 +491,14 @@ jobs:
     name: Client V2 + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
@@ -527,7 +527,7 @@ jobs:
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects client-v2 -Dclient.tests.useNewImplementation=true -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
