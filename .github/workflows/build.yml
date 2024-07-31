@@ -402,3 +402,60 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
+
+  test-client-v2:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        # most recent LTS releases as well as latest stable builds
+        # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
+        clickhouse: ["24.6", "latest"]
+      fail-fast: false
+    timeout-minutes: 15
+    name: Client V2 + CH ${{ matrix.clickhouse }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 17 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            17
+          cache: "maven"
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>17</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Test Java client
+        run: |
+          mvn --also-make --batch-mode --no-transfer-progress --projects client-v2 -Dclient.tests.useNewImplementation=true -DclickhouseVersion=${{ matrix.clickhouse }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
