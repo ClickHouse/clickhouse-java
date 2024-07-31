@@ -66,7 +66,7 @@ public class ClientTests extends BaseIntegrationTest {
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
-                .addEndpoint("https://localhost:8443")
+                .addEndpoint("https://localhost:" + secureServer.getPort())
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
