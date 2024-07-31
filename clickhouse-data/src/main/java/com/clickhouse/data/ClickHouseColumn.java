@@ -894,11 +894,7 @@ public final class ClickHouseColumn implements Serializable {
             case DateTime:
             case DateTime32:
             case DateTime64:
-                if (config.getUseOffsetDateTime()) {
-                    value = ClickHouseOffsetDateTimeValue.ofNull(getScale(), config.getUseTimeZone());
-                } else {
-                    value = ClickHouseDateTimeValue.ofNull(getScale(), config.getUseTimeZone());
-                }
+                value = ClickHouseDateTimeValue.ofNull(getScale(), config.getUseTimeZone());
                 break;
             case SimpleAggregateFunction:
                 value = nested.get(0).newValue(config);

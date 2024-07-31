@@ -950,5 +950,4 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     public ClickHouseRenameMethod getColumnRenameMethod() {
         return (ClickHouseRenameMethod) getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
     }
-
 }

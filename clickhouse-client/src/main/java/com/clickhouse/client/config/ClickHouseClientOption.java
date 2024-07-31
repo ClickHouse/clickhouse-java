@@ -425,9 +425,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Query ID to be attached to an operation
      */
-    QUERY_ID("query_id", "", "Query id"),
-
-    ;
+    QUERY_ID("query_id", "", "Query id");
 
     private final String key;
     private final Serializable defaultValue;
