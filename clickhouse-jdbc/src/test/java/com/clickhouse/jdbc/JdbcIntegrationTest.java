@@ -69,18 +69,6 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-//    public JdbcIntegrationTest() {
-//        String className = getClass().getSimpleName();
-//        if (className.startsWith(CLASS_PREFIX)) {
-//            className = className.substring(CLASS_PREFIX.length());
-//        }
-//        if (className.endsWith(CLASS_SUFFIX)) {
-//            className = className.substring(0, className.length() - CLASS_SUFFIX.length());
-//        }
-//
-//        this.dbName = "test_" + className.toLowerCase(Locale.ROOT);
-//    }
-
     public String getServerAddress(ClickHouseProtocol protocol) {
         return getServerAddress(protocol, false);
     }
