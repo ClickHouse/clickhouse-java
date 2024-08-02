@@ -88,6 +88,11 @@ public class HttpAPIClientHelper {
                 (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
 
         this.baseRequestConfig = reqConfBuilder.build();
+
+        boolean usingClientCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean usingServerCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+        LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
     }
 
     public CloseableHttpClient createHttpClient() {
@@ -269,9 +274,18 @@ public class HttpAPIClientHelper {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }
 
-        if (chConfig.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true")) {
-            if (chConfig.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true")) {
+        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+
+        if (serverCompression) {
+            if (useHttpCompression) {
                 req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
+            }
+        }
+        if (clientCompression) {
+            if (useHttpCompression) {
+                req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
     }
@@ -292,13 +306,23 @@ public class HttpAPIClientHelper {
             }
         }
 
-        if (chConfig.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true")) {
-            if (chConfig.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true")) {
+        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+
+        if (serverCompression) {
+            if (useHttpCompression) {
                 req.addParameter("enable_http_compression", "1");
             } else {
                 req.addParameter("compress", "1");
             }
         }
+        if (clientCompression) {
+            if (useHttpCompression) {
+                req.addParameter("enable_http_compression", "1");
+            } else {
+                req.addParameter("decompress", "1");
+            }        }
     }
 
     private HttpEntity wrapEntity(HttpEntity httpEntity) {

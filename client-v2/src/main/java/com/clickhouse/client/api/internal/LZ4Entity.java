@@ -36,7 +36,16 @@ class LZ4Entity implements HttpEntity {
     @Override
     public InputStream getContent() throws IOException, UnsupportedOperationException {
         if (serverCompression && useHttpCompression) {
-            return new FramedLZ4CompressorInputStream(httpEntity.getContent());
+            InputStream content = httpEntity.getContent();
+            try {
+                return new FramedLZ4CompressorInputStream(content);
+            } catch (IOException e) {
+                // This is the easiest way to handle empty content because
+                // - streams at this point wrapped with something else and we can't check content length
+                // - exception is thrown with no details
+                // So we just return original content and if there is a real data in it we will get error later
+                return content;
+            }
         } else {
             return httpEntity.getContent();
         }

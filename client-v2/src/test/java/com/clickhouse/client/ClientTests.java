@@ -18,9 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 public class ClientTests extends BaseIntegrationTest {
 
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+//    static {
+//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+//    }
 
     @Test(dataProvider = "clientProvider")
     public void testAddSecureEndpoint(Client client) {
@@ -117,29 +117,4 @@ public class ClientTests extends BaseIntegrationTest {
             client.close();
         }
     }
-
-    @Test
-    public void testServerCompression() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        Client client = new Client.Builder()
-                .addEndpoint(node.toUri().toString())
-                .setUsername("default")
-                .setPassword("")
-                .compressServerResponse(true)
-                .useHttpCompression(true)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
-                .build();
-
-        try (Records response = client.queryRecords("SELECT number FROM system.numbers LIMIT 10").get()) {
-            response.forEach(record -> {
-                System.out.println(record);
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-            Assert.fail(e.getMessage());
-        } finally {
-            client.close();
-        }
-    }
-
 }

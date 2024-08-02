@@ -40,6 +40,8 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStream;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
@@ -758,6 +760,7 @@ public class Client implements AutoCloseable {
                                                 }
                                             }
                                         }
+                                        out.close();
                                     })) {
 
 
@@ -876,7 +879,7 @@ public class Client implements AutoCloseable {
                                              while ((bytesRead = data.read(buffer)) != -1) {
                                                  out.write(buffer, 0, bytesRead);
                                              }
-                                             out.flush();
+                                             out.close();
                                          })) {
 
 
@@ -1038,7 +1041,7 @@ public class Client implements AutoCloseable {
                         ClassicHttpResponse httpResponse =
                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.flush();
+                                    output.close();
                                 });
 
                         // Check response
