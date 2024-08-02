@@ -86,7 +86,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .setPassword("")
                 .compressClientRequest(false)
                 .compressServerResponse(false)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .build();
 
         delayForProfiler(0);
@@ -215,7 +215,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
     public void testRowBinaryQueries(ClickHouseFormat format)
             throws ExecutionException, InterruptedException {
-        final int rows = 1;
+        final int rows = 3;
         // TODO: replace with dataset with all primitive types of data
         // TODO: reusing same table name may lead to a conflict in tests?
 
@@ -229,11 +229,15 @@ public class QueryTests extends BaseIntegrationTest {
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, tableSchema);
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
+        int rowsCount = 0;
         while (dataIterator.hasNext()) {
             Map<String, Object> expectedRecord = dataIterator.next();
             Map<String, Object> actualRecord = reader.next();
             Assert.assertEquals(actualRecord, expectedRecord);
+            rowsCount++;
         }
+
+        Assert.assertEquals(rowsCount, rows);
     }
 
     private static ClickHouseBinaryFormatReader createBinaryFormatReader(QueryResponse response, QuerySettings settings,
@@ -272,8 +276,8 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
-        while (reader.hasNext()) {
-            Assert.assertNotNull(reader.next());
+        int rowsCount = 0;
+        while (reader.next() != null) {
             String hostName = reader.readValue("host");
             Long col1 = reader.readValue("col1");
             String col3 = reader.readValue("col3");
@@ -283,9 +287,11 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.readValue(1), col1);
             Assert.assertEquals(reader.readValue(2), col3);
             Assert.assertEquals(reader.readValue(3), hostName);
+            rowsCount++;
         }
-
-        Assert.expectThrows(NoSuchElementException.class, reader::next);
+        Assert.assertEquals(rowsCount, 10);
+        Assert.assertFalse(reader.hasNext());
+        Assert.assertNull(reader.next());
     }
 
     @Test(groups = {"integration"})

@@ -48,7 +48,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private TableSchema schema;
 
-    protected volatile boolean hasNext = true;
+    private volatile boolean hasNext = true;
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         this.input = inputStream;
@@ -58,8 +58,28 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
+    protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
-    protected abstract void readRecord(Map<String, Object> record) throws IOException;
+
+    protected boolean readRecord(Map<String, Object> record) throws IOException {
+        boolean firstColumn = true;
+        for (ClickHouseColumn column : getSchema().getColumns()) {
+            try {
+                Object val = binaryStreamReader.readValue(column);
+                if (val != null) {
+                    record.put(column.getColumnName(),val);
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            }
+        }
+        return true;
+    }
 
     @Override
     public <T> T readValue(int colIndex) {
@@ -77,35 +97,53 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasNext() {
-        if (hasNext) {
-            try {
-                hasNext = input.available() > 0;
-                return hasNext;
-            } catch (IOException e) {
+         return hasNext;
+    }
+
+
+    protected void readNextRecord() {
+        try {
+            nextRecord.clear();
+            if (!readRecord(nextRecord)) {
                 hasNext = false;
-                LOG.error("Failed to check if there is more data available", e);
-                return false;
             }
+        } catch (IOException e) {
+            hasNext = false;
+            throw new ClientException("Failed to read next row", e);
         }
-        return false;
     }
 
     @Override
     public Map<String, Object> next() {
         if (!hasNext) {
-            throw new NoSuchElementException();
+            return null;
         }
 
-        try {
-            readRecord(currentRecord);
+        if (!nextRecord.isEmpty()) {
+            Map<String, Object> tmp = currentRecord;
+            currentRecord = nextRecord;
+            nextRecord = tmp;
+            readNextRecord();
             return currentRecord;
-        } catch (EOFException e) {
-            hasNext = false;
-            return null;
-        } catch (IOException e) {
-            hasNext = false;
-            throw new ClientException("Failed to read row", e);
+        } else {
+            try {
+                currentRecord.clear();
+                if (readRecord(currentRecord)) {
+                    readNextRecord();
+                    return currentRecord;
+                } else {
+                    currentRecord = null;
+                    return null;
+                }
+            } catch (IOException e) {
+                hasNext = false;
+                throw new ClientException("Failed to read row", e);
+            }
         }
+    }
+
+    protected void endReached() {
+        hasNext = false;
     }
 
     protected void setSchema(TableSchema schema) {

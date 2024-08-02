@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -28,20 +29,30 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings) {
         super(inputStream, settings, null);
+        readNextRecord();
     }
 
     @Override
-    protected void readRecord(Map<String, Object> record) throws IOException {
+    protected boolean readRecord(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
-            readBlock();
+            if (!readBlock()) {
+                return false;
+            }
         }
 
         currentBlock.fillRecord(blockRowIndex, record);
         blockRowIndex++;
+        return true;
     }
 
-    private void readBlock() throws IOException {
-        int nColumns = BinaryStreamReader.readVarInt(input);
+    private boolean readBlock() throws IOException {
+        int nColumns;
+        try {
+            nColumns = BinaryStreamReader.readVarInt(input);
+        } catch (EOFException e) {
+            endReached();
+            return false;
+        }
         int nRows = BinaryStreamReader.readVarInt(input);
 
         List<String> names = new ArrayList<>(nColumns);
@@ -61,6 +72,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             currentBlock.add(values);
         }
         blockRowIndex = 0;
+        return true;
     }
 
     @Override

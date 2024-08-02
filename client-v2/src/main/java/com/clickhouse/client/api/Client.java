@@ -392,7 +392,7 @@ public class Client implements AutoCloseable {
          * @param enabled - indicates if server response compression is enabled
          */
         public Builder compressServerResponse(boolean enabled) {
-            this.configuration.put("compress", String.valueOf(enabled));
+            this.configuration.put(ClickHouseClientOption.COMPRESS.getKey(), String.valueOf(enabled));
             return this;
         }
 
@@ -403,7 +403,7 @@ public class Client implements AutoCloseable {
          * @param enabled - indicates if client request compression is enabled
          */
         public Builder compressClientRequest(boolean enabled) {
-            this.configuration.put("decompress", String.valueOf(enabled));
+            this.configuration.put(ClickHouseClientOption.DECOMPRESS.getKey(), String.valueOf(enabled));
             return this;
         }
 
@@ -1149,8 +1149,9 @@ public class Client implements AutoCloseable {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
-                    while (reader.hasNext()) {
-                        records.add(new MapBackedRecord(reader.next(), reader.getSchema()));
+                    Map<String, Object> record;
+                    while ((record = reader.next()) != null) {
+                        records.add(new MapBackedRecord(record, reader.getSchema()));
                     }
                 }
                 return records;
