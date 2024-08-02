@@ -30,7 +30,13 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
         try {
             TableSchema headerSchema = new TableSchema();
             List<String> columns = new ArrayList<>();
-            int nCol = BinaryStreamReader.readVarInt(input);
+            int nCol;
+            try {
+                nCol = BinaryStreamReader.readVarInt(input);
+            } catch (EOFException e) {
+                endReached();
+                return;
+            }
             for (int i = 0; i < nCol; i++) {
                 columns.add(BinaryStreamReader.readString(input));
             }
@@ -42,23 +48,6 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
             setSchema(headerSchema);
         } catch (IOException e) {
             throw new ClientException("Failed to read header", e);
-        }
-    }
-
-    /**
-     * Reads a row to a map using column definitions from the schema.
-     * If column type mismatch and cannot be converted, an exception will be thrown.
-     *
-     * @param record data destination
-     * @throws IOException
-     */
-    @Override
-    public void readRecord(Map<String, Object> record) throws IOException {
-        for (ClickHouseColumn column : getSchema().getColumns()) {
-            Object val = binaryStreamReader.readValue(column);
-            if (val != null) {
-                record.put(column.getColumnName(),val);
-            }
         }
     }
 }

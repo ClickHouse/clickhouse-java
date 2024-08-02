@@ -86,7 +86,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .setPassword("")
                 .compressClientRequest(false)
                 .compressServerResponse(false)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .build();
 
         delayForProfiler(0);
@@ -272,8 +272,7 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
-        while (reader.hasNext()) {
-            Assert.assertNotNull(reader.next());
+        while (reader.next() != null) {
             String hostName = reader.readValue("host");
             Long col1 = reader.readValue("col1");
             String col3 = reader.readValue("col3");
@@ -285,7 +284,8 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.readValue(3), hostName);
         }
 
-        Assert.expectThrows(NoSuchElementException.class, reader::next);
+        Assert.assertFalse(reader.hasNext());
+        Assert.assertNull(reader.next());
     }
 
     @Test(groups = {"integration"})

@@ -52,11 +52,13 @@ public class ClientTests extends BaseIntegrationTest {
                         .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
                         .setUsername("default")
                         .setPassword("")
+                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                         .build(),
                 new Client.Builder()
                         .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
                         .setUsername("default")
                         .setPassword("")
+                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                         .build()
         };
     }
