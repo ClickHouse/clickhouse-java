@@ -34,6 +34,7 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
@@ -404,6 +405,11 @@ public class Client implements AutoCloseable {
          */
         public Builder compressClientRequest(boolean enabled) {
             this.configuration.put(ClickHouseClientOption.DECOMPRESS.getKey(), String.valueOf(enabled));
+            return this;
+        }
+
+        public Builder useHttpCompression(boolean enabled) {
+            this.configuration.put("client.use_http_compression", String.valueOf(enabled));
             return this;
         }
 
