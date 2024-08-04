@@ -31,8 +31,11 @@ public class BinaryStreamReader {
 
     private final Logger log;
 
-    BinaryStreamReader(InputStream input, Logger log) {
+    private final TimeZone timeZone;
+
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
+        this.timeZone = timeZone;
         this.input = input;
     }
 
@@ -114,13 +117,17 @@ public class BinaryStreamReader {
                 case Enum16:
                     return (T) Short.valueOf((short) readUnsignedShortLE(input));
                 case Date:
-                    return (T) readDate(input, column.getTimeZone());
+                    return (T) readDate(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case Date32:
-                    return (T) readDate32(input, column.getTimeZone());
+                    return (T) readDate32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime32:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime64:
                     return (T) readDateTime64(input, 3, column.getTimeZone());
 

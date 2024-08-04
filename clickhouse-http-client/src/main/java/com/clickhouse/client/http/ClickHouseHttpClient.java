@@ -212,7 +212,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
 
 
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
-                sealedRequest.getSettings(), null, httpResponse.summary);
+                sealedRequest.getSettings(), null, httpResponse.summary, httpResponse.getTimeZone());
     }
 
     @Override

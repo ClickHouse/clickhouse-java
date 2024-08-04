@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.TimeZone;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -39,7 +40,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     /**
      * Empty response that can never be closed.
      */
-    static final ClickHouseResponse EMPTY = new ClickHouseResponse() {
+    ClickHouseResponse EMPTY = new ClickHouseResponse() {
         @Override
         public List<ClickHouseColumn> getColumns() {
             return Collections.emptyList();
@@ -75,6 +76,11 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
             // ensure the instance is "stateless"
             return false;
         }
+
+        @Override
+        public TimeZone getTimeZone() {
+            return null;
+        }
     };
 
     /**
@@ -101,6 +107,15 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * @return non-null input stream for getting raw data returned from server
      */
     ClickHouseInputStream getInputStream();
+
+    /**
+     * Returns a server timezone if it is returned by server in a header {@code X-ClickHouse-Timezone } or
+     * other way. If not, it returns null
+     * @return server timezone from server response or null
+     */
+    default TimeZone getTimeZone() {
+        return null;
+    }
 
     /**
      * Gets the first record only. Please use {@link #records()} instead if you need

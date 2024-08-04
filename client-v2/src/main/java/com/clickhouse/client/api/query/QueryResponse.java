@@ -7,11 +7,13 @@ import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 
 import java.io.InputStream;
-import java.io.InputStream;
+import java.util.TimeZone;
 
 /**
  * Response class provides interface to input stream of response data.
@@ -51,6 +53,7 @@ public class QueryResponse implements AutoCloseable {
         this.operationMetrics.setQueryId(clickHouseResponse.getSummary().getQueryId());
         ClientV1AdaptorHelper.setServerStats(clickHouseResponse.getSummary().getProgress(),
                 this.operationMetrics);
+        settings.setOption("server_timezone", clickHouseResponse.getTimeZone());
     }
 
     public QueryResponse(ClassicHttpResponse response, QuerySettings settings, OperationMetrics operationMetrics) {
@@ -59,6 +62,9 @@ public class QueryResponse implements AutoCloseable {
         this.format = settings.getFormat();
         this.settings = settings;
         this.operationMetrics = operationMetrics;
+
+        Header tzHeader = response.getFirstHeader(ClickHouseHttpProto.HEADER_TIMEZONE);
+        settings.setOption("server_timezone", tzHeader);
     }
 
     public InputStream getInputStream() {
@@ -171,5 +177,11 @@ public class QueryResponse implements AutoCloseable {
      */
     public String getQueryId() {
         return operationMetrics.getQueryId();
+    }
+
+    public TimeZone getTimeZone() {
+        return settings.getOption("server_timezone") == null
+                ? null
+                : (TimeZone) settings.getOption("server_timezone");
     }
 }

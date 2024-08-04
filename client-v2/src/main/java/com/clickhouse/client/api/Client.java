@@ -20,6 +20,7 @@ import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -55,6 +56,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -528,7 +531,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        public Builder setUseServerTimeZone(boolean useServerTimeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
+            return this;
+        }
+
+        public Builder setUseTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
         public Client build() {
+            this.configuration = setDefaults(this.configuration);
+
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
@@ -543,7 +558,21 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
-            this.configuration = setDefaults(this.configuration);
+            // Check timezone settings
+            String useTimeZoneValue = this.configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+            if (useTimeZoneValue != null) {
+                if (MapUtils.getFlag(this.configuration,
+                        ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                    throw new IllegalArgumentException("USE_TIME_ZONE option cannot be used when using server timezone");
+                }
+
+                try {
+                    LOG.info("Using timezone: {} instead of service one", ZoneId.of(useTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid timezone value: " + useTimeZoneValue);
+                }
+            }
+
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation);
         }
@@ -563,6 +592,11 @@ public class Client implements AutoCloseable {
             if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
                 userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(),
+                        String.valueOf(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getDefaultValue()));
             }
 
             return userConfig;
@@ -1017,6 +1051,18 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (useNewImplementation) {
+            // merge settings
+            if (!settings.getAllSettings().containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey()) &&
+                    configuration.containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey())) {
+                settings.setOption(ClickHouseClientOption.USE_TIME_ZONE.getKey(),
+                        configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey()));
+            }
+            if (!settings.getAllSettings().containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey()) &&
+                    configuration.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                settings.setOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(),
+                        MapUtils.getFlag(configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey()));
+            }
+            //
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
             final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
 

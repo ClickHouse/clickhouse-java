@@ -14,7 +14,7 @@ public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
     private final transient ClickHouseCommandLine cli;
 
     protected ClickHouseCommandLineResponse(ClickHouseConfig config, ClickHouseCommandLine cli) throws IOException {
-        super(config, cli.getInputStream(), null, null, ClickHouseResponseSummary.EMPTY);
+        super(config, cli.getInputStream(), null, null, ClickHouseResponseSummary.EMPTY, null);
         this.cli = cli;
 
         if (processor.getInputStream().available() < 1) {
