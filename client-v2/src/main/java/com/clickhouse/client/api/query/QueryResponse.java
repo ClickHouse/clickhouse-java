@@ -64,7 +64,13 @@ public class QueryResponse implements AutoCloseable {
         this.operationMetrics = operationMetrics;
 
         Header tzHeader = response.getFirstHeader(ClickHouseHttpProto.HEADER_TIMEZONE);
-        settings.setOption("server_timezone", tzHeader);
+        if (tzHeader != null) {
+            try {
+                settings.setOption("server_timezone", TimeZone.getTimeZone(tzHeader.getValue()));
+            } catch (Exception e) {
+                throw new ClientException("Failed to parse server timezone", e);
+            }
+        }
     }
 
     public InputStream getInputStream() {

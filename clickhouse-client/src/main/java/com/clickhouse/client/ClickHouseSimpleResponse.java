@@ -1,12 +1,5 @@
 package com.clickhouse.client;
 
-import java.sql.Time;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.TimeZone;
-
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
@@ -14,6 +7,12 @@ import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseRecordTransformer;
 import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.TimeZone;
 
 /**
  * A simple response built on top of two lists: columns and records.
@@ -31,7 +30,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      * @return response object
      */
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values) {
-        return of(config, columns, values, null);
+        return of(config, columns, values, null, null);
     }
 
     /**
@@ -136,6 +135,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         this.columns = columns;
         this.records = Collections.unmodifiableList(records);
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+        this.timeZone = timeZone;
     }
 
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, ClickHouseValue[][] values,
@@ -151,6 +151,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         this.records = Collections.unmodifiableList(list);
 
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+        this.timeZone = timeZone;
     }
 
     @Override

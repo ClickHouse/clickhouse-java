@@ -1051,17 +1051,7 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (useNewImplementation) {
-            // merge settings
-            if (!settings.getAllSettings().containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey()) &&
-                    configuration.containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey())) {
-                settings.setOption(ClickHouseClientOption.USE_TIME_ZONE.getKey(),
-                        configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey()));
-            }
-            if (!settings.getAllSettings().containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey()) &&
-                    configuration.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
-                settings.setOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(),
-                        MapUtils.getFlag(configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey()));
-            }
+            applyDefaults(settings);
             //
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
             final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
@@ -1194,7 +1184,8 @@ public class Client implements AutoCloseable {
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
-                    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                    ClickHouseBinaryFormatReader reader =
+                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), settings);
                     Map<String, Object> record;
                     while ((record = reader.next()) != null) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
@@ -1290,6 +1281,20 @@ public class Client implements AutoCloseable {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
+    }
+
+    private void applyDefaults(QuerySettings settings) {
+        Map<String, Object> settingsMap = settings.getAllSettings();
+
+        String key = ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, MapUtils.getFlag(configuration, key));
+        }
+
+        key = ClickHouseClientOption.USE_TIME_ZONE.getKey();
+        if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
     }
 
     public String toString() {

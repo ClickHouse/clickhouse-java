@@ -61,7 +61,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         TimeZone timeZone = useServerTimeZone ? querySettings.getServerTimeZone() :
                 (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
         if (timeZone == null) {
-            throw new ClientException("Time zone is not set");
+            throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG);
         setSchema(schema);
