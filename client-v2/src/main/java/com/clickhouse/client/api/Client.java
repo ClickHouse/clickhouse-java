@@ -632,8 +632,11 @@ public class Client implements AutoCloseable {
             }
 
             if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
-                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(),
-                        String.valueOf(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getDefaultValue()));
+                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
             }
 
             return userConfig;
@@ -1086,9 +1089,9 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
+        applyDefaults(settings);
 
         if (useNewImplementation) {
-            applyDefaults(settings);
             //
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
             final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
@@ -1222,7 +1225,7 @@ public class Client implements AutoCloseable {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     ClickHouseBinaryFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), settings);
+                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
                     Map<String, Object> record;
                     while ((record = reader.next()) != null) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
@@ -1330,6 +1333,11 @@ public class Client implements AutoCloseable {
 
         key = ClickHouseClientOption.USE_TIME_ZONE.getKey();
         if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
+
+        key = ClickHouseClientOption.SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
             settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
         }
     }

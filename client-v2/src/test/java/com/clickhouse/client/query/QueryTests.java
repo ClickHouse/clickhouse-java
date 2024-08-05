@@ -1227,7 +1227,7 @@ public class QueryTests extends BaseIntegrationTest {
                 ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
 
                 Assert.assertEquals(serverTimeZ.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
-                Assert.assertEquals(serverLisbonTime.withZoneSameInstant(ZoneId.of("UTC")), serverTimeZ);
+                Assert.assertEquals(serverLisbonTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
             }
         } catch (Exception e) {
             e.printStackTrace();
