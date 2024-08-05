@@ -190,4 +190,8 @@ public class QueryResponse implements AutoCloseable {
                 ? null
                 : (TimeZone) settings.getOption("server_timezone");
     }
+
+    public QuerySettings getSettings() {
+        return settings;
+    }
 }

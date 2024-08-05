@@ -531,13 +531,38 @@ public class Client implements AutoCloseable {
             return this;
         }
 
-        public Builder setUseServerTimeZone(boolean useServerTimeZone) {
+        /**
+         * Configure client to use server timezone for date/datetime columns. Default is true.
+         * If this options is selected then server timezone should be set as well.
+         *
+         * @param useServerTimeZone - if to use server timezone
+         * @return
+         */
+        public Builder useServerTimeZone(boolean useServerTimeZone) {
             this.configuration.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
             return this;
         }
 
-        public Builder setUseTimeZone(String timeZone) {
+        /**
+         * Configure client to use specified timezone. If set using server TimeZone should be
+         * set to false
+         *
+         * @param timeZone
+         * @return
+         */
+        public Builder useTimeZone(String timeZone) {
             this.configuration.put(ClickHouseClientOption.USE_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
+        /**
+         * Specify server timezone to use. If not set then UTC will be used.
+         *
+         * @param timeZone - server timezone
+         * @return
+         */
+        public Builder setServerTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), timeZone);
             return this;
         }
 
@@ -560,19 +585,31 @@ public class Client implements AutoCloseable {
 
             // Check timezone settings
             String useTimeZoneValue = this.configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+            String serverTimeZoneValue = this.configuration.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+            boolean useServerTimeZone = MapUtils.getFlag(this.configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
             if (useTimeZoneValue != null) {
-                if (MapUtils.getFlag(this.configuration,
-                        ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                if (useServerTimeZone) {
                     throw new IllegalArgumentException("USE_TIME_ZONE option cannot be used when using server timezone");
                 }
 
                 try {
-                    LOG.info("Using timezone: {} instead of service one", ZoneId.of(useTimeZoneValue));
+                    LOG.info("Using timezone: {} instead of server one", ZoneId.of(useTimeZoneValue));
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Invalid timezone value: " + useTimeZoneValue);
                 }
-            }
+            } else if (useServerTimeZone) {
+                if (serverTimeZoneValue == null) {
+                    serverTimeZoneValue = "UTC";
+                }
 
+                try {
+                    LOG.info("Using server timezone: {}", ZoneId.of(serverTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid server timezone value: " + serverTimeZoneValue);
+                }
+            } else {
+                throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
+            }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation);
         }

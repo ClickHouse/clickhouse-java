@@ -566,8 +566,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
 
@@ -576,8 +576,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(int index) {
         Object value = readValue(index);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
     }
@@ -585,14 +585,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDate) {
-            return ((LocalDate) value).atStartOfDay();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
+        }
+        return (LocalDateTime) value;
     }
 }
