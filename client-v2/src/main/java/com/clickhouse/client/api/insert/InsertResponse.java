@@ -3,8 +3,10 @@ package com.clickhouse.client.api.insert;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 
 public class InsertResponse implements AutoCloseable {
     private final ClickHouseResponse responseRef;
@@ -17,14 +19,28 @@ public class InsertResponse implements AutoCloseable {
         this.responseRef = responseRef;
         this.client = client;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
-        this.operationMetrics.operationComplete(responseRef.getSummary());
+        this.operationMetrics.operationComplete();
+        this.operationMetrics.setQueryId(responseRef.getSummary().getQueryId());
+        ClientV1AdaptorHelper.setServerStats(responseRef.getSummary().getProgress(), this.operationMetrics);
+    }
+
+    public InsertResponse(OperationMetrics metrics) {
+        this.responseRef = null;
+        this.client = null;
+        this.operationMetrics = metrics;
     }
 
     @Override
     public void close() {
-        try {
-            responseRef.close();
-        } finally {
+        if (responseRef != null) {
+            try {
+                responseRef.close();
+            } finally {
+                client.close();
+            }
+        }
+
+        if (client != null) {
             client.close();
         }
     }

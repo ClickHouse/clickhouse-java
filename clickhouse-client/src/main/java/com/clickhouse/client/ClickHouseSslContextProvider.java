@@ -1,10 +1,13 @@
 package com.clickhouse.client;
 
+import java.security.KeyStore;
 import java.util.Optional;
 import java.util.ServiceLoader;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
+import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.data.ClickHouseChecker;
 
 /**
@@ -44,4 +47,26 @@ public interface ClickHouseSslContextProvider {
      * @throws SSLException when error occured getting SSL context
      */
     <T> Optional<T> getSslContext(Class<? extends T> sslContextClass, ClickHouseConfig config) throws SSLException;
+
+    /**
+     * Use this method if trust store should be imported
+     *
+     * @param clientCert
+     * @param clientKey
+     * @param sslRootCert
+     * @return
+     * @throws SSLException
+     */
+    SSLContext getSslContextFromCerts(String clientCert, String clientKey, String sslRootCert) throws SSLException;
+
+    /**
+     * Use this method if client has separate certs
+     *
+     * @param truststorePath
+     * @param truststorePassword
+     * @param keyStoreType
+     * @return
+     * @throws SSLException
+     */
+    SSLContext getSslContextFromKeyStore(String truststorePath, String truststorePassword, String keyStoreType) throws SSLException;
 }

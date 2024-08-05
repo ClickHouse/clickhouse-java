@@ -41,14 +41,14 @@ jobs:
     name: Compile using JDK 8
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: 8
@@ -60,6 +60,14 @@ jobs:
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
           find `pwd`/examples -type f -name pom.xml -exec sed -i -e "s|\(<clickhouse-java.version>\).*\(<\)|\1$LIB_VER\2|g" {} \;
           for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn  --batch-mode --no-transfer-progress clean compile; done
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports          
 
   test-multi-env:
     needs: compile
@@ -77,14 +85,14 @@ jobs:
     name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: ${{ matrix.dist }}
           java-version: 17
@@ -92,7 +100,7 @@ jobs:
       - name: Test libraries
         run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -107,7 +115,7 @@ jobs:
     name: Test Native Image
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
@@ -140,14 +148,14 @@ jobs:
     name: CLI client + CH LTS
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: 8
@@ -164,7 +172,7 @@ jobs:
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 -DskipUTs verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -185,14 +193,14 @@ jobs:
     name: Java client + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
@@ -218,10 +226,74 @@ jobs:
           </toolchains>
           EOF
       - name: Test Java client
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+  test-http-client:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        # most recent LTS releases as well as latest stable builds
+        # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
+        clickhouse: ["cloud"]
+      fail-fast: false
+    timeout-minutes: 15
+    name: Java client (http) + CH ${{ matrix.clickhouse }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 17 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            17
+          cache: "maven"
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>17</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Install Java client
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
+      - name: Test http client
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
+        run: |
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -234,7 +306,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest"]
+        clickhouse: ["23.8", "24.3", "24.6", "latest", "cloud"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
         protocol: ["http", "http_client", "apache_http_client", "grpc"]
       fail-fast: false
@@ -242,14 +314,14 @@ jobs:
     name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
@@ -277,10 +349,13 @@ jobs:
       - name: Install Java client
         run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -302,14 +377,14 @@ jobs:
     name: R2DBC ${{ matrix.r2dbc }} + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
@@ -341,7 +416,7 @@ jobs:
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=${{ matrix.clickhouse }} \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}
@@ -375,14 +450,14 @@ jobs:
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: 8
@@ -395,7 +470,64 @@ jobs:
             -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
             -Dj8 -DskipUTs verify
       - name: Upload test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
+  test-client-v2:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        # most recent LTS releases as well as latest stable builds
+        # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
+        clickhouse: ["24.6", "latest"]
+      fail-fast: false
+    timeout-minutes: 15
+    name: Client V2 + CH ${{ matrix.clickhouse }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 17 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            17
+          cache: "maven"
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>17</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Test Java client
+        run: |
+          mvn --also-make --batch-mode --no-transfer-progress --projects client-v2 -Dclient.tests.useNewImplementation=true -DclickhouseVersion=${{ matrix.clickhouse }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: result ${{ github.job }}

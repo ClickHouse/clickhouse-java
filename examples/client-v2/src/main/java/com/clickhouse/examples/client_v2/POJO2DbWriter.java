@@ -54,21 +54,21 @@ public class POJO2DbWriter {
             client.query("drop table if exists " + TABLE_NAME).get(3, TimeUnit.SECONDS);
 
             // Reading the SQL file and executing it
-            BufferedReader reader = new BufferedReader(new InputStreamReader(initSql));
-            String sql = reader.lines().collect(Collectors.joining("\n"));
-            log.debug("Executing Create Table: {}", sql);
-            client.query(sql).get(10, TimeUnit.SECONDS);
-            log.info("Table initialized. Registering class.");
-            client.register(ArticleViewEvent.class, client.getTableSchema(TABLE_NAME));
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(initSql))) {
+                String sql = reader.lines().collect(Collectors.joining("\n"));
+                log.debug("Executing Create Table: {}", sql);
+                client.query(sql).get(10, TimeUnit.SECONDS);
+                log.info("Table initialized. Registering class.");
+                client.register(ArticleViewEvent.class, client.getTableSchema(TABLE_NAME));
+            }
         } catch (Exception e) {
             log.error("Failed to initialize table", e);
         }
     }
 
     public void printLastEvents() {
-        try {
-            QueryResponse response = client.query("select * from " + TABLE_NAME + " order by viewTime desc limit 10 format CSV")
-                    .get(10, TimeUnit.SECONDS);
+        try (QueryResponse response = client.query("select * from " + TABLE_NAME + " order by viewTime desc limit 10 format CSV")
+                .get(10, TimeUnit.SECONDS)) {
 
             log.info("Last 10 events:");
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
@@ -83,7 +83,6 @@ public class POJO2DbWriter {
     }
 
     public synchronized void submit(ArticleViewEvent event) {
-
         events.add(event);
 
         if (events.size() >= EVENTS_BATCH_SIZE) {

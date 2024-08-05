@@ -393,15 +393,26 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testProbe() {
         // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
-        ClickHouseProtocol[] protocols = new ClickHouseProtocol[] { ClickHouseProtocol.GRPC,
-                ClickHouseProtocol.HTTP, ClickHouseProtocol.MYSQL, ClickHouseProtocol.TCP };
+        ClickHouseProtocol[] protocols = null;
+        if ( isCloud() ) {
+            protocols = new ClickHouseProtocol[]{
+                    ClickHouseProtocol.HTTP
+            };
+        } else {
+            protocols = new ClickHouseProtocol[]{ClickHouseProtocol.GRPC,
+                    ClickHouseProtocol.HTTP, ClickHouseProtocol.MYSQL, ClickHouseProtocol.TCP};
+        }
         ClickHouseVersion serverVersion = ClickHouseVersion
                 .of(System.getProperty("clickhouseVersion", "latest"));
         for (ClickHouseProtocol p : protocols) {
             if (p == ClickHouseProtocol.GRPC && !serverVersion.check("[21.1,)")) {
                 continue;
             }
-            ClickHouseNode node = getServer(ClickHouseProtocol.ANY, p.getDefaultPort());
+            int port = p.getDefaultPort();
+            if (isCloud()) {
+                port = 8443;
+            }
+            ClickHouseNode node = getServer(ClickHouseProtocol.ANY, port);
             ClickHouseNode probedNode = node.probe();
             Assert.assertNotEquals(probedNode, node);
             Assert.assertEquals(probedNode.getProtocol(), p);

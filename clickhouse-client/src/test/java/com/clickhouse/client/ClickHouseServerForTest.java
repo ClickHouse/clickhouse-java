@@ -3,11 +3,21 @@ package com.clickhouse.client;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -42,6 +52,7 @@ import com.clickhouse.data.ClickHouseVersion;
  */
 @SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ClickHouseServerForTest.class);
 
     private static final Network network = Network.newNetwork();
     private static final Properties properties;
@@ -53,6 +64,9 @@ public class ClickHouseServerForTest {
     private static final String proxyHost;
     private static final int proxyPort;
     private static final String proxyImage;
+    private static boolean isCloud = false;
+
+    private static final String database;
 
     static {
         properties = new Properties();
@@ -62,6 +76,7 @@ public class ClickHouseServerForTest {
             // ignore
         }
 
+        database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
         String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
         if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
             int index = proxy.indexOf(':');
@@ -87,7 +102,10 @@ public class ClickHouseServerForTest {
 
 
         String imageTag = ClickHouseUtils.getProperty("clickhouseVersion", properties);
-
+        if (imageTag != null && imageTag.equalsIgnoreCase("cloud")) {
+            isCloud = true;
+            imageTag = "";
+        }
         if (clickhouseServer != null) { // use external server
             clickhouseVersion = ClickHouseChecker.isNullOrEmpty(imageTag)
                     || ClickHouseVersion.of(imageTag).getYear() == 0 ? "" : imageTag;
@@ -161,7 +179,6 @@ public class ClickHouseServerForTest {
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
                             .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
         }
-
     }
 
     public static String getClickHouseVersion() {
@@ -186,8 +203,12 @@ public class ClickHouseServerForTest {
 
     public static String getClickHouseAddress(ClickHouseProtocol protocol, boolean useIPaddress) {
         StringBuilder builder = new StringBuilder();
-
-        if (clickhouseContainer != null) {
+        if (isCloud) {
+            String host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            int port = 8443;
+            builder.append("https://").append(host).append(':').append(port);
+            return builder.toString();
+        } else if (clickhouseContainer != null) {
             builder.append(useIPaddress ? clickhouseContainer.getHost() : clickhouseContainer.getHost())
                     .append(':').append(clickhouseContainer.getMappedPort(protocol.getDefaultPort()));
         } else {
@@ -206,8 +227,18 @@ public class ClickHouseServerForTest {
                                                    ClickHouseNode template) {
         String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
+        String database = template != null ? template.getDatabase().orElse("default") : "default";
         GenericContainer<?> container = clickhouseContainer;
-        if (container != null) {
+        if (isCloud()) {
+            port = 8443;
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            return ClickHouseNode.builder(template)
+                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(host, port))
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
+                    .database(database)
+                    .build();
+        } else if (container != null) {
             host = container.getHost();
             port = container.getMappedPort(port);
         } else {
@@ -224,24 +255,36 @@ public class ClickHouseServerForTest {
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, int port) {
         String host = clickhouseServer;
 
+        if (isCloud) {
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            port = 8443;
+            return ClickHouseNode.builder().
+                    address(protocol, new InetSocketAddress(host, port))
+                    .credentials(new ClickHouseCredentials("default", getPassword()))
+                    .database(database)
+                    .build();
+        }
         if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         }
-
         return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
         String host = clickhouseServer;
+        String url = null;
         int port = protocol.getDefaultPort();
-
-        if (clickhouseContainer != null) {
+        if (isCloud) {
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            port = 8443;
+            options.put("password", getPassword());
+            url = String.format("https://%s:%d/%s", host, port, database);
+        } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
+            url = String.format("http://%s:%d/default", host, port);//TODO: Should this always be http?
         }
-
-        String url = String.format("http://%s:%d/default", host, port);
         return ClickHouseNode.of(url, options);
     }
 
@@ -265,8 +308,27 @@ public class ClickHouseServerForTest {
         return network;
     }
 
+    public static String getPassword() {
+        // For cloud, the password is set in environment variable
+        if (isCloud) {
+            return System.getenv("CLICKHOUSE_CLOUD_PASSWORD");
+        } else {
+            return "";
+        }
+    }
+
+    public static boolean isCloud() {
+        return isCloud;
+    }
+
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
+        if (isCloud()) {
+            if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
+                throw new IllegalStateException("Failed to create database for testing.");
+            }
+        }
+
         if (clickhouseContainer != null) {
             if (clickhouseContainer.isRunning()) {
                 return;
@@ -289,5 +351,46 @@ public class ClickHouseServerForTest {
         if (clickhouseContainer != null) {
             clickhouseContainer.stop();
         }
+
+        if (isCloud()) {
+            if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
+                LOGGER.warn("Failed to drop database for testing.");
+            }
+        }
+    }
+
+    public static String getDatabase() {
+        return database;
+    }
+
+    public static boolean runQuery(String sql) {
+        LOGGER.info("Run a query for testing...");
+
+        //Create database for testing
+        ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
+
+        LOGGER.info("SQL: " + sql);
+        LOGGER.info("Server: " + server);
+
+        int retries = 0;
+        do {
+            try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build();
+                 ClickHouseResponse response = client.read(server).query(sql).executeAndWait()) {
+                if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {
+                    return true;
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to run query for testing...", e);
+            }
+
+            try {
+                Thread.sleep(15000);
+            } catch (InterruptedException e) {
+                LOGGER.error("Failed to sleep", e);
+                throw new RuntimeException(e);
+            }
+        } while(retries++ < 10);
+
+        return false;
     }
 }

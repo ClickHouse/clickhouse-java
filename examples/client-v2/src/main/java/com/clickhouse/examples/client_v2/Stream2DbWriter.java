@@ -73,9 +73,9 @@ public class Stream2DbWriter {
      */
     public void insertData_JSONEachRowFormat(InputStream inputStream) {
         InsertSettings insertSettings = new InsertSettings();
-        try {
-            InsertResponse response = client.insert(TABLE_NAME, inputStream, ClickHouseFormat.JSONEachRow,
-                    insertSettings).get(3, TimeUnit.SECONDS);
+        try (InsertResponse response = client.insert(TABLE_NAME, inputStream, ClickHouseFormat.JSONEachRow,
+                insertSettings).get(3, TimeUnit.SECONDS)) {
+
             log.info("Insert finished: {} rows written", response.getMetrics().getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
         } catch (Exception e) {
             log.error("Failed to write JSONEachRow data", e);

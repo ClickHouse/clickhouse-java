@@ -20,9 +20,9 @@ public class AccessManagementTest extends JdbcIntegrationTest {
     @Test(groups = "integration", dataProvider = "setRolesArgsForTestSetRole")
     public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles,
                                                 String connectionProvider) throws SQLException {
+        if (isCloud()) return; //TODO: testSetRoleDifferentConnections - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
 
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
@@ -105,8 +105,8 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test
     public void testSetRolesAccessingTableRows() throws SQLException {
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        if (isCloud()) return; //TODO: testSetRolesAccessingTableRows - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);

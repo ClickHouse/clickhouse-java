@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -19,13 +18,27 @@ public class RowBinaryFormatReader extends AbstractBinaryFormatReader {
 
     public RowBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         super(inputStream, querySettings, schema);
+        readNextRecord();
     }
 
     @Override
-    public void readRecord(Map<String, Object> record) throws IOException {
+    public boolean readRecord(Map<String, Object> record) throws IOException {
+        boolean firstColumn = true;
         for (ClickHouseColumn column : getSchema().getColumns()) {
-            record.put(column.getColumnName(), binaryStreamReader
-                    .readValue(column));
+            try {
+                Object val = binaryStreamReader.readValue(column);
+                if (val != null) {
+                    record.put(column.getColumnName(),val);
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            }
         }
+        return true;
     }
 }

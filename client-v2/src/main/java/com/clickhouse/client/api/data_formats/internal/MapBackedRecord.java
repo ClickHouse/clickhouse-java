@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,7 +34,7 @@ public class MapBackedRecord implements GenericRecord {
     private TableSchema schema;
 
     public MapBackedRecord(Map<String, Object> record, TableSchema schema) {
-        this.record = record;
+        this.record = new HashMap<>(record);
         this.schema = schema;
     }
 

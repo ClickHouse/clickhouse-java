@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.CHC_BRANCH }}
       - name: Check out PR
@@ -31,7 +31,7 @@ jobs:
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Install JDK and Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: |
