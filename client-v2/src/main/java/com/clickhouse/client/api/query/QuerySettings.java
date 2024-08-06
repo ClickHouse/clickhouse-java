@@ -151,6 +151,6 @@ public class QuerySettings {
     }
 
     public TimeZone getServerTimeZone() {
-        return (TimeZone) rawSettings.get("server_timezone");
+        return (TimeZone) rawSettings.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
     }
 }

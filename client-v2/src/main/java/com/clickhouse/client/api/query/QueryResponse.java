@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -40,27 +41,31 @@ public class QueryResponse implements AutoCloseable {
 
     @Deprecated
     public QueryResponse(ClickHouseResponse clickHouseResponse, ClickHouseFormat format,
-                         ClientStatisticsHolder clientStatisticsHolder) {
+                         ClientStatisticsHolder clientStatisticsHolder, QuerySettings settings) {
         this.clickHouseResponse = clickHouseResponse;
         this.format = format;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
         this.operationMetrics.operationComplete();
         this.operationMetrics.setQueryId(clickHouseResponse.getSummary().getQueryId());
+        this.settings = settings;
         ClientV1AdaptorHelper.setServerStats(clickHouseResponse.getSummary().getProgress(),
                 this.operationMetrics);
-        settings.setOption("server_timezone", clickHouseResponse.getTimeZone());
+        this.settings.setOption(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), clickHouseResponse.getTimeZone());
     }
 
-    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, OperationMetrics operationMetrics) {
+    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, QuerySettings settings,
+                         OperationMetrics operationMetrics) {
         this.clickHouseResponse = null;
         this.httpResponse = response;
         this.format = format;
         this.operationMetrics = operationMetrics;
+        this.settings = settings;
 
         Header tzHeader = response.getFirstHeader(ClickHouseHttpProto.HEADER_TIMEZONE);
         if (tzHeader != null) {
             try {
-                settings.setOption("server_timezone", TimeZone.getTimeZone(tzHeader.getValue()));
+                this.settings.setOption(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(),
+                        TimeZone.getTimeZone(tzHeader.getValue()));
             } catch (Exception e) {
                 throw new ClientException("Failed to parse server timezone", e);
             }
@@ -172,9 +177,9 @@ public class QueryResponse implements AutoCloseable {
     }
 
     public TimeZone getTimeZone() {
-        return settings.getOption("server_timezone") == null
+        return settings.getOption(ClickHouseClientOption.SERVER_TIME_ZONE.getKey()) == null
                 ? null
-                : (TimeZone) settings.getOption("server_timezone");
+                : (TimeZone) settings.getOption(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
     }
 
     public QuerySettings getSettings() {

@@ -1137,7 +1137,7 @@ public class Client implements AutoCloseable {
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
 
-                        return new QueryResponse(httpResponse, finalSettings.getFormat(), metrics);
+                        return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
                     } catch (ClientException e) {
                         throw e;
                     } catch (Exception e) {
@@ -1169,7 +1169,7 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = request.execute().get();
                     }
 
-                    return new QueryResponse(clickHouseResponse, format, clientStats);
+                    return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
                 } catch (Exception e) {
