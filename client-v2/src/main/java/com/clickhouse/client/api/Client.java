@@ -123,6 +123,7 @@ public class Client implements AutoCloseable {
 
     private boolean useNewImplementation = false;
 
+    private ClickHouseClient oldClient = null;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation) {
         this.endpoints = endpoints;
@@ -140,6 +141,7 @@ public class Client implements AutoCloseable {
             this.httpClientHelper = new HttpAPIClientHelper(configuration);
             LOG.info("Using new http client implementation");
         } else {
+            this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
     }
@@ -168,6 +170,10 @@ public class Client implements AutoCloseable {
             }
         } catch (Exception e) {
             LOG.error("Failed to close shared operation executor", e);
+        }
+
+        if (oldClient != null) {
+            oldClient.close();
         }
     }
 
@@ -623,8 +629,14 @@ public class Client implements AutoCloseable {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
-        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
-            return client.ping(getServerNode(), Math.toIntExact(timeout));
+        if (useNewImplementation) {
+            try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        } else {
+            return oldClient.ping(getServerNode(), Math.toIntExact(timeout));
         }
     }
 
@@ -947,43 +959,41 @@ public class Client implements AutoCloseable {
         } else {
             CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
-            try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
-                ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
-                        .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
+            ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
+                    .createMutationRequest(oldClient.write(getServerNode()), tableName, settings, configuration).format(format);
 
-                CompletableFuture<ClickHouseResponse> future = null;
-                try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
-                    future = request.data(stream.getInputStream()).execute();
+            CompletableFuture<ClickHouseResponse> future = null;
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
+                future = request.data(stream.getInputStream()).execute();
 
-                    //Copy the data from the input stream to the output stream
-                    byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
-                    int bytesRead;
-                    while ((bytesRead = data.read(buffer)) != -1) {
-                        stream.write(buffer, 0, bytesRead);
-                    }
-                } catch (IOException e) {
-                    responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
+                //Copy the data from the input stream to the output stream
+                byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
+                int bytesRead;
+                while ((bytesRead = data.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
                 }
-
-                if (!responseFuture.isCompletedExceptionally()) {
-                    try {
-                        int operationTimeout = getOperationTimeout();
-                        ClickHouseResponse clickHouseResponse;
-                        if (operationTimeout > 0) {
-                            clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
-                        } else {
-                            clickHouseResponse = future.get();
-                        }
-                        InsertResponse response = new InsertResponse(client, clickHouseResponse, clientStats);
-                        responseFuture.complete(response);
-                    } catch (ExecutionException e) {
-                        responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
-                    } catch (InterruptedException | TimeoutException e) {
-                        responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
-                    }
-                }
-                LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
+            } catch (IOException e) {
+                responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
             }
+
+            if (!responseFuture.isCompletedExceptionally()) {
+                try {
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = future.get();
+                    }
+                    InsertResponse response = new InsertResponse(clickHouseResponse, clientStats);
+                    responseFuture.complete(response);
+                } catch (ExecutionException e) {
+                    responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
+                } catch (InterruptedException | TimeoutException e) {
+                    responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
+                }
+            }
+            LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
 
             return responseFuture;
         }
@@ -1086,7 +1096,7 @@ public class Client implements AutoCloseable {
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
 
-                        return new QueryResponse(httpResponse, finalSettings, metrics);
+                        return new QueryResponse(httpResponse, finalSettings.getFormat(), metrics);
                     } catch (ClientException e) {
                         throw e;
                     } catch (Exception e) {
@@ -1097,8 +1107,7 @@ public class Client implements AutoCloseable {
             }, sharedOperationExecutor);
             return future;
         } else {
-            ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-            ClickHouseRequest<?> request = client.read(getServerNode());
+            ClickHouseRequest<?> request = oldClient.read(getServerNode());
             request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
             request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
             request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
@@ -1119,7 +1128,7 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = request.execute().get();
                     }
 
-                    return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
+                    return new QueryResponse(clickHouseResponse, format, clientStats);
                 } catch (ClientException e) {
                     throw e;
                 } catch (Exception e) {
