@@ -56,6 +56,18 @@ public class InsertTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;
 
+    private boolean useClientCompression = false;
+
+    private boolean useHttpCompression = false;
+
+    InsertTests() {
+    }
+
+    InsertTests(boolean useClientCompression, boolean useHttpCompression) {
+        this.useClientCompression = useClientCompression;
+        this.useHttpCompression = useHttpCompression;
+    }
+
     @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -64,7 +76,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .compressClientRequest(false)
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression)
                 .build();
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
