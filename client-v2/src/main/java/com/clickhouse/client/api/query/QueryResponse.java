@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.query;
 
-import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
@@ -10,7 +9,6 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 
-import java.io.InputStream;
 import java.io.InputStream;
 
 /**
@@ -30,22 +28,16 @@ public class QueryResponse implements AutoCloseable {
 
     private final ClickHouseResponse clickHouseResponse;
     private final ClickHouseFormat format;
-    private ClickHouseClient client;
-
-    private QuerySettings settings;
 
     private OperationMetrics operationMetrics;
 
     private ClassicHttpResponse httpResponse;
 
     @Deprecated
-    public QueryResponse(ClickHouseClient client, ClickHouseResponse clickHouseResponse,
-                         QuerySettings settings, ClickHouseFormat format,
+    public QueryResponse(ClickHouseResponse clickHouseResponse, ClickHouseFormat format,
                          ClientStatisticsHolder clientStatisticsHolder) {
-        this.client = client;
         this.clickHouseResponse = clickHouseResponse;
         this.format = format;
-        this.settings = settings;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
         this.operationMetrics.operationComplete();
         this.operationMetrics.setQueryId(clickHouseResponse.getSummary().getQueryId());
@@ -53,11 +45,10 @@ public class QueryResponse implements AutoCloseable {
                 this.operationMetrics);
     }
 
-    public QueryResponse(ClassicHttpResponse response, QuerySettings settings, OperationMetrics operationMetrics) {
+    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, OperationMetrics operationMetrics) {
         this.clickHouseResponse = null;
         this.httpResponse = response;
-        this.format = settings.getFormat();
-        this.settings = settings;
+        this.format = format;
         this.operationMetrics = operationMetrics;
     }
 
@@ -92,14 +83,6 @@ public class QueryResponse implements AutoCloseable {
                 httpResponse.close();
             } catch (Exception e) {
                 throw new ClientException("Failed to close response", e);
-            }
-        }
-
-        if (client !=null) {
-            try {
-                client.close();
-            } catch (Exception e) {
-                throw new ClientException("Failed to close client", e);
             }
         }
     }

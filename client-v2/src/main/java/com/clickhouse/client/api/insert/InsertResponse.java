@@ -6,18 +6,14 @@ import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
-import org.apache.hc.core5.http.ClassicHttpResponse;
 
 public class InsertResponse implements AutoCloseable {
     private final ClickHouseResponse responseRef;
-    private final ClickHouseClient client;
-
     private OperationMetrics operationMetrics;
 
-    public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef,
+    public InsertResponse(ClickHouseResponse responseRef,
                           ClientStatisticsHolder clientStatisticsHolder) {
         this.responseRef = responseRef;
-        this.client = client;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
         this.operationMetrics.operationComplete();
         this.operationMetrics.setQueryId(responseRef.getSummary().getQueryId());
@@ -26,22 +22,13 @@ public class InsertResponse implements AutoCloseable {
 
     public InsertResponse(OperationMetrics metrics) {
         this.responseRef = null;
-        this.client = null;
         this.operationMetrics = metrics;
     }
 
     @Override
     public void close() {
         if (responseRef != null) {
-            try {
-                responseRef.close();
-            } finally {
-                client.close();
-            }
-        }
-
-        if (client != null) {
-            client.close();
+            responseRef.close();
         }
     }
 
