@@ -115,5 +115,25 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testPing() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(node.toUri().toString())
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+            Assert.assertTrue(client.ping());
+        }
 
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:12345")
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+            Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
+        }
+    }
 }
