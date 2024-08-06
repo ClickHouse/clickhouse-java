@@ -80,6 +80,18 @@ public class QueryTests extends BaseIntegrationTest {
 
     private Client client;
 
+    private boolean useServerCompression = false;
+
+    private boolean useHttpCompression = false;
+
+    QueryTests(){
+    }
+
+    QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+        this.useServerCompression = useServerCompression;
+        this.useHttpCompression = useHttpCompression;
+    }
+
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -88,7 +100,8 @@ public class QueryTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .compressClientRequest(false)
-                .compressServerResponse(false)
+                .compressServerResponse(useServerCompression)
+                .useHttpCompression(useHttpCompression)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build();
 

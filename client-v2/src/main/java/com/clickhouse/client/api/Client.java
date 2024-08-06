@@ -17,6 +17,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
@@ -35,11 +36,14 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStream;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
@@ -417,6 +421,32 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Configures the client to use HTTP compression. In this case compression is controlled by
+         * http headers. Client compression will set {@code Content-Encoding: lz4} header and server
+         * compression will set {@code Accept-Encoding: lz4} header.
+         *
+         * @param enabled - indicates if http compression is enabled
+         * @return
+         */
+        public Builder useHttpCompression(boolean enabled) {
+            this.configuration.put("client.use_http_compression", String.valueOf(enabled));
+            return this;
+        }
+
+        /**
+         * Sets buffer size for uncompressed data in LZ4 compression.
+         * For outgoing data it is the size of a buffer that will be compressed.
+         * For incoming data it is the size of a buffer that will be decompressed.
+         *
+         * @param size - size of the buffer in bytes
+         * @return
+         */
+        public Builder setLZ4UncompressedBufferSize(int size) {
+            this.configuration.put("compression.lz4.uncompressed_buffer_size", String.valueOf(size));
+            return this;
+        }
+
+        /**
          * Sets the default database name that will be used by operations if not specified.
          * @param database - actual default database name.
          */
@@ -637,6 +667,11 @@ public class Client implements AutoCloseable {
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
             }
 
+            if (!userConfig.containsKey("compression.lz4.uncompressed_buffer_size")) {
+                userConfig.put("compression.lz4.uncompressed_buffer_size",
+                        String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
+            }
+
             if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
                 userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
             }
@@ -838,6 +873,7 @@ public class Client implements AutoCloseable {
                                                 }
                                             }
                                         }
+                                        out.close();
                                     })) {
 
 
@@ -956,7 +992,7 @@ public class Client implements AutoCloseable {
                                              while ((bytesRead = data.read(buffer)) != -1) {
                                                  out.write(buffer, 0, bytesRead);
                                              }
-                                             out.flush();
+                                             out.close();
                                          })) {
 
 
@@ -1102,7 +1138,6 @@ public class Client implements AutoCloseable {
         applyDefaults(settings);
 
         if (useNewImplementation) {
-            //
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
             final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
 
@@ -1118,7 +1153,7 @@ public class Client implements AutoCloseable {
                         ClassicHttpResponse httpResponse =
                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.flush();
+                                    output.close();
                                 });
 
                         // Check response

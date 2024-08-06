@@ -30,6 +30,18 @@ public class MapUtils {
         }
     }
 
+    public static int getInt(Map<String, String> map, String key) {
+        String val = map.get(key);
+        if (val != null) {
+            try {
+                return Integer.parseInt(val);
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Invalid value for key " + key + ": " + val, e);
+            }
+        }
+        return 0;
+    }
+
     public static boolean getFlag(Map<String, String> map, String key) {
         String val = map.get(key);
         if (val == null) {
