@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -31,8 +32,11 @@ public class BinaryStreamReader {
 
     private final Logger log;
 
-    BinaryStreamReader(InputStream input, Logger log) {
+    private final TimeZone timeZone;
+
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
+        this.timeZone = timeZone;
         this.input = input;
     }
 
@@ -114,13 +118,17 @@ public class BinaryStreamReader {
                 case Enum16:
                     return (T) Short.valueOf((short) readUnsignedShortLE(input));
                 case Date:
-                    return (T) readDate(input, column.getTimeZone());
+                    return (T) readDate(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case Date32:
-                    return (T) readDate32(input, column.getTimeZone());
+                    return (T) readDate32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime32:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime64:
                     return (T) readDateTime64(input, 3, column.getTimeZone());
 
@@ -443,34 +451,25 @@ public class BinaryStreamReader {
         return new BigInteger(1, readNBytes(input, 32));
     }
 
-    public static LocalDate readDate(InputStream input, TimeZone tz)
-            throws IOException {
+    public static ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readUnsignedShortLE(input));
-        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
-        }
-        return d;
+        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    public static LocalDate readDate32(InputStream input, TimeZone tz)
+    public static ZonedDateTime readDate32(InputStream input, TimeZone tz)
             throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readIntLE(input));
-        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
-        }
-        return d;
+        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    public static LocalDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
+    public static ZonedDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
         long time = readUnsignedIntLE(input);
-
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)),
-                tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE);
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)), tz.toZoneId()).atZone(tz.toZoneId());
     }
     private static final int[] BASES = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
             1000000000 };
 
-    public static LocalDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
+    public static ZonedDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
         long value = readLongLE(input);
         int nanoSeconds = 0;
         if (scale > 0) {
@@ -486,8 +485,8 @@ public class BinaryStreamReader {
             }
         }
 
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds),
-                tz != null ? tz.toZoneId() : TimeZone.getTimeZone("UTC").toZoneId());
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds), tz.toZoneId())
+                .atZone(tz.toZoneId());
     }
 
     public static String readString(InputStream input) throws IOException {

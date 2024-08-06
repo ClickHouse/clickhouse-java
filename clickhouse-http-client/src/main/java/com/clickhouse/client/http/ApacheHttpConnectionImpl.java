@@ -128,8 +128,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                 format = ClickHouseFormat.valueOf(value);
                 hasQueryResult = true;
             }
-            value = getResponseHeader(response, ClickHouseHttpProto.HEADER_TIMEZONE, "");
-            timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
+            String tzValue = getResponseHeader(response, ClickHouseHttpProto.HEADER_TIMEZONE, "");
+            timeZone = !ClickHouseChecker.isNullOrEmpty(tzValue) ? TimeZone.getTimeZone(tzValue)
                     : timeZone;
         }
 

@@ -41,4 +41,35 @@ public class MapUtils {
         }
         return 0;
     }
+
+    public static boolean getFlag(Map<String, String> map, String key) {
+        String val = map.get(key);
+        if (val == null) {
+            throw new NullPointerException("Missing value for the key '" + key + "'");
+        }
+        if (val.equalsIgnoreCase("true")) {
+            return true;
+        } else if (val.equalsIgnoreCase("false")) {
+            return false;
+        }
+
+        throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
+    }
+
+    public static boolean getFlag(Map<String, String> p1, Map<String, String> p2, String key) {
+        String val = p1.get(key);
+        if (val == null) {
+            val = p2.get(key);
+        }
+        if (val == null) {
+            throw new NullPointerException("Missing value for the key '" + key + "'");
+        }
+        if (val.equalsIgnoreCase("true")) {
+            return true;
+        } else if (val.equalsIgnoreCase("false")) {
+            return false;
+        }
+
+        throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
+    }
 }

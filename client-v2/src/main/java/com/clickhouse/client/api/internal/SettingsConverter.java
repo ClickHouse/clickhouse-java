@@ -153,6 +153,7 @@ public class SettingsConverter {
                         ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS,
                         ClickHouseClientOption.USE_SERVER_TIME_ZONE,
                         ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES,
+                        ClickHouseClientOption.SERVER_TIME_ZONE,
                         ClickHouseClientOption.USE_TIME_ZONE)
                 .forEach(option -> map.put(option.getKey(), option));
 

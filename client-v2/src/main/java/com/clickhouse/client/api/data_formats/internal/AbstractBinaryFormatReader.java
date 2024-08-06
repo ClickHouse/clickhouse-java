@@ -2,9 +2,11 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -33,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,7 +56,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, LOG);
+        boolean useServerTimeZone = (boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+        TimeZone timeZone = useServerTimeZone ? querySettings.getServerTimeZone() :
+                (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+        if (timeZone == null) {
+            throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
+        }
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG);
         setSchema(schema);
     }
 
@@ -556,8 +565,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
 
@@ -566,8 +575,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(int index) {
         Object value = readValue(index);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
     }
@@ -575,14 +584,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDate) {
-            return ((LocalDate) value).atStartOfDay();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
+        }
+        return (LocalDateTime) value;
     }
 }

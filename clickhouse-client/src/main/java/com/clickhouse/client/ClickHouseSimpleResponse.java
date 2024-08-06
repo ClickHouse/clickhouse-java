@@ -1,10 +1,5 @@
 package com.clickhouse.client;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
@@ -13,12 +8,19 @@ import com.clickhouse.data.ClickHouseRecordTransformer;
 import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.TimeZone;
+
 /**
  * A simple response built on top of two lists: columns and records.
  */
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
     private static final long serialVersionUID = 6883452584393840649L;
 
+    private final TimeZone timeZone;
     /**
      * Creates a response object using columns definition and raw values.
      *
@@ -28,7 +30,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      * @return response object
      */
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values) {
-        return of(config, columns, values, null);
+        return of(config, columns, values, null, null);
     }
 
     /**
@@ -41,7 +43,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      * @return response object
      */
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values,
-            ClickHouseResponseSummary summary) {
+            ClickHouseResponseSummary summary, TimeZone timeZone) {
         if (columns == null) {
             columns = Collections.emptyList();
         }
@@ -69,7 +71,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
             }
         }
 
-        return new ClickHouseSimpleResponse(columns, wrappedValues, summary);
+        return new ClickHouseSimpleResponse(columns, wrappedValues, summary, timeZone);
     }
 
     /**
@@ -118,7 +120,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
             records.add(rec);
         }
 
-        return new ClickHouseSimpleResponse(response.getColumns(), records, response.getSummary());
+        return new ClickHouseSimpleResponse(response.getColumns(), records, response.getSummary(), response.getTimeZone());
     }
 
     private final List<ClickHouseColumn> columns;
@@ -129,14 +131,15 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     private volatile boolean closed;
 
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, List<ClickHouseRecord> records,
-            ClickHouseResponseSummary summary) {
+                                       ClickHouseResponseSummary summary, TimeZone timeZone) {
         this.columns = columns;
         this.records = Collections.unmodifiableList(records);
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+        this.timeZone = timeZone;
     }
 
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, ClickHouseValue[][] values,
-            ClickHouseResponseSummary summary) {
+            ClickHouseResponseSummary summary, TimeZone timeZone) {
         this.columns = columns;
 
         int len = values.length;
@@ -148,6 +151,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         this.records = Collections.unmodifiableList(list);
 
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+        this.timeZone = timeZone;
     }
 
     @Override
@@ -163,6 +167,11 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public ClickHouseInputStream getInputStream() {
         throw new UnsupportedOperationException("An in-memory response does not have input stream");
+    }
+
+    @Override
+    public TimeZone getTimeZone() {
+        return timeZone;
     }
 
     @Override

@@ -21,6 +21,7 @@ import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -59,6 +60,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,6 +69,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -564,7 +567,44 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configure client to use server timezone for date/datetime columns. Default is true.
+         * If this options is selected then server timezone should be set as well.
+         *
+         * @param useServerTimeZone - if to use server timezone
+         * @return
+         */
+        public Builder useServerTimeZone(boolean useServerTimeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
+            return this;
+        }
+
+        /**
+         * Configure client to use specified timezone. If set using server TimeZone should be
+         * set to false
+         *
+         * @param timeZone
+         * @return
+         */
+        public Builder useTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
+        /**
+         * Specify server timezone to use. If not set then UTC will be used.
+         *
+         * @param timeZone - server timezone
+         * @return
+         */
+        public Builder setServerTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
         public Client build() {
+            this.configuration = setDefaults(this.configuration);
+
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
@@ -579,7 +619,33 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
-            this.configuration = setDefaults(this.configuration);
+            // Check timezone settings
+            String useTimeZoneValue = this.configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+            String serverTimeZoneValue = this.configuration.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+            boolean useServerTimeZone = MapUtils.getFlag(this.configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+            if (useTimeZoneValue != null) {
+                if (useServerTimeZone) {
+                    throw new IllegalArgumentException("USE_TIME_ZONE option cannot be used when using server timezone");
+                }
+
+                try {
+                    LOG.info("Using timezone: {} instead of server one", ZoneId.of(useTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid timezone value: " + useTimeZoneValue);
+                }
+            } else if (useServerTimeZone) {
+                if (serverTimeZoneValue == null) {
+                    serverTimeZoneValue = "UTC";
+                }
+
+                try {
+                    LOG.info("Using server timezone: {}", ZoneId.of(serverTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid server timezone value: " + serverTimeZoneValue);
+                }
+            } else {
+                throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
+            }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation);
         }
@@ -605,6 +671,15 @@ public class Client implements AutoCloseable {
                 userConfig.put("compression.lz4.uncompressed_buffer_size",
                         String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
             }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            }
+
             return userConfig;
         }
     }
@@ -1060,6 +1135,7 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
+        applyDefaults(settings);
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1096,7 +1172,7 @@ public class Client implements AutoCloseable {
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
 
-                        return new QueryResponse(httpResponse, finalSettings.getFormat(), metrics);
+                        return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
                     } catch (ClientException e) {
                         throw e;
                     } catch (Exception e) {
@@ -1128,7 +1204,7 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = request.execute().get();
                     }
 
-                    return new QueryResponse(clickHouseResponse, format, clientStats);
+                    return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
                 } catch (Exception e) {
@@ -1192,7 +1268,8 @@ public class Client implements AutoCloseable {
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
-                    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                    ClickHouseBinaryFormatReader reader =
+                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
                     Map<String, Object> record;
                     while ((record = reader.next()) != null) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
@@ -1288,6 +1365,25 @@ public class Client implements AutoCloseable {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
+    }
+
+    private void applyDefaults(QuerySettings settings) {
+        Map<String, Object> settingsMap = settings.getAllSettings();
+
+        String key = ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, MapUtils.getFlag(configuration, key));
+        }
+
+        key = ClickHouseClientOption.USE_TIME_ZONE.getKey();
+        if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
+
+        key = ClickHouseClientOption.SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
     }
 
     public String toString() {

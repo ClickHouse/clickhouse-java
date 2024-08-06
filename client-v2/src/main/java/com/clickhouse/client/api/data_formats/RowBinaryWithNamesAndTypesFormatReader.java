@@ -17,10 +17,6 @@ import java.util.Map;
 
 public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Map<String, Object>> {
 
-    public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream) {
-        this(inputStream, null);
-    }
-
     public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream, QuerySettings querySettings) {
         super(inputStream, querySettings, null);
         readSchema();
