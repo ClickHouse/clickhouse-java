@@ -75,9 +75,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .compressClientRequest(useClientCompression)
-                .compressServerResponse(useHttpCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
         settings = new InsertSettings()

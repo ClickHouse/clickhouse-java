@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
+import com.clickhouse.data.ClickHouseUtils;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StreamCorruptedException;
 import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4InputStream extends InputStream {
@@ -68,14 +70,33 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     static final byte[] headerBuff = new byte[HEADER_LENGTH];
 
+    /**
+     * Method ensures to read all bytes from the input stream.
+     * In case of network connection it may be a case when not all bytes are read at once.
+     * @throws IOException
+     */
+    private boolean readFully(byte[] b, int off, int len) throws IOException {
+        int n = 0;
+        while (n < len) {
+            int count = in.read(b, off + n, len - n);
+            if (count < 0) {
+                if (n == 0) {
+                    return false;
+                }
+                throw new IOException(ClickHouseUtils.format("Incomplete read: {0} of {1}", n, len));
+            }
+            n += count;
+        }
+
+        return true;
+    }
+
     private int refill() throws IOException {
 
         // read header
-        int readBytes = in.read(headerBuff, 0, HEADER_LENGTH);
-        if (readBytes == -1) {
+        boolean readFully = readFully(headerBuff, 0, HEADER_LENGTH);
+        if (!readFully) {
             return -1;
-        } else  if (readBytes < HEADER_LENGTH) {
-            throw new IOException("Unexpected end of stream");
         }
 
         if (headerBuff[16] != MAGIC) {
@@ -95,11 +116,10 @@ public class ClickHouseLZ4InputStream extends InputStream {
         setInt32(block, 5, uncompressedSize);
         // compressed data: compressed_size - 9 bytes
         int remaining = compressedSizeWithHeader - offset;
-        readBytes = in.read(block, offset, remaining);
-        if (readBytes == -1) {
+
+        readFully = readFully(block, offset, remaining);
+        if (!readFully) {
             throw new EOFException("Unexpected end of stream");
-        } else if (readBytes < remaining) {
-            throw new ClientException("Read bytes: " + readBytes + " but expected: " + remaining);
         }
 
         long[] real = ClickHouseCityHash.cityHash128(block, 0, compressedSizeWithHeader);
@@ -123,7 +143,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
      * @param offset
      * @return
      */
-    private int getInt32(byte[] bytes, int offset) {
+    static int getInt32(byte[] bytes, int offset) {
         return (0xFF & bytes[offset]) | ((0xFF & bytes[offset + 1]) << 8) | ((0xFF & bytes[offset + 2]) << 16)
                 | ((0xFF & bytes[offset + 3]) << 24);
     }
@@ -134,14 +154,14 @@ public class ClickHouseLZ4InputStream extends InputStream {
      * @param offset
      * @return
      */
-    public long getInt64(byte[] bytes, int offset) {
+    static long getInt64(byte[] bytes, int offset) {
         return (0xFFL & bytes[offset]) | ((0xFFL & bytes[offset + 1]) << 8) | ((0xFFL & bytes[offset + 2]) << 16)
                 | ((0xFFL & bytes[offset + 3]) << 24) | ((0xFFL & bytes[offset + 4]) << 32)
                 | ((0xFFL & bytes[offset + 5]) << 40) | ((0xFFL & bytes[offset + 6]) << 48)
                 | ((0xFFL & bytes[offset + 7]) << 56);
     }
 
-    public void setInt32(byte[] bytes, int offset, int value) {
+    static void setInt32(byte[] bytes, int offset, int value) {
         bytes[offset] = (byte) (0xFF & value);
         bytes[offset + 1] = (byte) (0xFF & (value >> 8));
         bytes[offset + 2] = (byte) (0xFF & (value >> 16));

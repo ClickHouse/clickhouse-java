@@ -278,13 +278,11 @@ public class HttpAPIClientHelper {
         boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
 
-        if (serverCompression) {
-            if (useHttpCompression) {
+        if (useHttpCompression) {
+            if (serverCompression) {
                 req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
             }
-        }
-        if (clientCompression) {
-            if (useHttpCompression) {
+            if (clientCompression) {
                 req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
@@ -310,19 +308,20 @@ public class HttpAPIClientHelper {
         boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
 
-        if (serverCompression) {
-            if (useHttpCompression) {
-                req.addParameter("enable_http_compression", "1");
-            } else {
+
+        if (useHttpCompression) {
+            // enable_http_compression make server react on http header
+            // for client side compression Content-Encoding should be set
+            // for server side compression Accept-Encoding should be set
+            req.addParameter("enable_http_compression", "1");
+        } else {
+            if (serverCompression) {
                 req.addParameter("compress", "1");
             }
-        }
-        if (clientCompression) {
-            if (useHttpCompression) {
-                req.addParameter("enable_http_compression", "1");
-            } else {
+            if (clientCompression) {
                 req.addParameter("decompress", "1");
-            }        }
+            }
+        }
     }
 
     private HttpEntity wrapEntity(HttpEntity httpEntity) {

@@ -47,7 +47,7 @@ class LZ4Entity implements HttpEntity {
                 // So we just return original content and if there is a real data in it we will get error later
                 return content;
             }
-        } else if (serverCompression && !useHttpCompression) {
+        } else if (serverCompression) {
             return new ClickHouseLZ4InputStream(httpEntity.getContent(), LZ4Factory.fastestInstance().fastDecompressor());
         } else {
             return httpEntity.getContent();
@@ -58,6 +58,8 @@ class LZ4Entity implements HttpEntity {
     public void writeTo(OutputStream outStream) throws IOException {
         if (clientCompression && useHttpCompression) {
             httpEntity.writeTo(new FramedLZ4CompressorOutputStream(outStream));
+        } else if (clientCompression) {
+            httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, LZ4Factory.fastestInstance().fastCompressor()));
         } else {
             httpEntity.writeTo(outStream);
         }

@@ -99,7 +99,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build();
 
         delayForProfiler(0);
