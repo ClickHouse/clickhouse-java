@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.function.Supplier;
@@ -46,6 +47,8 @@ class LZ4Entity implements HttpEntity {
                 // So we just return original content and if there is a real data in it we will get error later
                 return content;
             }
+        } else if (serverCompression && !useHttpCompression) {
+            return new ClickHouseLZ4InputStream(httpEntity.getContent(), LZ4Factory.fastestInstance().fastDecompressor());
         } else {
             return httpEntity.getContent();
         }
