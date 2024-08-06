@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StreamCorruptedException;
 import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4InputStream extends InputStream {
@@ -26,11 +25,11 @@ public class ClickHouseLZ4InputStream extends InputStream {
     private byte[] tmpBuffer = new byte[1];
 
 
-    public ClickHouseLZ4InputStream(InputStream in, LZ4FastDecompressor decompressor) {
+    public ClickHouseLZ4InputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
         this.decompressor = decompressor;
         this.in = in;
-        this.buffer = ByteBuffer.allocate(8192);
+        this.buffer = ByteBuffer.allocate(bufferSize);
         this.buffer.limit(0);
     }
 

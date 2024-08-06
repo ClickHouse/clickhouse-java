@@ -329,7 +329,8 @@ public class HttpAPIClientHelper {
         boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         if (serverCompression || clientCompression) {
-            return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression);
+            return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"));
         } else {
             return httpEntity;
         }

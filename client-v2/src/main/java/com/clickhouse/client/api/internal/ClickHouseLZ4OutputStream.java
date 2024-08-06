@@ -1,17 +1,15 @@
 package com.clickhouse.client.api.internal;
 
-import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
-import com.clickhouse.data.stream.Lz4InputStream;
 import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4FastDecompressor;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
+
+    public static final int UNCOMPRESSED_BUFF_SIZE = 8192;
 
     private final ByteBuffer buffer;
 
@@ -26,9 +24,9 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     private static int HEADER_LEN = 15; // 9 bytes for header, 6 bytes for checksum
 
 
-    public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor) {
+    public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {
         super();
-        this.buffer = ByteBuffer.allocate(8192);
+        this.buffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
         this.compressor = compressor;
         this.compressedBuffer = ByteBuffer.allocate(compressor.maxCompressedLength(buffer.capacity()) + HEADER_LEN);

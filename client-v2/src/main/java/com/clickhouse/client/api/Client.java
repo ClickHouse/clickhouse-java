@@ -17,6 +17,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
@@ -410,8 +411,29 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configures the client to use HTTP compression. In this case compression is controlled by
+         * http headers. Client compression will set {@code Content-Encoding: lz4} header and server
+         * compression will set {@code Accept-Encoding: lz4} header.
+         *
+         * @param enabled - indicates if http compression is enabled
+         * @return
+         */
         public Builder useHttpCompression(boolean enabled) {
             this.configuration.put("client.use_http_compression", String.valueOf(enabled));
+            return this;
+        }
+
+        /**
+         * Sets buffer size for uncompressed data in LZ4 compression.
+         * For outgoing data it is the size of a buffer that will be compressed.
+         * For incoming data it is the size of a buffer that will be decompressed.
+         *
+         * @param size - size of the buffer in bytes
+         * @return
+         */
+        public Builder setLZ4UncompressedBufferSize(int size) {
+            this.configuration.put("compression.lz4.uncompressed_buffer_size", String.valueOf(size));
             return this;
         }
 
@@ -573,6 +595,10 @@ public class Client implements AutoCloseable {
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
             }
 
+            if (!userConfig.containsKey("compression.lz4.uncompressed_buffer_size")) {
+                userConfig.put("compression.lz4.uncompressed_buffer_size",
+                        String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
+            }
             return userConfig;
         }
     }
