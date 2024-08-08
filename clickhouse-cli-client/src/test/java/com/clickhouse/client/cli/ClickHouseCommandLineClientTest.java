@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseFormat;
 import org.testcontainers.containers.GenericContainer;
 import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
@@ -198,5 +199,10 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @Test(groups = {"integration"})
     public void testFailover() {
         throw new SkipException("Skip due to failover is not supported");
+    }
+
+    @Override
+    public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
+        throw new SkipException("Skip due to session timezone is not supported");
     }
 }

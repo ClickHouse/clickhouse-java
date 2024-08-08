@@ -70,6 +70,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -2694,5 +2701,41 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                      .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 1);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testServerTimezoneAppliedFromHeaderProvider")
+    public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
+        System.out.println("Testing with " + format + " format");
+        ClickHouseNode server = getServer();
+
+
+        final String sql = "select now(), timezone(), serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server)
+                     .query(sql, UUID.randomUUID().toString())
+                     .option(ClickHouseClientOption.FORMAT, format)
+                     .executeAndWait()) {
+
+            ClickHouseRecord record = response.firstRecord();
+            final LocalDateTime now = record.getValue(0).asDateTime();
+            final String timezone = record.getValue(1).asString();
+            final String serverTimezone = record.getValue(2).asString();
+            System.out.println("now: " + now + ", timezone: " + timezone + ", serverTimezone: " + serverTimezone);
+            Assert.assertEquals(timezone, "America/Los_Angeles", "Timezone should be applied from the query settings");
+            Assert.assertEquals(serverTimezone, "UTC", "Server timezone should be 'UTC'");
+            final ZonedDateTime nowAtTimezone = Instant.now().atZone(ZoneId.of(timezone));
+            ZonedDateTime serverTimeNow = ZonedDateTime.of(now, ZoneId.of(timezone));
+            System.out.println("Server time: " + serverTimeNow + " (" + timezone + "), Client time: " + nowAtTimezone + " (" + timezone + ")");
+            Assert.assertTrue(Duration.between(serverTimeNow, nowAtTimezone).abs().getSeconds() < 60,
+                    "Server time (" + serverTimeNow + " ) should be close to the client time (" + nowAtTimezone + ")");
+        }
+    }
+
+    @DataProvider(name = "testServerTimezoneAppliedFromHeaderProvider")
+    public static ClickHouseFormat[] testServerTimezoneAppliedFromHeaderProvider() {
+        return new ClickHouseFormat[]{
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes,
+                ClickHouseFormat.RowBinaryWithNamesAndTypes
+        };
     }
 }
