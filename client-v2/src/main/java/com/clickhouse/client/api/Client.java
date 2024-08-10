@@ -7,7 +7,10 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.NativeFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -36,14 +39,11 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
-import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStream;
-import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
@@ -78,6 +78,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -680,6 +681,10 @@ public class Client implements AutoCloseable {
                 userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
             }
 
+            if (!userConfig.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
+                userConfig.put(ClickHouseClientOption.ASYNC.getKey(), "false");
+            }
+
             return userConfig;
         }
     }
@@ -850,7 +855,7 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
-            CompletableFuture<InsertResponse> future = CompletableFuture.supplyAsync(() -> {
+            Supplier<InsertResponse> supplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -902,8 +907,9 @@ public class Client implements AutoCloseable {
                     }
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
+            boolean isAsync = MapUtils.getFlag(configuration, settings.getAllSettings(), ClickHouseClientOption.ASYNC.getKey());
+            return isAsync ? CompletableFuture.supplyAsync(supplier, sharedOperationExecutor) : CompletableFuture.completedFuture(supplier.get());
         } else {
             //Create an output stream to write the data to
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -972,7 +978,7 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
-            CompletableFuture<InsertResponse> future = CompletableFuture.supplyAsync(() -> {
+            Supplier<InsertResponse> supplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -1029,8 +1035,9 @@ public class Client implements AutoCloseable {
                     }
                 }
                 throw new ClientException("Failed to insert data: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
+            boolean isAsync = MapUtils.getFlag(configuration, settings.getAllSettings(), ClickHouseClientOption.ASYNC.getKey());
+            return isAsync ? CompletableFuture.supplyAsync(supplier, sharedOperationExecutor) : CompletableFuture.completedFuture(supplier.get());
         } else {
             CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
 
@@ -1145,7 +1152,7 @@ public class Client implements AutoCloseable {
                 settings.setOption("statement_params", queryParams);
             }
             final QuerySettings finalSettings = settings;
-            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+            Supplier<QueryResponse> supplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
                 for (int i = 0; i <= maxRetries; i++) {
@@ -1180,8 +1187,9 @@ public class Client implements AutoCloseable {
                     }
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
+            boolean isAsync = MapUtils.getFlag(configuration, settings.getAllSettings(), ClickHouseClientOption.ASYNC.getKey());
+            return isAsync ? CompletableFuture.supplyAsync(supplier, sharedOperationExecutor) : CompletableFuture.completedFuture(supplier.get());
         } else {
             ClickHouseRequest<?> request = oldClient.read(getServerNode());
             request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
@@ -1359,6 +1367,39 @@ public class Client implements AutoCloseable {
                         throw new ClientException("Failed to get command response", e);
                     }
                 }, sharedOperationExecutor);
+    }
+
+    /**
+     * <p>Create an instance of {@link ClickHouseBinaryFormatReader} based on response. Table schema is option and only
+     *  required for {@link ClickHouseFormat#RowBinaryWithNames}, {@link ClickHouseFormat#RowBinary}.
+     *  Format {@link ClickHouseFormat#RowBinaryWithDefaults} is not supported for output (read operations).</p>
+     * @param response
+     * @param schema
+     * @return
+     */
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+        ClickHouseBinaryFormatReader reader = null;
+        switch (response.getFormat()) {
+            case Native:
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNamesAndTypes:
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNames:
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            case RowBinary:
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
+        }
+        return reader;
+    }
+
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+        return  newBinaryFormatReader(response, null);
     }
 
     private String startOperation() {
