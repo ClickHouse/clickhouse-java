@@ -46,6 +46,7 @@ import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStrea
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
@@ -892,7 +893,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
                         LOG.warn("Failed to get response. Retrying.", e);
                         selectedNode = getNextAliveNode();
                         continue;
@@ -1010,12 +1011,12 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
                         if (i < maxRetries) {
                             try {
                                 data.reset();
                             } catch (IOException ioe) {
-                                throw new ClientException("Failed to get response", e);
+                                throw new ClientException("Failed to reset stream for retry", e);
                             }
                             LOG.warn("Failed to get response. Retrying.", e);
                             selectedNode = getNextAliveNode();
@@ -1173,6 +1174,10 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
+                        LOG.warn("Failed to get response. Retrying.", e);
+                        selectedNode = getNextAliveNode();
+                        continue;
                     } catch (ClientException e) {
                         throw e;
                     } catch (Exception e) {

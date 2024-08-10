@@ -25,6 +25,7 @@ import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -246,11 +247,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ServerException e) {
-            throw e;
-        } catch (NoHttpResponseException e) {
-            throw e;
-        } catch (ClientException e) {
+        } catch (ServerException | NoHttpResponseException | ConnectionRequestTimeoutException | ClientException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
