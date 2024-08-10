@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseConfig;
@@ -28,7 +29,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Serializable> settings,
             ClickHouseStreamObserver observer) throws IOException {
-        super(config, observer.getInputStream(), settings, null, observer.getSummary());
+        super(config, observer.getInputStream(), settings, null, observer.getSummary(), null);
 
         this.observer = observer;
     }
@@ -42,7 +43,8 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                         : ClickHouseGrpcClientImpl.getInput(config, result.getOutput().newInput(),
                                 () -> checkError(result)),
                 settings, null,
-                new ClickHouseResponseSummary(null, null));
+                new ClickHouseResponseSummary(null, null),
+                TimeZone.getTimeZone(result.getTimeZone()));
 
         this.observer = null;
         if (result.hasProgress()) {

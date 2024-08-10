@@ -27,7 +27,8 @@ public class Records implements Iterable<GenericRecord>, AutoCloseable {
         if (!response.getFormat().equals(ClickHouseFormat.RowBinaryWithNamesAndTypes)) {
             throw new ClientException("Unsupported format: " + finalSettings.getFormat());
         }
-        this.reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+
+        this.reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), finalSettings);
         this.empty = !reader.hasNext();
     }
 

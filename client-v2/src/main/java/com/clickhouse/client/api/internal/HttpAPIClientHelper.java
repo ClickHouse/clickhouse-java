@@ -27,6 +27,7 @@ import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
@@ -87,6 +88,11 @@ public class HttpAPIClientHelper {
                 (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
 
         this.baseRequestConfig = reqConfBuilder.build();
+
+        boolean usingClientCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean usingServerCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+        LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
     }
 
     public CloseableHttpClient createHttpClient() {
@@ -207,7 +213,8 @@ public class HttpAPIClientHelper {
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
                 .build();
         req.setConfig(httpReqConfig);
-        req.setEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback));
+        // setting entity. wrapping if compression is enabled
+        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback)));
 
         HttpClientContext context = HttpClientContext.create();
 
@@ -229,6 +236,8 @@ public class HttpAPIClientHelper {
                 httpResponse.close();
                 return httpResponse;
             }
+
+            httpResponse.setEntity(wrapEntity(httpResponse.getEntity()));
             return httpResponse;
 
         } catch (UnknownHostException e) {
@@ -264,6 +273,19 @@ public class HttpAPIClientHelper {
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }
+
+        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+
+        if (useHttpCompression) {
+            if (serverCompression) {
+                req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
+            }
+            if (clientCompression) {
+                req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
+            }
+        }
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         if (requestConfig != null) {
@@ -280,6 +302,37 @@ public class HttpAPIClientHelper {
                     req.addParameter("param_" + entry.getKey(), String.valueOf(entry.getValue()));
                 }
             }
+        }
+
+        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+
+
+        if (useHttpCompression) {
+            // enable_http_compression make server react on http header
+            // for client side compression Content-Encoding should be set
+            // for server side compression Accept-Encoding should be set
+            req.addParameter("enable_http_compression", "1");
+        } else {
+            if (serverCompression) {
+                req.addParameter("compress", "1");
+            }
+            if (clientCompression) {
+                req.addParameter("decompress", "1");
+            }
+        }
+    }
+
+    private HttpEntity wrapEntity(HttpEntity httpEntity) {
+        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+        if (serverCompression || clientCompression) {
+            return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"));
+        } else {
+            return httpEntity;
         }
     }
 

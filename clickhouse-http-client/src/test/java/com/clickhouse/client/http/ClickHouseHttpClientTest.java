@@ -140,21 +140,26 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = "integration")
     public void testUserAgent() throws Exception {
+        testUserAgent(ClickHouseClientOption.PRODUCT_NAME, "MyCustomProduct");
+        testUserAgent(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient");
+    }
+    private void testUserAgent(ClickHouseOption option, String optionValue) throws Exception {
         final ClickHouseNode server = getServer();
-        final String sql = "select :uuid(String)";
+        final String sql = "SELECT :uuid(String)";
 
         String uuid = UUID.randomUUID().toString();
         String queryId = UUID.randomUUID().toString();
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql), queryId)
-                        .params(ClickHouseStringValue.of(uuid))
-                        .executeAndWait()) {
+             ClickHouseResponse response = newRequest(client, server)
+                     .option(option, optionValue)
+                     .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql), queryId)
+                     .params(ClickHouseStringValue.of(uuid))
+                     .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
         }
         ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
 
-        String selectQuery = "select http_user_agent from system.query_log where query='select ''" + uuid + "'''";
+        String selectQuery = "SELECT http_user_agent FROM system.query_log WHERE query_id='" + queryId + "'";
         if (isCloud()) {
             selectQuery = "SELECT http_user_agent FROM clusterAllReplicas(default, 'system', query_log) WHERE query_id='" + queryId + "'";
         }
@@ -163,78 +168,13 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         do {
             try (ClickHouseClient client = getClient();
                  ClickHouseResponse response = newRequest(client, server)
-                         .query(selectQuery)
-                         .format(ClickHouseFormat.TSVWithNamesAndTypes)
-                         .executeAndWait()) {
-                if (response.records().iterator().hasNext()) {
-                    String result = response.firstRecord().getValue(0).asString();
-                    Assert.assertTrue(result.startsWith(client.getConfig().getProductName()));
-                    Assert.assertTrue(result.indexOf("Http") > 0);
-                    break;
-                } else {
-                    Thread.sleep(2500);
-                }
-            }
-        } while (loopCount++ < 5);
-
-        uuid = UUID.randomUUID().toString();
-        queryId = UUID.randomUUID().toString();
-        try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .option(ClickHouseClientOption.PRODUCT_NAME, "MyCustomClient")
-                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql), queryId)
-                        .params(ClickHouseStringValue.of(uuid))
-                        .executeAndWait()) {
-            Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
-        }
-        ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
-
-        selectQuery = "select http_user_agent from system.query_log where query='select ''" + uuid + "'''";
-        if (isCloud()) {
-            selectQuery = "SELECT http_user_agent FROM clusterAllReplicas(default, 'system', query_log) WHERE query_id='" + queryId + "'";
-        }
-
-        loopCount = 0;
-        do {
-            try (ClickHouseClient client = getClient();
-                 ClickHouseResponse response = newRequest(client, server)
+                         .option(option, optionValue)
                          .query(selectQuery)
                          .executeAndWait()) {
                 if (response.records().iterator().hasNext()) {
                     String result = response.firstRecord().getValue(0).asString();
-                    Assert.assertTrue(result.startsWith("MyCustomClient ClickHouse-JavaClient/"));
+                    Assert.assertTrue(result.startsWith(optionValue + " ClickHouse-JavaClient/"));
                     Assert.assertTrue(result.indexOf("Http") > 0);
-                    break;
-                } else {
-                    Thread.sleep(2500);
-                }
-            }
-        } while (loopCount++ < 5);
-
-        uuid = UUID.randomUUID().toString();
-        try (ClickHouseClient client = getClient();
-             ClickHouseResponse response = newRequest(client, server)
-                     .option(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient")
-                     .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql), queryId)
-                     .params(ClickHouseStringValue.of(uuid))
-                     .executeAndWait()) {
-            Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
-        }
-        ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
-
-        selectQuery = "select http_user_agent from system.query_log where query='select ''" + uuid + "'''";
-        if (isCloud()) {
-            selectQuery = "SELECT http_user_agent FROM clusterAllReplicas(default, 'system', query_log) WHERE query_id='" + queryId + "'";
-        }
-
-        loopCount = 0;
-        do {
-            try (ClickHouseClient client = getClient();
-                 ClickHouseResponse response = newRequest(client, server)
-                         .query(selectQuery)
-                         .executeAndWait()) {
-                if (response.records().iterator().hasNext()) {
-                    Assert.assertTrue(response.firstRecord().getValue(0).asString().startsWith("MyCustomClient ClickHouse-JavaClient/"));
                     break;
                 } else {
                     Thread.sleep(2500);
@@ -242,6 +182,8 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             }
         } while (loopCount++ < 5);
     }
+
+
 
     @Override
     @Test(groups = "integration")

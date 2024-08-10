@@ -89,4 +89,8 @@ public class ClickHouseHttpResponse {
     public ClickHouseInputStream getInputStream() {
         return input;
     }
+
+    public TimeZone getTimeZone() {
+        return timeZone;
+    }
 }

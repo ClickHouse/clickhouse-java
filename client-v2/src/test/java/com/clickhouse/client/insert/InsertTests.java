@@ -56,6 +56,18 @@ public class InsertTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;
 
+    private boolean useClientCompression = false;
+
+    private boolean useHttpCompression = false;
+
+    InsertTests() {
+    }
+
+    InsertTests(boolean useClientCompression, boolean useHttpCompression) {
+        this.useClientCompression = useClientCompression;
+        this.useHttpCompression = useHttpCompression;
+    }
+
     @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -64,7 +76,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .compressClientRequest(false)
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression)
                 .build();
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
@@ -152,6 +165,7 @@ public class InsertTests extends BaseIntegrationTest {
         byte[] requestBody = ("INSERT INTO table01 FORMAT " +
                 ClickHouseFormat.TSV.name() + " \n1\t2\t3\n").getBytes();
 
+        // First request gets no response
         faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                         .withRequestBody(WireMock.binaryEqualTo(requestBody))
                 .inScenario("Retry")
@@ -159,6 +173,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .willSetStateTo("Failed")
                 .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
 
+        // Second request gets a response (retry)
         faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                         .withRequestBody(WireMock.binaryEqualTo(requestBody))
                 .inScenario("Retry")
@@ -177,19 +192,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .setOption(ClickHouseClientOption.RETRY.getKey(), "2")
                 .build();
-        Runnable powerBlink = () -> {
-            try {
-                Thread.sleep(100);
-                faultyServer.stop();
-                Thread.sleep(50);
-                faultyServer.start();
-            } catch (InterruptedException e) {
-                Assert.fail("Unexpected exception", e);
-            }
-        };
         try {
-            new Thread(powerBlink).start();
-            Thread.sleep(200);
             InsertResponse insertResponse = mockServerClient.insert("table01",
                     new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
             insertResponse.close();

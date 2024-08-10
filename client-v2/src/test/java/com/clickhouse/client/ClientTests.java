@@ -18,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 
 public class ClientTests extends BaseIntegrationTest {
 
+//    static {
+//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+//    }
 
     @Test(dataProvider = "clientProvider")
     public void testAddSecureEndpoint(Client client) {
@@ -52,11 +55,13 @@ public class ClientTests extends BaseIntegrationTest {
                         .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
                         .setUsername("default")
                         .setPassword("")
+                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                         .build(),
                 new Client.Builder()
                         .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
                         .setUsername("default")
                         .setPassword("")
+                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                         .build()
         };
     }
@@ -113,5 +118,25 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testPing() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(node.toUri().toString())
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+            Assert.assertTrue(client.ping());
+        }
 
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:12345")
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+            Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
+        }
+    }
 }

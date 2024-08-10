@@ -7,7 +7,6 @@ import com.clickhouse.data.ClickHouseValues;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
 
-import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,9 +32,12 @@ public class BinaryStreamReader {
 
     private final Logger log;
 
-    BinaryStreamReader(InputStream input, Logger log) {
+    private final TimeZone timeZone;
+
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
-        this.input = new DataInputStream(input); // wrap input stream
+        this.timeZone = timeZone;
+        this.input = input;
     }
 
     public <T> T readValue(ClickHouseColumn column) throws IOException {
@@ -43,8 +46,8 @@ public class BinaryStreamReader {
 
     private <T> T readValueImpl(ClickHouseColumn column) throws IOException {
         if (column.isNullable()) {
-
-            if (input.read() == 1) { // is Null?
+            int isNull = readByteOrEOF(input);
+            if (isNull == 1) { // is Null?
                 return (T) null;
             }
         }
@@ -64,14 +67,14 @@ public class BinaryStreamReader {
                     return (T) new String(bytes, 0, end, StandardCharsets.UTF_8);
                 }
                 case String: {
-                    int len =  readVarInt(input);
-                    if ( len == 0 ) {
+                    int len = readVarInt(input);
+                    if (len == 0) {
                         return (T) "";
                     }
                     return (T) new String(readNBytes(input, len), StandardCharsets.UTF_8);
                 }
                 case Int8:
-                    return (T) Byte.valueOf((byte) input.read());
+                    return (T) Byte.valueOf((byte) readByteOrEOF(input));
                 case UInt8:
                     return (T) Short.valueOf(readUnsignedByte(input));
                 case Int16:
@@ -109,19 +112,23 @@ public class BinaryStreamReader {
                 case Float64:
                     return (T) Double.valueOf(readDoubleLE(input));
                 case Bool:
-                    return (T) Boolean.valueOf(input.read() == 1);
+                    return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
                 case Enum8:
                     return (T) Byte.valueOf((byte) readUnsignedByte(input));
                 case Enum16:
                     return (T) Short.valueOf((short) readUnsignedShortLE(input));
                 case Date:
-                    return (T) readDate(input, column.getTimeZone());
+                    return (T) readDate(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case Date32:
-                    return (T) readDate32(input, column.getTimeZone());
+                    return (T) readDate32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime32:
-                    return (T) readDateTime32(input, column.getTimeZone());
+                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
                 case DateTime64:
                     return (T) readDateTime64(input, 3, column.getTimeZone());
 
@@ -168,6 +175,8 @@ public class BinaryStreamReader {
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
             }
+        } catch (EOFException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to read value for column " + column.getColumnName(), e);
         }
@@ -175,30 +184,30 @@ public class BinaryStreamReader {
 
     public static short readShortLE(InputStream input) throws IOException {
         short v = 0;
-        v |= (short) input.read();
-        v |= (short) (input.read() << 8);
+        v |= (short) readByteOrEOF(input);
+        v |= (short) (readByteOrEOF(input) << 8);
         return v;
     }
 
     public static int readIntLE(InputStream input) throws IOException {
         int v = 0;
-        v |= input.read();
-        v |= input.read() << 8;
-        v |= input.read() << 16;
-        v |= input.read() << 24;
+        v |= readByteOrEOF(input);
+        v |= readByteOrEOF(input) << 8;
+        v |= readByteOrEOF(input) << 16;
+        v |= readByteOrEOF(input) << 24;
         return v;
     }
 
     public static long readLongLE(InputStream input) throws IOException {
         long v = 0;
-        v |= input.read();
-        v |= (0xFFL & input.read()) << 8;
-        v |= (0xFFL & input.read()) << 16;
-        v |= (0xFFL & input.read()) << 24;
-        v |= (0xFFL & input.read()) << 32;
-        v |= (0xFFL & input.read()) << 40;
-        v |= (0xFFL & input.read()) << 48;
-        v |= (0xFFL & input.read()) << 56;
+        v |= readByteOrEOF(input);
+        v |= (0xFFL & readByteOrEOF(input)) << 8;
+        v |= (0xFFL & readByteOrEOF(input)) << 16;
+        v |= (0xFFL & readByteOrEOF(input)) << 24;
+        v |= (0xFFL & readByteOrEOF(input)) << 32;
+        v |= (0xFFL & readByteOrEOF(input)) << 40;
+        v |= (0xFFL & readByteOrEOF(input)) << 48;
+        v |= (0xFFL & readByteOrEOF(input)) << 56;
 
         return v;
     }
@@ -407,7 +416,7 @@ public class BinaryStreamReader {
         int value = 0;
 
         for (int i = 0 ; i < 10 ; i++) {
-            byte b = (byte) input.read();
+            byte b = (byte) readByteOrEOF(input);
             value |= (b & 0x7F) << (7 * i);
 
             if ((b & 0x80) == 0) {
@@ -419,7 +428,7 @@ public class BinaryStreamReader {
     }
 
     public static short readUnsignedByte(InputStream input) throws IOException {
-        return (short) (input.read() & 0xFF);
+        return (short) (readByteOrEOF(input) & 0xFF);
     }
 
     public static int readUnsignedShortLE(InputStream input) throws IOException {
@@ -442,34 +451,25 @@ public class BinaryStreamReader {
         return new BigInteger(1, readNBytes(input, 32));
     }
 
-    public static LocalDate readDate(InputStream input, TimeZone tz)
-            throws IOException {
+    public static ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readUnsignedShortLE(input));
-        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
-        }
-        return d;
+        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    public static LocalDate readDate32(InputStream input, TimeZone tz)
+    public static ZonedDateTime readDate32(InputStream input, TimeZone tz)
             throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readIntLE(input));
-        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
-        }
-        return d;
+        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    public static LocalDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
+    public static ZonedDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
         long time = readUnsignedIntLE(input);
-
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)),
-                tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE);
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)), tz.toZoneId()).atZone(tz.toZoneId());
     }
     private static final int[] BASES = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
             1000000000 };
 
-    public static LocalDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
+    public static ZonedDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
         long value = readLongLE(input);
         int nanoSeconds = 0;
         if (scale > 0) {
@@ -485,8 +485,8 @@ public class BinaryStreamReader {
             }
         }
 
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds),
-                tz != null ? tz.toZoneId() : TimeZone.getTimeZone("UTC").toZoneId());
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds), tz.toZoneId())
+                .atZone(tz.toZoneId());
     }
 
     public static String readString(InputStream input) throws IOException {
@@ -495,5 +495,13 @@ public class BinaryStreamReader {
             return "";
         }
         return new String(readNBytes(input, len), StandardCharsets.UTF_8);
+    }
+
+    private static int readByteOrEOF(InputStream input) throws IOException {
+        int b = input.read();
+        if (b < 0) {
+            throw new EOFException("End of stream reached before reading all data");
+        }
+        return b;
     }
 }

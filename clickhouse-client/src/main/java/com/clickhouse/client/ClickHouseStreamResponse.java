@@ -5,6 +5,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
@@ -23,32 +24,35 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     private static final long serialVersionUID = 2271296998310082447L;
 
+    private final TimeZone timeZone;
+
     protected static final List<ClickHouseColumn> defaultTypes = Collections
             .singletonList(ClickHouseColumn.of("results", "Nullable(String)"));
-
-    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input) throws IOException {
-        return of(config, input, null, null, null);
-    }
-
+//
+//    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input) throws IOException {
+//        return of(config, input, null, null, null);
+//    }
+//
+//    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+//            Map<String, Serializable> settings) throws IOException {
+//        return of(config, input, settings, null, null);
+//    }
+//
+//    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+//            List<ClickHouseColumn> columns) throws IOException {
+//        return of(config, input, null, columns, null);
+//    }
+//
+//    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+//            Map<String, Serializable> settings, List<ClickHouseColumn> columns) throws IOException {
+//        return of(config, input, settings, columns, null);
+//    }
+//
     public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Serializable> settings) throws IOException {
-        return of(config, input, settings, null, null);
-    }
-
-    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            List<ClickHouseColumn> columns) throws IOException {
-        return of(config, input, null, columns, null);
-    }
-
-    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Serializable> settings, List<ClickHouseColumn> columns) throws IOException {
-        return of(config, input, settings, columns, null);
-    }
-
-    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+                                        Map<String, Serializable> settings, List<ClickHouseColumn> columns,
+                                        ClickHouseResponseSummary summary, TimeZone timeZone)
             throws IOException {
-        return new ClickHouseStreamResponse(config, input, settings, columns, summary);
+        return new ClickHouseStreamResponse(config, input, settings, columns, summary, timeZone);
     }
 
     protected final ClickHouseConfig config;
@@ -58,9 +62,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     private volatile boolean closed;
 
     protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+            Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary,
+                                       TimeZone timeZone)
             throws IOException {
 
+        this.timeZone = timeZone;
         boolean hasError = true;
         try {
             this.processor = ClickHouseDataStreamFactory.getInstance().getProcessor(config, input, null, settings,
@@ -142,6 +148,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
                     "No data processor available for deserialization, please consider to use getInputStream instead");
         }
         return processor.records();
+    }
+
+    @Override
+    public TimeZone getTimeZone() {
+        return timeZone;
     }
 
     @Override
