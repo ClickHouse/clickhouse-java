@@ -9,22 +9,18 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.http.ApacheHttpConnectionImpl;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -32,36 +28,27 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
-import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
-import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
+import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.net.UnknownHostException;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
 import java.util.Base64;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -84,7 +71,7 @@ public class HttpAPIClientHelper {
         this.httpClient = createHttpClient();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
-        MapUtils.applyLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
+        MapUtils.applyLong(chConfiguration, "connection_request_timeout",
                 (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
 
         this.baseRequestConfig = reqConfBuilder.build();
@@ -109,10 +96,23 @@ public class HttpAPIClientHelper {
                 soCfgBuilder::setRcvBufSize);
         MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_SNDBUF.getKey(),
                 soCfgBuilder::setSndBufSize);
-
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_LINGER.getKey(),
+                    (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
 
         // Connection manager
-        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create();
+        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
+                .setConnPoolPolicy(PoolReusePolicy.LIFO)
+                .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.STRICT);
+
+        ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
+                (t) -> connConfig.setConnectTimeout(t, TimeUnit.MILLISECONDS));
+
+
+        connMgrBuilder.setDefaultConnectionConfig(connConfig.build());
+        connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
+        MapUtils.applyInt(chConfiguration, ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(),
+                connMgrBuilder::setMaxConnPerRoute);
 
         ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
 
@@ -196,8 +196,6 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-//            HttpHost target = new HttpHost("https", server.getHost(), server.getPort());
-
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
@@ -208,7 +206,6 @@ public class HttpAPIClientHelper {
         }
         HttpPost req = new HttpPost(uri);
         addHeaders(req, chConfiguration, requestConfig);
-
 
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
                 .build();
@@ -246,11 +243,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ServerException e) {
-            throw e;
-        } catch (NoHttpResponseException e) {
-            throw e;
-        } catch (ClientException e) {
+        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);

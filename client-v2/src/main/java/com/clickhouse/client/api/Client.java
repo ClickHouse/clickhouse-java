@@ -295,8 +295,6 @@ public class Client implements AutoCloseable {
             return this;
         }
 
-        // SOCKET SETTINGS
-
         /**
          * Default connection timeout in milliseconds. Timeout is applied to establish a connection.
          *
@@ -316,6 +314,30 @@ public class Client implements AutoCloseable {
         public Builder setConnectTimeout(long timeout, ChronoUnit unit) {
             return this.setConnectTimeout(Duration.of(timeout, unit).toMillis());
         }
+
+        /**
+         * Set timeout for waiting a free connection from a pool when all connections are leased.
+         * This configuration is important when need to fail fast in high concurrent scenarios.
+         * Default is 10 s.
+         * @param timeout - connection timeout in milliseconds
+         * @param unit - time unit
+         */
+        public Builder setConnectionRequestTimeout(long timeout, ChronoUnit unit) {
+            this.configuration.put("connection_request_timeout", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets the maximum number of connections that can be opened at the same time to a single server.
+         * Default is 10.
+         * @param maxConnections - maximum number of connections
+         */
+        public Builder setMaxConnections(int maxConnections) {
+            this.configuration.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxConnections));
+            return this;
+        }
+
+        // SOCKET SETTINGS
 
         /**
          * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
@@ -678,6 +700,14 @@ public class Client implements AutoCloseable {
 
             if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
                 userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            }
+
+            if (!userConfig.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
+                userConfig.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), "10");
+            }
+
+            if (!userConfig.containsKey("connection_request_timeout")) {
+                userConfig.put("connection_request_timeout", "10000");
             }
 
             return userConfig;
