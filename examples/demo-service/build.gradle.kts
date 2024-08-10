@@ -31,7 +31,7 @@ dependencies {
 	implementation("com.clickhouse:client-v2:0.6.3-SNAPSHOT") // nightly build
 //	implementation("com.clickhouse:client-v2:0.6.3") // stable version
 	// http client used by clickhouse client
-	runtimeOnly("org.apache.httpcomponents.client5:httpclient5:5.3.1")
+	implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
 	// compression dependencies
 	runtimeOnly("org.apache.commons:commons-compress:1.26.2")
 	runtimeOnly("org.lz4:lz4-pure-java:1.8.0")
