@@ -51,7 +51,9 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: 8
+          java-version: |
+            8
+            21
           cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 install
@@ -268,6 +270,7 @@ jobs:
           java-version: |
             8
             17
+            21
           cache: "maven"
       - name: Setup Toolchain
         shell: bash
