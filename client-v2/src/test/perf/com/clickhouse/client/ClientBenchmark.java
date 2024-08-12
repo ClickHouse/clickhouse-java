@@ -33,14 +33,14 @@ public class ClientBenchmark {
     // Add benchmark methods here
     @Benchmark
     public void pingBenchmark() {
-        LOGGER.info("Ping benchmark");
+        LOGGER.info("(V2) Ping benchmark");
         ClientTests clientTests = new ClientTests();
         clientTests.testPing();
     }
 
     @Benchmark
     public void queryBenchmarkSmall() throws Exception {
-        LOGGER.info("Query benchmark");
+        LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
         queryTests.testQueryAll(1000);
@@ -49,7 +49,7 @@ public class ClientBenchmark {
 
     @Benchmark
     public void queryBenchmarkMedium() throws Exception {
-        LOGGER.info("Query benchmark");
+        LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
         queryTests.testQueryAll(1000000);
@@ -58,7 +58,7 @@ public class ClientBenchmark {
 
     @Benchmark
     public void queryBenchmarkLarge() throws Exception {
-        LOGGER.info("Query benchmark");
+        LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
         queryTests.testQueryAll(1000000000);
@@ -67,7 +67,7 @@ public class ClientBenchmark {
 
     @Benchmark
     public void insertRawDataBenchmark() throws Exception {
-        LOGGER.info("Insert raw data benchmark");
+        LOGGER.info("(V2) Insert raw data benchmark");
         InsertTests insertTests = new InsertTests(false, false);
         insertTests.setUp();
         insertTests.insertRawData();
@@ -77,7 +77,7 @@ public class ClientBenchmark {
 
     @Benchmark
     public void insertSimplePojoBenchmark() throws Exception {
-        LOGGER.info("Insert simple pojo benchmark");
+        LOGGER.info("(V2) Insert simple pojo benchmark");
         InsertTests insertTests = new InsertTests(false, false);
         insertTests.setUp();
         insertTests.insertSimplePOJOs();
