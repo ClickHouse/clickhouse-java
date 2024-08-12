@@ -39,10 +39,24 @@ public class ClientBenchmark {
     }
 
     @Benchmark
-    public void queryBenchmark() throws Exception {
+    public void queryBenchmarkSmall() throws Exception {
         LOGGER.info("(V1) Query benchmark");
         ApacheHttpConnectionImplTest apacheHttpConnectionImplTest = new ApacheHttpConnectionImplTest();
-        apacheHttpConnectionImplTest.testQuery();
+        apacheHttpConnectionImplTest.testQuery(1000);
+    }
+
+    @Benchmark
+    public void queryBenchmarkMedium() throws Exception {
+        LOGGER.info("(V1) Query benchmark");
+        ApacheHttpConnectionImplTest apacheHttpConnectionImplTest = new ApacheHttpConnectionImplTest();
+        apacheHttpConnectionImplTest.testQuery(1000000);
+    }
+
+    @Benchmark
+    public void queryBenchmarkLarge() throws Exception {
+        LOGGER.info("(V1) Query benchmark");
+        ApacheHttpConnectionImplTest apacheHttpConnectionImplTest = new ApacheHttpConnectionImplTest();
+        apacheHttpConnectionImplTest.testQuery(1000000000);
     }
 
     @Benchmark

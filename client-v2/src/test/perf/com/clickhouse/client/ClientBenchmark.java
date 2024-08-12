@@ -39,11 +39,29 @@ public class ClientBenchmark {
     }
 
     @Benchmark
-    public void queryBenchmark() throws Exception {
+    public void queryBenchmarkSmall() throws Exception {
         LOGGER.info("Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
-        queryTests.testQueryAll();
+        queryTests.testQueryAll(1000);
+        queryTests.tearDown();
+    }
+
+    @Benchmark
+    public void queryBenchmarkMedium() throws Exception {
+        LOGGER.info("Query benchmark");
+        QueryTests queryTests = new QueryTests(false, false);
+        queryTests.setUp();
+        queryTests.testQueryAll(1000000);
+        queryTests.tearDown();
+    }
+
+    @Benchmark
+    public void queryBenchmarkLarge() throws Exception {
+        LOGGER.info("Query benchmark");
+        QueryTests queryTests = new QueryTests(false, false);
+        queryTests.setUp();
+        queryTests.testQueryAll(1000000000);
         queryTests.tearDown();
     }
 

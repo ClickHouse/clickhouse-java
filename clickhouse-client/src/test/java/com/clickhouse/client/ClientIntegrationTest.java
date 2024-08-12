@@ -875,12 +875,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testQuery() {
+        testQuery(10000);
+    }
+    public void testQuery(int totalRecords) {
         ClickHouseNode server = getServer();
 
         try (ClickHouseClient client = getClient()) {
             // "select * from system.data_type_families"
-            int limit = 10000;
-            String sql = "select number, toString(number) from system.numbers limit " + limit;
+            String sql = "select number, toString(number) from system.numbers limit " + totalRecords;
 
             try (ClickHouseResponse response = newRequest(client, server)
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -902,20 +904,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 }
                 Assert.assertTrue(response.getInputStream().isClosed(),
                         "Input stream should have been closed since there's no data");
-                // int counter = 0;
-                // for (ClickHouseValue value : response.values()) {
-                // Assert.assertEquals(value.asString(), String.valueOf(index));
-                // index += counter++ % 2;
-                // }
-                Assert.assertEquals(index, limit);
-                // Thread.sleep(30000);
-                /*
-                 * while (response.hasError()) { int index = 0; for (ClickHouseColumn c :
-                 * columns) { // RawValue v = response.getRawValue(index++); // String v =
-                 * response.getValue(index++, String.class) }
-                 *
-                 * } byte[] bytes = in.readAllBytes(); String str = new String(bytes);
-                 */
+
+                Assert.assertEquals(index, totalRecords);
             } catch (Exception e) {
                 Assert.fail("Query failed", e);
             }
