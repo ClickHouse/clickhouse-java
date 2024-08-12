@@ -63,7 +63,7 @@ public class InsertTests extends BaseIntegrationTest {
     InsertTests() {
     }
 
-    InsertTests(boolean useClientCompression, boolean useHttpCompression) {
+    public InsertTests(boolean useClientCompression, boolean useHttpCompression) {
         this.useClientCompression = useClientCompression;
         this.useHttpCompression = useHttpCompression;
     }

@@ -87,7 +87,7 @@ public class QueryTests extends BaseIntegrationTest {
     QueryTests(){
     }
 
-    QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
     }
