@@ -189,6 +189,15 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testQueryAllSimple() throws Exception {
+        testQueryAllSimple(10);
+    }
+    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+        GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
+        Assert.assertNotNull(record);
+    }
+
+    @Test(groups = {"integration"})
     public void testQueryAllNoResult() throws Exception {
         List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
         Assert.assertTrue(records.isEmpty());

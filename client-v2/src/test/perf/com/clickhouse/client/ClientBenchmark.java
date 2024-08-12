@@ -15,6 +15,9 @@ import java.util.concurrent.TimeUnit;
 @Threads(1)
 public class ClientBenchmark {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientBenchmark.class);
+    private static final int SMALL_SIZE = 1000;
+    private static final int MEDIUM_SIZE = 1000000;
+    private static final int LARGE_SIZE = 10000000;
 
     @Setup
     public void setup() {
@@ -43,7 +46,7 @@ public class ClientBenchmark {
         LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
-        queryTests.testQueryAll(1000);
+        queryTests.testQueryAllSimple(SMALL_SIZE);
         queryTests.tearDown();
     }
 
@@ -52,7 +55,7 @@ public class ClientBenchmark {
         LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
-        queryTests.testQueryAll(1000000);
+        queryTests.testQueryAllSimple(MEDIUM_SIZE);
         queryTests.tearDown();
     }
 
@@ -61,17 +64,34 @@ public class ClientBenchmark {
         LOGGER.info("(V2) Query benchmark");
         QueryTests queryTests = new QueryTests(false, false);
         queryTests.setUp();
-        queryTests.testQueryAll(1000000000);
+        queryTests.testQueryAllSimple(LARGE_SIZE);
         queryTests.tearDown();
     }
 
     @Benchmark
-    public void insertRawDataBenchmark() throws Exception {
+    public void insertRawDataBenchmarkSmall() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
         InsertTests insertTests = new InsertTests(false, false);
         insertTests.setUp();
-        insertTests.insertRawData();
-        insertTests.insertSimplePOJOs();
+        insertTests.insertRawDataSimple(SMALL_SIZE);
+        insertTests.tearDown();
+    }
+
+    @Benchmark
+    public void insertRawDataBenchmarkMedium() throws Exception {
+        LOGGER.info("(V2) Insert raw data benchmark");
+        InsertTests insertTests = new InsertTests(false, false);
+        insertTests.setUp();
+        insertTests.insertRawDataSimple(MEDIUM_SIZE);
+        insertTests.tearDown();
+    }
+
+    @Benchmark
+    public void insertRawDataBenchmarkLarge() throws Exception {
+        LOGGER.info("(V2) Insert raw data benchmark");
+        InsertTests insertTests = new InsertTests(false, false);
+        insertTests.setUp();
+        insertTests.insertRawDataSimple(LARGE_SIZE);
         insertTests.tearDown();
     }
 
