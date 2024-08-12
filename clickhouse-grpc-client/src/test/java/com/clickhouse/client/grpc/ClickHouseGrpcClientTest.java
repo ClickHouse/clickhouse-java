@@ -214,9 +214,4 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     public void testFailover() {
         throw new SkipException("Skip due to failover is not supported");
     }
-
-    @Override
-    public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
-        throw new SkipException("Skip due to session timezone is not supported");
-    }
 }
