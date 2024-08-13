@@ -442,21 +442,19 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             OffsetDateTime serverNowOffseted = rs.getObject(1, OffsetDateTime.class);
             LocalDateTime serverNow = (LocalDateTime) rs.getObject(1);
             OffsetDateTime tzTime = (OffsetDateTime) rs.getObject(2);
+            ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
             Assert.assertTrue(serverNow.isEqual(tzTime.toLocalDateTime()));
             Assert.assertTrue(serverNow.isEqual(serverNowOffseted.toLocalDateTime()));
             Assert.assertEquals(tzTime.getOffset(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId().getRules().getOffset(tzTime.toInstant()));
+            Assert.assertEquals(serverNowZoned.getZone(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId());
+            Assert.assertEquals(serverNowZoned.toLocalDateTime(), serverNow);
+
             Time serverNowTime = rs.getTime(1);
             Time tzTimeTime = rs.getTime(2);
             Timestamp serverNowTimestamp = rs.getTimestamp(1);
             Timestamp tzTimeTimestamp = rs.getTimestamp(2);
-            ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
-
-
-            System.out.println("serverNow: " + serverNow + " tzTime: " + tzTime);
-            System.out.println("serverNowZoned: " + serverNowZoned + " zone: " + serverNowZoned.getZone() );
-            System.out.println("serverNowOffseted: " + serverNowOffseted);
-            System.out.println("serverNowTime: " + serverNowTime + " tzTimeTime: " + tzTimeTime);
-            System.out.println("serverNowTimestamp: " + serverNowTimestamp + " tzTimeTimestamp: " + tzTimeTimestamp);
+            Assert.assertEquals(serverNowTime, tzTimeTime);
+            Assert.assertEquals(serverNowTimestamp, tzTimeTimestamp);
         }
     }
 }
