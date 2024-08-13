@@ -72,7 +72,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
         this.timeZone = timeZone;
         boolean hasError = true;
         try {
-            if (config.isUseServerTimeZone() && !config.getUseTimeZone().equals(timeZone)) {
+            if (timeZone != null && config.isUseServerTimeZone() && !config.getUseTimeZone().equals(timeZone)) {
                 Map<ClickHouseOption, Serializable> configOptions = new HashMap<>(config.getAllOptions());
                 configOptions.put(ClickHouseClientOption.SERVER_TIME_ZONE, timeZone.getID());
                 config = new ClickHouseConfig(configOptions);
