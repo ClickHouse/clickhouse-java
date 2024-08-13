@@ -2,6 +2,7 @@ package com.clickhouse.client.grpc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +44,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private final ClickHouseResponseSummary summary;
 
     private final AtomicReference<IOException> errorRef;
+
+    private TimeZone timeZone;
 
     protected ClickHouseStreamObserver(ClickHouseConfig config, ClickHouseNode server, ClickHouseOutputStream output) {
         this.server = server;
@@ -126,6 +129,11 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
                 errorRef.compareAndSet(null, new IOException(ClickHouseException
                         .buildErrorMessage(result.getException().getCode(), result.getException().getDisplayText())));
             }
+        }
+
+        String tz = result.getTimeZone();
+        if (!tz.isEmpty()) {
+            timeZone = TimeZone.getTimeZone(result.getTimeZone());
         }
 
         return proceed;
@@ -220,5 +228,9 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
     public ClickHouseInputStream getInputStream() {
         return this.input;
+    }
+
+    public TimeZone getTimeZone() {
+        return timeZone;
     }
 }

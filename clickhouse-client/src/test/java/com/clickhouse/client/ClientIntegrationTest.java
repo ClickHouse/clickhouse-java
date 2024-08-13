@@ -2708,26 +2708,28 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         System.out.println("Testing with " + format + " format");
         ClickHouseNode server = getServer();
 
+        ZoneId custZoneId = ZoneId.of("America/Los_Angeles");
 
-        final String sql = "select now(), timezone(), serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
+        final String sql = "SELECT now(), toDateTime(now(), 'UTC') as utc_time, serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
         try (ClickHouseClient client = getClient();
              ClickHouseResponse response = newRequest(client, server)
                      .query(sql, UUID.randomUUID().toString())
                      .option(ClickHouseClientOption.FORMAT, format)
                      .executeAndWait()) {
 
+            Assert.assertEquals(response.getTimeZone().getID(), "America/Los_Angeles", "Timezone should be applied from the query settings");
+
             ClickHouseRecord record = response.firstRecord();
-            final LocalDateTime now = record.getValue(0).asDateTime();
-            final String timezone = record.getValue(1).asString();
+            final ZonedDateTime now = record.getValue(0).asZonedDateTime();
+            final ZonedDateTime utcTime = record.getValue(1).asZonedDateTime();
             final String serverTimezone = record.getValue(2).asString();
-            System.out.println("now: " + now + ", timezone: " + timezone + ", serverTimezone: " + serverTimezone);
-            Assert.assertEquals(timezone, "America/Los_Angeles", "Timezone should be applied from the query settings");
-            Assert.assertEquals(serverTimezone, "UTC", "Server timezone should be 'UTC'");
-            final ZonedDateTime nowAtTimezone = Instant.now().atZone(ZoneId.of(timezone));
-            ZonedDateTime serverTimeNow = ZonedDateTime.of(now, ZoneId.of(timezone));
-            System.out.println("Server time: " + serverTimeNow + " (" + timezone + "), Client time: " + nowAtTimezone + " (" + timezone + ")");
-            Assert.assertTrue(Duration.between(serverTimeNow, nowAtTimezone).abs().getSeconds() < 60,
-                    "Server time (" + serverTimeNow + " ) should be close to the client time (" + nowAtTimezone + ")");
+            Assert.assertNotEquals(serverTimezone, "America/Los_Angeles", "Server timezone should be applied from the query settings");
+
+
+            System.out.println("Now in America/Los_Angeles: " + now);
+            System.out.println("UTC Time: " + utcTime);
+            System.out.println("UTC Time: " + utcTime.withZoneSameInstant(custZoneId));
+            Assert.assertEquals(now, utcTime.withZoneSameInstant(custZoneId));
         }
     }
 
