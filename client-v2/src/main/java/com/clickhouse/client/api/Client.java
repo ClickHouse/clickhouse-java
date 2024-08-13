@@ -7,7 +7,10 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.NativeFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -1389,6 +1392,39 @@ public class Client implements AutoCloseable {
                         throw new ClientException("Failed to get command response", e);
                     }
                 }, sharedOperationExecutor);
+    }
+
+    /**
+     * <p>Create an instance of {@link ClickHouseBinaryFormatReader} based on response. Table schema is option and only
+     *  required for {@link ClickHouseFormat#RowBinaryWithNames}, {@link ClickHouseFormat#RowBinary}.
+     *  Format {@link ClickHouseFormat#RowBinaryWithDefaults} is not supported for output (read operations).</p>
+     * @param response
+     * @param schema
+     * @return
+     */
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+        ClickHouseBinaryFormatReader reader = null;
+        switch (response.getFormat()) {
+            case Native:
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNamesAndTypes:
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNames:
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            case RowBinary:
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
+        }
+        return reader;
+    }
+
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+        return  newBinaryFormatReader(response, null);
     }
 
     private String startOperation() {
