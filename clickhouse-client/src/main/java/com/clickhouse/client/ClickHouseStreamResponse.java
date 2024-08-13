@@ -3,10 +3,13 @@ package com.clickhouse.client;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -69,6 +72,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
         this.timeZone = timeZone;
         boolean hasError = true;
         try {
+            if (timeZone != null && config.isUseServerTimeZone() && !config.getUseTimeZone().equals(timeZone)) {
+                Map<ClickHouseOption, Serializable> configOptions = new HashMap<>(config.getAllOptions());
+                configOptions.put(ClickHouseClientOption.SERVER_TIME_ZONE, timeZone.getID());
+                config = new ClickHouseConfig(configOptions);
+            }
             this.processor = ClickHouseDataStreamFactory.getInstance().getProcessor(config, input, null, settings,
                     columns);
             hasError = false;
