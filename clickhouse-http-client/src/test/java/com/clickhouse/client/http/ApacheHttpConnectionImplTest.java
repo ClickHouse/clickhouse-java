@@ -329,12 +329,16 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
         HashMap<ClickHouseOption, Serializable> disabledKeepAlive = new HashMap<>();
         disabledKeepAlive.put(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 1000L);
         disabledKeepAlive.put(ClickHouseHttpOption.KEEP_ALIVE, false);
+        HashMap<ClickHouseOption, Serializable> fifoOption = new HashMap<>();
+        fifoOption.put(ClickHouseClientOption.CONNECTION_TTL, 1000L);
+        fifoOption.put(ClickHouseHttpOption.CONNECTION_REUSE_STRATEGY, "FIFO");
         return new Object[][] {
                 { Collections.singletonMap(ClickHouseClientOption.CONNECTION_TTL, 1000L), 2 },
                 { Collections.singletonMap(ClickHouseClientOption.CONNECTION_TTL, 2000L), 1 },
                 { Collections.singletonMap(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 2000L), 1 },
                 { Collections.singletonMap(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 500L), 2 },
                 { disabledKeepAlive, 2 },
+                { fifoOption, 2 }
         };
     }
 
