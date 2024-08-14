@@ -26,6 +26,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
@@ -37,10 +38,14 @@ import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.HttpConnectionFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
+import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.VersionInfo;
 
@@ -91,14 +96,31 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             r.register("https", socketFactory.create(c, SSLConnectionSocketFactory.class));
         }
 
-        HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c);
+        long connectionTTL = config.getLongOption(ClickHouseClientOption.CONNECTION_TTL);
+        log.info("Connection TTL: %d ms", connectionTTL);
+        String poolReuseStrategy = c.getStrOption(ClickHouseHttpOption.CONNECTION_REUSE_STRATEGY);
+        PoolReusePolicy poolReusePolicy = PoolReusePolicy.LIFO;
+        if (poolReuseStrategy != null && !poolReuseStrategy.isEmpty()) {
+            try {
+                poolReusePolicy = PoolReusePolicy.valueOf(poolReuseStrategy);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid connection reuse strategy: " + poolReuseStrategy);
+            }
+        }
+        log.info("Connection reuse strategy: %s", poolReusePolicy.name());
+        HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c, PoolConcurrencyPolicy.LAX,
+                poolReusePolicy, TimeValue.ofMilliseconds(connectionTTL));
         int maxConnection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
 
-        connManager.setMaxTotal(maxConnection);
+        connManager.setMaxTotal(Integer.MAX_VALUE); // unlimited on global level
         connManager.setDefaultMaxPerRoute(maxConnection);
 
         HttpClientBuilder builder = HttpClientBuilder.create().setConnectionManager(connManager)
                 .disableContentCompression();
+        long timeout = c.getLongOption(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT);
+        if (timeout > 0) {
+            builder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(timeout));
+        }
         if (c.getProxyType() == ClickHouseProxyType.HTTP) {
             builder.setProxy(new HttpHost(c.getProxyHost(), c.getProxyPort()));
         }
@@ -394,9 +416,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                     versionInfo != null && !versionInfo.isEmpty() ? versionInfo : PROVIDER);
         }
 
-        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config) {
-            super(socketFactory);
-
+        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config,
+                                     PoolConcurrencyPolicy poolConcurrentcyPolicy, PoolReusePolicy poolReusePolicy,
+                                     TimeValue ttl) {
+            super(socketFactory, poolConcurrentcyPolicy, poolReusePolicy, ttl);
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .setValidateAfterInactivity(config.getLongOption(ClickHouseHttpOption.AHC_VALIDATE_AFTER_INACTIVITY), TimeUnit.MILLISECONDS)
