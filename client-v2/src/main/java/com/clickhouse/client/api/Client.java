@@ -45,8 +45,6 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
-import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStream;
-import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
@@ -299,6 +297,16 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Configures client to use build-in connection pool
+         * @param enable - if connection pool should be enabled
+         * @return
+         */
+        public Builder enableConnectionPool(boolean enable) {
+            this.configuration.put("connection_pool_enabled", String.valueOf(enable));
+            return this;
+        }
+
+        /**
          * Default connection timeout in milliseconds. Timeout is applied to establish a connection.
          *
          * @param timeout - connection timeout in milliseconds
@@ -331,12 +339,39 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets the maximum number of connections that can be opened at the same time to a single server.
-         * Default is 10.
+         * Sets the maximum number of connections that can be opened at the same time to a single server. Limit is not
+         * a hard stop. It is done to prevent threads stuck inside a connection pool waiting for a connection.
+         * Default is 10. It is recommended to set a higher value for a high concurrent applications. It will let
+         * more threads to get a connection and execute a query.
+         *
          * @param maxConnections - maximum number of connections
          */
         public Builder setMaxConnections(int maxConnections) {
             this.configuration.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxConnections));
+            return this;
+        }
+
+        /**
+         * Sets how long any connection would be considered as active and able for a lease.
+         * After this time connection will be marked for sweep and will not be returned from a pool.
+         * @param timeout - time in unit
+         * @param unit - time unit
+         * @return
+         */
+        public Builder setConnectionTTL(long timeout, ChronoUnit unit) {
+            this.configuration.put("connection_ttl", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets strategy of how connections are reuse.
+         * Default is {@link ConnectionReuseStrategy#FIFO} to evenly distribute load between them.
+         *
+         * @param strategy - strategy for connection reuse
+         * @return
+         */
+        public Builder setConnectionReuseStrategy(ConnectionReuseStrategy strategy) {
+            this.configuration.put("connection_reuse_strategy", strategy.name());
             return this;
         }
 
@@ -503,8 +538,8 @@ public class Client implements AutoCloseable {
          * @param timeUnit
          * @return
          */
-        public Builder setExecutionTimeout(long timeout, TimeUnit timeUnit) {
-            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(timeUnit.toMillis(timeout)));
+        public Builder setExecutionTimeout(long timeout, ChronoUnit timeUnit) {
+            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
             return this;
         }
 
@@ -711,6 +746,14 @@ public class Client implements AutoCloseable {
 
             if (!userConfig.containsKey("connection_request_timeout")) {
                 userConfig.put("connection_request_timeout", "10000");
+            }
+
+            if (!userConfig.containsKey("connection_reuse_strategy")) {
+                userConfig.put("connection_reuse_strategy", ConnectionReuseStrategy.FIFO.name());
+            }
+
+            if (!userConfig.containsKey("connection_pool_enabled")) {
+                userConfig.put("connection_pool_enabled", "true");
             }
 
             return userConfig;
