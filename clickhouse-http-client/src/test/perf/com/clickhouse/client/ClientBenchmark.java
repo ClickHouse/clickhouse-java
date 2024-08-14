@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.http.ApacheHttpConnectionImplTest;
-import com.clickhouse.client.http.ClickHouseHttpClientTest;
 import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
