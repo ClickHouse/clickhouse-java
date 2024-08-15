@@ -2,17 +2,25 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.insert.InsertTests;
 import com.clickhouse.client.query.QueryTests;
+import com.clickhouse.data.ClickHouseFormat;
 import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.concurrent.TimeUnit;
 
 import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
+import static org.testng.Assert.assertEquals;
 
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -28,12 +36,15 @@ public class ClientBenchmark {
     private Client newClient;
     private Client oldClient;
 
+    private InsertTests insertTests;
+    private QueryTests queryTests;
+
     public static void main(String[] args) throws Exception {
         org.openjdk.jmh.Main.main(args);
     }
 
     @Setup
-    public void setup() {
+    public void setup() throws IOException {
         BaseIntegrationTest.setupClickHouseContainer();
 
         ClickHouseNode node = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
@@ -55,12 +66,20 @@ public class ClientBenchmark {
                 .useHttpCompression(false)
                 .useNewImplementation(true)
                 .build();
+
+        queryTests = new QueryTests(false, false);
+        queryTests.setUp();
+
+        insertTests = new InsertTests(false, false);
+        insertTests.setUp();
     }
 
     @TearDown
     public void tearDown() {
         oldClient.close();
         newClient.close();
+        insertTests.tearDown();
+        queryTests.tearDown();
         BaseIntegrationTest.teardownClickHouseContainer();
     }
 
@@ -77,28 +96,19 @@ public class ClientBenchmark {
     @Benchmark
     public void queryBenchmarkSmall() throws Exception {
         LOGGER.info("(V2) Query benchmark");
-        QueryTests queryTests = new QueryTests(false, false);
-        queryTests.setUp();
         queryTests.testQueryAllSimple(SMALL_SIZE);
-        queryTests.tearDown();
     }
 
     @Benchmark
     public void queryBenchmarkMedium() throws Exception {
         LOGGER.info("(V2) Query benchmark");
-        QueryTests queryTests = new QueryTests(false, false);
-        queryTests.setUp();
         queryTests.testQueryAllSimple(MEDIUM_SIZE);
-        queryTests.tearDown();
     }
 
     @Benchmark
     public void queryBenchmarkLarge() throws Exception {
         LOGGER.info("(V2) Query benchmark");
-        QueryTests queryTests = new QueryTests(false, false);
-        queryTests.setUp();
         queryTests.testQueryAllSimple(LARGE_SIZE);
-        queryTests.tearDown();
     }
 
     @Threads(4)
@@ -152,36 +162,45 @@ public class ClientBenchmark {
     @Benchmark
     public void insertRawDataBenchmarkSmall() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        InsertTests insertTests = new InsertTests(false, false);
-        insertTests.setUp();
         insertTests.insertRawDataSimple(SMALL_SIZE);
-        insertTests.tearDown();
     }
 
     @Benchmark
     public void insertRawDataBenchmarkMedium() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        InsertTests insertTests = new InsertTests(false, false);
-        insertTests.setUp();
         insertTests.insertRawDataSimple(MEDIUM_SIZE);
-        insertTests.tearDown();
     }
 
     @Benchmark
     public void insertRawDataBenchmarkLarge() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        InsertTests insertTests = new InsertTests(false, false);
-        insertTests.setUp();
         insertTests.insertRawDataSimple(LARGE_SIZE);
-        insertTests.tearDown();
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void insertRawDataBenchmarkSmallParallel() throws Exception {
+        LOGGER.info("(V2) Insert raw data parallel benchmark");
+        insertTests.insertRawDataSimple(SMALL_SIZE);
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void insertRawDataBenchmarkMediumParallel() throws Exception {
+        LOGGER.info("(V2) Insert raw data parallel benchmark");
+        insertTests.insertRawDataSimple(MEDIUM_SIZE);
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void insertRawDataBenchmarkLargeParallel() throws Exception {
+        LOGGER.info("(V2) Insert raw data parallel benchmark");
+        insertTests.insertRawDataSimple(LARGE_SIZE);
     }
 
     @Benchmark
     public void insertSimplePojoBenchmark() throws Exception {
         LOGGER.info("(V2) Insert simple pojo benchmark");
-        InsertTests insertTests = new InsertTests(false, false);
-        insertTests.setUp();
         insertTests.insertSimplePOJOs();
-        insertTests.tearDown();
     }
 }
