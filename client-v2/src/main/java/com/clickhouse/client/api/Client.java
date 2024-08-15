@@ -214,17 +214,17 @@ public class Client implements AutoCloseable {
         public Builder addEndpoint(String endpoint) {
             try {
                 URL endpointURL = new java.net.URL(endpoint);
-                if (!(endpointURL.getProtocol().equalsIgnoreCase("https") ||
-                        endpointURL.getProtocol().equalsIgnoreCase("http"))) {
+
+                if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
+                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
+                } else if (endpointURL.getProtocol().equalsIgnoreCase("http")) {
+                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), false);
+                } else {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
             }
-            if (endpoint.startsWith("https://")) {
-                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
-            }
-            this.endpoints.add(endpoint);
             return this;
         }
 
@@ -246,7 +246,7 @@ public class Client implements AutoCloseable {
                 this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
             }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
-            this.addEndpoint(endpoint);
+            this.endpoints.add(endpoint);
             return this;
         }
 
@@ -354,12 +354,27 @@ public class Client implements AutoCloseable {
         /**
          * Sets how long any connection would be considered as active and able for a lease.
          * After this time connection will be marked for sweep and will not be returned from a pool.
+         * Has more effect than keep-alive timeout.
          * @param timeout - time in unit
          * @param unit - time unit
          * @return
          */
         public Builder setConnectionTTL(long timeout, ChronoUnit unit) {
             this.configuration.put("connection_ttl", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets keep alive timeout for a connection to override server value. If set to -1 then server value will be used.
+         * Default is -1.
+         * Doesn't override connection TTL value.
+         * {@see Client#setConnectionTTL}
+         * @param timeout - time in unit
+         * @param unit - time unit
+         * @return
+         */
+        public Builder setKeepAliveTimeout(long timeout, ChronoUnit unit) {
+            this.configuration.put("connection_keep_alive_timeout", String.valueOf(Duration.of(timeout, unit).toMillis()));
             return this;
         }
 
@@ -754,6 +769,10 @@ public class Client implements AutoCloseable {
 
             if (!userConfig.containsKey("connection_pool_enabled")) {
                 userConfig.put("connection_pool_enabled", "true");
+            }
+
+            if (!userConfig.containsKey("connection_ttl")) {
+                userConfig.put("connection_ttl", "-1");
             }
 
             return userConfig;

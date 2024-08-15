@@ -39,6 +39,7 @@ import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
+import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -129,6 +130,17 @@ public class HttpAPIClientHelper {
         return sslContext;
     }
 
+    private long CONNECTION_INACTIVITY_CHECK = 5000L;
+
+    private ConnectionConfig createConnectionConfig() {
+        ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
+        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, "connection_ttl"), TimeUnit.MILLISECONDS);
+        connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey()),
+                TimeUnit.MILLISECONDS);
+        connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
+
+        return connConfig.build();
+    }
 
     private HttpClientConnectionManager basicConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
         RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
@@ -137,7 +149,9 @@ public class HttpAPIClientHelper {
 
 
         BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
+        connManager.setConnectionConfig(createConnectionConfig());
         connManager.setSocketConfig(socketConfig);
+
         return connManager;
     }
 
@@ -146,15 +160,11 @@ public class HttpAPIClientHelper {
                 .setConnPoolPolicy(PoolReusePolicy.LIFO)
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.STRICT);
 
-        ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
-        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
-                (t) -> connConfig.setConnectTimeout(t, TimeUnit.MILLISECONDS));
-
-
-        connMgrBuilder.setDefaultConnectionConfig(connConfig.build());
+        connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
         MapUtils.applyInt(chConfiguration, ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(),
                 connMgrBuilder::setMaxConnPerRoute);
+
 
         connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
@@ -211,6 +221,10 @@ public class HttpAPIClientHelper {
         } else {
             clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
         }
+        long keepAliveTimeout = MapUtils.getLong(chConfiguration, "connection_keep_alive_timeout");
+        if (keepAliveTimeout > 0) {
+            clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
+        }
 
         return clientBuilder.build();
     }
@@ -238,7 +252,7 @@ public class HttpAPIClientHelper {
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
-            uri = uriBuilder.build();
+            uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
