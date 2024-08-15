@@ -134,7 +134,8 @@ public class HttpAPIClientHelper {
 
     private ConnectionConfig createConnectionConfig() {
         ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
-        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, "connection_ttl"), TimeUnit.MILLISECONDS);
+        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, ClickHouseClientOption.CONNECTION_TTL.getKey()),
+                TimeUnit.MILLISECONDS);
         connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey()),
                 TimeUnit.MILLISECONDS);
         connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
@@ -221,7 +222,7 @@ public class HttpAPIClientHelper {
         } else {
             clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
         }
-        long keepAliveTimeout = MapUtils.getLong(chConfiguration, "connection_keep_alive_timeout");
+        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey());
         if (keepAliveTimeout > 0) {
             clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
         }

@@ -26,6 +26,9 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
     @SuppressWarnings("java:S2925")
     public void testConnectionTTL(Long connectionTtl, Long keepAlive, int openSockets) throws Exception {
+        if (isCloud()) {
+            return; // skip cloud tests because of wiremock proxy. TODO: fix it
+        }
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         int proxyPort = new Random().nextInt(1000) + 10000;
@@ -46,7 +49,6 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
                 .setUsername("default")
                 .setPassword(getPassword())
                 .useNewImplementation(true)
-//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .addProxy(ProxyType.HTTP, "localhost", proxyPort);
         if (connectionTtl != null) {
             clientBuilder.setConnectionTTL(connectionTtl, ChronoUnit.MILLIS);
@@ -96,23 +98,21 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
         @Override
         public void opened(Socket socket) {
             opened.incrementAndGet();
-            System.out.println("Opened: " + socket);
         }
 
         @Override
         public void incoming(Socket socket, ByteBuffer bytes) {
-
+            // ignore
         }
 
         @Override
         public void outgoing(Socket socket, ByteBuffer bytes) {
-
+            // ignore
         }
 
         @Override
         public void closed(Socket socket) {
             closed.incrementAndGet();
-            System.out.println("Closed: " + socket);
         }
     }
 

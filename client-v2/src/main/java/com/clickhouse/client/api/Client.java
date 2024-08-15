@@ -367,7 +367,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setConnectionTTL(long timeout, ChronoUnit unit) {
-            this.configuration.put("connection_ttl", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            this.configuration.put(ClickHouseClientOption.CONNECTION_TTL.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
             return this;
         }
 
@@ -381,7 +381,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setKeepAliveTimeout(long timeout, ChronoUnit unit) {
-            this.configuration.put("connection_keep_alive_timeout", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            this.configuration.put(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
             return this;
         }
 
