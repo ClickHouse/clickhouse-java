@@ -10,9 +10,7 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.insert.SamplePOJO;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
@@ -28,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
@@ -88,9 +87,12 @@ public class ProxyTests extends BaseIntegrationTest{
         try {
             client.get().execute("select 1").get();
             Assert.fail("Should have thrown exception.");
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientMisconfigurationException e) {
+            Assert.assertTrue(e.getMessage().contains("Proxy authentication required"));
         } catch (Exception e) {
-            e.printStackTrace();
-            Assert.assertTrue(e.getCause() instanceof ClientMisconfigurationException);
+            Assert.fail("Should have thrown exception.", e);
         }
     }
 
@@ -138,17 +140,24 @@ public class ProxyTests extends BaseIntegrationTest{
         client.set(clientBuilder(initProxy(), true).setHttpCookiesEnabled(false).build());
         final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
 
-        proxy.get().addStubMapping(post(urlMatching("/.*"))
+        proxy.get().addStubMapping(post(anyUrl())
                 .inScenario("routeCookies")
                 .whenScenarioStateIs(Scenario.STARTED)
                 .willReturn(aResponse().withHeader(HttpHeaders.SET_COOKIE, "routeName=routeA")
-                        .proxiedFrom("http://localhost:" + targetPort)).willSetStateTo("cookies").build());
+                        .proxiedFrom("http://localhost:" + targetPort))
+                .willSetStateTo("cookies").build());
 
-        proxy.get().addStubMapping(post(urlMatching("/.*"))
+        proxy.get().addStubMapping(post(anyUrl())
                 .inScenario("routeCookies")
                 .whenScenarioStateIs("cookies")
                 .withHeader(HttpHeaders.COOKIE, equalTo("routeName=routeA"))
                 .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+
+        proxy.get().addStubMapping(post(anyUrl())
+                .inScenario("routeCookies")
+                .whenScenarioStateIs("cookies")
+                .withHeader(HttpHeaders.COOKIE, WireMock.absent())
+                .willReturn(aResponse().withStatus(HttpStatus.SC_BAD_GATEWAY)).build());
 
         try {
             client.get().execute("select 1").get();
@@ -159,8 +168,10 @@ public class ProxyTests extends BaseIntegrationTest{
             client.get().execute("select 1").get();
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getMessage().contains("Server returned '502 Bad gateway'"));
         } catch (Exception e) {
-            fail("Should have thrown exception.", e);
+            Assert.fail("Should have thrown exception.", e);
         }
     }
 
@@ -175,7 +186,9 @@ public class ProxyTests extends BaseIntegrationTest{
     }
 
     private int initProxy() {
-        WireMockServer wireMock = new WireMockServer(WireMockConfiguration.options().notifier(new Slf4jNotifier(true)));
+        WireMockServer wireMock = new WireMockServer(WireMockConfiguration.options()
+//                .notifier(new Slf4jNotifier(true))
+        );
         wireMock.start();
         proxy.set(wireMock);
         return wireMock.port();
