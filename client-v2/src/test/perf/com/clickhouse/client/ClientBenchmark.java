@@ -66,7 +66,10 @@ public class ClientBenchmark {
                 .useHttpCompression(false)
                 .useNewImplementation(true)
                 .build();
+    }
 
+    @Setup(Level.Invocation)
+    public void setupEachInvocation() throws IOException {
         queryTests = new QueryTests(false, false);
         queryTests.setUp();
 
