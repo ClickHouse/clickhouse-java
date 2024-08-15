@@ -425,7 +425,16 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Query ID to be attached to an operation
      */
-    QUERY_ID("query_id", "", "Query id");
+    QUERY_ID("query_id", "", "Query id"),
+
+
+    /**
+     * Connection time to live in milliseconds. 0 or negative number means no limit.
+     * Can be used to override keep-alive time suggested by a server.
+     */
+    CONNECTION_TTL("connection_ttl", 0L,
+            "Connection time to live in milliseconds. 0 or negative number means no limit."),
+    ;
 
     private final String key;
     private final Serializable defaultValue;
