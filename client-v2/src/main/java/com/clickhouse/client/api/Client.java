@@ -43,8 +43,10 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
@@ -1307,6 +1309,8 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
                     } catch (ClientException e) {
                         throw e;
+                    } catch (ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        throw new ConnectionInitiationException("Failed to get connection", e);
                     } catch (Exception e) {
                         throw new ClientException("Failed to execute query", e);
                     }

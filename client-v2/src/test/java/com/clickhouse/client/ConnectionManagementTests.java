@@ -1,13 +1,18 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -18,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConnectionManagementTests extends BaseIntegrationTest{
@@ -116,4 +123,44 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testConnectionRequestTimeout() {
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        System.out.println("proxyPort: " + serverPort);
+        ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
+        WireMockServer proxy = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort)
+                .networkTrafficListener(connectionCounter)
+                .notifier(new Slf4jNotifier(true)));
+        proxy.start();
+        proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse().withFixedDelay(5000)
+                        .withStatus(HttpStatus.SC_NOT_FOUND)).build());
+
+        Client.Builder clientBuilder = new Client.Builder()
+                .addEndpoint("http://localhost:" + serverPort)
+                .setUsername("default")
+                .setPassword(getPassword())
+                .useNewImplementation(true)
+                .setMaxConnections(1)
+                .setOption(ClickHouseClientOption.ASYNC.getKey(), "true")
+                .setSocketTimeout(10000, ChronoUnit.MILLIS)
+                .setConnectionRequestTimeout(5, ChronoUnit.MILLIS);
+
+        try (Client client = clientBuilder.build()) {
+            CompletableFuture<QueryResponse> f1 = client.query("select 1");
+            CompletableFuture<QueryResponse> f2 = client.query("select 1");
+            f2.get();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            Assert.assertTrue(e.getCause() instanceof ConnectionInitiationException);
+            Assert.assertTrue(e.getCause().getCause() instanceof ConnectionRequestTimeoutException);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Unexpected exception", e);
+        } finally {
+            proxy.stop();
+        }
+    }
 }
