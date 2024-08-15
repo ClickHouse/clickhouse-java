@@ -42,6 +42,18 @@ public class MapUtils {
         return 0;
     }
 
+    public static long getLong(Map<String, String> map, String key) {
+        String val = map.get(key);
+        if (val != null) {
+            try {
+                return Long.parseLong(val);
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Invalid value for key " + key + ": " + val, e);
+            }
+        }
+        return 0;
+    }
+
     public static boolean getFlag(Map<String, String> map, String key) {
         String val = map.get(key);
         if (val == null) {

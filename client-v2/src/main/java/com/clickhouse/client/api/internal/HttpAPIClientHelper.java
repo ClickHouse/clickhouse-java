@@ -9,22 +9,22 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.http.ApacheHttpConnectionImpl;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -37,31 +37,25 @@ import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
-import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
+import org.apache.hc.core5.pool.PoolReusePolicy;
+import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.net.UnknownHostException;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -84,8 +78,9 @@ public class HttpAPIClientHelper {
         this.httpClient = createHttpClient();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
-        MapUtils.applyLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(),
-                (t) -> reqConfBuilder.setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
+        MapUtils.applyLong(chConfiguration, "connection_request_timeout",
+                (t) -> reqConfBuilder
+                        .setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
 
         this.baseRequestConfig = reqConfBuilder.build();
 
@@ -95,29 +90,19 @@ public class HttpAPIClientHelper {
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
     }
 
-    public CloseableHttpClient createHttpClient() {
-
-        // Top Level builders
-        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-
-
-        // Socket configuration
-        SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
-        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_TIMEOUT.getKey(),
-                (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
-        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_RCVBUF.getKey(),
-                soCfgBuilder::setRcvBufSize);
-        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_SNDBUF.getKey(),
-                soCfgBuilder::setSndBufSize);
-
-
-        // Connection manager
-        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create();
-
+    /**
+     * Creates or returns default SSL context.
+     * @return SSLContext
+     */
+    public SSLContext createSSLContext() {
+        SSLContext sslContext;
+        try {
+            sslContext = SSLContext.getDefault();
+        } catch (NoSuchAlgorithmException e) {
+            throw new ClientException("Failed to create default SSL context", e);
+        }
         ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
-
         String trustStorePath = chConfiguration.get(ClickHouseClientOption.TRUST_STORE.getKey());
-        SSLContext sslContext = null;
         if (trustStorePath != null ) {
             try {
                 sslContext = sslContextProvider.getSslContextFromKeyStore(
@@ -142,12 +127,67 @@ public class HttpAPIClientHelper {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
             }
         }
-        if (sslContext !=null) {
-            connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
-        }
+        return sslContext;
+    }
 
-        connMgrBuilder.setDefaultSocketConfig(soCfgBuilder.build());
-        clientBuilder.setConnectionManager(connMgrBuilder.build());
+    private long CONNECTION_INACTIVITY_CHECK = 5000L;
+
+    private ConnectionConfig createConnectionConfig() {
+        ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
+        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, ClickHouseClientOption.CONNECTION_TTL.getKey()),
+                TimeUnit.MILLISECONDS);
+        connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClickHouseClientOption.CONNECTION_TIMEOUT.getKey()),
+                TimeUnit.MILLISECONDS);
+        connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
+
+        return connConfig.build();
+    }
+
+    private HttpClientConnectionManager basicConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
+        registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
+        registryBuilder.register("https", new SSLConnectionSocketFactory(sslContext));
+
+
+        BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
+        connManager.setConnectionConfig(createConnectionConfig());
+        connManager.setSocketConfig(socketConfig);
+
+        return connManager;
+    }
+
+    private HttpClientConnectionManager poolConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
+                .setConnPoolPolicy(PoolReusePolicy.LIFO)
+                .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.STRICT);
+
+        connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
+        connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
+        MapUtils.applyInt(chConfiguration, ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(),
+                connMgrBuilder::setMaxConnPerRoute);
+
+
+        connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
+        connMgrBuilder.setDefaultSocketConfig(socketConfig);
+        return connMgrBuilder.build();
+    }
+
+    public CloseableHttpClient createHttpClient() {
+
+        // Top Level builders
+        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
+        SSLContext sslContext = createSSLContext();
+
+        // Socket configuration
+        SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_TIMEOUT.getKey(),
+                (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_RCVBUF.getKey(),
+                soCfgBuilder::setRcvBufSize);
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_SNDBUF.getKey(),
+                soCfgBuilder::setSndBufSize);
+        MapUtils.applyInt(chConfiguration, ClickHouseClientOption.SOCKET_LINGER.getKey(),
+                    (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
 
         // Proxy
         String proxyHost = chConfiguration.get(ClickHouseClientOption.PROXY_HOST.getKey());
@@ -173,6 +213,19 @@ public class HttpAPIClientHelper {
                 .equalsIgnoreCase("false")) {
             clientBuilder.disableCookieManagement();
         }
+        SocketConfig socketConfig = soCfgBuilder.build();
+
+        // Connection manager
+        boolean isConnectionPooling = MapUtils.getFlag(chConfiguration, "connection_pool_enabled");
+        if (isConnectionPooling) {
+            clientBuilder.setConnectionManager(poolConnectionManager(sslContext, socketConfig));
+        } else {
+            clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
+        }
+        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey());
+        if (keepAliveTimeout > 0) {
+            clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
+        }
 
         return clientBuilder.build();
     }
@@ -196,19 +249,16 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-//            HttpHost target = new HttpHost("https", server.getHost(), server.getPort());
-
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
-            uri = uriBuilder.build();
+            uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         HttpPost req = new HttpPost(uri);
         addHeaders(req, chConfiguration, requestConfig);
-
 
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
                 .build();
@@ -246,11 +296,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ServerException e) {
-            throw e;
-        } catch (NoHttpResponseException e) {
-            throw e;
-        } catch (ClientException e) {
+        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
