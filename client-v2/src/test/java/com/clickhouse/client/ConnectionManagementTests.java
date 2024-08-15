@@ -24,6 +24,7 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
 
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
+    @SuppressWarnings("java:S2925")
     public void testConnectionTTL(Long connectionTtl, Long keepAlive, int openSockets) throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
