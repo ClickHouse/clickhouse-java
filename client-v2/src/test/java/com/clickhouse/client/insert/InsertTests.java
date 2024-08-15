@@ -154,7 +154,10 @@ public class InsertTests extends BaseIntegrationTest {
         final String tableName = "raw_data_table";
         createTable(String.format("CREATE TABLE IF NOT EXISTS %s (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()", tableName));
 
-        settings.setInputStreamCopyBufferSize(8198 * 2);
+        InsertSettings settings = new InsertSettings()
+                .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
+                .setQueryId(String.valueOf(UUID.randomUUID()))
+                .setInputStreamCopyBufferSize(8198 * 2);
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(data);
         for (int i = 0; i < numberOfRecords; i++) {
