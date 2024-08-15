@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseSocketFactory;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
@@ -42,6 +43,7 @@ import com.github.tomakehurst.wiremock.stubbing.ServeEvent;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.net.URIBuilder;
 import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -293,13 +295,17 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                 .networkTrafficListener(connectionCounter)
                 .notifier(new Slf4jNotifier(true)));
         proxy.start();
+        URIBuilder targetURI = new URIBuilder(server.getBaseUri())
+                .setPath("");
         proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
-                .willReturn(WireMock.aResponse().proxiedFrom("http://localhost:" + server.getPort())).build());
+                .willReturn(WireMock.aResponse().proxiedFrom(targetURI.build().toString())).build());
 
         Map<ClickHouseOption, Serializable> baseOptions = new HashMap<>();
         baseOptions.put(ClickHouseClientOption.PROXY_PORT, proxyPort);
         baseOptions.put(ClickHouseClientOption.PROXY_HOST, "localhost");
         baseOptions.put(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.HTTP);
+        baseOptions.put(ClickHouseDefaults.PASSWORD, getPassword());
+        baseOptions.put(ClickHouseDefaults.USER, "default");
         baseOptions.putAll(options);
 
         ClickHouseConfig config = new ClickHouseConfig(baseOptions);
