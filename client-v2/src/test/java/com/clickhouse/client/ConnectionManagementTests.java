@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ConnectionInitiationException;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -150,17 +151,39 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
 
         try (Client client = clientBuilder.build()) {
             CompletableFuture<QueryResponse> f1 = client.query("select 1");
+            Thread.sleep(500L);
             CompletableFuture<QueryResponse> f2 = client.query("select 1");
             f2.get();
         } catch (ExecutionException e) {
             e.printStackTrace();
-            Assert.assertTrue(e.getCause() instanceof ConnectionInitiationException);
-            Assert.assertTrue(e.getCause().getCause() instanceof ConnectionRequestTimeoutException);
+            Assert.assertEquals(e.getCause().getClass(), ConnectionInitiationException.class);
+            Assert.assertEquals(e.getCause().getCause().getClass(), ConnectionRequestTimeoutException.class);
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail("Unexpected exception", e);
         } finally {
             proxy.stop();
+        }
+    }
+
+    @Test
+    public void testConnectionReuseStrategy() {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword(getPassword())
+                .useNewImplementation(true)
+                .setConnectionReuseStrategy(ConnectionReuseStrategy.LIFO)
+                .build()) {
+
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertTrue(records.size() > 0);
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail(e.getMessage());
         }
     }
 }
