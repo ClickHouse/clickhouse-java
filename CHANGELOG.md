@@ -2,7 +2,7 @@
 
 ## 0.6.4
 
-### Important
+### Deprecations
 - Following components will be deprecated and archived in next release:
   - clickhouse-cli-client
   - clickhouse-grpc-client
