@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -158,8 +159,21 @@ public class HttpAPIClientHelper {
 
     private HttpClientConnectionManager poolConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
-                .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.STRICT);
+                .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
+
+        ConnectionReuseStrategy connectionReuseStrategy =
+                ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
+        switch (connectionReuseStrategy) {
+            case LIFO:
+                connMgrBuilder.setConnPoolPolicy(PoolReusePolicy.LIFO);
+                break;
+            case FIFO:
+                connMgrBuilder.setConnPoolPolicy(PoolReusePolicy.FIFO);
+                break;
+            default:
+                throw new ClientMisconfigurationException("Unknown connection reuse strategy: " + connectionReuseStrategy);
+        }
+        LOG.info("Connection reuse strategy: {}", connectionReuseStrategy);
 
         connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
