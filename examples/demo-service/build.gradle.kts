@@ -29,8 +29,8 @@ dependencies {
 
 	// -- clickhouse dependencies
 	// Main dependency
-	implementation("com.clickhouse:client-v2:0.6.3-SNAPSHOT") // nightly build
-//	implementation("com.clickhouse:client-v2:0.6.3") // stable version
+	implementation("com.clickhouse:client-v2:0.6.4-SNAPSHOT") // nightly build
+//	implementation("com.clickhouse:client-v2:0.6.4") // stable version
 	// http client used by clickhouse client
 	implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
 	// compression dependencies

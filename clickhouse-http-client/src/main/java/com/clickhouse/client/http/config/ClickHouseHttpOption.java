@@ -76,7 +76,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
             "The time in milliseconds after which the connection is validated after inactivity."),
 
     /**
-     * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
+     * Whether to retry on failure with Apache HTTP Client. Failure includes some 'critical' IO exceptions:
      * <ul>
      *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
      *     <li>{@code org.apache.hc.core5.http.NoHttpResponseException}</li>
@@ -90,7 +90,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", false, "Whether to retry on failure with AsyncHttpClient."),
 
     /**
-     * Configuration for AsyncHttpClient connection pool. It defines how to reuse connections.
+     * Configuration for Apache HTTP Client connection pool. It defines how to reuse connections.
      * If {@code "FIFO"} is set, the connections are reused in the order they were created.
      * If {@code "LIFO"} is set, the connections are reused as soon they are available.
      * Default value is {@code "LIFO"}.
