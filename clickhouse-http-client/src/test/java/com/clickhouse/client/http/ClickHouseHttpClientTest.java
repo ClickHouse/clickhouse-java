@@ -150,6 +150,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         String uuid = UUID.randomUUID().toString();
         String queryId = UUID.randomUUID().toString();
         try (ClickHouseClient client = getClient();
+             // should be closed
              ClickHouseResponse response = newRequest(client, server)
                      .option(option, optionValue)
                      .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql), queryId)
