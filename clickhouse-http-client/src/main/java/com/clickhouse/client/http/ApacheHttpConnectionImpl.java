@@ -106,7 +106,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             }
         }
         log.info("Connection reuse strategy: %s", poolReusePolicy.name());
-        HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c, PoolConcurrencyPolicy.LAX,
+        HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c, PoolConcurrencyPolicy.STRICT,
                 poolReusePolicy, TimeValue.ofMilliseconds(connectionTTL));
         int maxConnection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
 
