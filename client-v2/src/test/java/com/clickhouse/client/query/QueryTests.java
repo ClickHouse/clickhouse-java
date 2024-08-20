@@ -180,9 +180,19 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
-        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
-        Assert.assertNotNull(hostnameRecord);
+        List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + DATASET_TABLE + " LIMIT " + dataset.size());
+        Assert.assertFalse(records.isEmpty());
+
+        int i = 0;
+        for (String colDefinition : DATASET_COLUMNS) {
+
+            String colName = colDefinition.split(" ")[0];
+            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).toList();
+            Assert.assertEquals(colValues.size(), dataset.size());
+            List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).toList();
+            Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
+        }
     }
 
     @Test(groups = {"integration"})

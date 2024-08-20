@@ -480,4 +480,14 @@ public class MapBackedRecord implements GenericRecord {
     public LocalDateTime getLocalDateTime(int index) {
         return readValue(index);
     }
+
+    @Override
+    public Object getObject(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public Object getObject(int index) {
+        return readValue(index);
+    }
 }
