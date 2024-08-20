@@ -469,6 +469,45 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testWithObjectReuse() throws ClickHouseException {
+        int numbers = 10;
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server).query("select * from numbers(10)")
+                     .reuseObjects()
+                     .executeAndWait()) {
+            List<ClickHouseRecord> records = new ArrayList<>(10);
+            response.stream().forEach(records::add);
+            Assert.assertEquals(records.size(), 10);
+            // Verify that all records are the same (object reuse)
+            for (int i = 0; i < numbers; i++) {
+                // All values will be 9 (last seen record)
+                Assert.assertEquals(records.get(i).getValue(0).asInteger(), 9);
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testWithoutObjectReuse() throws ClickHouseException {
+        int numbers = 10;
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server).query("select * from numbers(10)")
+                     .executeAndWait()) {
+            List<ClickHouseRecord> records = new ArrayList<>(10);
+            response.stream().forEach(records::add);
+            Assert.assertEquals(records.size(), 10);
+            // Verify all records are unique (different number)
+            for (int i = 0; i < numbers; i++) {
+                // Numbers will increment correctly, as object reuse is disabled by default
+                Assert.assertEquals(records.get(i).getValue(0).asInteger(), i);
+            }
+
+        }
+    }
+
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
     public void testCompression(ClickHouseFormat format, ClickHouseBufferingMode bufferingMode, boolean compressRequest,
             boolean compressResponse) throws ClickHouseException {
