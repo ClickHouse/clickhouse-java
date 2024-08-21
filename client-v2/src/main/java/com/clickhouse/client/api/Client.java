@@ -70,6 +70,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -81,6 +82,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 /**
@@ -714,8 +716,31 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+
+        /**
+         * Sets list of causes that should be retried on.
+         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout]}
+         * Use {@link ClientFaultCause#None} to disable retries.
+         *
+         * @param causes - list of causes
+         * @return
+         */
+        public Builder retryOnFailures(ClientFaultCause ...causes) {
+            StringJoiner joiner = new StringJoiner(VALUES_LIST_DELIMITER);
+            for (ClientFaultCause cause : causes) {
+                joiner.add(cause.name());
+            }
+            this.configuration.put("client_retry_on_failures", joiner.toString());
+            return this;
+        }
+
+        public Builder setMaxRetries(int maxRetries) {
+            this.configuration.put(ClickHouseClientOption.RETRY.getKey(), String.valueOf(maxRetries));
+            return this;
+        }
+
         public Client build() {
-            this.configuration = setDefaults(this.configuration);
+            setDefaults();
 
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -762,61 +787,65 @@ public class Client implements AutoCloseable {
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
         }
 
-        private Map<String, String> setDefaults(Map<String, String> userConfig) {
+        private void setDefaults() {
 
             // set default database name if not specified
-            if (!userConfig.containsKey("database")) {
-                userConfig.put("database", (String) ClickHouseDefaults.DATABASE.getDefaultValue());
+            if (!configuration.containsKey("database")) {
+                setDefaultDatabase((String) ClickHouseDefaults.DATABASE.getDefaultValue());
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
-                userConfig.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
-                        String.valueOf(ClickHouseClientOption.MAX_EXECUTION_TIME.getDefaultValue()));
+            if (!configuration.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
+                setExecutionTimeout(0, MILLIS);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
-                userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
+            if (!configuration.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
+                configuration.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
             }
 
-            if (!userConfig.containsKey("compression.lz4.uncompressed_buffer_size")) {
-                userConfig.put("compression.lz4.uncompressed_buffer_size",
-                        String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
+            if (!configuration.containsKey("compression.lz4.uncompressed_buffer_size")) {
+                setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
-                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
+            if (!configuration.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                useServerTimeZone(true);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
-                userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            if (!configuration.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+                setServerTimeZone("UTC");
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
-                userConfig.put(ClickHouseClientOption.ASYNC.getKey(), "false");
+            if (!configuration.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
+                useAsyncRequests(false);
             }
 
-            if (!userConfig.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
-                userConfig.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), "10");
+            if (!configuration.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
+                setMaxConnections(10);
             }
 
-            if (!userConfig.containsKey("connection_request_timeout")) {
-                userConfig.put("connection_request_timeout", "10000");
+            if (!configuration.containsKey("connection_request_timeout")) {
+                setConnectionRequestTimeout(10, SECONDS);
             }
 
-            if (!userConfig.containsKey("connection_reuse_strategy")) {
-                userConfig.put("connection_reuse_strategy", ConnectionReuseStrategy.FIFO.name());
+            if (!configuration.containsKey("connection_reuse_strategy")) {
+                setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
             }
 
-            if (!userConfig.containsKey("connection_pool_enabled")) {
-                userConfig.put("connection_pool_enabled", "true");
+            if (!configuration.containsKey("connection_pool_enabled")) {
+                enableConnectionPool(true);
             }
 
-            if (!userConfig.containsKey("connection_ttl")) {
-                userConfig.put("connection_ttl", "-1");
+            if (!configuration.containsKey("connection_ttl")) {
+                setConnectionTTL(-1, MILLIS);
             }
 
-            return userConfig;
+            if (!configuration.containsKey("client_retry_on_failures")) {
+                retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout, ClientFaultCause.ConnectionRequestTimeout);
+            }
+
+            if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
+                setMaxRetries(3);
+            }
         }
     }
 
@@ -990,6 +1019,7 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
@@ -1028,16 +1058,19 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
-                        LOG.warn("Failed to get response. Retrying.", e);
-                        selectedNode = getNextAliveNode();
-                        continue;
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying", e);
+                            selectedNode = getNextAliveNode();
+                        } else {
+                            throw lastException;
+                        }
                     } catch (IOException e) {
-                        LOG.info("Interrupted while waiting for response.");
-                        throw new ClientException("Failed to get query response", e);
+                        throw new ClientException("Insert request failed", e);
                     }
                 }
-                throw new ClientException("Failed to get table schema: too many retries");
+                throw new ClientException("Insert request failed after retries", lastException);
             };
 
             return runAsyncOperation(supplier, settings.getAllSettings());
@@ -1057,7 +1090,6 @@ public class Client implements AutoCloseable {
             }
 
             globalClientStats.get(operationId).stop(ClientMetrics.OP_SERIALIZATION);
-            LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
             return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
         }
     }
@@ -1114,6 +1146,7 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
@@ -1148,25 +1181,27 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
-                        if (i < maxRetries) {
-                            try {
-                                data.reset();
-                            } catch (IOException ioe) {
-                                throw new ClientException("Failed to reset stream for retry", e);
-                            }
-                            LOG.warn("Failed to get response. Retrying.", e);
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying", e);
                             selectedNode = getNextAliveNode();
                         } else {
-                            throw new ClientException("Server did not respond", e);
+                            throw lastException;
                         }
-                        continue;
                     } catch (IOException e) {
-                        LOG.info("Interrupted while waiting for response.");
-                        throw new ClientException("Failed to get query response", e);
+                        throw new ClientException("Insert request failed", e);
+                    }
+
+                    if (i < maxRetries) {
+                        try {
+                            data.reset();
+                        } catch (IOException ioe) {
+                            throw new ClientException("Failed to reset stream before next attempt", ioe);
+                        }
                     }
                 }
-                throw new ClientException("Failed to insert data: too many retries");
+                throw new ClientException("Insert request failed after retries", lastException);
             };
         } else {
             responseSupplier = () -> {
@@ -1193,7 +1228,6 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = future.get();
                     }
                     InsertResponse response = new InsertResponse(clickHouseResponse, clientStats);
-                    LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
@@ -1282,6 +1316,7 @@ public class Client implements AutoCloseable {
             responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
@@ -1307,19 +1342,23 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
-                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException e) {
-                        LOG.warn("Failed to get response. Retrying.", e);
-                        selectedNode = getNextAliveNode();
-                        continue;
+
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Query request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying.", e);
+                            selectedNode = getNextAliveNode();
+                        } else {
+                            throw lastException;
+                        }
                     } catch (ClientException e) {
                         throw e;
-                    } catch (ConnectionRequestTimeoutException | ConnectTimeoutException e) {
-                        throw new ConnectionInitiationException("Failed to get connection", e);
                     } catch (Exception e) {
-                        throw new ClientException("Failed to execute query", e);
+                        throw new ClientException("Query request failed", e);
                     }
                 }
-                throw new ClientException("Failed to get table schema: too many retries");
+
+                throw new ClientException("Query request failed after retries", lastException);
             };
         } else {
             ClickHouseRequest<?> request = oldClient.read(getServerNode());
@@ -1595,4 +1634,6 @@ public class Client implements AutoCloseable {
     private ClickHouseNode getNextAliveNode() {
         return serverNodes.get(0);
     }
+
+    public static final String VALUES_LIST_DELIMITER = ",";
 }

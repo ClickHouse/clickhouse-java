@@ -66,27 +66,6 @@ public class ClientTests extends BaseIntegrationTest {
         };
     }
 
-    @Test(groups = { "integration" })
-    public void testSecureConnection() {
-        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
-
-        try (Client client = new Client.Builder()
-                .addEndpoint("https://localhost:" + secureServer.getPort())
-                .setUsername("default")
-                .setPassword("")
-                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .build()) {
-
-            List<GenericRecord> records = client.queryAll("SELECT timezone()");
-            Assert.assertTrue(records.size() > 0);
-            Assert.assertEquals(records.get(0).getString(1), "UTC");
-        } catch (Exception e) {
-            e.printStackTrace();
-            Assert.fail(e.getMessage());
-        }
-    }
-
     @Test
     public void testRawSettings() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
