@@ -130,7 +130,8 @@ public class BinaryStreamReader {
                     return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone:
                             column.getTimeZone());
                 case DateTime64:
-                    return (T) readDateTime64(input, 3, column.getTimeZone());
+                    return (T) readDateTime64(input, 3, column.getTimeZone() == null ? timeZone:
+                            column.getTimeZone());
 
                 case IntervalYear:
                 case IntervalQuarter:
