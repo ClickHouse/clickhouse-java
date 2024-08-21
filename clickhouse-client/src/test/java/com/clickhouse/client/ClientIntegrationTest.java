@@ -70,6 +70,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -2694,5 +2701,43 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                      .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 1);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testServerTimezoneAppliedFromHeaderProvider")
+    public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
+        System.out.println("Testing with " + format + " format");
+        ClickHouseNode server = getServer();
+
+        ZoneId custZoneId = ZoneId.of("America/Los_Angeles");
+
+        final String sql = "SELECT now(), toDateTime(now(), 'UTC') as utc_time, serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server)
+                     .query(sql, UUID.randomUUID().toString())
+                     .option(ClickHouseClientOption.FORMAT, format)
+                     .executeAndWait()) {
+
+            Assert.assertEquals(response.getTimeZone().getID(), "America/Los_Angeles", "Timezone should be applied from the query settings");
+
+            ClickHouseRecord record = response.firstRecord();
+            final ZonedDateTime now = record.getValue(0).asZonedDateTime();
+            final ZonedDateTime utcTime = record.getValue(1).asZonedDateTime();
+            final String serverTimezone = record.getValue(2).asString();
+            Assert.assertNotEquals(serverTimezone, "America/Los_Angeles", "Server timezone should be applied from the query settings");
+
+
+            System.out.println("Now in America/Los_Angeles: " + now);
+            System.out.println("UTC Time: " + utcTime);
+            System.out.println("UTC Time: " + utcTime.withZoneSameInstant(custZoneId));
+            Assert.assertEquals(now, utcTime.withZoneSameInstant(custZoneId));
+        }
+    }
+
+    @DataProvider(name = "testServerTimezoneAppliedFromHeaderProvider")
+    public static ClickHouseFormat[] testServerTimezoneAppliedFromHeaderProvider() {
+        return new ClickHouseFormat[]{
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes,
+                ClickHouseFormat.RowBinaryWithNamesAndTypes
+        };
     }
 }

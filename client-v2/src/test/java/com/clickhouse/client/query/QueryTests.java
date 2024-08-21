@@ -423,6 +423,8 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("expected exception");
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            // expected
         }
     }
 
@@ -1214,7 +1216,7 @@ public class QueryTests extends BaseIntegrationTest {
 
 
     @Test(groups = {"integration"})
-    public void testClientUseOwnTimeZone() {
+        public void testClientUseOwnTimeZone() {
 
         final String overrideTz = "America/Los_Angeles";
         try (Client client = newClient().useTimeZone(overrideTz).useServerTimeZone(false).build()) {
@@ -1244,6 +1246,26 @@ public class QueryTests extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    @Test
+    public void testAsyncQuery() {
+        try (Client client = newClient().useAsyncRequests(true).build();
+             QueryResponse response =
+                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
+                ClickHouseBinaryFormatReader reader =
+                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+                int count = 0;
+                while (reader.hasNext()) {
+                    reader.next();
+                    count++;
+                }
+
+                Assert.assertEquals(count, 1000_000);
+        } catch (Exception e) {
             Assert.fail("Failed to get server time zone from header", e);
         }
     }

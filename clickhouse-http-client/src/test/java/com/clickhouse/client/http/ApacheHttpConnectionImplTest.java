@@ -9,32 +9,41 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseSocketFactory;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseUtils;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.ConnectException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.net.URIBuilder;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.net.ConnectException;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     public static class CustomSocketFactory implements ClickHouseSocketFactory {
@@ -266,5 +275,103 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     @DataProvider(name = "validationTimeoutProvider")
     public static Object[] validationTimeoutProvider() {
         return new Long[] {-1L , 100L };
+    }
+
+    @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
+    @SuppressWarnings("java:S2925")
+    public void testConnectionTTL(Map<ClickHouseOption, Serializable> options, int openSockets) throws Exception {
+        if (isCloud()) {
+            // skip for cloud because wiremock proxy need extra configuration. TODO: need to fix it
+            return;
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        int proxyPort = new Random().nextInt(1000) + 10000;
+        System.out.println("proxyPort: " + proxyPort);
+        ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
+        WireMockServer proxy = new WireMockServer(WireMockConfiguration
+                .options().port(proxyPort)
+                .networkTrafficListener(connectionCounter)
+                .notifier(new Slf4jNotifier(true)));
+        proxy.start();
+        URIBuilder targetURI = new URIBuilder(server.getBaseUri())
+                .setPath("");
+        proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse().proxiedFrom(targetURI.build().toString())).build());
+
+        Map<ClickHouseOption, Serializable> baseOptions = new HashMap<>();
+        baseOptions.put(ClickHouseClientOption.PROXY_PORT, proxyPort);
+        baseOptions.put(ClickHouseClientOption.PROXY_HOST, "localhost");
+        baseOptions.put(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.HTTP);
+        baseOptions.put(ClickHouseDefaults.PASSWORD, getPassword());
+        baseOptions.put(ClickHouseDefaults.USER, "default");
+        baseOptions.putAll(options);
+
+        ClickHouseConfig config = new ClickHouseConfig(baseOptions);
+        try (ClickHouseClient client = ClickHouseClient.builder().config(config).build()) {
+            try (ClickHouseResponse resp = client.read(server).query("select 1").executeAndWait()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), "1");
+            }
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                Assert.fail("Unexpected exception", e);
+            }
+
+            try (ClickHouseResponse resp = client.read(server).query("select 1").executeAndWait()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), "1");
+            }
+        } catch (Exception e) {
+            Assert.fail("Unexpected exception", e);
+        } finally {
+            Assert.assertEquals(connectionCounter.opened.get(), openSockets);
+            proxy.stop();
+        }
+    }
+
+    @DataProvider(name = "testConnectionTTLProvider")
+    public static Object[][]  testConnectionTTLProvider() {
+        HashMap<ClickHouseOption, Serializable> disabledKeepAlive = new HashMap<>();
+        disabledKeepAlive.put(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 1000L);
+        disabledKeepAlive.put(ClickHouseHttpOption.KEEP_ALIVE, false);
+        HashMap<ClickHouseOption, Serializable> fifoOption = new HashMap<>();
+        fifoOption.put(ClickHouseClientOption.CONNECTION_TTL, 1000L);
+        fifoOption.put(ClickHouseHttpOption.CONNECTION_REUSE_STRATEGY, "FIFO");
+        return new Object[][] {
+                { Collections.singletonMap(ClickHouseClientOption.CONNECTION_TTL, 1000L), 2 },
+                { Collections.singletonMap(ClickHouseClientOption.CONNECTION_TTL, 2000L), 1 },
+                { Collections.singletonMap(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 2000L), 1 },
+                { Collections.singletonMap(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT, 500L), 2 },
+                { disabledKeepAlive, 2 },
+                { fifoOption, 2 }
+        };
+    }
+
+    private static class ConnectionCounterListener implements WiremockNetworkTrafficListener {
+
+        private AtomicInteger opened = new AtomicInteger(0);
+        private AtomicInteger closed = new AtomicInteger(0);
+
+        @Override
+        public void opened(Socket socket) {
+            opened.incrementAndGet();
+            System.out.println("Opened: " + socket);
+        }
+
+        @Override
+        public void incoming(Socket socket, ByteBuffer bytes) {
+            // ignore
+        }
+
+        @Override
+        public void outgoing(Socket socket, ByteBuffer bytes) {
+            // ignore
+        }
+
+        @Override
+        public void closed(Socket socket) {
+            closed.incrementAndGet();
+            System.out.println("Closed: " + socket);
+        }
     }
 }
