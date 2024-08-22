@@ -18,6 +18,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -33,7 +34,10 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.config.CharCodingConfig;
+import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.io.IOCallback;
@@ -161,6 +165,7 @@ public class HttpAPIClientHelper {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
+
         ConnectionReuseStrategy connectionReuseStrategy =
                 ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
         switch (connectionReuseStrategy) {
@@ -181,6 +186,15 @@ public class HttpAPIClientHelper {
                 connMgrBuilder::setMaxConnPerRoute);
 
 
+        int networkBufferSize = MapUtils.getInt(chConfiguration, "client_network_buffer_size");
+        ManagedHttpClientConnectionFactory connectionFactory = new ManagedHttpClientConnectionFactory(
+                Http1Config.custom()
+                        .setBufferSize(networkBufferSize)
+                        .build(),
+                CharCodingConfig.DEFAULT,
+                DefaultHttpResponseParserFactory.INSTANCE);
+
+        connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         return connMgrBuilder.build();
@@ -272,6 +286,7 @@ public class HttpAPIClientHelper {
             throw new RuntimeException(e);
         }
         HttpPost req = new HttpPost(uri);
+//        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, chConfiguration, requestConfig);
 
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
