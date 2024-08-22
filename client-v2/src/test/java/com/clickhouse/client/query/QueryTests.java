@@ -87,7 +87,7 @@ public class QueryTests extends BaseIntegrationTest {
     QueryTests(){
     }
 
-    QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
     }
@@ -180,9 +180,21 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        testQueryAll(10);
+    }
+    public void testQueryAll(int numberOfRecords) throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, numberOfRecords);
         GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
         Assert.assertNotNull(hostnameRecord);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllSimple() throws Exception {
+        testQueryAllSimple(10);
+    }
+    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+        GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
+        Assert.assertNotNull(record);
     }
 
     @Test(groups = {"integration"})
@@ -1278,7 +1290,6 @@ public class QueryTests extends BaseIntegrationTest {
                 .setPassword("")
                 .compressClientRequest(false)
                 .compressServerResponse(false)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
-                ;
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
