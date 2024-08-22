@@ -41,12 +41,13 @@ public class BigDatasetExamples {
                 .compressClientRequest(false)
                 .setLZ4UncompressedBufferSize(1048576)
                 .useNewImplementation(true)
-//                .setSocketRcvbuf(1_000_000)
+                // when network buffer and socket buffer are the same size - it is less IO calls and more efficient
+                .setSocketRcvbuf(1_000_000)
                 .setClientNetworkBufferSize(1_000_000)
                 .setMaxConnections(20)
                 .build();
         try {
-//            client.ping(10); // warmup connections pool
+            client.ping(10); // warmup connections pool. required once per client.
 
             Runnable task = () -> {
                 StringBuilder sb = new StringBuilder();
