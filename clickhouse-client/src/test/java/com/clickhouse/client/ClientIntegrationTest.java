@@ -882,12 +882,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testQuery() {
+        testQuery(10000);
+    }
+    public void testQuery(int totalRecords) {
         ClickHouseNode server = getServer();
 
         try (ClickHouseClient client = getClient()) {
             // "select * from system.data_type_families"
-            int limit = 10000;
-            String sql = "select number, toString(number) from system.numbers limit " + limit;
+            String sql = "select number, toString(number) from system.numbers limit " + totalRecords;
 
             try (ClickHouseResponse response = newRequest(client, server)
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -909,20 +911,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 }
                 Assert.assertTrue(response.getInputStream().isClosed(),
                         "Input stream should have been closed since there's no data");
-                // int counter = 0;
-                // for (ClickHouseValue value : response.values()) {
-                // Assert.assertEquals(value.asString(), String.valueOf(index));
-                // index += counter++ % 2;
-                // }
-                Assert.assertEquals(index, limit);
-                // Thread.sleep(30000);
-                /*
-                 * while (response.hasError()) { int index = 0; for (ClickHouseColumn c :
-                 * columns) { // RawValue v = response.getRawValue(index++); // String v =
-                 * response.getValue(index++, String.class) }
-                 *
-                 * } byte[] bytes = in.readAllBytes(); String str = new String(bytes);
-                 */
+
+                Assert.assertEquals(index, totalRecords);
             } catch (Exception e) {
                 Assert.fail("Query failed", e);
             }
@@ -1991,6 +1981,33 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             throw ClickHouseException.of(e, server);
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testInsertRawDataSimple() throws Exception {
+        testInsertRawDataSimple(1000);
+    }
+    public void testInsertRawDataSimple(int numberOfRecords) throws Exception {
+        String tableName = "test_insert_raw_data_simple";
+        ClickHouseNode server = getServer();
+        sendAndWait(server, "DROP TABLE IF EXISTS " + tableName,
+                "CREATE TABLE IF NOT EXISTS "+ tableName + " (i Int16, f String) engine=MergeTree ORDER BY i");
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest.Mutation request = client.read(server).write().table(tableName).format(ClickHouseFormat.JSONEachRow);
+            ClickHouseConfig config = request.getConfig();
+            CompletableFuture<ClickHouseResponse> future;
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config)) {
+                // start the worker thread which transfer data from the input into ClickHouse
+                future = request.data(stream.getInputStream()).execute();
+                for (int i = 0; i < numberOfRecords; i++) {
+                    BinaryStreamUtils.writeBytes(stream, String.format("{\"i\": %s, \"\": \"JSON\"}", i).getBytes(StandardCharsets.UTF_8));
+                }
+            }
+
+            ClickHouseResponseSummary summary = future.get().getSummary();
+            Assert.assertEquals(summary.getWrittenRows(), numberOfRecords);
+        }
+    }
+
 
     @Test(groups = { "integration" })
     public void testInsertWithInputFunction() throws ClickHouseException {
