@@ -146,45 +146,6 @@ jobs:
       - name: Test compressed native image
         run: ./clickhouse-jdbc/target/clickhouse-jdbc-bin
 
-  test-cli-client:
-    runs-on: ubuntu-latest
-    needs: compile
-    timeout-minutes: 10
-    name: CLI client + CH LTS
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: 8
-          cache: "maven"
-      - name: Install ClickHouse native command line
-        run: |
-          sudo apt-get update \
-            && sudo apt-get install -y apt-transport-https ca-certificates dirmngr \
-            && sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 8919F6BD2B48D754 \
-            && echo "deb https://packages.clickhouse.com/deb lts main" | sudo tee /etc/apt/sources.list.d/clickhouse.list \
-            && sudo apt-get update && sudo apt-get install -y clickhouse-client \
-            && clickhouse client --version
-      - name: Test CLI client
-        run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 -DskipUTs verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-
   test-java-client:
     runs-on: ubuntu-latest
     needs: compile
@@ -235,7 +196,7 @@ jobs:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -314,7 +275,7 @@ jobs:
       matrix:
         clickhouse: ["23.8", "24.3", "24.6", "latest", "cloud"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
-        protocol: ["http", "http_client", "apache_http_client", "grpc"]
+        protocol: ["http", "http_client", "apache_http_client"]
       fail-fast: false
     timeout-minutes: 15
     name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
@@ -353,7 +314,7 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
@@ -469,7 +430,7 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
       - name: Test JDBC and R2DBC drivers
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
