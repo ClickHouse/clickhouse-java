@@ -28,6 +28,7 @@ import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Struct;
@@ -1472,6 +1473,21 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             System.out.println("dstStart: " + dstStart + ", dstEnd: " + dstEnd + ", now: " + now);
             Assert.assertEquals(dstStart.getOffset(), ZoneOffset.ofHours(-8));
             Assert.assertEquals(dstEnd.getOffset(), ZoneOffset.ofHours(-7));
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Failed to create connection", e);
+        }
+    }
+
+
+    @Test(groups = "integration")
+    public void testDescMetadata() {
+        try (ClickHouseConnection conn = newConnection();
+            ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("DESC (select timezone(), number FROM system.numbers)");
+            rs.next();
+            ResultSetMetaData metaData = rs.getMetaData();
+            Assert.assertEquals(metaData.getColumnCount(), 7);
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail("Failed to create connection", e);
