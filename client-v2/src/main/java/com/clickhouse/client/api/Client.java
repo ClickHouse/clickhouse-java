@@ -7,7 +7,10 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.NativeFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -17,9 +20,11 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -34,13 +39,14 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
@@ -55,6 +61,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,6 +70,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -106,21 +115,23 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 public class Client implements AutoCloseable {
     private HttpAPIClientHelper httpClientHelper = null;
 
-    private Set<String> endpoints;
-    private Map<String, String> configuration;
-    private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
-    private Map<Class<?>, Map<String, Method>> getterMethods;
-    private Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
+    private final Set<String> endpoints;
+    private final Map<String, String> configuration;
+    private final List<ClickHouseNode> serverNodes = new ArrayList<>();
+    private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
+    private final Map<Class<?>, Map<String, Method>> getterMethods;
+    private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
-    private ExecutorService sharedOperationExecutor;
+    private final ExecutorService sharedOperationExecutor;
 
-    private Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
+    private final Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
     private boolean useNewImplementation = false;
 
+    private ClickHouseClient oldClient = null;
 
-    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation) {
+    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
+                   ExecutorService sharedOperationExecutor) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -130,12 +141,18 @@ public class Client implements AutoCloseable {
         this.getterMethods = new HashMap<>();
         this.hasDefaults = new HashMap<>();
 
-        this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
+        boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
+        if (isAsyncEnabled && sharedOperationExecutor == null) {
+            this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
+        } else {
+            this.sharedOperationExecutor = sharedOperationExecutor;
+        }
         this.useNewImplementation = useNewImplementation;
         if (useNewImplementation) {
             this.httpClientHelper = new HttpAPIClientHelper(configuration);
             LOG.info("Using new http client implementation");
         } else {
+            this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
     }
@@ -159,11 +176,15 @@ public class Client implements AutoCloseable {
     @Override
     public void close() {
         try {
-            if (!sharedOperationExecutor.isShutdown()) {
+            if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
                 this.sharedOperationExecutor.shutdownNow();
             }
         } catch (Exception e) {
             LOG.error("Failed to close shared operation executor", e);
+        }
+
+        if (oldClient != null) {
+            oldClient.close();
         }
     }
 
@@ -173,6 +194,8 @@ public class Client implements AutoCloseable {
         // Read-only configuration
         private Map<String, String> configuration;
         private boolean useNewImplementation = false;
+
+        private ExecutorService sharedOperationExecutor = null;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -200,17 +223,17 @@ public class Client implements AutoCloseable {
         public Builder addEndpoint(String endpoint) {
             try {
                 URL endpointURL = new java.net.URL(endpoint);
-                if (!(endpointURL.getProtocol().equalsIgnoreCase("https") ||
-                        endpointURL.getProtocol().equalsIgnoreCase("http"))) {
+
+                if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
+                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
+                } else if (endpointURL.getProtocol().equalsIgnoreCase("http")) {
+                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), false);
+                } else {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
             }
-            if (endpoint.startsWith("https://")) {
-                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
-            }
-            this.endpoints.add(endpoint);
             return this;
         }
 
@@ -232,7 +255,7 @@ public class Client implements AutoCloseable {
                 this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
             }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
-            this.addEndpoint(endpoint);
+            this.endpoints.add(endpoint);
             return this;
         }
 
@@ -282,7 +305,15 @@ public class Client implements AutoCloseable {
             return this;
         }
 
-        // SOCKET SETTINGS
+        /**
+         * Configures client to use build-in connection pool
+         * @param enable - if connection pool should be enabled
+         * @return
+         */
+        public Builder enableConnectionPool(boolean enable) {
+            this.configuration.put("connection_pool_enabled", String.valueOf(enable));
+            return this;
+        }
 
         /**
          * Default connection timeout in milliseconds. Timeout is applied to establish a connection.
@@ -303,6 +334,72 @@ public class Client implements AutoCloseable {
         public Builder setConnectTimeout(long timeout, ChronoUnit unit) {
             return this.setConnectTimeout(Duration.of(timeout, unit).toMillis());
         }
+
+        /**
+         * Set timeout for waiting a free connection from a pool when all connections are leased.
+         * This configuration is important when need to fail fast in high concurrent scenarios.
+         * Default is 10 s.
+         * @param timeout - connection timeout in milliseconds
+         * @param unit - time unit
+         */
+        public Builder setConnectionRequestTimeout(long timeout, ChronoUnit unit) {
+            this.configuration.put("connection_request_timeout", String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets the maximum number of connections that can be opened at the same time to a single server. Limit is not
+         * a hard stop. It is done to prevent threads stuck inside a connection pool waiting for a connection.
+         * Default is 10. It is recommended to set a higher value for a high concurrent applications. It will let
+         * more threads to get a connection and execute a query.
+         *
+         * @param maxConnections - maximum number of connections
+         */
+        public Builder setMaxConnections(int maxConnections) {
+            this.configuration.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxConnections));
+            return this;
+        }
+
+        /**
+         * Sets how long any connection would be considered as active and able for a lease.
+         * After this time connection will be marked for sweep and will not be returned from a pool.
+         * Has more effect than keep-alive timeout.
+         * @param timeout - time in unit
+         * @param unit - time unit
+         * @return
+         */
+        public Builder setConnectionTTL(long timeout, ChronoUnit unit) {
+            this.configuration.put(ClickHouseClientOption.CONNECTION_TTL.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets keep alive timeout for a connection to override server value. If set to -1 then server value will be used.
+         * Default is -1.
+         * Doesn't override connection TTL value.
+         * {@see Client#setConnectionTTL}
+         * @param timeout - time in unit
+         * @param unit - time unit
+         * @return
+         */
+        public Builder setKeepAliveTimeout(long timeout, ChronoUnit unit) {
+            this.configuration.put(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
+            return this;
+        }
+
+        /**
+         * Sets strategy of how connections are reuse.
+         * Default is {@link ConnectionReuseStrategy#FIFO} to evenly distribute load between them.
+         *
+         * @param strategy - strategy for connection reuse
+         * @return
+         */
+        public Builder setConnectionReuseStrategy(ConnectionReuseStrategy strategy) {
+            this.configuration.put("connection_reuse_strategy", strategy.name());
+            return this;
+        }
+
+        // SOCKET SETTINGS
 
         /**
          * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
@@ -408,6 +505,32 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Configures the client to use HTTP compression. In this case compression is controlled by
+         * http headers. Client compression will set {@code Content-Encoding: lz4} header and server
+         * compression will set {@code Accept-Encoding: lz4} header.
+         *
+         * @param enabled - indicates if http compression is enabled
+         * @return
+         */
+        public Builder useHttpCompression(boolean enabled) {
+            this.configuration.put("client.use_http_compression", String.valueOf(enabled));
+            return this;
+        }
+
+        /**
+         * Sets buffer size for uncompressed data in LZ4 compression.
+         * For outgoing data it is the size of a buffer that will be compressed.
+         * For incoming data it is the size of a buffer that will be decompressed.
+         *
+         * @param size - size of the buffer in bytes
+         * @return
+         */
+        public Builder setLZ4UncompressedBufferSize(int size) {
+            this.configuration.put("compression.lz4.uncompressed_buffer_size", String.valueOf(size));
+            return this;
+        }
+
+        /**
          * Sets the default database name that will be used by operations if not specified.
          * @param database - actual default database name.
          */
@@ -439,8 +562,8 @@ public class Client implements AutoCloseable {
          * @param timeUnit
          * @return
          */
-        public Builder setExecutionTimeout(long timeout, TimeUnit timeUnit) {
-            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(timeUnit.toMillis(timeout)));
+        public Builder setExecutionTimeout(long timeout, ChronoUnit timeUnit) {
+            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
             return this;
         }
 
@@ -528,7 +651,85 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configure client to use server timezone for date/datetime columns. Default is true.
+         * If this options is selected then server timezone should be set as well.
+         *
+         * @param useServerTimeZone - if to use server timezone
+         * @return
+         */
+        public Builder useServerTimeZone(boolean useServerTimeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
+            return this;
+        }
+
+        /**
+         * Configure client to use specified timezone. If set using server TimeZone should be
+         * set to false
+         *
+         * @param timeZone
+         * @return
+         */
+        public Builder useTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.USE_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
+        /**
+         * Specify server timezone to use. If not set then UTC will be used.
+         *
+         * @param timeZone - server timezone
+         * @return
+         */
+        public Builder setServerTimeZone(String timeZone) {
+            this.configuration.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), timeZone);
+            return this;
+        }
+
+        /**
+         * Configures client to execute requests in a separate thread. By default, operations (query, insert)
+         * are executed in the same thread as the caller.
+         * It is possible to set a shared executor for all operations. See {@link #setSharedOperationExecutor(ExecutorService)}
+         *
+         * Note: Async operations a using executor what expects having a queue of tasks for a pool of executors.
+         * The queue size limit is small it may quickly become a problem for scheduling new tasks.
+         *
+         * @param async - if to use async requests
+         * @return
+         */
+        public Builder useAsyncRequests(boolean async) {
+            this.configuration.put(ClickHouseClientOption.ASYNC.getKey(), String.valueOf(async));
+            return this;
+        }
+
+        /**
+         * Sets an executor for running operations. If async operations are enabled and no executor is specified
+         * client will create a default executor.
+         *
+         * @param executorService - executor service for async operations
+         * @return
+         */
+        public Builder setSharedOperationExecutor(ExecutorService executorService) {
+            this.sharedOperationExecutor = executorService;
+            return this;
+        }
+
+        /**
+         * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
+         * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
+         * Default is 8192 bytes.
+         *
+         * @param size - size in bytes
+         * @return
+         */
+        public Builder setClientNetworkBufferSize(int size) {
+            this.configuration.put("client_network_buffer_size", String.valueOf(size));
+            return this;
+        }
+
         public Client build() {
+            this.configuration = setDefaults(this.configuration);
+
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
@@ -543,9 +744,35 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
-            this.configuration = setDefaults(this.configuration);
+            // Check timezone settings
+            String useTimeZoneValue = this.configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+            String serverTimeZoneValue = this.configuration.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+            boolean useServerTimeZone = MapUtils.getFlag(this.configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+            if (useTimeZoneValue != null) {
+                if (useServerTimeZone) {
+                    throw new IllegalArgumentException("USE_TIME_ZONE option cannot be used when using server timezone");
+                }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation);
+                try {
+                    LOG.info("Using timezone: {} instead of server one", ZoneId.of(useTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid timezone value: " + useTimeZoneValue);
+                }
+            } else if (useServerTimeZone) {
+                if (serverTimeZoneValue == null) {
+                    serverTimeZoneValue = "UTC";
+                }
+
+                try {
+                    LOG.info("Using server timezone: {}", ZoneId.of(serverTimeZoneValue));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid server timezone value: " + serverTimeZoneValue);
+                }
+            } else {
+                throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
+            }
+
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
         }
 
         private Map<String, String> setDefaults(Map<String, String> userConfig) {
@@ -563,6 +790,47 @@ public class Client implements AutoCloseable {
             if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
                 userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
+            }
+
+            if (!userConfig.containsKey("compression.lz4.uncompressed_buffer_size")) {
+                userConfig.put("compression.lz4.uncompressed_buffer_size",
+                        String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+                userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            }
+
+            if (!userConfig.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
+                userConfig.put(ClickHouseClientOption.ASYNC.getKey(), "false");
+            }
+
+            if (!userConfig.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
+                userConfig.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), "10");
+            }
+
+            if (!userConfig.containsKey("connection_request_timeout")) {
+                userConfig.put("connection_request_timeout", "10000");
+            }
+
+            if (!userConfig.containsKey("connection_reuse_strategy")) {
+                userConfig.put("connection_reuse_strategy", ConnectionReuseStrategy.FIFO.name());
+            }
+
+            if (!userConfig.containsKey("connection_pool_enabled")) {
+                userConfig.put("connection_pool_enabled", "true");
+            }
+
+            if (!userConfig.containsKey("connection_ttl")) {
+                userConfig.put("connection_ttl", "-1");
+            }
+
+            if (!userConfig.containsKey("client_network_buffer_size")) {
+                setClientNetworkBufferSize(8192);
             }
 
             return userConfig;
@@ -589,8 +857,14 @@ public class Client implements AutoCloseable {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
-        try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
-            return client.ping(getServerNode(), Math.toIntExact(timeout));
+        if (useNewImplementation) {
+            try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        } else {
+            return oldClient.ping(getServerNode(), Math.toIntExact(timeout));
         }
     }
 
@@ -729,7 +1003,7 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
-            CompletableFuture<InsertResponse> future = CompletableFuture.supplyAsync(() -> {
+            Supplier<InsertResponse> supplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -752,6 +1026,7 @@ public class Client implements AutoCloseable {
                                                 }
                                             }
                                         }
+                                        out.close();
                                     })) {
 
 
@@ -780,8 +1055,9 @@ public class Client implements AutoCloseable {
                     }
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
+
+            return runAsyncOperation(supplier, settings.getAllSettings());
         } else {
             //Create an output stream to write the data to
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -836,6 +1112,7 @@ public class Client implements AutoCloseable {
         ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
         clientStats.start(ClientMetrics.OP_DURATION);
 
+        Supplier<InsertResponse> responseSupplier;
         if (useNewImplementation) {
 
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -850,7 +1127,7 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
-            CompletableFuture<InsertResponse> future = CompletableFuture.supplyAsync(() -> {
+            responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -870,7 +1147,7 @@ public class Client implements AutoCloseable {
                                              while ((bytesRead = data.read(buffer)) != -1) {
                                                  out.write(buffer, 0, bytesRead);
                                              }
-                                             out.flush();
+                                             out.close();
                                          })) {
 
 
@@ -907,51 +1184,43 @@ public class Client implements AutoCloseable {
                     }
                 }
                 throw new ClientException("Failed to insert data: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
         } else {
-            CompletableFuture<InsertResponse> responseFuture = new CompletableFuture<>();
-
-            try (ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration)) {
+            responseSupplier = () -> {
                 ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
-                        .createMutationRequest(client.write(getServerNode()), tableName, settings, configuration).format(format);
+                        .createMutationRequest(oldClient.write(getServerNode()), tableName, settings, configuration).format(format);
 
                 CompletableFuture<ClickHouseResponse> future = null;
-                try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
-                    future = request.data(stream.getInputStream()).execute();
-
+                future = request.data(output -> {
                     //Copy the data from the input stream to the output stream
                     byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
                     int bytesRead;
                     while ((bytesRead = data.read(buffer)) != -1) {
-                        stream.write(buffer, 0, bytesRead);
+                        output.write(buffer, 0, bytesRead);
                     }
-                } catch (IOException e) {
-                    responseFuture.completeExceptionally(new ClientException("Failed to write data to the output stream", e));
-                }
+                    output.close();
+                }).option(ClickHouseClientOption.ASYNC, false).execute();
 
-                if (!responseFuture.isCompletedExceptionally()) {
-                    try {
-                        int operationTimeout = getOperationTimeout();
-                        ClickHouseResponse clickHouseResponse;
-                        if (operationTimeout > 0) {
-                            clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
-                        } else {
-                            clickHouseResponse = future.get();
-                        }
-                        InsertResponse response = new InsertResponse(client, clickHouseResponse, clientStats);
-                        responseFuture.complete(response);
-                    } catch (ExecutionException e) {
-                        responseFuture.completeExceptionally(new ClientException("Failed to get insert response", e.getCause()));
-                    } catch (InterruptedException | TimeoutException e) {
-                        responseFuture.completeExceptionally(new ClientException("Operation has likely timed out.", e));
+                try {
+                    int operationTimeout = getOperationTimeout();
+                    ClickHouseResponse clickHouseResponse;
+                    if (operationTimeout > 0) {
+                        clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
+                    } else {
+                        clickHouseResponse = future.get();
                     }
+                    InsertResponse response = new InsertResponse(clickHouseResponse, clientStats);
+                    LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
+                    return response;
+                } catch (ExecutionException e) {
+                    throw  new ClientException("Failed to get insert response", e.getCause());
+                } catch (InterruptedException | TimeoutException e) {
+                    throw  new ClientException("Operation has likely timed out.", e);
                 }
-                LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
-            }
-
-            return responseFuture;
+            };
         }
+
+        return runAsyncOperation(responseSupplier, settings.getAllSettings());
     }
 
     /**
@@ -1015,6 +1284,9 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
+        applyDefaults(settings);
+
+        Supplier<QueryResponse> responseSupplier;
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1024,7 +1296,7 @@ public class Client implements AutoCloseable {
                 settings.setOption("statement_params", queryParams);
             }
             final QuerySettings finalSettings = settings;
-            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+            responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
                 for (int i = 0; i <= maxRetries; i++) {
@@ -1032,7 +1304,7 @@ public class Client implements AutoCloseable {
                         ClassicHttpResponse httpResponse =
                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.flush();
+                                    output.close();
                                 });
 
                         // Check response
@@ -1051,19 +1323,19 @@ public class Client implements AutoCloseable {
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
 
-                        return new QueryResponse(httpResponse, finalSettings, metrics);
+                        return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
                     } catch (ClientException e) {
                         throw e;
+                    } catch (ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        throw new ConnectionInitiationException("Failed to get connection", e);
                     } catch (Exception e) {
                         throw new ClientException("Failed to execute query", e);
                     }
                 }
                 throw new ClientException("Failed to get table schema: too many retries");
-            }, sharedOperationExecutor);
-            return future;
+            };
         } else {
-            ClickHouseClient client = ClientV1AdaptorHelper.createClient(configuration);
-            ClickHouseRequest<?> request = client.read(getServerNode());
+            ClickHouseRequest<?> request = oldClient.read(getServerNode());
             request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
             request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
             request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
@@ -1072,7 +1344,7 @@ public class Client implements AutoCloseable {
             request.format(format);
 
             final QuerySettings finalSettings = settings;
-            CompletableFuture<QueryResponse> future = CompletableFuture.supplyAsync(() -> {
+            responseSupplier = () -> {
                 LOG.trace("Executing request: {}", request);
                 try {
 
@@ -1084,15 +1356,16 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = request.execute().get();
                     }
 
-                    return new QueryResponse(client, clickHouseResponse, finalSettings, format, clientStats);
+                    return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
                 } catch (Exception e) {
                     throw new ClientException("Failed to get query response", e);
                 }
-            }, sharedOperationExecutor);
-            return future;
+            };
         }
+
+        return runAsyncOperation(responseSupplier, settings.getAllSettings());
     }
 
     /**
@@ -1124,13 +1397,13 @@ public class Client implements AutoCloseable {
         settings.waitEndOfQuery(true); // we rely on the summery
 
         final QuerySettings finalSettings = settings;
-        return query(sqlQuery, settings).thenApplyAsync(response -> {
+        return query(sqlQuery, settings).thenApply(response -> {
             try {
                 return new Records(response, finalSettings);
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
-        }, sharedOperationExecutor);
+        });
     }
 
     /**
@@ -1148,7 +1421,8 @@ public class Client implements AutoCloseable {
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
-                    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream());
+                    ClickHouseBinaryFormatReader reader =
+                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
                     Map<String, Object> record;
                     while ((record = reader.next()) != null) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
@@ -1231,19 +1505,76 @@ public class Client implements AutoCloseable {
      */
     public CompletableFuture<CommandResponse> execute(String sql) {
         return query(sql)
-                .thenApplyAsync(response -> {
+                .thenApply(response -> {
                     try {
                         return new CommandResponse(response);
                     } catch (Exception e) {
                         throw new ClientException("Failed to get command response", e);
                     }
-                }, sharedOperationExecutor);
+                });
+    }
+
+    /**
+     * <p>Create an instance of {@link ClickHouseBinaryFormatReader} based on response. Table schema is option and only
+     *  required for {@link ClickHouseFormat#RowBinaryWithNames}, {@link ClickHouseFormat#RowBinary}.
+     *  Format {@link ClickHouseFormat#RowBinaryWithDefaults} is not supported for output (read operations).</p>
+     * @param response
+     * @param schema
+     * @return
+     */
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+        ClickHouseBinaryFormatReader reader = null;
+        switch (response.getFormat()) {
+            case Native:
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNamesAndTypes:
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                break;
+            case RowBinaryWithNames:
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            case RowBinary:
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
+        }
+        return reader;
+    }
+
+    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+        return  newBinaryFormatReader(response, null);
     }
 
     private String startOperation() {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
+    }
+
+    private void applyDefaults(QuerySettings settings) {
+        Map<String, Object> settingsMap = settings.getAllSettings();
+
+        String key = ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, MapUtils.getFlag(configuration, key));
+        }
+
+        key = ClickHouseClientOption.USE_TIME_ZONE.getKey();
+        if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
+
+        key = ClickHouseClientOption.SERVER_TIME_ZONE.getKey();
+        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
+            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
+        }
+    }
+
+    private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
+        boolean isAsync = MapUtils.getFlag(configuration, requestSettings, ClickHouseClientOption.ASYNC.getKey());
+        return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
     }
 
     public String toString() {

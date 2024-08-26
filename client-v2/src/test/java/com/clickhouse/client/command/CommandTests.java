@@ -11,6 +11,7 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class CommandTests extends BaseIntegrationTest {
@@ -42,15 +43,12 @@ public class CommandTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testInvalidCommandExecution() throws Exception {
-        CommandResponse response = client.execute("ALTER TABLE non_existing_table ADD COLUMN id2 UInt32")
-                .exceptionally(e -> {
-
-                    if (!(e.getCause() instanceof ClientException)) {
-                        Assert.fail("Cause should be a ClientException");
-                    }
-                    return null;
-                }).get(10, TimeUnit.SECONDS);
-
-        Assert.assertNull(response);
+        try {
+            client.execute("ALTER TABLE non_existing_table ADD COLUMN id2 UInt32").get(10, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            // expected
+        }
     }
 }

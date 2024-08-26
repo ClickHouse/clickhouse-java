@@ -70,6 +70,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -875,12 +882,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testQuery() {
+        testQuery(10000);
+    }
+    public void testQuery(int totalRecords) {
         ClickHouseNode server = getServer();
 
         try (ClickHouseClient client = getClient()) {
             // "select * from system.data_type_families"
-            int limit = 10000;
-            String sql = "select number, toString(number) from system.numbers limit " + limit;
+            String sql = "select number, toString(number) from system.numbers limit " + totalRecords;
 
             try (ClickHouseResponse response = newRequest(client, server)
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -902,20 +911,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 }
                 Assert.assertTrue(response.getInputStream().isClosed(),
                         "Input stream should have been closed since there's no data");
-                // int counter = 0;
-                // for (ClickHouseValue value : response.values()) {
-                // Assert.assertEquals(value.asString(), String.valueOf(index));
-                // index += counter++ % 2;
-                // }
-                Assert.assertEquals(index, limit);
-                // Thread.sleep(30000);
-                /*
-                 * while (response.hasError()) { int index = 0; for (ClickHouseColumn c :
-                 * columns) { // RawValue v = response.getRawValue(index++); // String v =
-                 * response.getValue(index++, String.class) }
-                 *
-                 * } byte[] bytes = in.readAllBytes(); String str = new String(bytes);
-                 */
+
+                Assert.assertEquals(index, totalRecords);
             } catch (Exception e) {
                 Assert.fail("Query failed", e);
             }
@@ -1986,6 +1983,33 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testInsertRawDataSimple() throws Exception {
+        testInsertRawDataSimple(1000);
+    }
+    public void testInsertRawDataSimple(int numberOfRecords) throws Exception {
+        String tableName = "test_insert_raw_data_simple";
+        ClickHouseNode server = getServer();
+        sendAndWait(server, "DROP TABLE IF EXISTS " + tableName,
+                "CREATE TABLE IF NOT EXISTS "+ tableName + " (i Int16, f String) engine=MergeTree ORDER BY i");
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest.Mutation request = client.read(server).write().table(tableName).format(ClickHouseFormat.JSONEachRow);
+            ClickHouseConfig config = request.getConfig();
+            CompletableFuture<ClickHouseResponse> future;
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config)) {
+                // start the worker thread which transfer data from the input into ClickHouse
+                future = request.data(stream.getInputStream()).execute();
+                for (int i = 0; i < numberOfRecords; i++) {
+                    BinaryStreamUtils.writeBytes(stream, String.format("{\"i\": %s, \"\": \"JSON\"}", i).getBytes(StandardCharsets.UTF_8));
+                }
+            }
+
+            ClickHouseResponseSummary summary = future.get().getSummary();
+            Assert.assertEquals(summary.getWrittenRows(), numberOfRecords);
+        }
+    }
+
+
+    @Test(groups = { "integration" })
     public void testInsertWithInputFunction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_input_function",
@@ -2694,5 +2718,43 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                      .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 1);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testServerTimezoneAppliedFromHeaderProvider")
+    public void testServerTimezoneAppliedFromHeader(ClickHouseFormat format) throws Exception {
+        System.out.println("Testing with " + format + " format");
+        ClickHouseNode server = getServer();
+
+        ZoneId custZoneId = ZoneId.of("America/Los_Angeles");
+
+        final String sql = "SELECT now(), toDateTime(now(), 'UTC') as utc_time, serverTimezone() SETTINGS session_timezone = 'America/Los_Angeles'";
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server)
+                     .query(sql, UUID.randomUUID().toString())
+                     .option(ClickHouseClientOption.FORMAT, format)
+                     .executeAndWait()) {
+
+            Assert.assertEquals(response.getTimeZone().getID(), "America/Los_Angeles", "Timezone should be applied from the query settings");
+
+            ClickHouseRecord record = response.firstRecord();
+            final ZonedDateTime now = record.getValue(0).asZonedDateTime();
+            final ZonedDateTime utcTime = record.getValue(1).asZonedDateTime();
+            final String serverTimezone = record.getValue(2).asString();
+            Assert.assertNotEquals(serverTimezone, "America/Los_Angeles", "Server timezone should be applied from the query settings");
+
+
+            System.out.println("Now in America/Los_Angeles: " + now);
+            System.out.println("UTC Time: " + utcTime);
+            System.out.println("UTC Time: " + utcTime.withZoneSameInstant(custZoneId));
+            Assert.assertEquals(now, utcTime.withZoneSameInstant(custZoneId));
+        }
+    }
+
+    @DataProvider(name = "testServerTimezoneAppliedFromHeaderProvider")
+    public static ClickHouseFormat[] testServerTimezoneAppliedFromHeaderProvider() {
+        return new ClickHouseFormat[]{
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes,
+                ClickHouseFormat.RowBinaryWithNamesAndTypes
+        };
     }
 }

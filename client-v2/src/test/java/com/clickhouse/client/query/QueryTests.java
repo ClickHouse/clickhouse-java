@@ -52,6 +52,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,6 +80,18 @@ public class QueryTests extends BaseIntegrationTest {
 
     private Client client;
 
+    private boolean useServerCompression = false;
+
+    private boolean useHttpCompression = false;
+
+    QueryTests(){
+    }
+
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+        this.useServerCompression = useServerCompression;
+        this.useHttpCompression = useHttpCompression;
+    }
+
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -85,8 +100,9 @@ public class QueryTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .compressClientRequest(false)
-                .compressServerResponse(false)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
+                .compressServerResponse(useServerCompression)
+                .useHttpCompression(useHttpCompression)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build();
 
         delayForProfiler(0);
@@ -164,9 +180,21 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        testQueryAll(10);
+    }
+    public void testQueryAll(int numberOfRecords) throws Exception {
+        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, numberOfRecords);
         GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
         Assert.assertNotNull(hostnameRecord);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllSimple() throws Exception {
+        testQueryAllSimple(10);
+    }
+    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+        GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
+        Assert.assertNotNull(record);
     }
 
     @Test(groups = {"integration"})
@@ -407,6 +435,8 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("expected exception");
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            // expected
         }
     }
 
@@ -1165,5 +1195,101 @@ public class QueryTests extends BaseIntegrationTest {
             }
 
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerTimeZoneFromHeader() {
+
+        final String requestTimeZone = "America/Los_Angeles";
+        try (QueryResponse response =
+                     client.query("SELECT now() as t, toDateTime(now(), 'UTC') as utc_time " +
+                             "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader =
+                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+            reader.next();
+
+            LocalDateTime serverTime = reader.getLocalDateTime(1);
+            System.out.println("Server time: " + serverTime);
+            LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
+            System.out.println("Server UTC time: " + serverUtcTime);
+
+            ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of(requestTimeZone));
+            ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
+
+            Assert.assertEquals(serverTimeZ.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+        public void testClientUseOwnTimeZone() {
+
+        final String overrideTz = "America/Los_Angeles";
+        try (Client client = newClient().useTimeZone(overrideTz).useServerTimeZone(false).build()) {
+            final String requestTimeZone = "Europe/Berlin";
+            try (QueryResponse response =
+                         client.query("SELECT now() as t, toDateTime(now(), 'UTC') as utc_time, " +
+                                 "toDateTime(now(), 'Europe/Lisbon')" +
+                                 "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
+
+                ClickHouseBinaryFormatReader reader =
+                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+                reader.next();
+
+                LocalDateTime serverTime = reader.getLocalDateTime(1); // in "America/Los_Angeles"
+                System.out.println("Server time: " + serverTime);
+                LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
+                System.out.println("Server UTC time: " + serverUtcTime);
+                ZonedDateTime serverLisbonTime = reader.getZonedDateTime(3);  // in "Europe/Lisbon"
+                System.out.println("Server Lisbon time: " + serverLisbonTime);
+
+                ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of("America/Los_Angeles"));
+                ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
+
+                Assert.assertEquals(serverTimeZ.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+                Assert.assertEquals(serverLisbonTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    @Test
+    public void testAsyncQuery() {
+        try (Client client = newClient().useAsyncRequests(true).build();
+             QueryResponse response =
+                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
+                ClickHouseBinaryFormatReader reader =
+                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+                int count = 0;
+                while (reader.hasNext()) {
+                    reader.next();
+                    count++;
+                }
+
+                Assert.assertEquals(count, 1000_000);
+        } catch (Exception e) {
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    private Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressClientRequest(false)
+                .compressServerResponse(false)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

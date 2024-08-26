@@ -55,6 +55,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -222,8 +223,10 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
                 f = getFile(f, stmt);
                 final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
+                TimeZone responseTimeZone = null;
                 try (ClickHouseResponse response = request.query(stmt.getSQL()).output(f).executeAndWait()) {
                     summary.add(response.getSummary());
+                    responseTimeZone = response.getTimeZone();
                 } catch (ClickHouseException e) {
                     throw SqlExceptionUtils.handle(e);
                 }
@@ -236,7 +239,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                         new Object[][] { { file, f.getFormat().name(),
                                 f.hasCompression() ? f.getCompressionAlgorithm().encoding() : "none",
                                 f.getCompressionLevel(), f.getFile().length() } },
-                        summary);
+                        summary,
+                        responseTimeZone);
             } else if (stmt.getStatementType() == StatementType.INSERT) {
                 final Mutation m = request.write().query(stmt.getSQL());
                 final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
@@ -267,7 +271,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                 } catch (IOException e) {
                     throw SqlExceptionUtils.handle(e);
                 }
-                return ClickHouseSimpleResponse.of(null, null, new Object[0][], summary);
+                return ClickHouseSimpleResponse.of(null, null, new Object[0][], summary, null);
             }
         }
 
@@ -448,7 +452,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {
-        if (stmt.isQuery()) {
+        if (stmt.isQuery() || (!stmt.isRecognized() && !response.getColumns().isEmpty())) {
             currentUpdateCount = -1L;
             currentResult = new ClickHouseResultSet(stmt.getDatabaseOrDefault(getConnection().getCurrentDatabase()),
                     stmt.getTable(), this, response);
