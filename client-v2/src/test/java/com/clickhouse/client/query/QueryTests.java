@@ -66,13 +66,17 @@ import java.util.NoSuchElementException;
 import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.BaseStream;
+import java.util.stream.IntStream;
 
 public class QueryTests extends BaseIntegrationTest {
 
@@ -1281,32 +1285,62 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test
     public void testAsyncQuery() {
-        try (Client client = newClient().useAsyncRequests(true).build();
-             QueryResponse response =
-                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
-                ClickHouseBinaryFormatReader reader =
-                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
-
-                int count = 0;
-                while (reader.hasNext()) {
-                    reader.next();
-                    count++;
-                }
-
-                Assert.assertEquals(count, 1000_000);
+        try (Client client = newClient().useAsyncRequests(true).build()){
+             simpleRequest(client);
         } catch (Exception e) {
             Assert.fail("Failed to get server time zone from header", e);
         }
     }
 
-    private Client.Builder newClient() {
+    protected void simpleRequest(Client client) throws Exception {
+        try (QueryResponse response =
+                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader =
+                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+            int count = 0;
+            while (reader.hasNext()) {
+                reader.next();
+                count++;
+            }
+
+            Assert.assertEquals(count, 1000_000);
+        }
+    }
+
+    @Test
+    public void testConcurrentQueries() throws Exception{
+        final Client client = newClient().build();
+        final int concurrency = 10;
+        CountDownLatch latch = new CountDownLatch(concurrency);
+        Runnable task = () -> {
+            try {
+                simpleRequest(client);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Failed", e);
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        IntStream.range(0,concurrency).forEach(i -> executor.submit(task));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+        latch.await();
+        Assert.assertEquals(latch.getCount(), 0);
+    }
+
+    protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
                 .compressClientRequest(false)
-                .compressServerResponse(false)
+                .compressServerResponse(true)
+                .useHttpCompression(useHttpCompression)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
