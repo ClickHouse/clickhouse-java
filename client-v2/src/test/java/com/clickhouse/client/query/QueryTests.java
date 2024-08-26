@@ -617,8 +617,8 @@ public class QueryTests extends BaseIntegrationTest {
             columns.add("max_uint" + bits + " UInt" + bits);
 
             final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
-            final BigInteger nearMaxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.TWO);//LE vs BigEndian test
-            final BigInteger nearMaxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.TWO);//LE vs BE
+            final BigInteger nearMaxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BigEndian test
+            final BigInteger nearMaxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BE
 
             valueGenerators.add(() -> String.valueOf(minInt));
             valueGenerators.add(() -> String.valueOf(0));
