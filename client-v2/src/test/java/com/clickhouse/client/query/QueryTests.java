@@ -102,7 +102,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(true)
                 .build();
 
         delayForProfiler(0);
@@ -157,6 +157,22 @@ public class QueryTests extends BaseIntegrationTest {
             System.out.println(record.getLong(4)); // Int64 column col4
             System.out.println(record.getString(5)); // string column col5
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBigUnsignedInt() throws Exception {
+        final BigInteger expected128 = BigInteger.valueOf(2).pow(128).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+        final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+
+        String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
+        System.out.println(sqlQuery);
+        Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+
+        GenericRecord firstRecord = records.iterator().next();
+
+        System.out.println(firstRecord.getBigInteger("i128"));
+        Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
+        Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
     }
 
     @Test(groups = {"integration"})
@@ -601,13 +617,13 @@ public class QueryTests extends BaseIntegrationTest {
             columns.add("max_uint" + bits + " UInt" + bits);
 
             final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
-            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
-            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+            final BigInteger nearMaxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BigEndian test
+            final BigInteger nearMaxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BE
 
             valueGenerators.add(() -> String.valueOf(minInt));
             valueGenerators.add(() -> String.valueOf(0));
-            valueGenerators.add(() -> String.valueOf(maxInt));
-            valueGenerators.add(() -> String.valueOf(maxUInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxUInt));
 
             final int index = i - 3;
             verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
@@ -615,15 +631,16 @@ public class QueryTests extends BaseIntegrationTest {
             verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
                     BigInteger.ZERO));
             verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
-                    maxInt));
+                    nearMaxInt));
             verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
-                    maxUInt));
+                    nearMaxUInt));
         }
 
 //        valueGenerators.forEach(r -> System.out.println(r.get()));
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
 
     @Test(groups = {"integration"})
     public void testFloatDataTypes() {

@@ -441,15 +441,15 @@ public class BinaryStreamReader {
     }
 
     public static BigInteger readUnsignedInt64LE(InputStream input) throws IOException {
-        return new BigInteger(1, readNBytes(input, 8));
+        return readBigIntegerLE(input, 8, true);
     }
 
     public static BigInteger readUnsignedInt128LE(InputStream input) throws IOException {
-        return new BigInteger(1, readNBytes(input, 16));
+        return readBigIntegerLE(input, 16, true);
     }
 
     public static BigInteger readUnsignedInt256LE(InputStream input) throws IOException {
-        return new BigInteger(1, readNBytes(input, 32));
+        return readBigIntegerLE(input, 32, true);
     }
 
     public static ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
