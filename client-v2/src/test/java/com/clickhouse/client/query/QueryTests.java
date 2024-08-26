@@ -161,8 +161,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testBigUnsignedInt() throws Exception {
-        final BigInteger expected128 = BigInteger.valueOf(2).pow(128).subtract(BigInteger.TWO);
-        final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.TWO);
+        final BigInteger expected128 = BigInteger.valueOf(2).pow(128).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+        final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
 
         String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
         System.out.println(sqlQuery);
