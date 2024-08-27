@@ -64,13 +64,17 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.BaseStream;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 
 public class QueryTests extends BaseIntegrationTest {
@@ -86,7 +90,7 @@ public class QueryTests extends BaseIntegrationTest {
     QueryTests(){
     }
 
-    QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
     }
@@ -101,7 +105,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(true)
                 .build();
 
         delayForProfiler(0);
@@ -146,7 +150,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testReadRecords() throws Exception {
         List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
-        
+
         Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
         Assert.assertEquals(records.getResultRows(), 10, "Unexpected number of rows");
 
@@ -159,6 +163,22 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(record.getLong("col4"), dsRecords.get("col4"));
             Assert.assertEquals(record.getString("col5"), dsRecords.get("col5"));
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBigUnsignedInt() throws Exception {
+        final BigInteger expected128 = BigInteger.valueOf(2).pow(128).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+        final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+
+        String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
+        System.out.println(sqlQuery);
+        Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+
+        GenericRecord firstRecord = records.iterator().next();
+
+        System.out.println(firstRecord.getBigInteger("i128"));
+        Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
+        Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
     }
 
     @Test(groups = {"integration"})
@@ -223,6 +243,15 @@ public class QueryTests extends BaseIntegrationTest {
             List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).toList();
             Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllSimple() throws Exception {
+        testQueryAllSimple(10);
+    }
+    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+        GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
+        Assert.assertNotNull(record);
     }
 
     @Test(groups = {"integration"})
@@ -647,13 +676,13 @@ public class QueryTests extends BaseIntegrationTest {
             columns.add("max_uint" + bits + " UInt" + bits);
 
             final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
-            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
-            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+            final BigInteger nearMaxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BigEndian test
+            final BigInteger nearMaxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BE
 
             valueGenerators.add(() -> String.valueOf(minInt));
             valueGenerators.add(() -> String.valueOf(0));
-            valueGenerators.add(() -> String.valueOf(maxInt));
-            valueGenerators.add(() -> String.valueOf(maxUInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxUInt));
 
             final int index = i - 3;
             verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
@@ -661,15 +690,16 @@ public class QueryTests extends BaseIntegrationTest {
             verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
                     BigInteger.ZERO));
             verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
-                    maxInt));
+                    nearMaxInt));
             verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
-                    maxUInt));
+                    nearMaxUInt));
         }
 
 //        valueGenerators.forEach(r -> System.out.println(r.get()));
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
 
     @Test(groups = {"integration"})
     public void testFloatDataTypes() {
@@ -1299,33 +1329,62 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test
     public void testAsyncQuery() {
-        try (Client client = newClient().useAsyncRequests(true).build();
-             QueryResponse response =
-                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
-                ClickHouseBinaryFormatReader reader =
-                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
-
-                int count = 0;
-                while (reader.hasNext()) {
-                    reader.next();
-                    count++;
-                }
-
-                Assert.assertEquals(count, 1000_000);
+        try (Client client = newClient().useAsyncRequests(true).build()){
+             simpleRequest(client);
         } catch (Exception e) {
             Assert.fail("Failed to get server time zone from header", e);
         }
     }
 
-    private Client.Builder newClient() {
+    protected void simpleRequest(Client client) throws Exception {
+        try (QueryResponse response =
+                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader =
+                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+            int count = 0;
+            while (reader.hasNext()) {
+                reader.next();
+                count++;
+            }
+
+            Assert.assertEquals(count, 1000_000);
+        }
+    }
+
+    @Test
+    public void testConcurrentQueries() throws Exception{
+        final Client client = newClient().build();
+        final int concurrency = 10;
+        CountDownLatch latch = new CountDownLatch(concurrency);
+        Runnable task = () -> {
+            try {
+                simpleRequest(client);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Failed", e);
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        IntStream.range(0,concurrency).forEach(i -> executor.submit(task));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+        latch.await();
+        Assert.assertEquals(latch.getCount(), 0);
+    }
+
+    protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
                 .compressClientRequest(false)
-                .compressServerResponse(false)
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
-                ;
+                .compressServerResponse(true)
+                .useHttpCompression(useHttpCompression)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

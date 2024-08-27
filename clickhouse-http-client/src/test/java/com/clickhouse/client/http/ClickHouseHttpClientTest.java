@@ -217,7 +217,10 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
             Assert.assertTrue(client.ping(getServer(), 3000));
         }
+    }
 
+    @Test(groups = "integration")
+    public void testPingFailure() {
         try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
             ClickHouseNodes nodes = ClickHouseNodes.of("http://notthere," + getServer().getBaseUri());

@@ -67,7 +67,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
     static final byte MAGIC = (byte) 0x82;
     static final int HEADER_LENGTH = 25;
 
-    static final byte[] headerBuff = new byte[HEADER_LENGTH];
+    final byte[] headerBuff = new byte[HEADER_LENGTH];
 
     /**
      * Method ensures to read all bytes from the input stream.

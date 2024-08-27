@@ -715,6 +715,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
+         * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
+         * Default is 8192 bytes.
+         *
+         * @param size - size in bytes
+         * @return
+         */
+        public Builder setClientNetworkBufferSize(int size) {
+            this.configuration.put("client_network_buffer_size", String.valueOf(size));
+            return this;
+        }
+
         public Client build() {
             this.configuration = setDefaults(this.configuration);
 
@@ -815,6 +828,10 @@ public class Client implements AutoCloseable {
 
             if (!userConfig.containsKey("connection_ttl")) {
                 userConfig.put("connection_ttl", "-1");
+            }
+
+            if (!userConfig.containsKey("client_network_buffer_size")) {
+                setClientNetworkBufferSize(8192);
             }
 
             return userConfig;

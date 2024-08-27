@@ -17,7 +17,6 @@ public class DbConfiguration {
                 .addEndpoint(dbUrl)
                 .setUsername(dbUser)
                 .setPassword(dbPassword)
-                .compressServerResponse(false)
                 .useNewImplementation(true) // using new transport layer implementation
 
                 // sets the maximum number of connections to the server at a time
