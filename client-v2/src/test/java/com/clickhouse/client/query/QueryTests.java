@@ -236,11 +236,11 @@ public class QueryTests extends BaseIntegrationTest {
         for (String colDefinition : DATASET_COLUMNS) {
             // result values
             String colName = colDefinition.split(" ")[0];
-            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).toList();
+            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).collect(Collectors.toList());
             Assert.assertEquals(colValues.size(), dataset.size());
 
             // dataset values
-            List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).toList();
+            List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).collect(Collectors.toList());
             Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
         }
     }
