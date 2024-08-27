@@ -33,6 +33,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.POJODeserializer;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
@@ -52,6 +53,7 @@ import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.lang.model.type.PrimitiveType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -79,6 +81,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -120,6 +124,10 @@ public class Client implements AutoCloseable {
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
     private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
     private final Map<Class<?>, Map<String, Method>> getterMethods;
+
+    private final Map<Class<?>, Map<String, POJODeserializer>> deserializers;
+    private final Map<Class<?>, Map<String, Method>> setterMethods;
+
     private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
@@ -140,6 +148,8 @@ public class Client implements AutoCloseable {
         this.serializers = new HashMap<>();
         this.getterMethods = new HashMap<>();
         this.hasDefaults = new HashMap<>();
+        this.deserializers = new HashMap<>();
+        this.setterMethods = new HashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
         if (isAsyncEnabled && sharedOperationExecutor == null) {
@@ -874,29 +884,34 @@ public class Client implements AutoCloseable {
      * @param clazz - class of a POJO
      * @param schema - correlating table schema
      */
-    public void register(Class<?> clazz, TableSchema schema) {
+    public synchronized void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
 
         //Create a new POJOSerializer with static .serialize(object, columns) methods
-        List<POJOSerializer> serializers = new ArrayList<>();
-        Map<String, Method> getterMethods = new HashMap<>();
-
-        for (Method method: clazz.getMethods()) {//Clean up the method names
+        Map<String, Method> classGetters = new HashMap<>();
+        Map<String, Method> classSetters = new HashMap<>();
+        for (Method method : clazz.getMethods()) {//Clean up the method names
             String methodName = method.getName();
             if (methodName.startsWith("get") || methodName.startsWith("has")) {
                 methodName = methodName.substring(3).toLowerCase();
-                getterMethods.put(methodName, method);
-            } if (methodName.startsWith("is")) {
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("is")) {
                 methodName = methodName.substring(2).toLowerCase();
-                getterMethods.put(methodName, method);
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("set")) {
+                methodName = methodName.substring(3).toLowerCase();
+                classSetters.put(methodName, method);
             }
         }
-        this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
+        this.getterMethods.put(clazz, classGetters);//Store the getter methods for later use
+        this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
 
+        List<POJOSerializer> classSerializers = new ArrayList<>();
+        Map<String, POJODeserializer> classDeserializers = new HashMap<>();
         for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".","");
-            serializers.add((obj, stream) -> {
-                if (!getterMethods.containsKey(columnName)) {
+            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+            classSerializers.add((obj, stream) -> {
+                if (!classGetters.containsKey(columnName)) {
                     LOG.warn("No getter method found for column: {}", columnName);
                     return;
                 }
@@ -926,8 +941,34 @@ public class Client implements AutoCloseable {
                 //Handle the different types
                 SerializerUtils.serializeData(stream, value, column);
             });
+
+
+            Method setterMethod = this.setterMethods.get(clazz).get(columnName);
+            Class<?> argType = setterMethod.getParameterTypes()[0];
+            if (argType.isPrimitive()) {
+                if (argType.getName().equalsIgnoreCase("boolean")) {
+                    classDeserializers.put(columnName, SerializerUtils.booleanDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("byte")) {
+                    classDeserializers.put(columnName, SerializerUtils.byteDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("short")) {
+                    classDeserializers.put(columnName, SerializerUtils.shortDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("int")) {
+                    classDeserializers.put(columnName, SerializerUtils.intDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("long")) {
+                    classDeserializers.put(columnName, SerializerUtils.longDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("float")) {
+                    classDeserializers.put(columnName, SerializerUtils.floatDeserializer(setterMethod));
+                } else if (argType.getName().equalsIgnoreCase("double")) {
+                    classDeserializers.put(columnName, SerializerUtils.doubleDeserializer(setterMethod));
+                } else {
+                    throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
+                }
+            } else {
+                classDeserializers.put(columnName, SerializerUtils.defaultPOJODeserializer(setterMethod));
+            }
         }
-        this.serializers.put(clazz, serializers);
+        this.serializers.put(clazz, classSerializers);
+        this.deserializers.put(clazz, classDeserializers);
         this.hasDefaults.put(clazz, schema.hasDefaults());
     }
 
@@ -1437,6 +1478,35 @@ public class Client implements AutoCloseable {
         }
     }
 
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz) {
+        Map<String, POJODeserializer> classDeserializers = deserializers.get(clazz);
+
+        try {
+            int operationTimeout = getOperationTimeout();
+            QuerySettings settings = new QuerySettings();
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
+                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+                List<T> records = new ArrayList<>();
+                RowBinaryWithNamesAndTypesFormatReader reader =
+                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+                while (true) {
+                    Object record = clazz.getDeclaredConstructor().newInstance();
+                    if (reader.readToPOJO(classDeserializers, record)) {
+                        records.add((T) record);
+                    } else {
+                        break;
+                    }
+                }
+
+                return records;
+            }
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get query response", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get query response", e);
+        }    }
+
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
@@ -1468,6 +1538,23 @@ public class Client implements AutoCloseable {
         try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
                 query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
             return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
+        } catch (TimeoutException e) {
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get table schema", e);
+        }
+    }
+
+    public TableSchema getTableSchemaFromQuery(String sql, String name) {
+        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+
+        int operationTimeout = getOperationTimeout();
+
+        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
+                query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+            return new TableSchemaParser().readTSKV(response.getInputStream(), name, getDefaultDatabase());
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {

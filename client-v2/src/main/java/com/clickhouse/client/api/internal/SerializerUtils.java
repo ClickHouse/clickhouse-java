@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.query.POJODeserializer;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
@@ -211,5 +212,119 @@ public class SerializerUtils {
         }
     }
 
+    public static boolean getBooleanValue(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+        }
+    }
 
+    public static byte getByteValue(Object value) {
+        if (value instanceof Byte) {
+            return (Byte) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+        }
+    }
+
+    public static short getShortValue(Object value) {
+        if (value instanceof Byte) {
+            return (Byte) value;
+        } else if (value instanceof Short) {
+            return (Short) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+        }
+    }
+
+    public static int getIntValue(Object value) {
+        if (value instanceof Byte) {
+            return (Byte) value;
+        } else if (value instanceof Short) {
+            return (Short) value;
+        } else if (value instanceof Integer) {
+            return (Integer) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+        }
+    }
+
+    public static long getLongValue(Object value) {
+        if (value instanceof Byte) {
+            return (Byte) value;
+        } else if (value instanceof Short) {
+            return (Short) value;
+        } else if (value instanceof Integer) {
+            return (Integer) value;
+        } else if (value instanceof Long) {
+            return ((Long) value).intValue();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+        }
+    }
+
+    public static java.lang.Object getFloatValue(java.lang.Object value) {
+        if (value instanceof Float) {
+            return (Float) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to float");
+        }
+    }
+
+    public static java.lang.Object getDoubleValue(java.lang.Object value) {
+        if (value instanceof Double) {
+            return (Double) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to double");
+        }
+    }
+
+    public static POJODeserializer byteDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getByteValue(value));
+        };
+    }
+
+    public static POJODeserializer shortDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getShortValue(value));
+        };
+    }
+
+    public static POJODeserializer intDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getIntValue(value));
+        };
+    }
+
+    public static POJODeserializer longDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getLongValue(value));
+        };
+    }
+
+    public static POJODeserializer floatDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getFloatValue(value));
+        };
+    }
+
+    public static POJODeserializer doubleDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getDoubleValue(value));
+        };
+    }
+
+    public static POJODeserializer booleanDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getBooleanValue(value));
+        };
+    }
+
+    public static POJODeserializer defaultPOJODeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, value);
+        };
+    }
 }

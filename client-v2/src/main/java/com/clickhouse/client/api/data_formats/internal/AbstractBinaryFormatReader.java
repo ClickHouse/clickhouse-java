@@ -2,9 +2,9 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
+import com.clickhouse.client.api.query.POJODeserializer;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -34,7 +35,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,6 +69,31 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
     protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
+
+    public boolean readToPOJO(Map<String, POJODeserializer> deserializers, Object obj ) throws IOException {
+        boolean firstColumn = true;
+        for (ClickHouseColumn column : getSchema().getColumns()) {
+            try {
+                Object val = binaryStreamReader.readValue(column);
+                if (val != null) {
+                    POJODeserializer deserializer = deserializers.get(column.getColumnName());
+                    if (deserializer != null) {
+                        deserializer.deserialize(obj, val);
+                    }
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new ClientException("Failed to put value into POJO", e);
+            }
+        }
+        return true;
+    }
 
     protected boolean readRecord(Map<String, Object> record) throws IOException {
         boolean firstColumn = true;

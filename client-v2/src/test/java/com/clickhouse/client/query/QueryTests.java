@@ -35,6 +35,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.testcontainers.shaded.com.google.common.collect.Table;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -1214,8 +1215,18 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertEquals(((ClickHouseException) e.getCause().getCause().getCause()).getErrorCode(),
                         ServerException.TABLE_NOT_FOUND);
             }
-
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchemaFromQuery() throws Exception {
+        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2", "q1");
+        Assert.assertNotNull(schema);
+        Assert.assertEquals(schema.getColumns().size(), 2);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.UInt32);
+        Assert.assertEquals(schema.getColumns().get(1).getColumnName(), "col2");
+        Assert.assertEquals(schema.getColumns().get(1).getDataType(), ClickHouseDataType.String);
     }
 
     @Test(groups = {"integration"})
@@ -1330,6 +1341,20 @@ public class QueryTests extends BaseIntegrationTest {
         executor.awaitTermination(10, TimeUnit.SECONDS);
         latch.await();
         Assert.assertEquals(latch.getCount(), 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryReadToPOJO() {
+        int limit = 10;
+        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
+                " FROM system.numbers LIMIT " + limit;
+        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        client.register(SimplePOJO.class, schema);
+
+
+        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
+        Assert.assertEquals(pojos.size(), limit);
+        System.out.println(pojos);
     }
 
     protected Client.Builder newClient() {
