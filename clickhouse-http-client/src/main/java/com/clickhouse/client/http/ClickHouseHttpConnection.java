@@ -9,6 +9,7 @@ import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -282,6 +283,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 break;
         }
         return proxy;
+    }
+
+    protected static String getProxyAuth(ClickHouseConfig config) {
+        String authHeader;
+        if (config.getProxyType() == ClickHouseProxyType.HTTP) {
+            String userName = config.getProxyUserName();
+            if (!ClickHouseChecker.isNullOrEmpty(userName)) {
+                String auth = userName + ":" + new String(config.getProxyPassword());
+                byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
+                authHeader = "Basic " + new String(encodedAuth);
+            }
+        }
+        return authHeader;
     }
 
     protected static String parseErrorFromException(String errorCode, String serverName, IOException e, byte[] bytes) {

@@ -402,7 +402,15 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Set ClickHouse proxy port.
      */
-    PROXY_PORT("proxy_port", -1, "Set ClickHouse server proxy hostname."),
+    PROXY_PORT("proxy_port", -1, "Set ClickHouse server proxy port."),
+    /**
+     * Set Clickhouse proxy username.
+     */
+    PROXY_USERNAME("proxy_username", "", "Set ClickHouse server proxy username."),
+    /**
+     * Set ClickHouse proxy password.
+     */
+    PROXY_PASSWORD("proxy_password", "", "Set ClickHouse server proxy password."),
     /**
      * Whether to use server time zone.
      */
