@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
@@ -21,6 +22,7 @@ import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTraff
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -33,13 +35,18 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
 public class HttpTransportTests extends BaseIntegrationTest{
 
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
     @SuppressWarnings("java:S2925")
@@ -219,18 +226,16 @@ public class HttpTransportTests extends BaseIntegrationTest{
         }
     }
 
-    @Test(groups = { "integration" }, enabled = true)
-    public void testNoHttpResponseFailure() {
+    @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
+    public void testInsertAndNoHttpResponseFailure(String body, int maxRetries, ThrowingFunction<Client, Void> function,
+                                                   boolean shouldFail) {
         WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         faultyServer.start();
 
-        byte[] requestBody = ("INSERT INTO table01 FORMAT " +
-                ClickHouseFormat.TSV.name() + " \n1\t2\t3\n").getBytes();
-
         // First request gets no response
         faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                .withRequestBody(WireMock.binaryEqualTo(requestBody))
+                .withRequestBody(WireMock.equalTo(body))
                 .inScenario("Retry")
                 .whenScenarioStateIs(STARTED)
                 .willSetStateTo("Failed")
@@ -238,7 +243,7 @@ public class HttpTransportTests extends BaseIntegrationTest{
 
         // Second request gets a response (retry)
         faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                .withRequestBody(WireMock.binaryEqualTo(requestBody))
+                .withRequestBody(WireMock.equalTo(body))
                 .inScenario("Retry")
                 .whenScenarioStateIs("Failed")
                 .willSetStateTo("Done")
@@ -250,20 +255,53 @@ public class HttpTransportTests extends BaseIntegrationTest{
                 .addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(true)
-//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(true) // because of the internal differences
                 .compressClientRequest(false)
-                .setOption(ClickHouseClientOption.RETRY.getKey(), "2")
+                .setMaxRetries(maxRetries)
                 .build();
 
         try {
-            InsertResponse insertResponse = mockServerClient.insert("table01",
-                    new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS);
-            insertResponse.close();
+            function.apply(mockServerClient);
+        } catch (ClientException e) {
+            e.printStackTrace();
+            if (!shouldFail) {
+                Assert.fail("Unexpected exception", e);
+            }
+            return;
         } catch (Exception e) {
             Assert.fail("Unexpected exception", e);
         } finally {
             faultyServer.stop();
         }
+
+        if (shouldFail) {
+            Assert.fail("Expected exception");
+        }
+    }
+
+    @DataProvider(name = "NoResponseFailureProvider")
+    public static Object[][] noResponseFailureProvider() {
+
+        String insertBody = "INSERT INTO table01 FORMAT " + ClickHouseFormat.TSV.name() + " \n1\t2\t3\n";
+        ThrowingFunction<Client, Void> insertFunction = (client) -> {
+            InsertResponse insertResponse = client.insert("table01",
+                    new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS);
+            insertResponse.close();
+            return null;
+        };
+
+        String selectBody = "select timezone()";
+        ThrowingFunction<Client, Void> queryFunction = (client) -> {
+            QueryResponse response = client.query("select timezone()").get(30, TimeUnit.SECONDS);
+            response.close();
+            return null;
+        };
+
+        return new Object[][]{
+                {insertBody, 1, insertFunction, false},
+                {selectBody, 1, queryFunction, false},
+                {insertBody, 0, insertFunction, true},
+                {selectBody, 0, queryFunction, true}
+        };
     }
 }
