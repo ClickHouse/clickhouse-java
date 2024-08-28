@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +39,7 @@ import java.util.NoSuchElementException;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -70,7 +72,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
 
-    protected boolean readRecord(Map<String, Object> record) throws IOException {
+    /**
+     * It is still internal method and should be used with care.
+     * Usually this method is called to read next record into internal object and affects hasNext() method.
+     * So after calling this one:
+     * - hasNext(), next() should not be called
+     * - stream should be read with readRecord() method fully
+     *
+     * @param record
+     * @return
+     * @throws IOException
+     */
+    public boolean readRecord(Map<String, Object> record) throws IOException {
         boolean firstColumn = true;
         for (ClickHouseColumn column : getSchema().getColumns()) {
             try {

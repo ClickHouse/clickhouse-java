@@ -33,7 +33,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     }
 
     @Override
-    protected boolean readRecord(Map<String, Object> record) throws IOException {
+    public boolean readRecord(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
             if (!readBlock()) {
                 return false;

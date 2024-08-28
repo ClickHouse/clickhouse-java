@@ -67,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -716,6 +717,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
+         * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
+         * Default is 8192 bytes.
+         *
+         * @param size - size in bytes
+         * @return
+         */
+        public Builder setClientNetworkBufferSize(int size) {
+            this.configuration.put("client_network_buffer_size", String.valueOf(size));
+            return this;
+        }
+
 
         /**
          * Sets list of causes that should be retried on.
@@ -841,6 +855,10 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey("client_retry_on_failures")) {
                 retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout, ClientFaultCause.ConnectionRequestTimeout);
+            }
+
+            if (!configuration.containsKey("client_network_buffer_size")) {
+                setClientNetworkBufferSize(8192);
             }
 
             if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
@@ -1447,10 +1465,11 @@ public class Client implements AutoCloseable {
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
-                    ClickHouseBinaryFormatReader reader =
+                    RowBinaryWithNamesAndTypesFormatReader reader =
                             new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
                     Map<String, Object> record;
-                    while ((record = reader.next()) != null) {
+                    while (reader.readRecord((record = new LinkedHashMap<>()))) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
                     }
                 }

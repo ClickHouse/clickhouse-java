@@ -452,7 +452,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {
-        if (stmt.isQuery()) {
+        if (stmt.isQuery() || (!stmt.isRecognized() && !response.getColumns().isEmpty())) {
             currentUpdateCount = -1L;
             currentResult = new ClickHouseResultSet(stmt.getDatabaseOrDefault(getConnection().getCurrentDatabase()),
                     stmt.getTable(), this, response);
