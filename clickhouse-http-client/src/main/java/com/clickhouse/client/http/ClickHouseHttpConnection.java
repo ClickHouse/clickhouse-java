@@ -287,6 +287,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return proxy;
     }
 
+    protected static String getProxyAuth(ClickHouseConfig config) {
+        String authHeader = null;
+        if (config.getProxyType() == ClickHouseProxyType.HTTP) {
+            String userName = config.getProxyUserName();
+            if (!ClickHouseChecker.isNullOrEmpty(userName)) {
+                String auth = userName + ":" + new String(config.getProxyPassword());
+                byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
+                authHeader = "Basic " + new String(encodedAuth);
+            }
+        }
+        return authHeader;
+    }
+
     protected static String parseErrorFromException(String errorCode, String serverName, IOException e, byte[] bytes) {
         log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
                 e.getMessage());

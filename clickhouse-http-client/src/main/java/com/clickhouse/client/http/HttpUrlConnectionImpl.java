@@ -111,6 +111,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         if (proxy != null) {
             log.debug("using proxy type [%s] address [%s]", proxy.type().name(), proxy.address().toString());
             newConn = (HttpURLConnection) new URL(url).openConnection(proxy);
+            String authString = getProxyAuth(c);
+            if (authString != null) {
+                newConn.setRequestProperty("Proxy-Authorization", authString);
+            }
         } else {
             newConn = (HttpURLConnection) new URL(url).openConnection();
         }
