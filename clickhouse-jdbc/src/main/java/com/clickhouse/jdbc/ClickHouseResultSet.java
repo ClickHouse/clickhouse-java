@@ -12,19 +12,7 @@ import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Date;
-import java.sql.NClob;
-import java.sql.Ref;
-import java.sql.ResultSetMetaData;
-import java.sql.RowId;
-import java.sql.SQLException;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -36,14 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 
-public class ClickHouseResultSet extends AbstractResultSet {
+public class ClickHouseResultSet implements ResultSet, JdbcWrapper {
     private ClickHouseRecord currentRow;
     private Iterator<ClickHouseRecord> rowCursor;
     private int rowNumber;
@@ -51,10 +38,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     protected final String database;
     protected final String table;
-    protected final ClickHouseStatement statement;
+    protected final Statement statement;
     protected final ClickHouseResponse response;
 
-    protected final ClickHouseConfig config;
     protected final boolean wrapObject;
     protected final List<ClickHouseColumn> columns;
     protected final Calendar defaultCalendar;
@@ -96,8 +82,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.nullAsDefault = false;
     }
 
-    public ClickHouseResultSet(String database, String table, ClickHouseStatement statement,
-            ClickHouseResponse response) throws SQLException {
+    public ClickHouseResultSet(String database, String table, Statement statement, ClickHouseResponse response) throws SQLException {
         if (database == null || table == null || statement == null || response == null) {
             throw new IllegalArgumentException("Non-null database, table, statement, and response are required");
         }
@@ -107,8 +92,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.statement = statement;
         this.response = response;
 
-        ClickHouseConnection conn = statement.getConnection();
-        this.config = statement.getConfig();
+        Connection conn = statement.getConnection();
         this.wrapObject = statement.getConnection().getJdbcConfig().useWrapperObject();
         this.defaultCalendar = conn.getDefaultCalendar();
 

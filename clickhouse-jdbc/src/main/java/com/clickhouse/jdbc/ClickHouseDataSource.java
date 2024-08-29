@@ -13,7 +13,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
+public class ClickHouseDataSource implements DataSource, JdbcWrapper {
     private final String url;
     private final Properties props;
 
