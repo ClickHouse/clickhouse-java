@@ -118,7 +118,7 @@
         <testng.version>7.5.1</testng.version>
 
         <mariadb-driver.version>3.1.4</mariadb-driver.version>
-        <mysql-driver.version>8.1.0</mysql-driver.version>
+        <mysql-driver.version>8.2.0</mysql-driver.version>
         <postgresql-driver.version>42.6.1</postgresql-driver.version>
 
         <repackaged.version>1.9.2</repackaged.version>
