@@ -286,7 +286,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected static String getProxyAuth(ClickHouseConfig config) {
-        String authHeader;
+        String authHeader = null;
         if (config.getProxyType() == ClickHouseProxyType.HTTP) {
             String userName = config.getProxyUserName();
             if (!ClickHouseChecker.isNullOrEmpty(userName)) {
