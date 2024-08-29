@@ -2,16 +2,16 @@ package com.clickhouse.jdbc;
 
 import java.sql.SQLException;
 
-public abstract class JdbcWrapper {
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        if (iface.isAssignableFrom(getClass())) {
-            return iface.cast(this);
-        }
-
-        throw SqlExceptionUtils.unsupportedError("Cannot unwrap to " + iface.getName());
+interface JdbcWrapper {
+    default boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return iface != null && iface.isAssignableFrom(getClass());
     }
 
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isAssignableFrom(getClass());
+    @SuppressWarnings("unchecked")
+    default <T> T unwrap(Class<T> iface) throws SQLException {
+        if (isWrapperFor(iface)) {
+            iface.cast(this);
+        }
+        throw SqlExceptionUtils.unsupportedError("Cannot unwrap to " + iface.getName());
     }
 }
