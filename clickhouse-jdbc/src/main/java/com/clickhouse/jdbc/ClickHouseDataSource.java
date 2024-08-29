@@ -8,6 +8,7 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import java.io.PrintWriter;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
@@ -42,12 +43,12 @@ public class ClickHouseDataSource implements DataSource, JdbcWrapper {
     }
 
     @Override
-    public ClickHouseConnection getConnection() throws SQLException {
+    public Connection getConnection() throws SQLException {
         return new ClickHouseConnectionImpl(connInfo);
     }
 
     @Override
-    public ClickHouseConnection getConnection(String username, String password) throws SQLException {
+    public Connection getConnection(String username, String password) throws SQLException {
         if (username == null || username.isEmpty()) {
             throw SqlExceptionUtils.clientError("Non-empty user name is required");
         }
