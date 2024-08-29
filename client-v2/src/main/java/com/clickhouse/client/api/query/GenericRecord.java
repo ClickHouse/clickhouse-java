@@ -19,7 +19,6 @@ import java.util.UUID;
 
 public interface GenericRecord {
 
-
     /**
      * Reads column with name `colName` as a string.
      *
@@ -486,4 +485,8 @@ public interface GenericRecord {
     LocalDateTime getLocalDateTime(String colName);
 
     LocalDateTime getLocalDateTime(int index);
+
+    Object getObject(String colName);
+
+    Object getObject(int index);
 }

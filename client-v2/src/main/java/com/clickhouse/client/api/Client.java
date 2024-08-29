@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1462,10 +1463,11 @@ public class Client implements AutoCloseable {
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
-                    ClickHouseBinaryFormatReader reader =
+                    RowBinaryWithNamesAndTypesFormatReader reader =
                             new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
                     Map<String, Object> record;
-                    while ((record = reader.next()) != null) {
+                    while (reader.readRecord((record = new LinkedHashMap<>()))) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
                     }
                 }

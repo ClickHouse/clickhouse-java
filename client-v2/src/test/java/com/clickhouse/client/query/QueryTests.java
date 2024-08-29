@@ -14,12 +14,12 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
@@ -53,19 +53,17 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -78,6 +76,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.BaseStream;
 import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 public class QueryTests extends BaseIntegrationTest {
 
@@ -151,16 +150,19 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadRecords() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
         Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
         Assert.assertEquals(records.getResultRows(), 10, "Unexpected number of rows");
+
+        Iterator<Map<String, Object>> dataIterator = dataset.iterator();
         for (GenericRecord record : records) {
-            System.out.println(record.getLong(1)); // UInt32 column col1
-            System.out.println(record.getInteger(2)); // Int32 column col2
-            System.out.println(record.getString(3)); // string column col3
-            System.out.println(record.getLong(4)); // Int64 column col4
-            System.out.println(record.getString(5)); // string column col5
+            Map<String,Object> dsRecords = dataIterator.next();
+            Assert.assertEquals(record.getLong("col1"), dsRecords.get("col1"));
+            Assert.assertEquals(record.getInteger("col2"), dsRecords.get("col2"));
+            Assert.assertEquals(record.getString("col3"), dsRecords.get("col3"));
+            Assert.assertEquals(record.getLong("col4"), dsRecords.get("col4"));
+            Assert.assertEquals(record.getString("col5"), dsRecords.get("col5"));
         }
     }
 
@@ -178,6 +180,33 @@ public class QueryTests extends BaseIntegrationTest {
         System.out.println(firstRecord.getBigInteger("i128"));
         Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
         Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadRecordsWithStreamAPI() throws Exception {
+        final int tables = 10;
+
+        Set<String> expectedTableNames = new HashSet<>();
+        for (int i = 0; i < tables; i++) {
+            final String tableName = "a_" + i;
+            expectedTableNames.add(tableName);
+            client.execute("DROP TABLE IF EXISTS default." + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+        }
+
+        Records records = client.queryRecords("SHOW TABLES").get(3, TimeUnit.SECONDS);
+
+        HashSet<String> tableNames = new HashSet<>();
+        records.forEach(r -> {
+            tableNames.add(r.getString(1));
+        });
+        Assert.assertTrue(tableNames.containsAll(expectedTableNames));
+
+        Assert.expectThrows(IllegalStateException.class, () -> {
+            records.forEach(r -> {
+                System.out.println(r);
+            });
+        });
     }
 
     @Test(groups = {"integration"})
@@ -201,12 +230,20 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
-        testQueryAll(10);
-    }
-    public void testQueryAll(int numberOfRecords) throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, numberOfRecords);
-        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
-        Assert.assertNotNull(hostnameRecord);
+        List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + DATASET_TABLE + " LIMIT " + dataset.size());
+        Assert.assertFalse(records.isEmpty());
+
+        for (String colDefinition : DATASET_COLUMNS) {
+            // result values
+            String colName = colDefinition.split(" ")[0];
+            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).collect(Collectors.toList());
+            Assert.assertEquals(colValues.size(), dataset.size());
+
+            // dataset values
+            List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).collect(Collectors.toList());
+            Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
+        }
     }
 
     @Test(groups = {"integration"})
@@ -222,6 +259,24 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryAllNoResult() throws Exception {
         List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
         Assert.assertTrue(records.isEmpty());
+    }
+
+    @Test
+    public void testQueryAllTableNames() {
+        final int tables = 10;
+        Set<String> expectedTableNames = new HashSet<>();
+        for (int i = 0; i < tables; i++) {
+            final String tableName = "a_" + i;
+            expectedTableNames.add(tableName);
+            client.execute("DROP TABLE IF EXISTS default." + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+        }
+
+        List<GenericRecord> records = client.queryAll("SHOW TABLES");
+        Assert.assertTrue(records.size() >= tables);
+
+        Set<String> tableNames = records.stream().map(r -> r.getString(1)).collect(Collectors.toSet());
+        Assert.assertTrue(tableNames.containsAll(expectedTableNames));
     }
 
     @Test(groups = {"integration"})
@@ -976,7 +1031,6 @@ public class QueryTests extends BaseIntegrationTest {
                 colIndex++;
                 try {
                     verifier.accept(reader);
-                    System.out.println("Verified " + colIndex);
                 } catch (Exception e) {
                     Assert.fail("Failed to verify " + columns.get(colIndex), e);
                 }
@@ -1001,8 +1055,6 @@ public class QueryTests extends BaseIntegrationTest {
 
         // Stats should be available after the query is done
         OperationMetrics metrics = response.getMetrics();
-        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
-        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
         Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
@@ -1019,8 +1071,6 @@ public class QueryTests extends BaseIntegrationTest {
         response = client.query(insertStmtBuilder.toString(), settings).get();
 
         metrics = response.getMetrics();
-        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
-        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
         Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
@@ -1088,7 +1138,6 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
-            System.out.println("Insert statement: " + insertStmtBuilder);
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
             try (ClickHouseResponse response = request.executeAndWait()) {}
@@ -1243,9 +1292,7 @@ public class QueryTests extends BaseIntegrationTest {
             reader.next();
 
             LocalDateTime serverTime = reader.getLocalDateTime(1);
-            System.out.println("Server time: " + serverTime);
             LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
-            System.out.println("Server UTC time: " + serverUtcTime);
 
             ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of(requestTimeZone));
             ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
@@ -1276,11 +1323,8 @@ public class QueryTests extends BaseIntegrationTest {
                 reader.next();
 
                 LocalDateTime serverTime = reader.getLocalDateTime(1); // in "America/Los_Angeles"
-                System.out.println("Server time: " + serverTime);
                 LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
-                System.out.println("Server UTC time: " + serverUtcTime);
                 ZonedDateTime serverLisbonTime = reader.getZonedDateTime(3);  // in "Europe/Lisbon"
-                System.out.println("Server Lisbon time: " + serverLisbonTime);
 
                 ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of("America/Los_Angeles"));
                 ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
