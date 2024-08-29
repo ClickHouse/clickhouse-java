@@ -53,10 +53,8 @@ import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
-import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.ClickHouseDatabaseMetaData;
 import com.clickhouse.jdbc.ClickHouseDriver;
-import com.clickhouse.jdbc.ClickHouseStatement;
 import com.clickhouse.jdbc.JdbcConfig;
 import com.clickhouse.jdbc.JdbcParameterizedQuery;
 import com.clickhouse.jdbc.JdbcParseHandler;
@@ -68,7 +66,7 @@ import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;
 
-public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
+public class ClickHouseConnectionImpl implements Connection, JdbcWrapper {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
     static final String SETTING_READONLY = "readonly";
