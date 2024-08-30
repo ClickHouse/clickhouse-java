@@ -186,6 +186,39 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testEndianReadingNumbers() throws Exception {
+
+        byte[][] numbers = new byte[][] {
+            new byte[] {0x00, 0x02, 0x00, 0x01},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10},
+        };
+
+
+        for (byte[] number : numbers) {
+            String typeName = "UInt32";
+            if (number.length == 8) {
+                typeName = "UInt64";
+            } else if (number.length == 16) {
+                typeName = "UInt128";
+            }
+            BigInteger expected = new BigInteger(number);
+            String sqlQuery = "SELECT to" + typeName + "('" + expected + "') as value1";
+            System.out.println(sqlQuery);
+            Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+            GenericRecord firstRecord = records.iterator().next();
+
+            if (number.length == 4) {
+                System.out.println(firstRecord.getLong("value1"));
+                Assert.assertEquals(firstRecord.getLong("value1"), expected.longValue());
+            } else {
+                System.out.println(firstRecord.getBigInteger("value1"));
+                Assert.assertEquals(firstRecord.getBigInteger("value1"), expected);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testReadRecordsWithStreamAPI() throws Exception {
         final int tables = 10;
 
