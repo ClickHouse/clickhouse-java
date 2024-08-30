@@ -84,6 +84,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -146,11 +147,11 @@ public class Client implements AutoCloseable {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
-        this.serializers = new HashMap<>();
-        this.getterMethods = new HashMap<>();
-        this.hasDefaults = new HashMap<>();
-        this.deserializers = new HashMap<>();
-        this.setterMethods = new HashMap<>();
+        this.serializers = new ConcurrentHashMap<>();
+        this.getterMethods = new ConcurrentHashMap<>();
+        this.hasDefaults = new ConcurrentHashMap<>();
+        this.deserializers = new ConcurrentHashMap<>();
+        this.setterMethods = new ConcurrentHashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
         if (isAsyncEnabled && sharedOperationExecutor == null) {
@@ -908,7 +909,7 @@ public class Client implements AutoCloseable {
         this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
 
         List<POJOSerializer> classSerializers = new ArrayList<>();
-        Map<String, POJODeserializer> classDeserializers = new HashMap<>();
+        Map<String, POJODeserializer> classDeserializers = new ConcurrentHashMap<>();
         for (ClickHouseColumn column : schema.getColumns()) {
             String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
             classSerializers.add((obj, stream) -> {
@@ -1481,7 +1482,23 @@ public class Client implements AutoCloseable {
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz) {
-        Map<String, POJODeserializer> classDeserializers = deserializers.get(clazz);
+        return queryAll(sqlQuery, clazz,(Supplier<T>) null);
+    }
+
+    /**
+     * <p>Queries data and returns collection with whole result. Data is read directly to a DTO
+     *  to save memory on intermediate structures. DTO will be instantiated with default constructor or
+     *  by using allocator</p>
+     * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
+     * @param sqlQuery - query to execute
+     * @param clazz - class of the DTO
+     * @param allocator - optional supplier to create new instances of the DTO.
+     * @return
+     * @param <T>
+     */
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, Supplier<T> allocator) {
+        Map<String, POJODeserializer> classDeserializers = new HashMap<>(10, 0.9f);
+        classDeserializers.putAll(deserializers.get(clazz));
 
         try {
             int operationTimeout = getOperationTimeout();
@@ -1493,7 +1510,7 @@ public class Client implements AutoCloseable {
                         new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
 
                 while (true) {
-                    Object record = clazz.getDeclaredConstructor().newInstance();
+                    Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
                     if (reader.readToPOJO(classDeserializers, record)) {
                         records.add((T) record);
                     } else {

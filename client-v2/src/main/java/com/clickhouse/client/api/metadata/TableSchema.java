@@ -16,6 +16,8 @@ public class TableSchema {
 
     private List<ClickHouseColumn> columns;
 
+    private List<ClickHouseColumn> columnsView;
+
     private Map<String, Map<String, Object>> metadata;
 
     private Map<String, Integer> colIndex;
@@ -25,6 +27,7 @@ public class TableSchema {
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
+        this.columnsView = Collections.unmodifiableList(columns);
         this.colIndex = new HashMap<>();
     }
 
@@ -34,7 +37,7 @@ public class TableSchema {
      * @return - collection of columns in the table
      */
     public List<ClickHouseColumn> getColumns() {
-        return Collections.unmodifiableList(columns);
+        return columnsView;
     }
 
     public String getDatabaseName() {

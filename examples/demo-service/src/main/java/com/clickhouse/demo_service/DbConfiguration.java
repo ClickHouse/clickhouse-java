@@ -21,7 +21,12 @@ public class DbConfiguration {
 
                 // sets the maximum number of connections to the server at a time
                 // this is important for services handling many concurrent requests to ClickHouse
-                .setOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), "2000")
+                .setMaxConnections(100)
+                .setLZ4UncompressedBufferSize(1058576)
+                .setSocketRcvbuf(500_000)
+                .setSocketTcpNodelay(true)
+                .setSocketSndbuf(500_000)
+                .setClientNetworkBufferSize(500_000)
                 .build();
     }
 }
