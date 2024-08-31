@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.POJODeserializer;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
@@ -15,6 +16,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -215,8 +217,14 @@ public class SerializerUtils {
     public static boolean getBooleanValue(Object value) {
         if (value instanceof Boolean) {
             return (Boolean) value;
+        } else if (value instanceof Byte) {
+            return (Byte) value != 0;
+        } else if (value instanceof Short) {
+            return (Short) value != 0;
+        } else if (value instanceof Integer) {
+            return (Integer) value != 0;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to boolean");
         }
     }
 
@@ -224,7 +232,29 @@ public class SerializerUtils {
         if (value instanceof Byte) {
             return (Byte) value;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to byte");
+        }
+    }
+
+    public static LocalDateTime getLocalDateTimeValue(Object value) {
+        if (value instanceof LocalDateTime) {
+            return (LocalDateTime) value;
+        } else if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to LocalDateTime");
+        }
+    }
+
+    public static LocalDate getLocalDateValue(Object value) {
+        if (value instanceof LocalDate) {
+            return (LocalDate) value;
+        } else if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
+        } else if (value instanceof LocalDateTime) {
+            return ((LocalDateTime) value).toLocalDate();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to LocalDateTime");
         }
     }
 
@@ -234,7 +264,7 @@ public class SerializerUtils {
         } else if (value instanceof Short) {
             return (Short) value;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to short");
         }
     }
 
@@ -246,7 +276,7 @@ public class SerializerUtils {
         } else if (value instanceof Integer) {
             return (Integer) value;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to int");
         }
     }
 
@@ -258,25 +288,39 @@ public class SerializerUtils {
         } else if (value instanceof Integer) {
             return (Integer) value;
         } else if (value instanceof Long) {
-            return ((Long) value).intValue();
+            return (Long) value;
+        } else if (value instanceof BigInteger) {
+            return ((BigInteger) value).longValueExact();
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to int");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to long");
         }
     }
 
-    public static java.lang.Object getFloatValue(java.lang.Object value) {
+    public static float getFloatValue(java.lang.Object value) {
         if (value instanceof Float) {
             return (Float) value;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to float");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to float");
         }
     }
 
-    public static java.lang.Object getDoubleValue(java.lang.Object value) {
+    public static double getDoubleValue(java.lang.Object value) {
         if (value instanceof Double) {
             return (Double) value;
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to double");
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to double");
+        }
+    }
+
+    public static List<?> getListValue(Object value) {
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else if (value.getClass().isArray()) {
+            return List.of((Object[]) value);
+        } else if (value instanceof List) {
+            return (List<?>) value;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to list");
         }
     }
 
@@ -322,9 +366,32 @@ public class SerializerUtils {
         };
     }
 
+    public static POJODeserializer localDateTimeDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getLocalDateTimeValue(value));
+        };
+    }
+
+    public static POJODeserializer localDateDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getLocalDateValue(value));
+        };
+    }
+
+    public static POJODeserializer listDeserializer(Method setterMethod) {
+        return (obj, value) -> {
+            setterMethod.invoke(obj, getListValue(value));
+        };
+    }
+
     public static POJODeserializer defaultPOJODeserializer(Method setterMethod) {
         return (obj, value) -> {
-            setterMethod.invoke(obj, value);
+            try {
+                setterMethod.invoke(obj, value);
+            } catch (IllegalArgumentException e) {
+                LOG.error("Failed to set value " + value + "('" + value.getClass() + "') by calling " + setterMethod.getName(), e);
+                throw e;
+            }
         };
     }
 }

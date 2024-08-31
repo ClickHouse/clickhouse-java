@@ -33,6 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 public class InsertTests extends BaseIntegrationTest {
     private Client client;
@@ -214,6 +216,24 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.fail("Unexpected exception", e);
         } finally {
             faultyServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testInsertReadOnlyPOJO() throws Exception {
+        final String tableName = "read_only_pojo_table";
+        final String createSQL = NoSettersPOJO.generateTableCreateSQL(tableName);
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(NoSettersPOJO.class, client.getTableSchema(tableName, "default"));
+        List<Object> readOnlyPOJOs = Collections.singletonList(new NoSettersPOJO(1000, 2000));
+
+        try {
+            client.insert(tableName, readOnlyPOJOs, settings).get(5, TimeUnit.SECONDS);
+            fail("Exception expected");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("No serializers found for class"));
         }
     }
 }

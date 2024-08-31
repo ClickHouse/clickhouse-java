@@ -57,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1395,10 +1396,39 @@ public class QueryTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
         client.register(SimplePOJO.class, schema);
 
-
         List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
         Assert.assertEquals(pojos.size(), limit);
-        System.out.println(pojos);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryReadToPOJOWithoutGetters() {
+        int limit = 10;
+        final String sql = "SELECT toInt32(1) as p1, toInt32(1) as p2 ";
+        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        client.register(NoGettersPOJO.class, schema);
+
+        try {
+            client.queryAll(sql, SimplePOJO.class);
+            Assert.fail("No exception");
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage().contains("No deserializers found for class"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllWithPOJO() throws Exception {
+
+        final String tableName = "test_query_all_with_pojo";
+        final String createTableSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        client.execute("DROP TABLE IF EXISTS test_query_all_with_pojo").get();
+        client.execute(createTableSQL).get();
+
+        SamplePOJO pojo = new SamplePOJO();
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
+
+        client.insert(tableName, Collections.singletonList(pojo)).get();
+        List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class);
+        Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
     }
 
     protected Client.Builder newClient() {

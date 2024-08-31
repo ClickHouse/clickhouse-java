@@ -19,7 +19,6 @@ import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
-import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -53,7 +52,6 @@ import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.lang.model.type.PrimitiveType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -63,6 +61,8 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -82,9 +82,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -907,71 +904,82 @@ public class Client implements AutoCloseable {
         }
         this.getterMethods.put(clazz, classGetters);//Store the getter methods for later use
         this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
+        this.hasDefaults.put(clazz, schema.hasDefaults());
 
         List<POJOSerializer> classSerializers = new ArrayList<>();
         Map<String, POJODeserializer> classDeserializers = new ConcurrentHashMap<>();
         for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
-            classSerializers.add((obj, stream) -> {
-                if (!classGetters.containsKey(columnName)) {
-                    LOG.warn("No getter method found for column: {}", columnName);
-                    return;
-                }
-                Method getterMethod = this.getterMethods.get(clazz).get(columnName);
-                Object value = getterMethod.invoke(obj);
-                boolean hasDefaults = this.hasDefaults.get(clazz);
+            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
 
-                //Handle null values
-                if (value == null) {
-                    if (hasDefaults && !column.hasDefault()) {//Send this only if there is no default
-                        BinaryStreamUtils.writeNonNull(stream);
+            Method getterMethod = classGetters.get(propertyName);
+            boolean classHashDefaults = this.hasDefaults.get(clazz);
+            if (getterMethod != null) {
+                classSerializers.add((obj, stream) -> {
+                    Object value = getterMethod.invoke(obj);
+
+                    //Handle null values
+                    if (value == null) {
+                        if (classHashDefaults && !column.hasDefault()) {//Send this only if there is no default
+                            BinaryStreamUtils.writeNonNull(stream);
+                        }
+                        BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
+                        return;
                     }
-                    BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
-                    return;
-                }
 
-                //Handle default
-                if (hasDefaults) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
+                    //Handle default
+                    if (classHashDefaults) {
+                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                    }
 
-                //Handle nullable
-                if (column.isNullable()) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
+                    //Handle nullable
+                    if (column.isNullable()) {
+                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                    }
 
-                //Handle the different types
-                SerializerUtils.serializeData(stream, value, column);
-            });
+                    //Handle the different types
+                    SerializerUtils.serializeData(stream, value, column);
+                });
+            } else {
+                LOG.warn("No getter method found for column: {}", propertyName);
+            }
 
-
-            Method setterMethod = this.setterMethods.get(clazz).get(columnName);
-            Class<?> argType = setterMethod.getParameterTypes()[0];
-            if (argType.isPrimitive()) {
-                if (argType.getName().equalsIgnoreCase("boolean")) {
-                    classDeserializers.put(columnName, SerializerUtils.booleanDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("byte")) {
-                    classDeserializers.put(columnName, SerializerUtils.byteDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("short")) {
-                    classDeserializers.put(columnName, SerializerUtils.shortDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("int")) {
-                    classDeserializers.put(columnName, SerializerUtils.intDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("long")) {
-                    classDeserializers.put(columnName, SerializerUtils.longDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("float")) {
-                    classDeserializers.put(columnName, SerializerUtils.floatDeserializer(setterMethod));
-                } else if (argType.getName().equalsIgnoreCase("double")) {
-                    classDeserializers.put(columnName, SerializerUtils.doubleDeserializer(setterMethod));
+            Method setterMethod = classSetters.get(propertyName);
+            String columnName = column.getColumnName();
+            if (setterMethod != null) {
+                Class<?> argType = setterMethod.getParameterTypes()[0];
+                if (argType.isPrimitive()) {
+                    if (argType.getName().equalsIgnoreCase("boolean")) {
+                        classDeserializers.put(columnName, SerializerUtils.booleanDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("byte")) {
+                        classDeserializers.put(columnName, SerializerUtils.byteDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("short")) {
+                        classDeserializers.put(columnName, SerializerUtils.shortDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("int")) {
+                        classDeserializers.put(columnName, SerializerUtils.intDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("long")) {
+                        classDeserializers.put(columnName, SerializerUtils.longDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("float")) {
+                        classDeserializers.put(columnName, SerializerUtils.floatDeserializer(setterMethod));
+                    } else if (argType.getName().equalsIgnoreCase("double")) {
+                        classDeserializers.put(columnName, SerializerUtils.doubleDeserializer(setterMethod));
+                    } else {
+                        throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
+                    }
+                } else if (argType.isAssignableFrom(LocalDateTime.class)) {
+                    classDeserializers.put(columnName, SerializerUtils.localDateTimeDeserializer(setterMethod));
+                } else if (argType.isAssignableFrom(LocalDate.class)) {
+                    classDeserializers.put(columnName, SerializerUtils.localDateDeserializer(setterMethod));
+                } else if (argType.isAssignableFrom(List.class)) {
+                    classDeserializers.put(columnName, SerializerUtils.listDeserializer(setterMethod));
                 } else {
-                    throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
+                    classDeserializers.put(columnName, SerializerUtils.defaultPOJODeserializer(setterMethod));
                 }
             } else {
-                classDeserializers.put(columnName, SerializerUtils.defaultPOJODeserializer(setterMethod));
+                LOG.warn("No setter method found for column: {}", propertyName);
             }
         }
         this.serializers.put(clazz, classSerializers);
         this.deserializers.put(clazz, classDeserializers);
-        this.hasDefaults.put(clazz, schema.hasDefaults());
     }
 
     /**
@@ -1011,9 +1019,22 @@ public class Client implements AutoCloseable {
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param settings - insert operation settings
+     * @throws IllegalArgumentException when data is empty or not registered
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName, List<?> data, InsertSettings settings) {
+
+        if (data == null || data.isEmpty()) {
+            throw new IllegalArgumentException("Data cannot be empty");
+        }
+
+        //Lookup the Serializer for the POJO
+        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+        if (serializers == null || serializers.isEmpty()) {
+            throw new IllegalArgumentException("No serializers found for class '" + data.get(0).getClass() + "'. Did you forget to register it?");
+        } else {
+            LOG.info("serializers: {}", serializers.size());
+        }
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -1022,10 +1043,6 @@ public class Client implements AutoCloseable {
         }
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
-        if (data == null || data.isEmpty()) {
-            throw new IllegalArgumentException("Data cannot be empty");
-        }
-
         //Add format to the settings
         if (settings == null) {
             settings = new InsertSettings();
@@ -1033,12 +1050,6 @@ public class Client implements AutoCloseable {
 
         boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
-
-        //Lookup the Serializer for the POJO
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new SerializerNotFoundException(data.get(0).getClass());
-        }
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1482,7 +1493,7 @@ public class Client implements AutoCloseable {
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz) {
-        return queryAll(sqlQuery, clazz,(Supplier<T>) null);
+        return queryAll(sqlQuery, clazz, null);
     }
 
     /**
@@ -1493,12 +1504,16 @@ public class Client implements AutoCloseable {
      * @param sqlQuery - query to execute
      * @param clazz - class of the DTO
      * @param allocator - optional supplier to create new instances of the DTO.
-     * @return
+     * @throws IllegalArgumentException when class is not registered or no setters found
+     * @return List of POJOs filled with data
      * @param <T>
      */
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, Supplier<T> allocator) {
-        Map<String, POJODeserializer> classDeserializers = new HashMap<>(10, 0.9f);
-        classDeserializers.putAll(deserializers.get(clazz));
+        Map<String, POJODeserializer> classDeserializers = deserializers.get(clazz);
+
+        if (classDeserializers == null || classDeserializers.isEmpty()) {
+            throw new IllegalArgumentException("No deserializers found for class '" + clazz + "'. Did you forget to register it?");
+        }
 
         try {
             int operationTimeout = getOperationTimeout();
@@ -1524,7 +1539,8 @@ public class Client implements AutoCloseable {
             throw new ClientException("Failed to get query response", e.getCause());
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
-        }    }
+        }
+    }
 
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
