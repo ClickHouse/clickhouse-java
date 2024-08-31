@@ -801,6 +801,8 @@ public class Client implements AutoCloseable {
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
         }
 
+        private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
+
         private void setDefaults() {
 
             // set default database name if not specified
@@ -858,7 +860,7 @@ public class Client implements AutoCloseable {
             }
 
             if (!configuration.containsKey("client_network_buffer_size")) {
-                setClientNetworkBufferSize(8192);
+                setClientNetworkBufferSize(DEFAULT_NETWORK_BUFFER_SIZE);
             }
 
             if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
