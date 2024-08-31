@@ -20,8 +20,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -146,8 +148,10 @@ public class BinaryStreamReader {
                 case IntervalNanosecond:
                     return (T) readBigIntegerLE(input, 8, true);
                 case IPv4:
-                    return (T) Inet4Address.getByAddress(readNBytes(input, 4));
+                    // https://clickhouse.com/docs/en/sql-reference/data-types/ipv4
+                    return (T) Inet4Address.getByAddress(readNBytesLE(input, 4));
                 case IPv6:
+                    // https://clickhouse.com/docs/en/sql-reference/data-types/ipv6
                     return (T) Inet6Address.getByAddress(readNBytes(input, 16));
                 case UUID:
                     return (T) new UUID(readLongLE(input), readLongLE(input));
@@ -290,6 +294,22 @@ public class BinaryStreamReader {
         return bytes;
     }
 
+    public static byte[] readNBytesLE(InputStream input, int len) throws IOException {
+        byte[] bytes = readNBytes(input, len);
+
+        int s = 0;
+        int i = len - 1;
+        while (s < i) {
+            byte b = bytes[s];
+            bytes[s] = bytes[i];
+            bytes[i] = b;
+            s++;
+            i--;
+        }
+
+        return bytes;
+    }
+
     private ArrayValue readArray(ClickHouseColumn column) throws IOException {
         Class<?> itemType = column.getArrayBaseColumn().getDataType().getWiderPrimitiveClass();
         int len = readVarInt(input);
@@ -344,6 +364,24 @@ public class BinaryStreamReader {
                 throw new IllegalArgumentException("Failed to set value at index: " + index +
                         " value " + value + " of class " + value.getClass().getName(), e);
             }
+        }
+
+        private List<?> list = null;
+
+        public synchronized <T> List<T> asList() {
+            if (list == null) {
+                ArrayList<T> list = new ArrayList<>(length);
+                for (int i = 0; i < length; i++) {
+                    Object item = get(i);
+                    if (item instanceof ArrayValue) {
+                        list.add((T) ((ArrayValue) item).asList());
+                    } else {
+                        list.add((T) item);
+                    }
+                }
+                this.list = list;
+            }
+            return (List<T>) list;
         }
     }
 

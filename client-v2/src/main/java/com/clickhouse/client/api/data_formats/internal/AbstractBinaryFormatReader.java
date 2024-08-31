@@ -53,6 +53,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private TableSchema schema;
 
+    private ClickHouseColumn[] columns;
+
     private volatile boolean hasNext = true;
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
@@ -85,7 +87,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      */
     public boolean readRecord(Map<String, Object> record) throws IOException {
         boolean firstColumn = true;
-        for (ClickHouseColumn column : getSchema().getColumns()) {
+        for (ClickHouseColumn column : columns) {
             try {
                 Object val = binaryStreamReader.readValue(column);
                 if (val != null) {
@@ -170,6 +172,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected void setSchema(TableSchema schema) {
         this.schema = schema;
+        if (schema != null) {
+            columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        }
     }
 
     @Override
@@ -371,8 +376,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(String colName) {
-        ClickHouseArrayValue<?> array = readValue(colName);
-        return null;
+        BinaryStreamReader.ArrayValue array = readValue(colName);
+        return array.asList();
     }
 
 
