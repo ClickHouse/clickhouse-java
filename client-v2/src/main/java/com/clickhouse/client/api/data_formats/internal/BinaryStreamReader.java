@@ -148,7 +148,7 @@ public class BinaryStreamReader {
                 case IntervalNanosecond:
                     return (T) readBigIntegerLE(input, 8, true);
                 case IPv4:
-                    https://clickhouse.com/docs/en/sql-reference/data-types/ipv4
+                    // https://clickhouse.com/docs/en/sql-reference/data-types/ipv4
                     return (T) Inet4Address.getByAddress(readNBytesLE(input, 4));
                 case IPv6:
                     // https://clickhouse.com/docs/en/sql-reference/data-types/ipv6
