@@ -4,7 +4,9 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
@@ -12,6 +14,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -61,7 +64,11 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -78,6 +85,8 @@ public class HttpAPIClientHelper {
 
     private String proxyAuthHeaderValue;
 
+    private final Set<ClientFaultCause> defaultRetryCauses;
+
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
@@ -93,6 +102,11 @@ public class HttpAPIClientHelper {
         boolean usingServerCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
+
+        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get("client_retry_on_failures"), ClientFaultCause.class);
+        if (defaultRetryCauses.contains(ClientFaultCause.None)) {
+            defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
+        }
     }
 
     /**
@@ -425,5 +439,40 @@ public class HttpAPIClientHelper {
         }
 
         return converter.apply(header.getValue());
+    }
+
+    public boolean shouldRetry(Exception ex, Map<String, Object> requestSettings) {
+        Set<ClientFaultCause> retryCauses = (Set<ClientFaultCause>)
+                requestSettings.getOrDefault("retry_on_failures", defaultRetryCauses);
+
+        if (retryCauses.contains(ClientFaultCause.None)) {
+            return false;
+        }
+
+        if (ex instanceof NoHttpResponseException ) {
+            return retryCauses.contains(ClientFaultCause.NoHttpResponse);
+        }
+
+        if (ex instanceof ConnectException) {
+            return retryCauses.contains(ClientFaultCause.ConnectTimeout);
+        }
+
+        if (ex instanceof ConnectionRequestTimeoutException) {
+            return retryCauses.contains(ClientFaultCause.ConnectionRequestTimeout);
+        }
+
+        return false;
+    }
+
+    // This method wraps some client specific exceptions into specific ClientException or just ClientException
+    // ClientException will be also wrapped
+    public ClientException wrapException(String message, Exception cause) {
+        if (cause instanceof ConnectionRequestTimeoutException ||
+                cause instanceof ConnectTimeoutException ||
+                cause instanceof ConnectException) {
+            return new ConnectionInitiationException(message, cause);
+        }
+
+        return new ClientException(message, cause);
     }
 }
