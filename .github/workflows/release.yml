@@ -6,7 +6,7 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "0.6.4-SNAPSHOT"
+        default: "0.6.5-SNAPSHOT"
 
 jobs:
   release:
