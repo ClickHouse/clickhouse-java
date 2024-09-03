@@ -1,10 +1,9 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,27 +29,38 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings) {
         super(inputStream, settings, null);
+        readNextRecord();
     }
 
     @Override
-    protected void readRecord(Map<String, Object> record) throws IOException {
+    public boolean readRecord(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
-            readBlock();
+            if (!readBlock()) {
+                return false;
+            }
         }
 
         currentBlock.fillRecord(blockRowIndex, record);
         blockRowIndex++;
+        return true;
     }
 
-    private void readBlock() throws IOException {
-        int nColumns = chInputStream.readVarInt();
-        int nRows = chInputStream.readVarInt();
+    private boolean readBlock() throws IOException {
+        int nColumns;
+        try {
+            nColumns = BinaryStreamReader.readVarInt(input);
+        } catch (EOFException e) {
+            endReached();
+            return false;
+        }
+        int nRows = BinaryStreamReader.readVarInt(input);
 
         List<String> names = new ArrayList<>(nColumns);
         List<String> types = new ArrayList<>(nColumns);
         currentBlock = new Block(names, types, nRows);
         for (int i = 0; i < nColumns; i++) {
-            ClickHouseColumn column = ClickHouseColumn.of(chInputStream.readUnicodeString(), chInputStream.readUnicodeString());
+            ClickHouseColumn column = ClickHouseColumn.of(BinaryStreamReader.readString(input),
+                    BinaryStreamReader.readString(input));
             names.add(column.getColumnName());
             types.add(column.getDataType().name());
 
@@ -62,6 +72,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             currentBlock.add(values);
         }
         blockRowIndex = 0;
+        return true;
     }
 
     @Override

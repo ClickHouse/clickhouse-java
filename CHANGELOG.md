@@ -1,4 +1,110 @@
-## Latest 
+## Latest
+
+## 0.6.5
+
+### Deprecations
+- Following components will be deprecated and removed in 0.7.0 release:
+  - clickhouse-cli-client
+  - clickhouse-grpc-client
+- Projects cli-client and grpc-client are excluded from release and build.
+- No more builds for non-lts Java versions - no more Java 9 release builds.
+
+### Performance Improvements
+- [client-v2] `queryAll()` optimized to use less memory (https://github.com/ClickHouse/clickhouse-java/pull/1779)
+- [client-v2] `Client.Builder#setClientNetworkBufferSize` introduced to allow increasing a buffer that is used 
+to transfer data from socket buffer to application memory. When set to >= of send/receive socket buffer size it
+significantly reduces number of system calls and improves performance. (https://github.com/ClickHouse/clickhouse-java/pull/1784)
+
+### New Features
+- [client-v2] Client will retry on `NoHttpResponseException` when using Apache HTTP client. 
+  It is useful when close/stale connection is leased from connection pool. No client will 
+retry one more time instead of failing. `Client.Builder#retryOnFailures` and `Client.Builder#setMaxRetries` were 
+introduced to configure client behavior. (https://github.com/ClickHouse/clickhouse-java/pull/1768)
+
+### Bug Fixes
+- [client-v2] Correct timezone used when reading DateTime values. Affects how date/datetime values
+  are read when `session_timezone` is used (https://github.com/ClickHouse/clickhouse-java/issues/1780)
+- [client-v2] Fix reading big integers. Previously was causing incorrect values
+  (https://github.com/ClickHouse/clickhouse-java/issues/1786)
+  (https://github.com/ClickHouse/clickhouse-java/issues/1776)
+- [client-v2] Fix server compressions when using a client instance concurrently 
+(https://github.com/ClickHouse/clickhouse-java/pull/1791) 
+- [client-v2] Fix reading arrays as list. Also affected reading nested arrays (https://github.com/ClickHouse/clickhouse-java/pull/1800)
+- [client-v1] Fix handling summary metadata for write operations. Previously was causing empty metadata 
+
+## 0.6.4
+
+### Deprecations
+- Following components will be deprecated and archived in next release:
+  - clickhouse-cli-client
+  - clickhouse-grpc-client
+- No more builds for non-lts Java versions - no more Java 9 release builds.
+- Lowest supported Java version will be 11.
+  - Java 11 support will be ended before the end of 2023. 
+  - It is recommended to use Java 21.
+
+### Important Changes
+- [Client-V1] Fix for handling DateTime without timezone when `session_timezone` is set. Now server timezone 
+is parsed from server response when present (https://github.com/ClickHouse/clickhouse-java/issues/1464)
+
+### New Features 
+- [Client-V1/Apache HTTP] More configuration parameters for connection management. Useful for tuning performance.
+(https://github.com/ClickHouse/clickhouse-java/pull/1771)
+    - com.clickhouse.client.config.ClickHouseClientOption#CONNECTION_TTL - to configure connection time-to-live
+    - com.clickhouse.client.http.config.ClickHouseHttpOption#KEEP_ALIVE_TIMEOUT - to configure keep-alive timeout
+    - com.clickhouse.client.http.config.ClickHouseHttpOption#CONNECTION_REUSE_STRATEGY - defines how connection pool behaves.
+If `FIFO` is selected then connections are reused in the order they were created. It results in even distribution of connections.
+If `LIFO` is selected then connections are reused as soon they are returned to the pool. 
+Note: only for `APACHE_HTTP_CLIENT` connection provider. 
+    - Additionally switched to using LAX connection pool for Apache Connection Manager to improve performance 
+for concurrent requests.
+- [Client-V2] Connection pool configuration https://github.com/ClickHouse/clickhouse-java/pull/1766
+    - com.clickhouse.client.api.Client.Builder.setConnectionRequestTimeout - to configure connection request timeout.
+Important when there are no connections available in the pool to fail fast. 
+    - com.clickhouse.client.api.Client.Builder.setMaxConnections - configures how soft limit of connections per host.
+Note: Total number of connections is unlimited because in most cases there is one host.
+    - com.clickhouse.client.api.Client.Builder.setConnectionTTL - to limit connection live ignoring keep-alive from server.
+    - com.clickhouse.client.api.Client.Builder.setConnectionReuseStrategy - to configure how connections are used.
+Select FIFO to reuse connections evenly or LIFO (default) to reuse the most recently active connections.
+- [Client-V2] All operations are now executed in calling thread to avoid extra threads creation. 
+Async operations can be enabled by `com.clickhouse.client.api.Client.Builder.useAsyncRequests` (https://github.com/ClickHouse/clickhouse-java/pull/1767)
+- [Client-V2] Content and HTTP native compression is supported now Currently only LZ4 is available. (https://github.com/ClickHouse/clickhouse-java/pull/1761) 
+- [Client-V2] HTTPS support added. Required to communicate with ClickHouse Cloud Services.
+Client certificates are supported, too. (https://github.com/ClickHouse/clickhouse-java/pull/1753)
+- [Client-V2] Added support for HTTP proxy (https://github.com/ClickHouse/clickhouse-java/pull/1748)
+
+### Documentation
+- [Client-V2] Spring Demo Service as usage example (https://github.com/ClickHouse/clickhouse-java/pull/1765)
+- [Client-V2] Examples for using text based formats (https://github.com/ClickHouse/clickhouse-java/pull/1752)
+
+
+### Bug Fixes
+- [Client-V2] Data is read fully from a stream. Important for Cloud instances (https://github.com/ClickHouse/clickhouse-java/pull/1759)
+- [Client-V2] Timezone from a server response is now used to parse DateTime values (https://github.com/ClickHouse/clickhouse-java/pull/1763)
+- [Client-V1] Timezone from a server response is now used to parse DateTime values (https://github.com/ClickHouse/clickhouse-java/issues/1464)
+
+## 0.6.3
+
+### Important Changes
+- [Client-V1] Changed how `User-Agent` string is generated. Now `ClickHouse-JavaClient` portion is appended in all cases.
+It is still possible to set custom product name that will be the first part in `User-Agent` value. 
+(https://github.com/ClickHouse/clickhouse-java/issues/1698)
+
+### New Features
+- [Client-V1/Apache HTTP] Retry on NoHttpResponseException in Apache HTTP client.
+Should be used with causes because it is not always possible to resend request body. 
+Behaviour is controlled by `com.clickhouse.client.http.config.ClickHouseHttpOption#AHC_RETRY_ON_FAILURE`.
+Works only for Apache HTTP client because based on its specific behavior(https://github.com/ClickHouse/clickhouse-java/pull/1721)
+- [Client-V1/Apache HTTP] Connection validation before sending request.
+Behaviour is controlled by `com.clickhouse.client.http.config.ClickHouseHttpOption#AHC_VALIDATE_AFTER_INACTIVITY`.
+By default, connection is validated after being in the pool for 5 seconds. (https://github.com/ClickHouse/clickhouse-java/pull/1722)
+
+### Bug Fixes
+- [Client-V2] Fix parsing endpoint URL to detect HTTPs (https://github.com/ClickHouse/clickhouse-java/issues/1718)
+- [Client-V2] Fix handling asynchronous operations. Less extra threads created now. (https://github.com/ClickHouse/clickhouse-java/issues/1691)
+- [Client-V2] Fix way of how settings are validated to let unsupported options to be added (https://github.com/ClickHouse/clickhouse-java/issues/1691)
+- [Client-V1] Fix getting `localhost` effective IP address (https://github.com/ClickHouse/clickhouse-java/issues/1729)
+- [Client-V2] Make client instance closeable to free underlying resource (https://github.com/ClickHouse/clickhouse-java/pull/1733)
 
 ## 0.6.2
 

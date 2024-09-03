@@ -2,11 +2,12 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -29,21 +30,23 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
 
-    protected InputStream inputStream;
-
-    protected ClickHouseInputStream chInputStream;
+    protected InputStream input;
 
     protected Map<String, Object> settings;
 
@@ -51,21 +54,60 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private TableSchema schema;
 
-    protected volatile boolean hasNext = true;
+    private ClickHouseColumn[] columns;
+
+    private volatile boolean hasNext = true;
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
-        this.inputStream = inputStream;
-        this.chInputStream = inputStream instanceof ClickHouseInputStream ?
-                (ClickHouseInputStream) inputStream : ClickHouseInputStream.of(inputStream);
+        this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        this.binaryStreamReader = new BinaryStreamReader(chInputStream, LOG);
+        boolean useServerTimeZone = (boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+        TimeZone timeZone = useServerTimeZone ? querySettings.getServerTimeZone() :
+                (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+        if (timeZone == null) {
+            throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
+        }
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG);
         setSchema(schema);
     }
 
-
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
+    protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
-    protected abstract void readRecord(Map<String, Object> record) throws IOException;
+    protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
+
+    /**
+     * It is still internal method and should be used with care.
+     * Usually this method is called to read next record into internal object and affects hasNext() method.
+     * So after calling this one:
+     * - hasNext(), next() should not be called
+     * - stream should be read with readRecord() method fully
+     *
+     * @param record
+     * @return
+     * @throws IOException
+     */
+    public boolean readRecord(Map<String, Object> record) throws IOException {
+        boolean firstColumn = true;
+        for (ClickHouseColumn column : columns) {
+            try {
+                Object val = binaryStreamReader.readValue(column);
+                if (val != null) {
+                    record.put(column.getColumnName(), val);
+                } else {
+                    record.remove(column.getColumnName());
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            }
+        }
+        return true;
+    }
 
     @Override
     public <T> T readValue(int colIndex) {
@@ -83,39 +125,61 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasNext() {
-        if (hasNext) {
-            try {
-                hasNext = chInputStream.available() > 0;
-                return hasNext;
-            } catch (IOException e) {
+        return hasNext;
+    }
+
+
+    protected void readNextRecord() {
+        try {
+            nextRecordEmpty.set(true);
+            if (!readRecord(nextRecord)) {
                 hasNext = false;
-                LOG.error("Failed to check if there is more data available", e);
-                return false;
+            } else {
+                nextRecordEmpty.compareAndSet(true, false);
             }
+        } catch (IOException e) {
+            hasNext = false;
+            throw new ClientException("Failed to read next row", e);
         }
-        return false;
     }
 
     @Override
     public Map<String, Object> next() {
         if (!hasNext) {
-            throw new NoSuchElementException();
+            return null;
         }
 
-        try {
-            readRecord(currentRecord);
+        if (!nextRecordEmpty.get()) {
+            Map<String, Object> tmp = currentRecord;
+            currentRecord = nextRecord;
+            nextRecord = tmp;
+            readNextRecord();
             return currentRecord;
-        } catch (EOFException e) {
-            hasNext = false;
-            return null;
-        } catch (IOException e) {
-            hasNext = false;
-            throw new ClientException("Failed to read row", e);
+        } else {
+            try {
+                if (readRecord(currentRecord)) {
+                    readNextRecord();
+                    return currentRecord;
+                } else {
+                    currentRecord = null;
+                    return null;
+                }
+            } catch (IOException e) {
+                hasNext = false;
+                throw new ClientException("Failed to read row", e);
+            }
         }
+    }
+
+    protected void endReached() {
+        hasNext = false;
     }
 
     protected void setSchema(TableSchema schema) {
         this.schema = schema;
+        if (schema != null) {
+            columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        }
     }
 
     @Override
@@ -317,8 +381,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(String colName) {
-        ClickHouseArrayValue<?> array = readValue(colName);
-        return null;
+        BinaryStreamReader.ArrayValue array = readValue(colName);
+        return array.asList();
     }
 
 
@@ -524,8 +588,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
 
@@ -534,8 +598,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(int index) {
         Object value = readValue(index);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
     }
@@ -543,14 +607,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDate) {
-            return ((LocalDate) value).atStartOfDay();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
+        }
+        return (LocalDateTime) value;
     }
 }

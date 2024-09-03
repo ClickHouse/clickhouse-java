@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
@@ -20,28 +20,34 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
 
     public RowBinaryWithNamesFormatReader(InputStream inputStream, TableSchema schema) {
         this(inputStream, null, schema);
+        readNextRecord();
     }
 
     public RowBinaryWithNamesFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         super(inputStream, querySettings, schema);
-    }
+        int nCol = 0;
+        try {
+            nCol = BinaryStreamReader.readVarInt(input);
+        } catch (EOFException e) {
+            endReached();
+            columns = Collections.emptyList();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read header", e);
+        }
 
-    @Override
-    public void readRecord(Map<String, Object> record) throws IOException {
-        if (columns == null) {
-            columns = new ArrayList<>();
-            int nCol = chInputStream.readVarInt();
-            for (int i = 0; i < nCol; i++) {
-                columns.add(chInputStream.readUnicodeString());
+        if (nCol > 0) {
+            columns = new ArrayList<>(nCol);
+            try {
+                for (int i = 0; i < nCol; i++) {
+                    columns.add(BinaryStreamReader.readString(input));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read header", e);
             }
 
             columns = Collections.unmodifiableList(columns);
         }
-
-        for (ClickHouseColumn column : getSchema().getColumns()) {
-            record.put(column.getColumnName(), binaryStreamReader
-                    .readValue(column));
-        }
+        readNextRecord();
     }
 
     public List<String> getColumns() {

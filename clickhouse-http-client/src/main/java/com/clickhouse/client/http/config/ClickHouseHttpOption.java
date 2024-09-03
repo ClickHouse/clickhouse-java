@@ -58,7 +58,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     // "Enables or disables X-ClickHouse-Progress HTTP response headers in
     // clickhouse-server responses."),
     // SEND_PROGRESS_INTERVAL("http_headers_progress_interval_ms", 3000, ""),
-    // WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
+     WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
 
     /**
      * Whether to remember last set role and send them in every next requests as query parameters.
@@ -76,7 +76,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
             "The time in milliseconds after which the connection is validated after inactivity."),
 
     /**
-     * Whether to retry on failure with AsyncHttpClient. Failure includes some 'critical' IO exceptions:
+     * Whether to retry on failure with Apache HTTP Client. Failure includes some 'critical' IO exceptions:
      * <ul>
      *     <li>{@code org.apache.hc.core5.http.ConnectionClosedException}</li>
      *     <li>{@code org.apache.hc.core5.http.NoHttpResponseException}</li>
@@ -87,7 +87,28 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      *     <li>{@code 503 Service Unavailable}</li>
      * </ul>
      */
-    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", false, "Whether to retry on failure with AsyncHttpClient.")
+    AHC_RETRY_ON_FAILURE("ahc_retry_on_failure", false, "Whether to retry on failure with AsyncHttpClient."),
+
+    /**
+     * Configuration for Apache HTTP Client connection pool. It defines how to reuse connections.
+     * If {@code "FIFO"} is set, the connections are reused in the order they were created.
+     * If {@code "LIFO"} is set, the connections are reused as soon they are available.
+     * Default value is {@code "LIFO"}.
+     */
+    CONNECTION_REUSE_STRATEGY("connection_reuse_strategy", "LIFO",
+            "Connection reuse strategy for AsyncHttpClient. Valid values: LIFO, FIFO"),
+
+    /**
+     * Configures client with preferred connection keep alive timeout if keep alive is enabled.
+     * Usually servers tells a client how long it can keep a connection alive. This option can be used
+     * when connection should be ended earlier. If value less or equal to 0, the server's timeout is used.
+     * Default value is -1.
+     * Time unit is milliseconds.
+     *
+     * Supported only for Apache Http Client connection provider currently.
+     */
+    KEEP_ALIVE_TIMEOUT("alive_timeout", -1L,
+            "Default keep-alive timeout in milliseconds."),
     ;
 
     private final String key;

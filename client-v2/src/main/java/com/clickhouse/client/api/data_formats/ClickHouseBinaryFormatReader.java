@@ -52,7 +52,7 @@ public interface ClickHouseBinaryFormatReader {
     /**
      * Moves cursor to the next row. Must be called before reading the first row.
      *
-     * @return true if there are more rows to read, false otherwise
+     * @return map filled with column values or null if no more records are available
      */
     Map<String, Object> next();
 

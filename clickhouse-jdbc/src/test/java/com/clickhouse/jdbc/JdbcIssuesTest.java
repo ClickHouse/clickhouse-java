@@ -20,20 +20,20 @@ import java.util.Properties;
 public class JdbcIssuesTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void test01Decompress() throws SQLException {
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "decompress_issue_01";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
 
-        Connection conn = dataSource.getConnection("default", "");
+        Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Log", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+        st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
         boolean failed = false;
@@ -55,20 +55,20 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
 
     @Test
     public void test02Decompress() throws SQLException {
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "decompress_issue_02";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
 
-        Connection conn = dataSource.getConnection("default", "");
+        Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Log", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+        st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
         boolean failed = false;
@@ -89,20 +89,20 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
     }
     @Test
     public void test03Decompress() throws SQLException {
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
-        String TABLE_NAME = "decompress_issue_02";
+        String TABLE_NAME = "decompress_issue_03";
         Properties prop = new Properties();
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
 
-        Connection conn = dataSource.getConnection("default", "");
+        Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Log", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+        st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
         boolean failed = false;
@@ -125,16 +125,16 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
     }
     @Test
     public void testIssue1373() throws SQLException {
-        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String TABLE_NAME = "issue_1373";
-        String url = String.format("jdbc:ch:%s", httpEndpoint);
+        String url = String.format("jdbc:ch:%s", getEndpointString(true));
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, new Properties());
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
-        Connection conn = dataSource.getConnection("default", "");
+        Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Log", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+        st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Memory", TABLE_NAME));
         int count = 1;
         boolean failed = false;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

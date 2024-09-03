@@ -4,6 +4,7 @@ package com.clickhouse.client.query;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -12,12 +13,13 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
@@ -28,8 +30,10 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -46,30 +50,54 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.BaseStream;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 public class QueryTests extends BaseIntegrationTest {
 
     private final static Random RANDOM = new Random();
 
     private Client client;
+
+    private boolean useServerCompression = false;
+
+    private boolean useHttpCompression = false;
+
+    QueryTests(){
+    }
+
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+        this.useServerCompression = useServerCompression;
+        this.useHttpCompression = useHttpCompression;
+    }
 
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
@@ -78,6 +106,10 @@ public class QueryTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
+                .compressClientRequest(false)
+                .compressServerResponse(useServerCompression)
+                .useHttpCompression(useHttpCompression)
+                .useNewImplementation(true)
                 .build();
 
         delayForProfiler(0);
@@ -121,13 +153,96 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadRecords() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
 
         Records records = client.queryRecords("SELECT * FROM " + DATASET_TABLE).get(3, TimeUnit.SECONDS);
-        Assert.assertTrue(records.getResultRows() == 10, "Unexpected number of rows");
+        Assert.assertEquals(records.getResultRows(), 10, "Unexpected number of rows");
+
+        Iterator<Map<String, Object>> dataIterator = dataset.iterator();
         for (GenericRecord record : records) {
-            record.getString(3); // string column col3
+            Map<String,Object> dsRecords = dataIterator.next();
+            Assert.assertEquals(record.getLong("col1"), dsRecords.get("col1"));
+            Assert.assertEquals(record.getInteger("col2"), dsRecords.get("col2"));
+            Assert.assertEquals(record.getString("col3"), dsRecords.get("col3"));
+            Assert.assertEquals(record.getLong("col4"), dsRecords.get("col4"));
+            Assert.assertEquals(record.getString("col5"), dsRecords.get("col5"));
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBigUnsignedInt() throws Exception {
+        final BigInteger expected128 = BigInteger.valueOf(2).pow(128).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+        final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
+
+        String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
+        System.out.println(sqlQuery);
+        Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+
+        GenericRecord firstRecord = records.iterator().next();
+
+        System.out.println(firstRecord.getBigInteger("i128"));
+        Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
+        Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
+    }
+
+    @Test(groups = {"integration"})
+    public void testEndianReadingNumbers() throws Exception {
+
+        byte[][] numbers = new byte[][] {
+            new byte[] {0x00, 0x02, 0x00, 0x01},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10},
+        };
+
+
+        for (byte[] number : numbers) {
+            String typeName = "UInt32";
+            if (number.length == 8) {
+                typeName = "UInt64";
+            } else if (number.length == 16) {
+                typeName = "UInt128";
+            }
+            BigInteger expected = new BigInteger(number);
+            String sqlQuery = "SELECT to" + typeName + "('" + expected + "') as value1";
+            System.out.println(sqlQuery);
+            Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+            GenericRecord firstRecord = records.iterator().next();
+
+            if (number.length == 4) {
+                System.out.println(firstRecord.getLong("value1"));
+                Assert.assertEquals(firstRecord.getLong("value1"), expected.longValue());
+            } else {
+                System.out.println(firstRecord.getBigInteger("value1"));
+                Assert.assertEquals(firstRecord.getBigInteger("value1"), expected);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadRecordsWithStreamAPI() throws Exception {
+        final int tables = 10;
+
+        Set<String> expectedTableNames = new HashSet<>();
+        for (int i = 0; i < tables; i++) {
+            final String tableName = "a_" + i;
+            expectedTableNames.add(tableName);
+            client.execute("DROP TABLE IF EXISTS default." + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+        }
+
+        Records records = client.queryRecords("SHOW TABLES").get(3, TimeUnit.SECONDS);
+
+        HashSet<String> tableNames = new HashSet<>();
+        records.forEach(r -> {
+            tableNames.add(r.getString(1));
+        });
+        Assert.assertTrue(tableNames.containsAll(expectedTableNames));
+
+        Assert.expectThrows(IllegalStateException.class, () -> {
+            records.forEach(r -> {
+                System.out.println(r);
+            });
+        });
     }
 
     @Test(groups = {"integration"})
@@ -151,45 +266,79 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAll() throws Exception {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
-        GenericRecord hostnameRecord = client.queryAll("SELECT hostname()").stream().findFirst().get();
-        Assert.assertNotNull(hostnameRecord);
+        List<Map<String, Object>> dataset = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 10);
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + DATASET_TABLE + " LIMIT " + dataset.size());
+        Assert.assertFalse(records.isEmpty());
+
+        for (String colDefinition : DATASET_COLUMNS) {
+            // result values
+            String colName = colDefinition.split(" ")[0];
+            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).collect(Collectors.toList());
+            Assert.assertEquals(colValues.size(), dataset.size());
+
+            // dataset values
+            List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).collect(Collectors.toList());
+            Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllSimple() throws Exception {
+        testQueryAllSimple(10);
+    }
+    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+        GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
+        Assert.assertNotNull(record);
     }
 
     @Test(groups = {"integration"})
     public void testQueryAllNoResult() throws Exception {
-        List<GenericRecord>  records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
+        List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
         Assert.assertTrue(records.isEmpty());
     }
 
-    @Test(groups = {"integration"}, enabled = false)
-    public void testQueryJSONWith64BitIntegers() throws ExecutionException, InterruptedException {
-        // won't work because format settings are set thru separate statement.
-        prepareSimpleDataSet();
-        List<QuerySettings> settingsList = Arrays.asList(
-                new QuerySettings()
-                        .setFormat(ClickHouseFormat.JSONEachRow)
-                        .setOption("format_json_quote_64bit_integers", "true"),
+    @Test
+    public void testQueryAllTableNames() {
+        final int tables = 10;
+        Set<String> expectedTableNames = new HashSet<>();
+        for (int i = 0; i < tables; i++) {
+            final String tableName = "a_" + i;
+            expectedTableNames.add(tableName);
+            client.execute("DROP TABLE IF EXISTS default." + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+        }
 
-                new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
-        List<Boolean> expected = Arrays.asList(true, false);
+        List<GenericRecord> records = client.queryAll("SHOW TABLES");
+        Assert.assertTrue(records.size() >= tables);
 
-        Iterator<Boolean> expectedIterator = expected.iterator();
-        for (QuerySettings settings : settingsList) {
-            Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
-            QueryResponse queryResponse = response.get();
-            ArrayList<JsonNode> records = new ArrayList<>();
-            final ObjectMapper objectMapper = new ObjectMapper();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
-                String line = null;
-                while ((line = br.readLine()) != null) {
-                    System.out.println(line);
-                    records.add(objectMapper.readTree(line));
-                    Assert.assertEquals(records.get(0).get("param4").isTextual(), expectedIterator.next());
-                }
-            } catch (IOException e) {
-                Assert.fail("failed to read response", e);
+        Set<String> tableNames = records.stream().map(r -> r.getString(1)).collect(Collectors.toSet());
+        Assert.assertTrue(tableNames.containsAll(expectedTableNames));
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryJSON() throws ExecutionException, InterruptedException {
+        Map<String, Object> datasetRecord = prepareSimpleDataSet();
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
+        final ObjectMapper objectMapper = new ObjectMapper();
+        try (QueryResponse queryResponse = response.get(); MappingIterator<JsonNode> jsonIter = objectMapper.readerFor(JsonNode.class)
+                .readValues(queryResponse.getInputStream())) {
+
+
+            while (jsonIter.hasNext()) {
+                JsonNode node = jsonIter.next();
+                System.out.println(node);
+                long col1 = node.get("col1").asLong();
+                Assert.assertEquals(col1, datasetRecord.get("col1"));
+                int col2 = node.get("col2").asInt();
+                Assert.assertEquals(col2, datasetRecord.get("col2"));
+                String col3 = node.get("col3").asText();
+                Assert.assertEquals(col3, datasetRecord.get("col3"));
+                long col4 = node.get("col4").asLong();
+                Assert.assertEquals(col4, datasetRecord.get("col4"));
             }
+        } catch (Exception e) {
+            Assert.fail("failed to read response", e);
         }
     }
 
@@ -206,7 +355,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
     public void testRowBinaryQueries(ClickHouseFormat format)
             throws ExecutionException, InterruptedException {
-        final int rows = 1;
+        final int rows = 3;
         // TODO: replace with dataset with all primitive types of data
         // TODO: reusing same table name may lead to a conflict in tests?
 
@@ -220,11 +369,15 @@ public class QueryTests extends BaseIntegrationTest {
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, tableSchema);
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
+        int rowsCount = 0;
         while (dataIterator.hasNext()) {
             Map<String, Object> expectedRecord = dataIterator.next();
             Map<String, Object> actualRecord = reader.next();
             Assert.assertEquals(actualRecord, expectedRecord);
+            rowsCount++;
         }
+
+        Assert.assertEquals(rowsCount, rows);
     }
 
     private static ClickHouseBinaryFormatReader createBinaryFormatReader(QueryResponse response, QuerySettings settings,
@@ -263,8 +416,8 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
-        while (reader.hasNext()) {
-            Assert.assertNotNull(reader.next());
+        int rowsCount = 0;
+        while (reader.next() != null) {
             String hostName = reader.readValue("host");
             Long col1 = reader.readValue("col1");
             String col3 = reader.readValue("col3");
@@ -274,9 +427,11 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.readValue(1), col1);
             Assert.assertEquals(reader.readValue(2), col3);
             Assert.assertEquals(reader.readValue(3), hostName);
+            rowsCount++;
         }
-
-        Assert.expectThrows(NoSuchElementException.class, reader::next);
+        Assert.assertEquals(rowsCount, 10);
+        Assert.assertFalse(reader.hasNext());
+        Assert.assertNull(reader.next());
     }
 
     @Test(groups = {"integration"})
@@ -308,7 +463,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = Arrays.asList(
             c ->
-                    RANDOM.ints(10, 0, 100),
+                    RANDOM.ints(10, 0, 100)
+                            .asLongStream().collect(ArrayList::new, ArrayList::add, ArrayList::addAll),
             c -> {
                 List<List<Integer>> values = new ArrayList<>();
                 for (int i = 0; i < 10; i++) {
@@ -335,9 +491,13 @@ public class QueryTests extends BaseIntegrationTest {
 
         Map<String, Object> record = reader.next();
         Assert.assertNotNull(record);
+        Map<String, Object> datasetRecord = data.get(0);
         long[] col1Values = reader.getLongArray("col1");
-        System.out.println("col1: " + Arrays.toString(col1Values));
-        System.out.println("Record: " + record);
+        Assert.assertEquals(Arrays.stream(col1Values).collect(ArrayList<Long>::new, ArrayList::add,
+                ArrayList::addAll), datasetRecord.get("col1"));
+        Assert.assertEquals(reader.getList("col1"), datasetRecord.get("col1"));
+        List<List<Long>> col2Values = reader.getList("col2");
+        Assert.assertEquals(col2Values, data.get(0).get("col2"));
     }
 
     private final static List<String> MAP_COLUMNS = Arrays.asList(
@@ -392,6 +552,8 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.fail("expected exception");
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            // expected
         }
     }
 
@@ -452,6 +614,65 @@ public class QueryTests extends BaseIntegrationTest {
 
             i++;
         }
+    }
+
+    @Test
+    public void testIPAddresses() throws Exception {
+
+        final List<String> columns = Arrays.asList(
+                "srcV4 IPv4",
+                "targetV4 IPv4",
+                "srcV6 IPv6",
+                "targetV6 IPv6"
+
+        );
+
+        Random random = new Random();
+        byte[] ipv4 = new byte[4];
+        random.nextBytes(ipv4);
+        InetAddress ipv4src = Inet4Address.getByAddress(ipv4);
+        random.nextBytes(ipv4);
+        InetAddress ipv4target = Inet4Address.getByAddress(ipv4);
+        byte[] ipv6 = new byte[16];
+        random.nextBytes(ipv6);
+        InetAddress ipv6src = Inet6Address.getByAddress(ipv6);
+        random.nextBytes(ipv6);
+        InetAddress ipv6target = Inet6Address.getByAddress(ipv6);
+
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> sq(ipv4src.getHostAddress()),
+                () -> sq(ipv4target.getHostAddress()),
+                () -> sq(ipv6src.getHostAddress()),
+                () -> sq(ipv6target.getHostAddress())
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("srcV4"), "No value for column srcV4 found");
+            Assert.assertEquals(r.getInet4Address("srcV4"), ipv4src);
+            Assert.assertEquals(r.getInet4Address(1), ipv4src);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("targetV4"), "No value for column targetV4 found");
+            Assert.assertEquals(r.getInet4Address("targetV4"), ipv4target);
+            Assert.assertEquals(r.getInet4Address(2), ipv4target);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("srcV6"), "No value for column src6 found");
+            Assert.assertEquals(r.getInet6Address("srcV6"), ipv6src);
+            Assert.assertEquals(r.getInet6Address(3), ipv6src);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("targetV6"), "No value for column targetV6 found");
+            Assert.assertEquals(r.getInet6Address("targetV6"), ipv6target);
+            Assert.assertEquals(r.getInet6Address(4), ipv6target);
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
     }
 
     @Test
@@ -556,13 +777,13 @@ public class QueryTests extends BaseIntegrationTest {
             columns.add("max_uint" + bits + " UInt" + bits);
 
             final BigInteger minInt = BigInteger.valueOf(-1).multiply(BigInteger.valueOf(2).pow(bits - 1));
-            final BigInteger maxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE);
-            final BigInteger maxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE);
+            final BigInteger nearMaxInt = BigInteger.valueOf(2).pow(bits - 1).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BigEndian test
+            final BigInteger nearMaxUInt = BigInteger.valueOf(2).pow(bits).subtract(BigInteger.ONE).subtract(BigInteger.ONE);//LE vs BE
 
             valueGenerators.add(() -> String.valueOf(minInt));
             valueGenerators.add(() -> String.valueOf(0));
-            valueGenerators.add(() -> String.valueOf(maxInt));
-            valueGenerators.add(() -> String.valueOf(maxUInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxInt));
+            valueGenerators.add(() -> String.valueOf(nearMaxUInt));
 
             final int index = i - 3;
             verifiers.add(createNumberVerifier("min_int" + bits, index * 4 + 1, bits, true,
@@ -570,15 +791,16 @@ public class QueryTests extends BaseIntegrationTest {
             verifiers.add(createNumberVerifier("min_uint" + bits, index * 4 + 2, bits, false,
                     BigInteger.ZERO));
             verifiers.add(createNumberVerifier("max_int" + bits, index * 4 + 3, bits, true,
-                    maxInt));
+                    nearMaxInt));
             verifiers.add(createNumberVerifier("max_uint" + bits, index * 4 + 4, bits, false,
-                    maxUInt));
+                    nearMaxUInt));
         }
 
 //        valueGenerators.forEach(r -> System.out.println(r.get()));
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
 
     @Test(groups = {"integration"})
     public void testFloatDataTypes() {
@@ -736,23 +958,23 @@ public class QueryTests extends BaseIntegrationTest {
         final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("min_enum16"), "No value for column min_enum16 found");
-            Assert.assertEquals(r.getEnum16("min_enum16"), (short)-32768);
-            Assert.assertEquals(r.getEnum16(1), (short)-32768);
+            Assert.assertEquals(r.getEnum16("min_enum16"), (short) -32768);
+            Assert.assertEquals(r.getEnum16(1), (short) -32768);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum16"), "No value for column max_enum16 found");
-            Assert.assertEquals(r.getEnum16("max_enum16"), (short)32767);
-            Assert.assertEquals(r.getEnum16(2), (short)32767);
+            Assert.assertEquals(r.getEnum16("max_enum16"), (short) 32767);
+            Assert.assertEquals(r.getEnum16(2), (short) 32767);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("min_enum8"), "No value for column min_enum8 found");
-            Assert.assertEquals(r.getEnum8("min_enum8"), (byte)-128);
-            Assert.assertEquals(r.getEnum8(3), (byte)-128);
+            Assert.assertEquals(r.getEnum8("min_enum8"), (byte) -128);
+            Assert.assertEquals(r.getEnum8(3), (byte) -128);
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum8"), "No value for column max_enum8 found");
-            Assert.assertEquals(r.getEnum8("max_enum8"), (byte)127);
-            Assert.assertEquals(r.getEnum8(4), (byte)127);
+            Assert.assertEquals(r.getEnum8("max_enum8"), (byte) 127);
+            Assert.assertEquals(r.getEnum8(4), (byte) 127);
         });
 
         testDataTypes(columns, valueGenerators, verifiers);
@@ -793,6 +1015,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
+
     @Test(groups = {"integration"})
     public void testStringDataTypes() {
         final List<String> columns = Arrays.asList(
@@ -805,7 +1028,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq("utf8 string с кириллицей そして他のホイッスル"),
-                () -> sq("ten chars"),
+                () -> sq("7 chars"),
                 () -> "NULL",
                 () -> sq("not null string")
         );
@@ -850,7 +1073,7 @@ public class QueryTests extends BaseIntegrationTest {
             // Drop table
             ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query("DROP TABLE IF EXISTS default." + table);
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -862,7 +1085,7 @@ public class QueryTests extends BaseIntegrationTest {
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
             request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
 
             // Insert data
@@ -879,8 +1102,9 @@ public class QueryTests extends BaseIntegrationTest {
 
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
-            ClickHouseResponse response = request.executeAndWait();
-            Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
+            try (ClickHouseResponse response = request.executeAndWait()) {
+                Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
+            }
         } catch (Exception e) {
             Assert.fail("Failed at prepare stage", e);
         }
@@ -923,14 +1147,14 @@ public class QueryTests extends BaseIntegrationTest {
 
         String uuid = UUID.randomUUID().toString();
         QuerySettings settings = new QuerySettings()
-                .setFormat(ClickHouseFormat.TabSeparated).setQueryId(uuid);
+                .setFormat(ClickHouseFormat.TabSeparated)
+                .waitEndOfQuery(true)
+                .setQueryId(uuid);
 
         QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
 
         // Stats should be available after the query is done
         OperationMetrics metrics = response.getMetrics();
-        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
-        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
         Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
@@ -947,8 +1171,6 @@ public class QueryTests extends BaseIntegrationTest {
         response = client.query(insertStmtBuilder.toString(), settings).get();
 
         metrics = response.getMetrics();
-        System.out.println("Server read rows: " + metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong());
-        System.out.println("Client stats: " + metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
 
         Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
         Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
@@ -977,8 +1199,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static String DATASET_TABLE = "query_test_table";
 
-    private void prepareSimpleDataSet() {
-        prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 1);
+    private Map<String, Object> prepareSimpleDataSet() {
+        return prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 1).get(0);
     }
 
     private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
@@ -991,7 +1213,7 @@ public class QueryTests extends BaseIntegrationTest {
             // Drop table
             ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query("DROP TABLE IF EXISTS default." + table);
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
 
             // Create table
@@ -1004,8 +1226,7 @@ public class QueryTests extends BaseIntegrationTest {
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
             request = client.read(getServer(ClickHouseProtocol.HTTP))
                     .query(createStmtBuilder.toString());
-            request.executeAndWait();
-
+            try (ClickHouseResponse response = request.executeAndWait()) {}
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1017,17 +1238,16 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
-            System.out.println("Insert statement: " + insertStmtBuilder);
             request = client.write(getServer(ClickHouseProtocol.HTTP))
                     .query(insertStmtBuilder.toString());
-            request.executeAndWait();
+            try (ClickHouseResponse response = request.executeAndWait()) {}
         } catch (Exception e) {
             Assert.fail("failed to prepare data set", e);
         }
         return data;
     }
 
-    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators ) {
+    private Map<String, Object> writeValuesRow(StringBuilder insertStmtBuilder, List<String> columns, List<Function<String, Object>> valueGenerators) {
         Map<String, Object> values = new HashMap<>();
         Iterator<String> columnIterator = columns.iterator();
         for (Function<String, Object> valueGenerator : valueGenerators) {
@@ -1036,8 +1256,8 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append('\'').append(value).append('\'').append(", ");
             } else if (value instanceof BaseStream<?, ?>) {
                 insertStmtBuilder.append('[');
-                BaseStream stream = ((BaseStream<?, ?>) value);
-                for (Iterator it = stream.iterator(); it.hasNext(); ) {
+                BaseStream<?, ?> stream = ((BaseStream<?, ?>) value);
+                for (Iterator<?> it = stream.iterator(); it.hasNext(); ) {
                     insertStmtBuilder.append(quoteValue(it.next())).append(", ");
                 }
                 insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
@@ -1109,5 +1329,163 @@ public class QueryTests extends BaseIntegrationTest {
         try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
             responseBody.lines().forEach(System.out::println);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchema() throws Exception {
+
+        final String table = "table_schema_test";
+        client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE default." + table +
+                " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
+        Assert.assertEquals(schema.getColumns().size(), 2);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.UInt32);
+        Assert.assertEquals(schema.getColumns().get(1).getColumnName(), "col2");
+        Assert.assertEquals(schema.getColumns().get(1).getDataType(), ClickHouseDataType.String);
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchemaError() {
+        try {
+            client.getTableSchema("unknown_table");
+            Assert.fail("no exception");
+        } catch (ServerException e) {
+            Assert.assertEquals(e.getCode(), ServerException.TABLE_NOT_FOUND);
+        } catch (ClientException e) {
+            e.printStackTrace();
+            if (e.getCause().getCause() instanceof ServerException) {
+                ServerException se = (ServerException) e.getCause().getCause();
+                Assert.assertEquals(se.getCode(), ServerException.TABLE_NOT_FOUND);
+            } else {
+                Assert.assertEquals(((ClickHouseException) e.getCause().getCause().getCause()).getErrorCode(),
+                        ServerException.TABLE_NOT_FOUND);
+            }
+
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerTimeZoneFromHeader() {
+
+        final String requestTimeZone = "America/Los_Angeles";
+        try (QueryResponse response =
+                     client.query("SELECT now() as t, toDateTime(now(), 'UTC') as utc_time " +
+                             "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader =
+                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+            reader.next();
+
+            LocalDateTime serverTime = reader.getLocalDateTime(1);
+            LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
+
+            ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of(requestTimeZone));
+            ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
+
+            Assert.assertEquals(serverTimeZ.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+        public void testClientUseOwnTimeZone() {
+
+        final String overrideTz = "America/Los_Angeles";
+        try (Client client = newClient().useTimeZone(overrideTz).useServerTimeZone(false).build()) {
+            final String requestTimeZone = "Europe/Berlin";
+            try (QueryResponse response =
+                         client.query("SELECT now() as t, toDateTime(now(), 'UTC') as utc_time, " +
+                                 "toDateTime(now(), 'Europe/Lisbon')" +
+                                 "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
+
+                ClickHouseBinaryFormatReader reader =
+                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+                reader.next();
+
+                LocalDateTime serverTime = reader.getLocalDateTime(1); // in "America/Los_Angeles"
+                LocalDateTime serverUtcTime = reader.getLocalDateTime(2);
+                ZonedDateTime serverLisbonTime = reader.getZonedDateTime(3);  // in "Europe/Lisbon"
+
+                ZonedDateTime serverTimeZ = serverTime.atZone(ZoneId.of("America/Los_Angeles"));
+                ZonedDateTime serverUtcTimeZ = serverUtcTime.atZone(ZoneId.of("UTC"));
+
+                Assert.assertEquals(serverTimeZ.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+                Assert.assertEquals(serverLisbonTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTimeZ);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    @Test
+    public void testAsyncQuery() {
+        try (Client client = newClient().useAsyncRequests(true).build()){
+             simpleRequest(client);
+        } catch (Exception e) {
+            Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    protected void simpleRequest(Client client) throws Exception {
+        try (QueryResponse response =
+                     client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader =
+                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+
+            int count = 0;
+            while (reader.hasNext()) {
+                reader.next();
+                count++;
+            }
+
+            Assert.assertEquals(count, 1000_000);
+        }
+    }
+
+    @Test
+    public void testConcurrentQueries() throws Exception{
+        final Client client = newClient().build();
+        final int concurrency = 10;
+        CountDownLatch latch = new CountDownLatch(concurrency);
+        Runnable task = () -> {
+            try {
+                simpleRequest(client);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Failed", e);
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        IntStream.range(0,concurrency).forEach(i -> executor.submit(task));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+        latch.await();
+        Assert.assertEquals(latch.getCount(), 0);
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressClientRequest(false)
+                .compressServerResponse(true)
+                .useHttpCompression(useHttpCompression)
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

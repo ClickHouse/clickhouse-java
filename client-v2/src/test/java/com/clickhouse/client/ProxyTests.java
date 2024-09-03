@@ -2,17 +2,19 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.metrics.ClientMetrics;
-import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.insert.SamplePOJO;
-import eu.rekawek.toxiproxy.Proxy;
-import eu.rekawek.toxiproxy.ToxiproxyClient;
-import org.testcontainers.containers.ToxiproxyContainer;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpStatus;
+import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -20,98 +22,192 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.assertTrue;
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static org.testng.Assert.fail;
 
 public class ProxyTests extends BaseIntegrationTest{
-    private Client client;
-    ToxiproxyContainer toxiproxy = null;
-    ToxiproxyClient toxiproxyClient = null;
-    Proxy proxy = null;
+    private ThreadLocal<Client> client = new ThreadLocal<>();
 
-    @BeforeMethod(groups = { "integration" }, enabled = false)
+    private ThreadLocal<WireMockServer> proxy = new ThreadLocal<>();
+
+    @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        toxiproxy = new ToxiproxyContainer(ClickHouseServerForTest.getProxyImage())
-                .withNetwork(ClickHouseServerForTest.getNetwork());
-        toxiproxy.start();
-
-        toxiproxyClient = new ToxiproxyClient(toxiproxy.getHost(), toxiproxy.getControlPort());
-        proxy = toxiproxyClient.createProxy("clickhouse", "0.0.0.0:8666",
-                ClickHouseServerForTest.hasClickHouseContainer()
-                        ? "clickhouse:" + ClickHouseProtocol.HTTP.getDefaultPort()
-                        : ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, true));
-
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .addProxy(ProxyType.HTTP, toxiproxy.getHost(), toxiproxy.getMappedPort(8666))
-                .build();
     }
 
-    @AfterMethod(groups = { "integration" }, enabled = false)
+    @AfterMethod(groups = { "integration" })
     public void teardown() {
-        if (toxiproxy != null) {
-            toxiproxy.stop();
-        }
+        proxy.get().stop();
+        client.get().close();
     }
 
-    private void createTable(String tableQuery) throws ClickHouseException {
-        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build()) {
-            client.read(getServer(ClickHouseProtocol.HTTP)).query(tableQuery).executeAndWait().close();
-        }
+    @Test(groups = { "integration" })
+    public void testSimpleQuery() throws Exception {
+        client.set(clientBuilder(initProxy(), false).build());
+        addProxyStub();
+
+        List<GenericRecord> records = client.get().queryAll("select timezone()");
+        Assert.assertEquals(records.stream().findFirst().get().getString(1), "UTC");
     }
 
-
-    @Test(groups = { "integration" }, enabled = false)
-    public void simpleProxyTest() throws Exception {
-        String tableName = "simple_pojo_enable_proxy_table";
-        String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
-        System.out.println(createSQL);
-        createTable(createSQL);
-
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
-        List<Object> simplePOJOs = new ArrayList<>();
-
-        for (int i = 0; i < 1000; i++) {
-            simplePOJOs.add(new SamplePOJO());
-        }
-        proxy.enable();
-        InsertResponse response = client.insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
-
-        OperationMetrics metrics = response.getMetrics();
-        assertEquals(simplePOJOs.size(), metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
-        assertEquals(simplePOJOs.size(), response.getWrittenRows());
-        assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
-        assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
-    }
-
-    @Test(groups = { "integration" }, enabled = false)
-    public void simpleDisabledProxyTest() throws Exception {
+    @Test(groups = { "integration" })
+    public void testInsert() throws Exception {
         String tableName = "simple_pojo_disable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
-        System.out.println(createSQL);
-        createTable(createSQL);
+        client.set(clientBuilder(initProxy(), false).build());
+        addProxyStub();
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.get().execute(createSQL).get();
+        client.get().register(SamplePOJO.class, client.get().getTableSchema(tableName, "default"));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
             simplePOJOs.add(new SamplePOJO());
         }
-        proxy.disable();
+
         try {
-            InsertResponse response = client.insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
-            fail("Should have thrown exception.");
+            InsertResponse response = client.get().insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
+            Assert.assertEquals(response.getWrittenRows(), 1000);
         } catch (Exception e) {
-            assertTrue(e instanceof ClientException);
+            fail("Should not have thrown exception.", e);
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testPrivateProxyWithoutAuth() {
+        client.set(clientBuilder(initProxy(), true).build());
+        addPrivateProxyStub();
+
+        try {
+            client.get().execute("select 1").get();
+            Assert.fail("Should have thrown exception.");
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientMisconfigurationException e) {
+            Assert.assertTrue(e.getMessage().contains("Proxy authentication required"));
+        } catch (Exception e) {
+            Assert.fail("Should have thrown exception.", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testPrivateProxyWithCredentials() {
+        client.set(clientBuilder(initProxy(), true)
+                .setProxyCredentials("user", "pass").build());
+        addPrivateProxyStub();
+
+        try {
+            client.get().execute("select 1");
+        } catch (ClientException e) {
+            e.printStackTrace();
+            Assert.fail("Should not have thrown exception.", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testProxyWithCookies() {
+        client.set(clientBuilder(initProxy(), true).build());
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                        .inScenario("routeCookies")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withHeader(HttpHeaders.SET_COOKIE, "routeName=routeA")
+                        .proxiedFrom("http://localhost:" + targetPort)).willSetStateTo("cookies").build());
+
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                        .inScenario("routeCookies")
+                        .whenScenarioStateIs("cookies")
+                        .withHeader(HttpHeaders.COOKIE, equalTo("routeName=routeA"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+
+        try {
+            client.get().execute("select 1").get();
+            client.get().execute("select 1").get();
+        } catch (Exception e) {
+            fail("Should not have thrown exception.", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testProxyWithDisabledCookies() {
+        client.set(clientBuilder(initProxy(), true).setHttpCookiesEnabled(false).build());
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+
+        proxy.get().addStubMapping(post(anyUrl())
+                .inScenario("routeCookies")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withHeader(HttpHeaders.SET_COOKIE, "routeName=routeA")
+                        .proxiedFrom("http://localhost:" + targetPort))
+                .willSetStateTo("cookies").build());
+
+        proxy.get().addStubMapping(post(anyUrl())
+                .inScenario("routeCookies")
+                .whenScenarioStateIs("cookies")
+                .withHeader(HttpHeaders.COOKIE, equalTo("routeName=routeA"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+
+        proxy.get().addStubMapping(post(anyUrl())
+                .inScenario("routeCookies")
+                .whenScenarioStateIs("cookies")
+                .withHeader(HttpHeaders.COOKIE, WireMock.absent())
+                .willReturn(aResponse().withStatus(HttpStatus.SC_BAD_GATEWAY)).build());
+
+        try {
+            client.get().execute("select 1").get();
+        } catch (Exception e) {
+            fail("Should not have thrown exception.", e);
+        }
+        try {
+            client.get().execute("select 1").get();
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientException);
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getMessage().contains("Server returned '502 Bad gateway'"));
+        } catch (Exception e) {
+            Assert.fail("Should have thrown exception.", e);
+        }
+    }
+
+    private Client.Builder clientBuilder(int proxyPort, boolean onlyNewImplementation) {
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "clickhouse", 8123, false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(onlyNewImplementation ? onlyNewImplementation :
+                        System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .addProxy(ProxyType.HTTP, "localhost", proxyPort);
+    }
+
+    private int initProxy() {
+        WireMockServer wireMock = new WireMockServer(WireMockConfiguration.options()
+//                .notifier(new Slf4jNotifier(true))
+        );
+        wireMock.start();
+        proxy.set(wireMock);
+        return wireMock.port();
+    }
+
+    private void addProxyStub() {
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
+    }
+
+    private void addPrivateProxyStub() {
+        final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                .willReturn(aResponse()
+                        .withStatus(HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED)
+                        .withHeader(HttpHeaders.PROXY_AUTHENTICATE, "Basic realm=\"Access DB\"")).build());
+        proxy.get().addStubMapping(post(urlMatching("/.*"))
+                .withHeader(HttpHeaders.PROXY_AUTHORIZATION, equalTo("Basic dXNlcjpwYXNz"))
+                .willReturn(aResponse().proxiedFrom("http://localhost:" + targetPort)).build());
     }
 }

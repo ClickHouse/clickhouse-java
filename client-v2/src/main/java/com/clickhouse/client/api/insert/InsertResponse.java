@@ -3,29 +3,32 @@ package com.clickhouse.client.api.insert;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 
 public class InsertResponse implements AutoCloseable {
     private final ClickHouseResponse responseRef;
-    private final ClickHouseClient client;
-
     private OperationMetrics operationMetrics;
 
-    public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef,
+    public InsertResponse(ClickHouseResponse responseRef,
                           ClientStatisticsHolder clientStatisticsHolder) {
         this.responseRef = responseRef;
-        this.client = client;
         this.operationMetrics = new OperationMetrics(clientStatisticsHolder);
-        this.operationMetrics.operationComplete(responseRef.getSummary());
+        this.operationMetrics.operationComplete();
+        this.operationMetrics.setQueryId(responseRef.getSummary().getQueryId());
+        ClientV1AdaptorHelper.setServerStats(responseRef.getSummary().getProgress(), this.operationMetrics);
+    }
+
+    public InsertResponse(OperationMetrics metrics) {
+        this.responseRef = null;
+        this.operationMetrics = metrics;
     }
 
     @Override
     public void close() {
-        try {
+        if (responseRef != null) {
             responseRef.close();
-        } finally {
-            client.close();
         }
     }
 

@@ -1,11 +1,14 @@
 package com.clickhouse.client.api.query;
 
 
+import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
 /**
  * <p>Query settings class represents a set of settings that can be used to customize query execution.</p>
@@ -115,5 +118,39 @@ public class QuerySettings {
 
     public String getDatabase() {
         return (String) rawSettings.get("database");
+    }
+
+    /**
+     * Requests the server to wait for the and of the query before sending response. Useful for getting accurate summary.
+     */
+    public QuerySettings waitEndOfQuery(Boolean waitEndOfQuery) {
+        rawSettings.put("wait_end_of_query", waitEndOfQuery);
+        return this;
+    }
+
+    public QuerySettings setUseServerTimeZone(Boolean useServerTimeZone) {
+        if (rawSettings.containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey())) {
+            throw new ValidationUtils.SettingsValidationException("use_server_timezone",
+                    "Cannot set both use_time_zone and use_server_time_zone");
+        }
+        rawSettings.put("use_server_time_zone", useServerTimeZone);
+        return this;
+    }
+
+    public Boolean getUseServerTimeZone() {
+        return (Boolean) rawSettings.get("use_server_time_zone");
+    }
+
+    public QuerySettings setUseTimeZone(String timeZone) {
+        if (rawSettings.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+            throw new ValidationUtils.SettingsValidationException("use_time_zone",
+                    "Cannot set both use_time_zone and use_server_time_zone");
+        }
+        rawSettings.put("use_time_zone", timeZone);
+        return this;
+    }
+
+    public TimeZone getServerTimeZone() {
+        return (TimeZone) rawSettings.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
     }
 }

@@ -22,7 +22,7 @@ public class BinaryStreamReaderTests {
         BinaryStreamUtils.writeDate(out, inValue);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-        LocalDate outValue = new BinaryStreamReader(ClickHouseInputStream.of(in), null)
+        LocalDate outValue = new BinaryStreamReader(ClickHouseInputStream.of(in), TimeZone.getDefault(), null)
                 .readValue(ClickHouseColumn.of("updated", "DateTime"));
         Assert.assertEquals(outValue, inValue);
     }

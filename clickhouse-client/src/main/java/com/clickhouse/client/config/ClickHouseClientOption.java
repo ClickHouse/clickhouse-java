@@ -425,7 +425,16 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Query ID to be attached to an operation
      */
-    QUERY_ID("query_id", "", "Query id");
+    QUERY_ID("query_id", "", "Query id"),
+
+
+    /**
+     * Connection time to live in milliseconds. 0 or negative number means no limit.
+     * Can be used to override keep-alive time suggested by a server.
+     */
+    CONNECTION_TTL("connection_ttl", 0L,
+            "Connection time to live in milliseconds. 0 or negative number means no limit."),
+    ;
 
     private final String key;
     private final Serializable defaultValue;
@@ -436,6 +445,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     private static final Map<String, ClickHouseClientOption> options;
 
     static final String UNKNOWN = "unknown";
+    public static final String LATEST_KNOWN_VERSION = "0.6.3";
 
     /**
      * Semantic version of the product.
@@ -480,9 +490,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
             ver = parts[3];
             PRODUCT_REVISION = ver.substring(0, ver.length() - 1);
         } else { // perhaps try harder by checking version from pom.xml?
-            PRODUCT_VERSION = UNKNOWN;
+            PRODUCT_VERSION = LATEST_KNOWN_VERSION;
             PRODUCT_REVISION = UNKNOWN;
         }
+
+
         CLIENT_OS_INFO = new StringBuilder().append(getSystemConfig("os.name", "O/S")).append('/')
                 .append(getSystemConfig("os.version", UNKNOWN)).toString();
         String javaVersion = System.getProperty("java.vendor.version");
@@ -510,15 +522,18 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * @param additionalProperty additional property if any
      * @return non-empty user-agent
      */
-    public static final String buildUserAgent(String productName, String additionalProperty) {
-        productName = productName == null || productName.isEmpty() ? (String) PRODUCT_NAME.getEffectiveDefaultValue()
-                : productName.trim();
-        StringBuilder builder = new StringBuilder(productName).append('/').append(PRODUCT_VERSION).append(" (")
-                .append(CLIENT_OS_INFO).append("; ").append(CLIENT_JVM_INFO);
+    public static String buildUserAgent(String productName, String additionalProperty) {
+        productName = productName == null || productName.isEmpty() ? (String) PRODUCT_NAME.getEffectiveDefaultValue() : productName.trim();
+        StringBuilder builder = new StringBuilder(productName).append(PRODUCT_VERSION.isEmpty() ? "" : "/" + PRODUCT_VERSION);
+
+        if (!String.valueOf(PRODUCT_NAME.getDefaultValue()).equals(productName)) {//Append if someone changed the original value
+            builder.append(" ").append(PRODUCT_NAME.getDefaultValue()).append(LATEST_KNOWN_VERSION);
+        }
+        builder.append(" (").append(CLIENT_JVM_INFO);
         if (additionalProperty != null && !additionalProperty.isEmpty()) {
             builder.append("; ").append(additionalProperty.trim());
         }
-        return builder.append("; rv:").append(PRODUCT_REVISION).append(')').toString();
+        return builder.append(")").toString();
     }
 
     /**
