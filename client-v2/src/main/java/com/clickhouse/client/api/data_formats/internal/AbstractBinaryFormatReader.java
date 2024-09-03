@@ -37,6 +37,8 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -49,6 +51,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected BinaryStreamReader binaryStreamReader;
 
     private TableSchema schema;
+
+    private ClickHouseColumn[] columns;
 
     private volatile boolean hasNext = true;
 
@@ -70,6 +74,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
     protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
+    protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
 
     public boolean readToPOJO(Map<String, POJODeserializer> deserializers, Object obj ) throws IOException {
         boolean firstColumn = true;
@@ -110,11 +115,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      */
     public boolean readRecord(Map<String, Object> record) throws IOException {
         boolean firstColumn = true;
-        for (ClickHouseColumn column : getSchema().getColumns()) {
+        for (ClickHouseColumn column : columns) {
             try {
                 Object val = binaryStreamReader.readValue(column);
                 if (val != null) {
-                    record.put(column.getColumnName(),val);
+                    record.put(column.getColumnName(), val);
+                } else {
+                    record.remove(column.getColumnName());
                 }
                 firstColumn = false;
             } catch (EOFException e) {
@@ -144,15 +151,17 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasNext() {
-         return hasNext;
+        return hasNext;
     }
 
 
     protected void readNextRecord() {
         try {
-            nextRecord.clear();
+            nextRecordEmpty.set(true);
             if (!readRecord(nextRecord)) {
                 hasNext = false;
+            } else {
+                nextRecordEmpty.compareAndSet(true, false);
             }
         } catch (IOException e) {
             hasNext = false;
@@ -166,7 +175,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         }
 
-        if (!nextRecord.isEmpty()) {
+        if (!nextRecordEmpty.get()) {
             Map<String, Object> tmp = currentRecord;
             currentRecord = nextRecord;
             nextRecord = tmp;
@@ -174,7 +183,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return currentRecord;
         } else {
             try {
-                currentRecord.clear();
                 if (readRecord(currentRecord)) {
                     readNextRecord();
                     return currentRecord;

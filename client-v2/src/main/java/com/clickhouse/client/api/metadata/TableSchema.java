@@ -27,7 +27,7 @@ public class TableSchema {
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
-        this.columnsView = Collections.unmodifiableList(columns);
+        this.columnsView = Collections.unmodifiableList(this.columns);
         this.colIndex = new HashMap<>();
     }
 

@@ -51,6 +51,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -181,6 +185,39 @@ public class QueryTests extends BaseIntegrationTest {
         System.out.println(firstRecord.getBigInteger("i128"));
         Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
         Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
+    }
+
+    @Test(groups = {"integration"})
+    public void testEndianReadingNumbers() throws Exception {
+
+        byte[][] numbers = new byte[][] {
+            new byte[] {0x00, 0x02, 0x00, 0x01},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+            new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10},
+        };
+
+
+        for (byte[] number : numbers) {
+            String typeName = "UInt32";
+            if (number.length == 8) {
+                typeName = "UInt64";
+            } else if (number.length == 16) {
+                typeName = "UInt128";
+            }
+            BigInteger expected = new BigInteger(number);
+            String sqlQuery = "SELECT to" + typeName + "('" + expected + "') as value1";
+            System.out.println(sqlQuery);
+            Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
+            GenericRecord firstRecord = records.iterator().next();
+
+            if (number.length == 4) {
+                System.out.println(firstRecord.getLong("value1"));
+                Assert.assertEquals(firstRecord.getLong("value1"), expected.longValue());
+            } else {
+                System.out.println(firstRecord.getBigInteger("value1"));
+                Assert.assertEquals(firstRecord.getBigInteger("value1"), expected);
+            }
+        }
     }
 
     @Test(groups = {"integration"})
@@ -428,7 +465,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = Arrays.asList(
             c ->
-                    RANDOM.ints(10, 0, 100),
+                    RANDOM.ints(10, 0, 100)
+                            .asLongStream().collect(ArrayList::new, ArrayList::add, ArrayList::addAll),
             c -> {
                 List<List<Integer>> values = new ArrayList<>();
                 for (int i = 0; i < 10; i++) {
@@ -455,9 +493,13 @@ public class QueryTests extends BaseIntegrationTest {
 
         Map<String, Object> record = reader.next();
         Assert.assertNotNull(record);
+        Map<String, Object> datasetRecord = data.get(0);
         long[] col1Values = reader.getLongArray("col1");
-        System.out.println("col1: " + Arrays.toString(col1Values));
-        System.out.println("Record: " + record);
+        Assert.assertEquals(Arrays.stream(col1Values).collect(ArrayList<Long>::new, ArrayList::add,
+                ArrayList::addAll), datasetRecord.get("col1"));
+        Assert.assertEquals(reader.getList("col1"), datasetRecord.get("col1"));
+        List<List<Long>> col2Values = reader.getList("col2");
+        Assert.assertEquals(col2Values, data.get(0).get("col2"));
     }
 
     private final static List<String> MAP_COLUMNS = Arrays.asList(
@@ -574,6 +616,65 @@ public class QueryTests extends BaseIntegrationTest {
 
             i++;
         }
+    }
+
+    @Test
+    public void testIPAddresses() throws Exception {
+
+        final List<String> columns = Arrays.asList(
+                "srcV4 IPv4",
+                "targetV4 IPv4",
+                "srcV6 IPv6",
+                "targetV6 IPv6"
+
+        );
+
+        Random random = new Random();
+        byte[] ipv4 = new byte[4];
+        random.nextBytes(ipv4);
+        InetAddress ipv4src = Inet4Address.getByAddress(ipv4);
+        random.nextBytes(ipv4);
+        InetAddress ipv4target = Inet4Address.getByAddress(ipv4);
+        byte[] ipv6 = new byte[16];
+        random.nextBytes(ipv6);
+        InetAddress ipv6src = Inet6Address.getByAddress(ipv6);
+        random.nextBytes(ipv6);
+        InetAddress ipv6target = Inet6Address.getByAddress(ipv6);
+
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+                () -> sq(ipv4src.getHostAddress()),
+                () -> sq(ipv4target.getHostAddress()),
+                () -> sq(ipv6src.getHostAddress()),
+                () -> sq(ipv6target.getHostAddress())
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("srcV4"), "No value for column srcV4 found");
+            Assert.assertEquals(r.getInet4Address("srcV4"), ipv4src);
+            Assert.assertEquals(r.getInet4Address(1), ipv4src);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("targetV4"), "No value for column targetV4 found");
+            Assert.assertEquals(r.getInet4Address("targetV4"), ipv4target);
+            Assert.assertEquals(r.getInet4Address(2), ipv4target);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("srcV6"), "No value for column src6 found");
+            Assert.assertEquals(r.getInet6Address("srcV6"), ipv6src);
+            Assert.assertEquals(r.getInet6Address(3), ipv6src);
+        });
+
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("targetV6"), "No value for column targetV6 found");
+            Assert.assertEquals(r.getInet6Address("targetV6"), ipv6target);
+            Assert.assertEquals(r.getInet6Address(4), ipv6target);
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
     }
 
     @Test
