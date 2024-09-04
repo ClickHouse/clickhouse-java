@@ -1,4 +1,4 @@
-package com.clickhouse.jdbc.internal;
+package com.clickhouse.jdbc;
 
 import java.net.URISyntaxException;
 import java.sql.SQLException;
@@ -12,8 +12,6 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseUtils;
-import com.clickhouse.jdbc.JdbcConfig;
-import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public class ClickHouseJdbcUrlParser {
     public static class ConnectionInfo {

@@ -19,29 +19,29 @@ public class CombinedResultSetTest {
     private Object[][] getMultipleResultSets() {
         ClickHouseConfig config = new ClickHouseConfig();
         return new Object[][] {
-                { new CombinedResultSet(null, new ClickHouseResultSet("", "",
+                { new CombinedResultSet(null, new ResultSetImpl("", "",
                         ClickHouseSimpleResponse.of(config, ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } })),
-                        new ClickHouseResultSet("", "",
+                        new ResultSetImpl("", "",
                                 ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] { "c" },
                                                 new Object[] { "d" },
                                                 new Object[] { "e" } }))) },
                 { new CombinedResultSet(Arrays.asList(null, null,
-                        new ClickHouseResultSet("", "",
+                        new ResultSetImpl("", "",
                                 ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] {
                                                 "a" } })),
                         null,
-                        new ClickHouseResultSet("", "",
+                        new ResultSetImpl("", "",
                                 ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] {
                                                 "b" } })),
-                        new ClickHouseResultSet("", "",
+                        new ResultSetImpl("", "",
                                 ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] {
@@ -64,12 +64,12 @@ public class CombinedResultSetTest {
     private Object[][] getSingleResultSet() {
         ClickHouseConfig config = new ClickHouseConfig();
         return new Object[][] {
-                { new CombinedResultSet(new ClickHouseResultSet("", "",
+                { new CombinedResultSet(new ResultSetImpl("", "",
                         ClickHouseSimpleResponse.of(config, ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } }))) },
                 { new CombinedResultSet(Collections.singleton(
-                        new ClickHouseResultSet("", "", ClickHouseSimpleResponse.of(config,
+                        new ResultSetImpl("", "", ClickHouseSimpleResponse.of(config,
                                 ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } })))) } };
@@ -133,7 +133,7 @@ public class CombinedResultSetTest {
 
     @Test(groups = "unit")
     public void testFetchSize() throws SQLException {
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(new ClickHouseConfig(), ClickHouseColumn.parse("s String"),
                         new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) {
             Assert.assertEquals(rs.getFetchSize(), 0);
@@ -149,7 +149,7 @@ public class CombinedResultSetTest {
         ClickHouseConfig config = new ClickHouseConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("s String");
         // no record
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns, new Object[0][])))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
             Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
@@ -164,9 +164,9 @@ public class CombinedResultSetTest {
         }
 
         // no record(with two empty resultsets)
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns, new Object[0][])),
-                new ClickHouseResultSet("", "",
+                new ResultSetImpl("", "",
                         ClickHouseSimpleResponse.of(config, columns, new Object[0][])))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
             Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
@@ -181,7 +181,7 @@ public class CombinedResultSetTest {
         }
 
         // one record
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns,
                         new Object[][] { new Object[] { "a" } })))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
@@ -202,7 +202,7 @@ public class CombinedResultSetTest {
             Assert.assertFalse(rs.isLast(), "Should NOT be the last");
         }
 
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns,
                         new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
@@ -221,7 +221,7 @@ public class CombinedResultSetTest {
     public void testNext() throws SQLException {
         ClickHouseConfig config = new ClickHouseConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("s String");
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns,
                         new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
@@ -235,9 +235,9 @@ public class CombinedResultSetTest {
             Assert.assertTrue(rs.isAfterLast(), "Should be after the last row");
         }
 
-        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+        try (CombinedResultSet rs = new CombinedResultSet(new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(config, columns, new Object[][] { new Object[] { "a" } })),
-                new ClickHouseResultSet("", "",
+                new ResultSetImpl("", "",
                         ClickHouseSimpleResponse.of(config, columns, new Object[][] { new Object[] { "b" } })))) {
             Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
             Assert.assertTrue(rs.next());

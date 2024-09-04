@@ -5,7 +5,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Locale;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseServerForTest;
@@ -87,19 +86,19 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
                 .append(':').append(server.getPort()).toString();
     }
 
-    public ClickHouseDataSource newDataSource() throws SQLException {
+    public DataSourceImpl newDataSource() throws SQLException {
         return newDataSource(null, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(Properties properties) throws SQLException {
+    public DataSourceImpl newDataSource(Properties properties) throws SQLException {
         return newDataSource(null, properties);
     }
 
-    public ClickHouseDataSource newDataSource(String url) throws SQLException {
+    public DataSourceImpl newDataSource(String url) throws SQLException {
         return newDataSource(url, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(String url, Properties properties) throws SQLException {
+    public DataSourceImpl newDataSource(String url, Properties properties) throws SQLException {
         if (isCloud()) {
             if (properties == null) {
                 properties = new Properties();
@@ -107,9 +106,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             properties.put("password", getPassword());
             properties.put("user", "default");
             url = String.format("jdbc:clickhouse:https://%s/%s", getServerAddress(ClickHouseProtocol.HTTP), ClickHouseServerForTest.getDatabase());
-            return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
+            return new DataSourceImpl(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
         }
-        return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
+        return new DataSourceImpl(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
     }
 
     public ClickHouseConnection newConnection() throws SQLException {
