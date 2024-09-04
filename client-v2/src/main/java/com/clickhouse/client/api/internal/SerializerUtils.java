@@ -1,9 +1,8 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.POJODeserializer;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
@@ -18,18 +17,17 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
-
-import static com.clickhouse.data.ClickHouseDataType.*;
+import java.util.stream.Collectors;
 
 public class SerializerUtils {
     private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
@@ -305,11 +303,12 @@ public class SerializerUtils {
 
     public static <T extends Enum<T>> Set<T> parseEnumList(String value, Class<T> enumType) {
         Set<T> values = new HashSet<>();
-        for (StringTokenizer causes = new StringTokenizer(value, Client.VALUES_LIST_DELIMITER); causes.hasMoreTokens();) {
+        for (StringTokenizer causes = new StringTokenizer(value, Client.VALUES_LIST_DELIMITER); causes.hasMoreTokens(); ) {
             values.add(Enum.valueOf(enumType, causes.nextToken()));
         }
         return values;
     }
+
     public static float getFloatValue(java.lang.Object value) {
         if (value instanceof Float) {
             return (Float) value;
@@ -330,7 +329,7 @@ public class SerializerUtils {
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).asList();
         } else if (value.getClass().isArray()) {
-            return List.of((Object[]) value);
+            return  Arrays.stream(((Object[]) value)).collect(Collectors.toList());
         } else if (value instanceof List) {
             return (List<?>) value;
         } else {

@@ -3,7 +3,6 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseValues;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
 
@@ -21,7 +20,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,14 +58,7 @@ public class BinaryStreamReader {
                 // Primitives
                 case FixedString: {
                     byte[] bytes = readNBytes(input, column.getEstimatedLength());
-                    int end = 0;
-                    for (int i = 0; i < bytes.length; i++) {
-                        if (bytes[i] == 0) {
-                            end = i;
-                            break;
-                        }
-                    }
-                    return (T) new String(bytes, 0, end, StandardCharsets.UTF_8);
+                    return (T) new String(bytes, 0, column.getEstimatedLength(), StandardCharsets.UTF_8);
                 }
                 case String: {
                     int len = readVarInt(input);
@@ -292,22 +283,6 @@ public class BinaryStreamReader {
             }
             total += r;
         }
-        return bytes;
-    }
-
-    public static byte[] readNBytesLE(InputStream input, int len) throws IOException {
-        byte[] bytes = readNBytes(input, len);
-
-        int s = 0;
-        int i = len - 1;
-        while (s < i) {
-            byte b = bytes[s];
-            bytes[s] = bytes[i];
-            bytes[i] = b;
-            s++;
-            i--;
-        }
-
         return bytes;
     }
 

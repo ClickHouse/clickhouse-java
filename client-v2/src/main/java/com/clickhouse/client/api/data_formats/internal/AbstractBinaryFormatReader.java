@@ -38,7 +38,6 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -55,8 +54,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private ClickHouseColumn[] columns;
 
     private volatile boolean hasNext = true;
-
-    private ClickHouseColumn[] columns;
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
         this.input = inputStream;

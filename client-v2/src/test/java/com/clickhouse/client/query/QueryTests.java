@@ -51,6 +51,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -1528,9 +1529,26 @@ public class QueryTests extends BaseIntegrationTest {
         client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         client.insert(tableName, Collections.singletonList(pojo)).get();
+
+        // correct decimal according to the table schema
+        pojo.setDecimal32(cropDecimal(pojo.getDecimal32(), 2));
+        pojo.setDecimal64(cropDecimal(pojo.getDecimal64(), 3));
+        pojo.setDecimal128(cropDecimal(pojo.getDecimal128(),4));
+        pojo.setDecimal256(cropDecimal(pojo.getDecimal256(),5));
+
+        // adjust datetime
+        pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
+        pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
+
         List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class);
         Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
     }
+
+    public static BigDecimal cropDecimal(BigDecimal value, int scale) {
+        BigInteger bi = value.unscaledValue().divide(BigInteger.TEN.pow(value.scale() - scale));
+        return new BigDecimal(bi, scale);
+    }
+
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
