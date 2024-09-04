@@ -26,19 +26,27 @@ Table of Contents
 
 ## About the Project
 
-This is the official Java Client and JDBC for ClickHouse Database (https://github.com/ClickHouse/Clickhouse).
-Java client is the base component and has own API for working with ClickHouse in a "direct" way. JDBC driver is
-a library implementing JDBC API 1.3 on top of the Java client.
+This is official Java Client and JDBC for ClickHouse Database (https://github.com/ClickHouse/Clickhouse). Java Client is the core component and provides API to interact with the database. In 2023 this component and its API was refactored into a new component `client-v2`. Both version are available but older one will be deprecated soon. However it will receive security and critical bug fixes. New `client-v2` has stable API and we are working on performance and feature parity to make it a production ready.   
+JDBC driver component is an implementation of JDBC API. It uses Java Client API to interact with the database server. 
 
-There are two implementations of the Java Client: 
-- client-v1 - initial implementation (projects: clickhouse-client, clickhouse-data, clickhouse-http-client)
-  - still maintained
-  - only critical fixes & features
-- client-v2 - refactored implementation (projects: client-v2)
-  - essential functionality is implemented
-  - works with cloud
-  - we are working on performance right now
-  - also we will refactor JDBC driver to use this client
+**Benefits of using Client-V2:**
+- Stable API. 
+- Minimal functionality is implemented
+    - SSL & mTLS support 
+    - RowBinary* formats support for reading 
+    - Proxy support
+    - HTTP protocol
+- New Insert API that accepts a list of POJOs
+- New Query API that returns a list of GenericRecords that cant be used as DTOs
+- Native format reader 
+- Performance improvements
+    - Less number of internal buffers compare to the old client
+    - More configuration for performance tuning
+    - Less object allocation 
+- Upcoming new features
+
+Old client still be used when:
+- using JDBC driver ( we are working on its refactoring ) 
 
 
 ## Important
@@ -46,8 +54,9 @@ There are two implementations of the Java Client:
 ### Upcomming deprecations:
 | Component                      | Version | Comment                                          |
 |--------------------------------|---------|--------------------------------------------------|
-| Clickhouse CLI Client          | 0.7.0   |                                                  |
-| ClickHouse GRPC Client         | 0.7.0   | Please use the clickhouse http protocol instead  |
+| Clickhouse CLI Client (Java)   | 0.7.0   | Please use `clickhouse-client` (see https://clickhouse.com/docs/en/interfaces/cli#clickhouse-client)                   |
+| ClickHouse GRPC Client         | 0.7.0   | Please use the ClickHouse http client instead. GRPC protos still available https://github.com/ClickHouse/ClickHouse/tree/master/src/Server/grpc_protos   |
+
 
 ## Installation
 
@@ -190,13 +199,6 @@ Client client = new Client.Builder()
 | ClickHouse Java HTTP Client | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-client)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-http-client) |
 | ClickHouse JDBC Driver | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-jdbc)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) |
 
-### Compatibility
-
-| ClickHouse Version | Client Version | Comment                                                                                                                                      |
-|--------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| Server < 20.7      | 0.3.1-patch    | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                         |
-| Server >= 20.7     | 0.3.2          | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. |
-| Server >= 23.0     | >0.6.0          | use 0.6.0 or above.                                                                                                                          |
 
 ### Features
 
@@ -206,7 +208,7 @@ Client client = new Client.Builder()
 - Apache HTTP Client as HTTP client
   - Connection pooling
   - Failures on retry  
-- SSL support
+- SSL & mTLS support
 - Cloud support
 - Proxy support
 
@@ -215,6 +217,13 @@ Client client = new Client.Builder()
 See [java client examples](../../tree/main/examples/client)
 
 See [JDBC examples](../../tree/main/examples/jdbc)
+
+## Compatibility
+
+- All projects in this repo are tested with all [active LTS versions](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) of ClickHouse.
+- [Support policy](https://github.com/ClickHouse/ClickHouse/blob/master/SECURITY.md#security-change-log-and-support)
+- We recommend to upgrade client continuously to not miss security fixes and new improvements
+  - If you have an issue with migration - create and issue and we will respond! 
 
 ## Documentation
 
