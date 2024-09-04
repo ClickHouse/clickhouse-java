@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import java.util.function.BiFunction;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSimpleResponse;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseRecord;
@@ -397,7 +395,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
 
     @Test(groups = "unit")
     public void testFetchSizeOfDetachedResultSet() throws SQLException {
-        try (ClickHouseResultSet rs = new ClickHouseResultSet("", "",
+        try (ResultSetImpl rs = new ResultSetImpl("", "",
                 ClickHouseSimpleResponse.of(new ClickHouseConfig(), ClickHouseColumn.parse("s String"),
                         new Object[][] { new Object[] { "a" } }))) {
             Assert.assertEquals(rs.getFetchSize(), 0);

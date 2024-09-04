@@ -46,7 +46,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     }
 
     protected ResultSet fixed(String columns, Object[][] values) throws SQLException {
-        return new ClickHouseResultSet("", "", connection.createStatement(),
+        return new ResultSetImpl("", "", connection.createStatement(),
                 ClickHouseSimpleResponse.of(connection.getConfig(), ClickHouseColumn.parse(columns), values));
     }
 
@@ -66,7 +66,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         SQLException error = null;
         try (ClickHouseStatement stmt = connection.createStatement()) {
             stmt.setLargeMaxRows(0L);
-            return new ClickHouseResultSet("", "", stmt,
+            return new ResultSetImpl("", "", stmt,
                     // load everything into memory
                     ClickHouseSimpleResponse.of(stmt.getRequest()
                             .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -149,17 +149,17 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return ClickHouseDriver.driverVersionString;
+        return DriverImpl.driverVersionString;
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return ClickHouseDriver.driverVersion.getMajorVersion();
+        return DriverImpl.driverVersion.getMajorVersion();
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return ClickHouseDriver.driverVersion.getMinorVersion();
+        return DriverImpl.driverVersion.getMinorVersion();
     }
 
     @Override
@@ -1217,12 +1217,12 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return ClickHouseDriver.specVersion.getMajorVersion();
+        return DriverImpl.specVersion.getMajorVersion();
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return ClickHouseDriver.specVersion.getMinorVersion();
+        return DriverImpl.specVersion.getMinorVersion();
     }
 
     @Override

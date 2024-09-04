@@ -7,11 +7,11 @@ import com.clickhouse.client.ClickHouseProtocol;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ClickHouseDriverTest extends JdbcIntegrationTest {
+public class DriverImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testAcceptUrl() throws SQLException {
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
-        ClickHouseDriver driver = new ClickHouseDriver();
+        DriverImpl driver = new DriverImpl();
         Assert.assertTrue(driver.acceptsURL("jdbc:clickhouse://" + address));
         Assert.assertTrue(driver.acceptsURL("jdbc:clickhouse:http://" + address));
         Assert.assertTrue(driver.acceptsURL("jdbc:ch://" + address));
@@ -22,7 +22,7 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
     public void testConnect() throws SQLException {
         if (isCloud()) return; //TODO: testConnect - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
-        ClickHouseDriver driver = new ClickHouseDriver();
+        DriverImpl driver = new DriverImpl();
         ClickHouseConnection conn = driver.connect("jdbc:clickhouse://" + address, null);
         conn.close();
     }

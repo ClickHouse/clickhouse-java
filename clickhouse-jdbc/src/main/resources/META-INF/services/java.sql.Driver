@@ -1,1 +1,1 @@
-com.clickhouse.jdbc.ClickHouseDriver
+com.clickhouse.jdbc.DriverImpl

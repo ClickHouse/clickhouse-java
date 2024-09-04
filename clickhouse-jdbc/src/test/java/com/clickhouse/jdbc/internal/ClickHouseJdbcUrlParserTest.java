@@ -9,7 +9,8 @@ import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
+import com.clickhouse.jdbc.ClickHouseJdbcUrlParser;
+import com.clickhouse.jdbc.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
