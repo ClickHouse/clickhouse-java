@@ -14,17 +14,6 @@ import com.clickhouse.logging.LoggerFactory;
 public class ResultSetImpl implements ResultSet, JdbcWrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
 
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return JdbcWrapper.super.isWrapperFor(iface);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return JdbcWrapper.super.unwrap(iface);
-    }
-
     @Override
     public boolean next() throws SQLException {
         return false;

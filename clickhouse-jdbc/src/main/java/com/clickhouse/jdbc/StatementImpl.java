@@ -6,7 +6,7 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 
-public class StatementImpl implements Statement {
+public class StatementImpl implements Statement, JdbcWrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         return null;
@@ -275,15 +275,5 @@ public class StatementImpl implements Statement {
     @Override
     public String enquoteNCharLiteral(String val) throws SQLException {
         return Statement.super.enquoteNCharLiteral(val);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
     }
 }

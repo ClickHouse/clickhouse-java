@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
-public class ConnectionImpl implements Connection {
+public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
         return null;
@@ -294,15 +294,5 @@ public class ConnectionImpl implements Connection {
     @Override
     public void setShardingKey(ShardingKey shardingKey) throws SQLException {
         Connection.super.setShardingKey(shardingKey);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
     }
 }
