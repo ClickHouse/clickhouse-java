@@ -1031,7 +1031,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq("utf8 string с кириллицей そして他のホイッスル"),
-                () -> sq("7 chars"),
+                () -> sq("7 chars\0\0\0"),
                 () -> "NULL",
                 () -> sq("not null string")
         );
