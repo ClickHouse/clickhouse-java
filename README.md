@@ -30,22 +30,30 @@ This is the official Java Client and JDBC for ClickHouse Database (https://githu
 Java client is the base component and has own API for working with ClickHouse in a "direct" way. JDBC driver is
 a library implementing JDBC API 1.3 on top of the Java client.
 
-Currently, there is a new version of the Java Client in developer preview. It is going to replace the old one very soon.
-Source code of the new version is located in the `client-v2` directory and usage examples are in `examples/client-v2` directory.
+There are two implementations of the Java Client: 
+- client-v1 - initial implementation (projects: clickhouse-client, clickhouse-data, clickhouse-http-client)
+  - still maintained
+  - only critical fixes & features
+- client-v2 - refactored implementation (projects: client-v2)
+  - essential functionality is implemented
+  - works with cloud
+  - we are working on performance right now
+  - also we will refactor JDBC driver to use this client
 
-## Important Updates
 
-Next components are deprecated and will be removed in the future releases:
+## Important
+
+### Upcomming deprecations:
 | Component                      | Version | Comment                                          |
 |--------------------------------|---------|--------------------------------------------------|
-| Clickhouse ClI Client          | 0.7.0   |                                                  |
+| Clickhouse CLI Client          | 0.7.0   |                                                  |
 | ClickHouse GRPC Client         | 0.7.0   | Please use the clickhouse http protocol instead  |
 
 ## Installation
 
-Release versions are available in the Maven Central Repository. Nightly builds are available in the Sonatype Nexus Repository.
+Releases: Maven Central (web site https://mvnrepository.com/artifact/com.clickhouse)
 
-Nightly Builds Repo: https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/
+Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/
 
 ## Client V2
 
@@ -67,11 +75,111 @@ Nightly Builds Repo: https://s01.oss.sonatype.org/content/repositories/snapshots
 - Http API for ClickHouse support
 - Bi-directional Compression
   - LZ4
+- Insert from POJO (data is provided as list of java objects)
+- Query formats support: 
+  - RowBinary readers
+  - Native format reader
+- Apache HTTP Client as HTTP client
+  - Connection pooling
+  - Failures on retry  
+- SSL support
+- Cloud support
 - Proxy support
 
 ### Examples
 
-See [java client examples](../../tree/main/examples/client-v2)
+[Begin-with Usage Examples](../../tree/main/examples/client-v2)
+
+[Spring Demo Service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-service) 
+
+Minimal client setup: 
+```java
+String endpoint = "https://<db-instance hostname>:8443/"
+Client client = new Client.Builder()
+        .addEndpoint(endpoint)
+        .setUsername(user)
+        .setPassword(password)
+        .setDefaultDatabase(database)
+        .build();
+```                
+
+Insert POJOs example:
+```java 
+
+client.register(
+  ArticleViewEvent.class, // your DTO class  
+  client.getTableSchema(TABLE_NAME)); // corresponding table
+
+List<ArticleViewEvents> events = // load data 
+
+try (InsertResponse response = client.insert(TABLE_NAME, events).get(1, TimeUnit.SECONDS)) {
+  // process results 
+}
+
+```
+
+Query results reader example:
+
+```java
+// Default format is RowBinaryWithNamesAndTypesFormatReader so reader have all information about columns
+try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS);) {
+
+    // Create a reader to access the data in a convenient way
+    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(),
+            response.getSettings());
+
+    while (reader.hasNext()) {
+        reader.next(); // Read the next record from stream and parse it
+
+        double id = reader.getDouble("id");
+        String title = reader.getString("title");
+        String url = reader.getString("url");
+
+        // result processing 
+    }
+}
+
+```
+
+
+Query result as list of object example:
+
+```java 
+
+// Data is read completely and returned as list of objects.
+client.queryAll(sql).forEach(row -> {
+              double id = row.getDouble("id");
+              String title = row.getString("title");
+              String url = row.getString("url");
+
+              // result processing
+            });
+
+```
+
+Connecting to the ClickHouse Cloud instance or DB server having not a self-signed certificate: 
+```java 
+Client client = new Client.Builder()
+  .addEndpoint("https://" + dbHost + ":8443")
+  .setUsername("default")
+  .setPassword("")
+  .build(),
+
+```
+
+Connecting to a database instance with self-signed certificate:
+```java 
+Client client = new Client.Builder()
+  .addEndpoint("https://" + dbHost + ":8443")
+  .setUsername("default")
+  .setPassword("")
+  .setRootCertificate("localhost.crt") // path to the CA certificate
+  //.setClientKey("user.key") // user private key 
+  //.setClientCertificate("user.crt") // user public certificate
+  .build(),
+
+```
+
 
 ## Client V1
 
@@ -79,7 +187,7 @@ See [java client examples](../../tree/main/examples/client-v2)
 
 | Component | Maven Central Link |
 |-----------|--------------------|
-| ClickHouse Java Client | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-client)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-client) |
+| ClickHouse Java HTTP Client | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-client)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-http-client) |
 | ClickHouse JDBC Driver | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-jdbc)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) |
 
 ### Compatibility
@@ -88,16 +196,19 @@ See [java client examples](../../tree/main/examples/client-v2)
 |--------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | Server < 20.7      | 0.3.1-patch    | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                         |
 | Server >= 20.7     | 0.3.2          | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. |
-| Server >= 23.0     | 0.6.0          | use 0.6.0 or above.                                                                                                                          |
+| Server >= 23.0     | >0.6.0          | use 0.6.0 or above.                                                                                                                          |
 
 ### Features
 
 - Http API for ClickHouse support
 - Bi-directional Compression
   - LZ4
+- Apache HTTP Client as HTTP client
+  - Connection pooling
+  - Failures on retry  
+- SSL support
+- Cloud support
 - Proxy support
-- SSL & mTLS support
-
 
 ### Examples
 
