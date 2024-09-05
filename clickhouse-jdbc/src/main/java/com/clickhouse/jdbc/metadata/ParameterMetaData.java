@@ -3,14 +3,13 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.jdbc.JdbcWrapper;
 
-import java.sql.ParameterMetaData;
 import java.sql.SQLException;
 import java.util.List;
 
-public class ClickHouseParameterMetaData implements ParameterMetaData, JdbcWrapper {
+public class ParameterMetaData implements java.sql.ParameterMetaData, JdbcWrapper {
     private final List<ClickHouseColumn> params;
 
-    protected ClickHouseParameterMetaData(List<ClickHouseColumn> params) {
+    protected ParameterMetaData(List<ClickHouseColumn> params) {
         if (params == null) {
             throw new IllegalArgumentException("Parameters array cannot be null.");
         }

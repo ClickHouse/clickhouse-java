@@ -8,6 +8,12 @@ import java.sql.*;
 import java.util.Calendar;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcWrapper {
+    String sql;
+    public PreparedStatementImpl(Connection connection, String sql) {
+        super(connection);
+        this.sql = sql;
+    }
+
     @Override
     public ResultSet executeQuery() throws SQLException {
         return null;

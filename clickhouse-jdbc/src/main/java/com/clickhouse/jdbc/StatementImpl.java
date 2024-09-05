@@ -7,6 +7,11 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 
 public class StatementImpl implements Statement, JdbcWrapper {
+    Connection connection;
+    public StatementImpl(Connection connection) {
+        this.connection = connection;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         return null;
