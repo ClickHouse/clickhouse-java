@@ -1984,6 +1984,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testInsertRawDataSimple() throws Exception {
+        if (isCloud()) return; // TODO: This test is really just for performance purposes
         testInsertRawDataSimple(1000);
     }
     public void testInsertRawDataSimple(int numberOfRecords) throws Exception {
