@@ -55,7 +55,6 @@ import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.array.ClickHouseByteArrayValue;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
-import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
 
 import org.testng.Assert;
@@ -142,22 +141,22 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     private Object[][] getStatementAndParameters() {
         return new Object[][] {
                 // ddl
-                new Object[] { "ddl", "drop table if exists non_existing_table", SqlBasedPreparedStatement.class, false,
+                new Object[] { "ddl", "drop table if exists non_existing_table", DataSourceImpl.PreparedStatementImpl.class, false,
                         null, false },
                 // query
-                new Object[] { "select1", "select 1", SqlBasedPreparedStatement.class, true, null, false },
-                new Object[] { "select_param", "select ?", SqlBasedPreparedStatement.class, true, new String[] { "1" },
+                new Object[] { "select1", "select 1", DataSourceImpl.PreparedStatementImpl.class, true, null, false },
+                new Object[] { "select_param", "select ?", DataSourceImpl.PreparedStatementImpl.class, true, new String[] { "1" },
                         false },
                 // mutation
                 new Object[] { "insert_static", "insert into $table values(1)",
-                        SqlBasedPreparedStatement.class, false, null,
+                        DataSourceImpl.PreparedStatementImpl.class, false, null,
                         false },
                 new Object[] { "insert_table", "insert into $table", InputBasedPreparedStatement.class, false,
                         new String[] { "2" }, true },
                 new Object[] { "insert_param", "insert into $table values(?)", InputBasedPreparedStatement.class,
                         false, new String[] { "3" }, true },
                 new Object[] { "insert_param", "insert into $table values(trim(?))",
-                        SqlBasedPreparedStatement.class, false, new String[] { "4" }, true },
+                        DataSourceImpl.PreparedStatementImpl.class, false, new String[] { "4" }, true },
                 new Object[] { "insert_input", "insert into $table select s from input('s String')",
                         InputBasedPreparedStatement.class, false, new String[] { "5" }, true },
         };

@@ -9,44 +9,45 @@ import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
+import com.clickhouse.jdbc.JdbcUrlParser;
+import com.clickhouse.jdbc.JdbcUrlParser.ConnectionInfo;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ClickHouseJdbcUrlParserTest {
+public class JdbcUrlParserTest {
     @Test(groups = "unit")
     public void testParseInvalidUri() {
-        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse(null, null));
-        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("", null));
-        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("some_invalid_uri", null));
-        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse:.", null));
+        Assert.assertThrows(SQLException.class, () -> JdbcUrlParser.parse(null, null));
+        Assert.assertThrows(SQLException.class, () -> JdbcUrlParser.parse("", null));
+        Assert.assertThrows(SQLException.class, () -> JdbcUrlParser.parse("some_invalid_uri", null));
+        Assert.assertThrows(SQLException.class, () -> JdbcUrlParser.parse("jdbc:clickhouse:.", null));
         Assert.assertThrows(SQLException.class,
-                () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://", null));
+                () -> JdbcUrlParser.parse("jdbc:clickhouse://", null));
         Assert.assertThrows(SQLException.class,
-                () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse:///db", null));
+                () -> JdbcUrlParser.parse("jdbc:clickhouse:///db", null));
         Assert.assertThrows(SQLException.class,
-                () -> ClickHouseJdbcUrlParser.parse("clickhouse://a:b:c@aaa", null));
+                () -> JdbcUrlParser.parse("clickhouse://a:b:c@aaa", null));
         Assert.assertThrows(SQLException.class,
-                () -> ClickHouseJdbcUrlParser.parse("clickhouse://::1:1234/a", null));
+                () -> JdbcUrlParser.parse("clickhouse://::1:1234/a", null));
     }
 
     @Test(groups = "unit")
     public void testParseIpv6() throws SQLException, URISyntaxException {
-        ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://[::1]:1234", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        ConnectionInfo info = JdbcUrlParser.parse("jdbc:clickhouse://[::1]:1234", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://[::1]:1234"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("[::1]").port(ClickHouseProtocol.HTTP, 1234).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://[::1]/", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:clickhouse://[::1]/", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://[::1]:8123"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("[::1]").port(ClickHouseProtocol.HTTP).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://[::1]/dbdb", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:clickhouse://[::1]/dbdb", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://[::1]:8123/dbdb"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("[::1]").port(ClickHouseProtocol.HTTP).database("dbdb")
@@ -55,20 +56,20 @@ public class ClickHouseJdbcUrlParserTest {
 
     @Test(groups = "unit")
     public void testParseAbbrevation() throws SQLException, URISyntaxException {
-        ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:ch://localhost", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        ConnectionInfo info = JdbcUrlParser.parse("jdbc:ch://localhost", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://localhost:8123"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.HTTP).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:ch:grpc://localhost", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:ch:grpc://localhost", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:grpc://localhost:9100"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.GRPC).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:ch:https://:letmein@[::1]:3218/db1?user=aaa", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:ch:https://:letmein@[::1]:3218/db1?user=aaa", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://[::1]:3218/db1?ssl=true&sslmode=STRICT"));
         Assert.assertEquals(info.getServer(), ClickHouseNode.builder().host("[::1]")
                 .port(ClickHouseProtocol.HTTP, 3218)
@@ -81,14 +82,14 @@ public class ClickHouseJdbcUrlParserTest {
 
     @Test(groups = "unit")
     public void testParse() throws SQLException, URISyntaxException {
-        ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:ch://localhost", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        ConnectionInfo info = JdbcUrlParser.parse("jdbc:ch://localhost", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://localhost:8123"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.HTTP).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:ch:grpc://localhost/default", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:ch:grpc://localhost/default", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:grpc://localhost:9100/default"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.GRPC)
@@ -96,8 +97,8 @@ public class ClickHouseJdbcUrlParserTest {
                                 .getEffectiveDefaultValue())
                         .build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:ch:https://:letmein@127.0.0.1:3218/db1", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:ch:https://:letmein@127.0.0.1:3218/db1", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://127.0.0.1:3218/db1?ssl=true&sslmode=STRICT"));
         Assert.assertEquals(info.getServer(), ClickHouseNode.builder().host("127.0.0.1")
                 .port(ClickHouseProtocol.HTTP, 3218).database("db1")
@@ -110,14 +111,14 @@ public class ClickHouseJdbcUrlParserTest {
 
     @Test(groups = "unit")
     public void testParseWithProperties() throws SQLException, URISyntaxException {
-        ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://localhost/", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        ConnectionInfo info = JdbcUrlParser.parse("jdbc:clickhouse://localhost/", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://localhost:8123"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.HTTP).build());
 
-        info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://localhost:4321/ndb", null);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:clickhouse://localhost:4321/ndb", null);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://localhost:4321/ndb"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.HTTP, 4321)
@@ -125,8 +126,8 @@ public class ClickHouseJdbcUrlParserTest {
 
         Properties props = new Properties();
         props.setProperty("database", "db1");
-        info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://me@localhost:1234/mydb?password=123", props);
-        Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
+        info = JdbcUrlParser.parse("jdbc:clickhouse://me@localhost:1234/mydb?password=123", props);
+        Assert.assertEquals(info.getServer().toUri(JdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
                 new URI("jdbc:clickhouse:http://localhost:1234/db1"));
         Assert.assertEquals(info.getServer(),
                 ClickHouseNode.builder().host("localhost").port(ClickHouseProtocol.HTTP, 1234)
@@ -141,7 +142,7 @@ public class ClickHouseJdbcUrlParserTest {
         Properties props = new Properties();
         props.setProperty("user", "default1");
         props.setProperty("password", "password1");
-        ConnectionInfo connInfo = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://user:a:passwd@foo.ch/test",
+        ConnectionInfo connInfo = JdbcUrlParser.parse("jdbc:clickhouse://user:a:passwd@foo.ch/test",
                 props);
         ClickHouseNode server = connInfo.getServer();
         Assert.assertEquals(connInfo.getDefaultCredentials().getUserName(), "default1");
@@ -149,7 +150,7 @@ public class ClickHouseJdbcUrlParserTest {
         Assert.assertEquals(server.getCredentials().get().getUserName(), "user");
         Assert.assertEquals(server.getCredentials().get().getPassword(), "a:passwd");
 
-        server = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://let%40me%3Ain:let%40me%3Ain@foo.ch", null)
+        server = JdbcUrlParser.parse("jdbc:clickhouse://let%40me%3Ain:let%40me%3Ain@foo.ch", null)
                 .getServer();
         Assert.assertEquals(server.getCredentials().get().getUserName(), "let@me:in");
         Assert.assertEquals(server.getCredentials().get().getPassword(), "let@me:in");

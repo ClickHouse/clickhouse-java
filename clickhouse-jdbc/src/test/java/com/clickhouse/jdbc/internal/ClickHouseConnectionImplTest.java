@@ -6,6 +6,7 @@ import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.jdbc.ClickHouseConnection;
+import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.ClickHouseStatement;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
@@ -17,7 +18,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testManualCommit() throws SQLException {
         if (isCloud()) return; //TODO: testManualCommit - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
-        try (ClickHouseConnectionImpl conn = (ClickHouseConnectionImpl) newConnection()) {
+        try (Driver.ClickHouseConnectionImpl conn = (Driver.ClickHouseConnectionImpl) newConnection()) {
             Assert.assertEquals(conn.getAutoCommit(), true);
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
             conn.setAutoCommit(false);
@@ -110,7 +111,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testManualRollback() throws SQLException {
         if (isCloud()) return; //TODO: testManualRollback - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
-        try (ClickHouseConnectionImpl conn = (ClickHouseConnectionImpl) newConnection()) {
+        try (Driver.ClickHouseConnectionImpl conn = (Driver.ClickHouseConnectionImpl) newConnection()) {
             Assert.assertEquals(conn.getAutoCommit(), true);
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
             conn.setAutoCommit(false);

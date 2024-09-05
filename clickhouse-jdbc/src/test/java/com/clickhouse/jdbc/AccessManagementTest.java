@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseVersion;
@@ -26,7 +25,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        DataSourceImpl dataSource = new DataSourceImpl(url, properties);
         String serverVersion = getServerVersion(dataSource.getConnection());
         if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
             System.out.println("Test is skipped: feature is supported since 24.4");
@@ -109,7 +108,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        DataSourceImpl dataSource = new DataSourceImpl(url, properties);
         String serverVersion = getServerVersion(dataSource.getConnection());
         if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
             System.out.println("Test is skipped: feature is supported since 24.4");

@@ -4,13 +4,11 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.UUID;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.http.ClickHouseHttpConnectionFactory;
 import com.clickhouse.data.ClickHouseColumn;
 
 import com.clickhouse.logging.Logger;
@@ -19,9 +17,9 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
+public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaDataTest.class);
+    private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataTest.class);
     @DataProvider(name = "selectedColumns")
     private Object[][] getSelectedColumns() {
         return new Object[][] {

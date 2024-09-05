@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import com.clickhouse.client.ClickHouseServerForTest;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -16,7 +15,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
-public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
+public class DataSourceImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testHighAvailabilityConfig() throws SQLException {
         if (isCloud()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
@@ -47,7 +46,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty("user", "default");
         props.setProperty("password", "");
-        ClickHouseDataSource ds = new ClickHouseDataSource(url, props);
+        DataSourceImpl ds = new DataSourceImpl(url, props);
         for (int i = 0; i < 10; i++) {
             try (Connection httpConn = ds.getConnection();
                     Connection grpcConn = ds.getConnection("default", "");
@@ -81,17 +80,17 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         String params = String.format("?%s=%s&%s=%d&%s", ClickHouseClientOption.CLIENT_NAME.getKey(), clientName,
                 ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), maxExecuteTime, JdbcConfig.PROP_CONTINUE_BATCH);
 
-        for (ClickHouseDataSource ds : new ClickHouseDataSource[] {
-                new ClickHouseDataSource(url, properties),
-                new ClickHouseDataSource(urlWithCredentials, properties),
-                new ClickHouseDataSource(url + params),
-                new ClickHouseDataSource(urlWithCredentials + params),
+        for (DataSourceImpl ds : new DataSourceImpl[] {
+                new DataSourceImpl(url, properties),
+                new DataSourceImpl(urlWithCredentials, properties),
+                new DataSourceImpl(url + params),
+                new DataSourceImpl(urlWithCredentials + params),
         }) {
             for (ClickHouseConnection connection : new ClickHouseConnection[] {
                     ds.getConnection("default", getPassword()),
-                    new ClickHouseDriver().connect(url, properties),
-                    new ClickHouseDriver().connect(urlWithCredentials, properties),
-                    new ClickHouseDriver().connect(urlWithCredentials + params, new Properties()),
+                    new Driver().connect(url, properties),
+                    new Driver().connect(urlWithCredentials, properties),
+                    new Driver().connect(urlWithCredentials + params, new Properties()),
                     (ClickHouseConnection) DriverManager.getConnection(url, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials + params),

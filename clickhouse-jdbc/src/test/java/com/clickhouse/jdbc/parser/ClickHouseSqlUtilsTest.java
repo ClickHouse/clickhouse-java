@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.parser;
 
+import com.clickhouse.jdbc.ClickHouseSqlUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
