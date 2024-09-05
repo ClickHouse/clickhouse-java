@@ -8,12 +8,12 @@ import java.util.concurrent.Executor;
 public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
-        return null;
+        return new StatementImpl(this);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        return null;
+        return new PreparedStatementImpl(this, sql);
     }
 
     @Override

@@ -13,7 +13,7 @@ import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseUtils;
 
-public class ClickHouseJdbcUrlParser {
+public class JdbcUrlParser {
     public static class ConnectionInfo {
         private final String cacheKey;
         private final ClickHouseCredentials credentials;
@@ -125,6 +125,6 @@ public class ClickHouseJdbcUrlParser {
         }
     }
 
-    private ClickHouseJdbcUrlParser() {
+    private JdbcUrlParser() {
     }
 }

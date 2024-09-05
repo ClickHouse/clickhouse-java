@@ -1,4 +1,4 @@
-package com.clickhouse.jdbc.parser;
+package com.clickhouse.jdbc;
 
 public final class ClickHouseSqlUtils {
     public static boolean isQuote(char ch) {

@@ -88,9 +88,9 @@ public class DataSourceImplTest extends JdbcIntegrationTest {
         }) {
             for (ClickHouseConnection connection : new ClickHouseConnection[] {
                     ds.getConnection("default", getPassword()),
-                    new DriverImpl().connect(url, properties),
-                    new DriverImpl().connect(urlWithCredentials, properties),
-                    new DriverImpl().connect(urlWithCredentials + params, new Properties()),
+                    new Driver().connect(url, properties),
+                    new Driver().connect(urlWithCredentials, properties),
+                    new Driver().connect(urlWithCredentials + params, new Properties()),
                     (ClickHouseConnection) DriverManager.getConnection(url, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials + params),

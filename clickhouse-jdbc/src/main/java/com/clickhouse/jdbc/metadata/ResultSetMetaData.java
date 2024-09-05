@@ -1,11 +1,10 @@
 package com.clickhouse.jdbc.metadata;
 
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
 import com.clickhouse.jdbc.JdbcWrapper;
 
-public class ClickHouseResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
+public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcWrapper {
 
     @Override
     public int getColumnCount() throws SQLException {

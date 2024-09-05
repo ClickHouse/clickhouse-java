@@ -9,8 +9,8 @@ import com.clickhouse.logging.LoggerFactory;
 /**
  * JDBC driver for ClickHouse.
  */
-public class DriverImpl implements Driver {
-    private static final Logger log = LoggerFactory.getLogger(DriverImpl.class);
+public class Driver implements java.sql.Driver {
+    private static final Logger log = LoggerFactory.getLogger(Driver.class);
 
 
     @Override

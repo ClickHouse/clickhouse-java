@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.metadata;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -11,8 +10,8 @@ import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
-public class ClickHouseDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaData.class);
+public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcWrapper {
+    private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
 
     @Override
     public boolean allProceduresAreCallable() throws SQLException {
@@ -886,16 +885,16 @@ public class ClickHouseDatabaseMetaData implements DatabaseMetaData, JdbcWrapper
 
     @Override
     public long getMaxLogicalLobSize() throws SQLException {
-        return DatabaseMetaData.super.getMaxLogicalLobSize();
+        return java.sql.DatabaseMetaData.super.getMaxLogicalLobSize();
     }
 
     @Override
     public boolean supportsRefCursors() throws SQLException {
-        return DatabaseMetaData.super.supportsRefCursors();
+        return java.sql.DatabaseMetaData.super.supportsRefCursors();
     }
 
     @Override
     public boolean supportsSharding() throws SQLException {
-        return DatabaseMetaData.super.supportsSharding();
+        return java.sql.DatabaseMetaData.super.supportsSharding();
     }
 }
