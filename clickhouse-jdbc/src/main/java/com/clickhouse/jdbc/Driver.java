@@ -12,6 +12,14 @@ import com.clickhouse.logging.LoggerFactory;
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
 
+    static {
+        try {
+            DriverManager.registerDriver(new Driver());
+        } catch (SQLException e) {
+            log.error("Failed to register ClickHouse JDBC driver", e);
+        }
+    }
+
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
