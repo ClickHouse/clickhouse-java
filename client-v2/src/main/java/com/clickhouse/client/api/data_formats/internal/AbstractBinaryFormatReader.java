@@ -4,7 +4,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
-import com.clickhouse.client.api.query.POJODeserializer;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
@@ -73,16 +73,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
 
-    public boolean readToPOJO(Map<String, POJODeserializer> deserializers, Object obj ) throws IOException {
+    public boolean readToPOJO(Map<String, POJOSetter> deserializers, Object obj ) throws IOException {
         boolean firstColumn = true;
 
         for (ClickHouseColumn column : columns) {
             try {
                 Object val = binaryStreamReader.readValue(column);
                 if (val != null) {
-                    POJODeserializer deserializer = deserializers.get(column.getColumnName());
+                    POJOSetter deserializer = deserializers.get(column.getColumnName());
                     if (deserializer != null) {
-                        deserializer.deserialize(obj, val);
+                        deserializer.setValue(obj, val);
                     }
                 }
                 firstColumn = false;
@@ -92,7 +92,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     return false;
                 }
                 throw e;
-            } catch (IllegalAccessException | InvocationTargetException e) {
+            } catch (Exception e) {
                 throw new ClientException("Failed to put value into POJO", e);
             }
         }

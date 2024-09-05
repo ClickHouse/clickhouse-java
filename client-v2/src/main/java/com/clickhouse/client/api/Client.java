@@ -32,7 +32,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.POJODeserializer;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
@@ -126,7 +126,7 @@ public class Client implements AutoCloseable {
     private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
     private final Map<Class<?>, Map<String, Method>> getterMethods;
 
-    private final Map<Class<?>, Map<String, POJODeserializer>> deserializers;
+    private final Map<Class<?>, Map<String, POJOSetter>> deserializers;
     private final Map<Class<?>, Map<String, Method>> setterMethods;
 
     private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
@@ -938,7 +938,7 @@ public class Client implements AutoCloseable {
         this.hasDefaults.put(clazz, schema.hasDefaults());
 
         List<POJOSerializer> classSerializers = new ArrayList<>();
-        Map<String, POJODeserializer> classDeserializers = new ConcurrentHashMap<>();
+        Map<String, POJOSetter> classDeserializers = new ConcurrentHashMap<>();
         for (ClickHouseColumn column : schema.getColumns()) {
             String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
 
@@ -977,34 +977,7 @@ public class Client implements AutoCloseable {
             Method setterMethod = classSetters.get(propertyName);
             String columnName = column.getColumnName();
             if (setterMethod != null) {
-                Class<?> argType = setterMethod.getParameterTypes()[0];
-                if (argType.isPrimitive()) {
-                    if (argType.getName().equalsIgnoreCase("boolean")) {
-                        classDeserializers.put(columnName, SerializerUtils.booleanDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("byte")) {
-                        classDeserializers.put(columnName, SerializerUtils.byteDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("short")) {
-                        classDeserializers.put(columnName, SerializerUtils.shortDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("int")) {
-                        classDeserializers.put(columnName, SerializerUtils.intDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("long")) {
-                        classDeserializers.put(columnName, SerializerUtils.longDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("float")) {
-                        classDeserializers.put(columnName, SerializerUtils.floatDeserializer(setterMethod));
-                    } else if (argType.getName().equalsIgnoreCase("double")) {
-                        classDeserializers.put(columnName, SerializerUtils.doubleDeserializer(setterMethod));
-                    } else {
-                        throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
-                    }
-                } else if (argType.isAssignableFrom(LocalDateTime.class)) {
-                    classDeserializers.put(columnName, SerializerUtils.localDateTimeDeserializer(setterMethod));
-                } else if (argType.isAssignableFrom(LocalDate.class)) {
-                    classDeserializers.put(columnName, SerializerUtils.localDateDeserializer(setterMethod));
-                } else if (argType.isAssignableFrom(List.class)) {
-                    classDeserializers.put(columnName, SerializerUtils.listDeserializer(setterMethod));
-                } else {
-                    classDeserializers.put(columnName, SerializerUtils.defaultPOJODeserializer(setterMethod));
-                }
+                classDeserializers.put(columnName, SerializerUtils.compilePOJOSetter(setterMethod));
             } else {
                 LOG.warn("No setter method found for column: {}", propertyName);
             }
@@ -1554,7 +1527,7 @@ public class Client implements AutoCloseable {
      * @param <T>
      */
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, Supplier<T> allocator) {
-        Map<String, POJODeserializer> classDeserializers = deserializers.get(clazz);
+        Map<String, POJOSetter> classDeserializers = deserializers.get(clazz);
 
         if (classDeserializers == null || classDeserializers.isEmpty()) {
             throw new IllegalArgumentException("No deserializers found for class '" + clazz + "'. Did you forget to register it?");

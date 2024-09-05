@@ -1,10 +1,15 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.query.POJODeserializer;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +23,6 @@ import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +32,18 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static org.objectweb.asm.Opcodes.CHECKCAST;
+import static org.objectweb.asm.Opcodes.DLOAD;
+import static org.objectweb.asm.Opcodes.FLOAD;
+import static org.objectweb.asm.Opcodes.INVOKESTATIC;
+import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
+import static org.objectweb.asm.Opcodes.ALOAD;
+import static org.objectweb.asm.Opcodes.ILOAD;
+import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
+import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
+import static org.objectweb.asm.Opcodes.LLOAD;
+import static org.objectweb.asm.Opcodes.RETURN;
 
 public class SerializerUtils {
     private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
@@ -337,74 +353,178 @@ public class SerializerUtils {
         }
     }
 
-    public static POJODeserializer byteDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getByteValue(value));
-        };
-    }
+    public static POJOSetter<?> compilePOJOSetter(Method setterMethod) {
+        Class<?> dtoClass = setterMethod.getDeclaringClass();
+        Class<?> argType = setterMethod.getParameterTypes()[0];
 
-    public static POJODeserializer shortDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getShortValue(value));
-        };
-    }
-
-    public static POJODeserializer intDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getIntValue(value));
-        };
-    }
-
-    public static POJODeserializer longDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getLongValue(value));
-        };
-    }
-
-    public static POJODeserializer floatDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getFloatValue(value));
-        };
-    }
-
-    public static POJODeserializer doubleDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getDoubleValue(value));
-        };
-    }
-
-    public static POJODeserializer booleanDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getBooleanValue(value));
-        };
-    }
-
-    public static POJODeserializer localDateTimeDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getLocalDateTimeValue(value));
-        };
-    }
-
-    public static POJODeserializer localDateDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getLocalDateValue(value));
-        };
-    }
-
-    public static POJODeserializer listDeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            setterMethod.invoke(obj, getListValue(value));
-        };
-    }
-
-    public static POJODeserializer defaultPOJODeserializer(Method setterMethod) {
-        return (obj, value) -> {
-            try {
-                setterMethod.invoke(obj, value);
-            } catch (IllegalArgumentException e) {
-                LOG.error("Failed to set value " + value + "('" + value.getClass() + "') by calling " + setterMethod.getName(), e);
-                throw e;
+        String deserializeMethod = null; // use default setter
+        int typeLoadOperand = ALOAD; // any non-primitive
+        if (argType.isPrimitive()) {
+            typeLoadOperand = ILOAD; // // a boolean, byte, char, short, or int
+            if (argType.getName().equalsIgnoreCase("boolean")) {
+                deserializeMethod = "getBooleanValue";
+            } else if (argType.getName().equalsIgnoreCase("byte")) {
+                deserializeMethod = "getByteValue";
+            } else if (argType.getName().equalsIgnoreCase("short")) {
+                deserializeMethod = "getShortValue";
+            } else if (argType.getName().equalsIgnoreCase("int")) {
+                deserializeMethod = "getIntValue";
+            } else if (argType.getName().equalsIgnoreCase("long")) {
+                deserializeMethod = "getLongValue";
+                typeLoadOperand = LLOAD;
+            } else if (argType.getName().equalsIgnoreCase("float")) {
+                deserializeMethod = "getFloatValue";
+                typeLoadOperand = FLOAD;
+            } else if (argType.getName().equalsIgnoreCase("double")) {
+                deserializeMethod = "getDoubleValue";
+                typeLoadOperand = DLOAD;
+            } else {
+                throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
             }
-        };
+        } else if (argType.isAssignableFrom(LocalDateTime.class)) {
+            deserializeMethod = "getLocalDateTimeValue";
+        } else if (argType.isAssignableFrom(LocalDate.class)) {
+            deserializeMethod = "getLocalDateValue";
+        } else if (argType.isAssignableFrom(List.class)) {
+            deserializeMethod = "getListValue";
+        }
+
+        final String pojoSetterClassName = (dtoClass.getName() + setterMethod.getName()).replace('.', '/');
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V1_8, ACC_PUBLIC, pojoSetterClassName
+                , null, "java/lang/Object",
+                new String[]{POJOSetter.class.getName().replace('.', '/')});
+
+
+        // constructor method
+        {
+            MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKESPECIAL,
+                    "java/lang/Object",
+                    "<init>",
+                    "()V");
+            mv.visitInsn(RETURN);
+            mv.visitMaxs(0, 0);
+            mv.visitEnd();
+        }
+
+        if (deserializeMethod != null && argType.isPrimitive() ) {
+
+            // primitive setter, ex setInt(int i)
+            {
+                MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue", pojoSetterMethodDescriptor(dtoClass,
+                        argType), null, null);
+
+                mv.visitCode();
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitVarInsn(typeLoadOperand, 2);
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        dtoClass.getName().replace('.', '/'),
+                        setterMethod.getName(),
+                        Type.getMethodDescriptor(setterMethod),
+                        false);
+                mv.visitInsn(RETURN);
+                mv.visitMaxs(2, 2);
+                mv.visitEnd();
+            }
+
+            // primitive setter setValue(Object obj, int value) impl (needed because generic types are not in runtime)
+            {
+                MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue",
+                        pojoSetterMethodDescriptor(Object.class, argType), null, null);
+
+                mv.visitCode();
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(dtoClass));
+                mv.visitVarInsn(typeLoadOperand, 2);
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        pojoSetterClassName,
+                        "setValue",
+                        pojoSetterMethodDescriptor(dtoClass,
+                                argType),
+                        false);
+                mv.visitInsn(RETURN);
+                mv.visitMaxs(3, 3);
+                mv.visitEnd();
+            }
+        }
+
+        // main setter setValue(T obj, Object value) impl
+        {
+            MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue", pojoSetterMethodDescriptor(dtoClass,
+                    Object.class), null, null);
+
+            mv.visitCode();
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 2);
+            if (deserializeMethod != null) {
+                mv.visitMethodInsn(INVOKESTATIC,
+                        "com/clickhouse/client/api/internal/SerializerUtils",
+                        deserializeMethod,
+                        "(Ljava/lang/Object;)" + Type.getDescriptor(argType),
+                        false);
+            } else {
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(argType));
+            }
+            mv.visitMethodInsn(INVOKEVIRTUAL,
+                    dtoClass.getName().replace('.', '/'),
+                    setterMethod.getName(),
+                    Type.getMethodDescriptor(setterMethod),
+                    false);
+            mv.visitInsn(RETURN);
+            mv.visitMaxs(2, 2);
+            mv.visitEnd();
+        }
+
+        // main setter setValue(Object obj, Object value) impl (needed because generic types are not in runtime)
+        {
+            MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue",
+                    pojoSetterMethodDescriptor(Object.class, Object.class), null, null);
+
+            mv.visitCode();
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitTypeInsn(CHECKCAST, Type.getInternalName(dtoClass));
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitMethodInsn(INVOKEVIRTUAL,
+                    pojoSetterClassName,
+                    "setValue",
+                    pojoSetterMethodDescriptor(dtoClass,
+                            Object.class),
+                    false);
+            mv.visitInsn(RETURN);
+            mv.visitMaxs(3, 3);
+            mv.visitEnd();
+        }
+
+        try {
+            SerializerUtils.DynamicClassLoader loader = new SerializerUtils.DynamicClassLoader(dtoClass.getClassLoader());
+            Class<?> clazz = loader.defineClass(pojoSetterClassName.replace('/', '.'), writer.toByteArray());
+            return (POJOSetter<?>) clazz.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
+        }
+    }
+
+    private static String pojoSetterMethodDescriptor(Class<?> dtoClass, Class<?> argType) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        sb.append(Type.getDescriptor(dtoClass));
+        sb.append(Type.getDescriptor(argType));
+        sb.append(')');
+        sb.append('V');
+        return sb.toString();
+    }
+
+    public static class DynamicClassLoader extends ClassLoader {
+
+        public DynamicClassLoader(ClassLoader classLoader) {
+            super(classLoader);
+        }
+        public Class<?> defineClass(String name, byte[] code) throws ClassNotFoundException {
+            return super.defineClass(name, code, 0, code.length);
+        }
     }
 }
