@@ -1,26 +1,26 @@
 name: Analysis
 
 on:
-#  push:
-#    branches:
-#      - main
-#    paths-ignore:
-#      - "**.md"
-#      - "**/docs/**"
-#      - "**/LICENSE"
-#      - "**/NOTICE"
-#  pull_request:
-#    branches:
-#      - main
-#    types:
-#      - opened
-#      - synchronize
-#      - reopened
-#    paths-ignore:
-#      - "**.md"
-#      - "**/docs/**"
-#      - "**/LICENSE"
-#      - "**/NOTICE"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
   workflow_dispatch:
     inputs:
       pr:
