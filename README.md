@@ -1,82 +1,237 @@
-# ClickHouse Java Libraries
+<div align="center">
+<p>
+    <a href="https://github.com/ClickHouse/clickhouse-java/releases/latest"><img src="https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?include_prereleases&label=Latest%20Release"/></a>
+    <a href="https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/"><img src="https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org"/></a>
+    <a href="https://github.com/ClickHouse/clickhouse-java/milestone/4"><img src="https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-java/16"/></a>
+    <a href="https://github.com/ClickHouse/clickhouse-java/releases/"><img src="https://img.shields.io/github/downloads/ClickHouse/clickhouse-java/latest/total"/></a>
+</p>
+<p><img src="https://github.com/ClickHouse/clickhouse-js/blob/a332672bfb70d54dfd27ae1f8f5169a6ffeea780/.static/logo.svg" width="200px" align="center"></p>
+<h1>ClickHouse Java Client & JDBC Driver</h1>
+</div>
 
-[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?style=plastic&include_prereleases&label=Latest%20Release)](https://github.com/ClickHouse/clickhouse-java/releases/) [![GitHub release (by tag)](https://img.shields.io/github/downloads/ClickHouse/clickhouse-java/latest/total?style=plastic)](https://github.com/ClickHouse/clickhouse-java/releases/) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ClickHouse_clickhouse-jdbc) [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?style=plastic&label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org)](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/) [![GitHub milestone](https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-java/4?style=social)](https://github.com/ClickHouse/clickhouse-java/milestone/4)
+Table of Contents
+* [About The project](#about-the-project)
+* [Important Updates](#important-updates)
+* [Installation](#installation)
+* [Client V2](#client-v2)
+  * [Artifacts](#artifacts)
+  * [Features](#features)
+  * [Examples](#examples)
+* [Client V1](#client-v1)
+  * [Artifacts](#artifacts-1)
+  * [Features](#features-1)
+  * [Examples](#examples-1)
+* [Documentation](#documentation)
+* [Contributing](#contributing)
 
-Java libraries for connecting to ClickHouse and processing data in various formats. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC and R2DBC drivers are built on top of the Java client with more dependencies and features. Java 8 or higher is required to use the libraries. In addition, please use ClickHouse 20.7+ or any of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
+## About the Project
 
-![image](https://user-images.githubusercontent.com/4270380/212460181-2b806482-bc1c-492c-bd69-cdeb2c8845b5.png)
+This is official Java Client and JDBC for ClickHouse Database (https://github.com/ClickHouse/Clickhouse). Java Client is the core component and provides API to interact with the database. In 2023 this component and its API was refactored into a new component `client-v2`. Both version are available but older one will be deprecated soon. However it will receive security and critical bug fixes. New `client-v2` has stable API and we are working on performance and feature parity to make it a production ready.   
+JDBC driver component is an implementation of JDBC API. It uses Java Client API to interact with the database server. 
 
-## Features
+**Benefits of using Client-V2:**
+- Stable API. 
+- Minimal functionality is implemented
+    - SSL & mTLS support 
+    - RowBinary* formats support for reading 
+    - Proxy support
+    - HTTP protocol
+- New Insert API that accepts a list of POJOs
+- New Query API that returns a list of GenericRecords that cant be used as DTOs
+- Native format reader 
+- Performance improvements
+    - Less number of internal buffers compare to the old client
+    - More configuration for performance tuning
+    - Less object allocation 
+- Upcoming new features
 
-| Category          | Feature                                                                             | Supported          | Remark                                                                                                                                                                                                                   |
-| ----------------- | ----------------------------------------------------------------------------------- | ------------------ |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/)                | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | [R2DBC](https://r2dbc.io/)                                                          | :white_check_mark: | supported since 0.4.0                                                                                                                                                                                                    |
-| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)                             | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and it can be changed to `java.net.http.HttpClient`(unstable) or `Apache HTTP Client 5`. Note that the latter was added in 0.4.0 to support custom socket options. |
-|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)                             | :white_check_mark: | :warning: experimental, works with 22.3+, known to has issue with lz4 compression and may cause high memory usage on server. Planed to be removed from version 0.7.0                                                     |
-|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)                        | :x: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10.                                                                                                                    |
-|                   | [Local/File](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local/) | :x:                | `clickhouse-cli-client` will be enhanced to support `clickhouse-local`                                                                                                                                                   |
-| Compatibility     | Server < 20.7                                                                       | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                                                                     |
-|                   | Server >= 20.7                                                                      | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                                                                             |
-| Compression       | [lz4](https://lz4.github.io/lz4/)                                                   | :white_check_mark: | default                                                                                                                                                                                                                  |
-|                   | [zstd](https://facebook.github.io/zstd/)                                            | :white_check_mark: | supported since 0.4.0, works with ClickHouse 22.10+                                                                                                                                                                      |
-| Data Format       | RowBinary                                                                           | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                                                                     |
-|                   | TabSeparated                                                                        | :white_check_mark: | :warning: does not support as many data types as RowBinary                                                                                                                                                               |
-| Data Type         | AggregateFunction                                                                   | :white_check_mark: | :warning: does not support `SELECT * FROM table ...`                                                                                                                                                                     |
-|                   | Array(\*)                                                                           | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | Bool                                                                                | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | Date\*                                                                              | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | DateTime\*                                                                          | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | Decimal\*                                                                           | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                                                                                                    |
-|                   | Enum\*                                                                              | :white_check_mark: | can be treated as both string and integer                                                                                                                                                                                |
-|                   | Geo Types                                                                           | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                                                                                                   |
-|                   | Int\*, UInt\*                                                                       | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                                                                                               |
-|                   | IPv\*                                                                               | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | Map(\*)                                                                             | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | Nested(\*)                                                                          | :white_check_mark: | :warning: broken before 0.4.1                                                                                                                                                                                            |
-|                   | Object('JSON')                                                                      | :white_check_mark: | supported since 0.3.2-patch8                                                                                                                                                                                             |
-|                   | SimpleAggregateFunction                                                             | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | \*String                                                                            | :white_check_mark: | :warning: requires `use_binary_string=true` for binary string support since v0.4.0                                                                                                                                       |
-|                   | Tuple(\*)                                                                           | :white_check_mark: |                                                                                                                                                                                                                          |
-|                   | UUID                                                                                | :white_check_mark: |                                                                                                                                                                                                                          |
-| High Availability | Load Balancing                                                                      | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                                                                            |
-|                   | Failover                                                                            | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                                                                            |
-| Transaction       | Transaction                                                                         | :white_check_mark: | supported since 0.3.2-patch11, use ClickHouse 22.7+ for native implicit transaction support                                                                                                                              |
-|                   | Savepoint                                                                           | :x:                |                                                                                                                                                                                                                          |
-|                   | XAConnection                                                                        | :x:                |                                                                                                                                                                                                                          |
-| Misc.             | Centralized Configuration                                                           | :white_check_mark: | supported since 0.4.2, limited to JDBC driver and requires custom server setting `custom_jdbc_config` for all connected JDBC clients - [#1290](../../pull/1290)                                                          |
-|                   | INFILE & OUTFILE                                                                    | :white_check_mark: | supported since 0.4.2, limited to JDBC driver and requires `localFile` option - [#1291](../../pull/1291)                                                                                                                 |
-|                   | Implicit Type Conversion                                                            | :white_check_mark: | String/number to Date/Time/Timestamp and more                                                                                                                                                                            |
-|                   | Object mapping                                                                      | :white_check_mark: | supported since 0.4.6, slow and limited to simple data types                                                                                                                                                             |
+Old client still be used when:
+- using JDBC driver ( we are working on its refactoring ) 
 
-## Planed to be removed
 
-| Feature                        | Version | Remark                                           |
+## Important
+
+### Upcomming deprecations:
+| Component                      | Version | Comment                                          |
 |--------------------------------|---------|--------------------------------------------------|
-| Clickhouse ClI Client package  | 0.7.0   | Use clickhouse-client directly instead           | 
-| ClickHouse GRPC Client package | 0.7.0   | Please use the clickhouse http protocol instead  |
-## Usage
+| Clickhouse CLI Client (Java)   | 0.7.0   | Please use `clickhouse-client` (see https://clickhouse.com/docs/en/interfaces/cli#clickhouse-client)                   |
+| ClickHouse GRPC Client         | 0.7.0   | Please use the ClickHouse http client instead. GRPC protos still available https://github.com/ClickHouse/ClickHouse/tree/master/src/Server/grpc_protos   |
 
-The library can be downloaded from both [Github Releases](../../releases) and [Maven Central](https://repo1.maven.org/maven2/com/clickhouse/). Development snapshots(aka. nightly build) are available on [Sonatype OSSRH](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/).
 
-```xml
-<repositories>
-    <repository>
-        <id>ossrh</id>
-        <name>Sonatype OSSRH</name>
-        <url>https://s01.oss.sonatype.org/content/repositories/snapshots/</url>
-    </repository>
-</repositories>
+## Installation
+
+Releases: Maven Central (web site https://mvnrepository.com/artifact/com.clickhouse)
+
+Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/
+
+## Client V2
+
+### Artifacts
+
+| Component                 | Maven Central Link |
+|---------------------------|--------------------|
+| ClickHouse Java Client V2 | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/client-v2)](https://mvnrepository.com/artifact/com.clickhouse/client-v2) |
+
+### Compatibility
+
+| ClickHouse Version | Client Version | Comment                                                                                                                                          |
+|--------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| Server >= 23.0     | 0.6.2          |                                                                                                                               |
+
+
+### Features
+
+- Http API for ClickHouse support
+- Bi-directional Compression
+  - LZ4
+- Insert from POJO (data is provided as list of java objects)
+- Query formats support: 
+  - RowBinary readers
+  - Native format reader
+- Apache HTTP Client as HTTP client
+  - Connection pooling
+  - Failures on retry  
+- SSL support
+- Cloud support
+- Proxy support
+
+### Examples
+
+[Begin-with Usage Examples](../../tree/main/examples/client-v2)
+
+[Spring Demo Service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-service) 
+
+Minimal client setup: 
+```java
+String endpoint = "https://<db-instance hostname>:8443/"
+Client client = new Client.Builder()
+        .addEndpoint(endpoint)
+        .setUsername(user)
+        .setPassword(password)
+        .setDefaultDatabase(database)
+        .build();
+```                
+
+Insert POJOs example:
+```java 
+
+client.register(
+  ArticleViewEvent.class, // your DTO class  
+  client.getTableSchema(TABLE_NAME)); // corresponding table
+
+List<ArticleViewEvents> events = // load data 
+
+try (InsertResponse response = client.insert(TABLE_NAME, events).get(1, TimeUnit.SECONDS)) {
+  // process results 
+}
+
 ```
 
-### Java Client
+Query results reader example:
 
-See [examples](../../tree/main/examples/client) and the [docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/client).
+```java
+// Default format is RowBinaryWithNamesAndTypesFormatReader so reader have all information about columns
+try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS);) {
 
-### JDBC Driver
+    // Create a reader to access the data in a convenient way
+    ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(),
+            response.getSettings());
 
-See [examples](../../tree/main/examples/jdbc) and the [docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/jdbc).
+    while (reader.hasNext()) {
+        reader.next(); // Read the next record from stream and parse it
+
+        double id = reader.getDouble("id");
+        String title = reader.getString("title");
+        String url = reader.getString("url");
+
+        // result processing 
+    }
+}
+
+```
+
+
+Query result as list of object example:
+
+```java 
+
+// Data is read completely and returned as list of objects.
+client.queryAll(sql).forEach(row -> {
+              double id = row.getDouble("id");
+              String title = row.getString("title");
+              String url = row.getString("url");
+
+              // result processing
+            });
+
+```
+
+Connecting to the ClickHouse Cloud instance or DB server having not a self-signed certificate: 
+```java 
+Client client = new Client.Builder()
+  .addEndpoint("https://" + dbHost + ":8443")
+  .setUsername("default")
+  .setPassword("")
+  .build(),
+
+```
+
+Connecting to a database instance with self-signed certificate:
+```java 
+Client client = new Client.Builder()
+  .addEndpoint("https://" + dbHost + ":8443")
+  .setUsername("default")
+  .setPassword("")
+  .setRootCertificate("localhost.crt") // path to the CA certificate
+  //.setClientKey("user.key") // user private key 
+  //.setClientCertificate("user.crt") // user public certificate
+  .build(),
+
+```
+
+
+## Client V1
+
+### Artifacts
+
+| Component | Maven Central Link |
+|-----------|--------------------|
+| ClickHouse Java HTTP Client | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-client)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-http-client) |
+| ClickHouse JDBC Driver | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-jdbc)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) |
+
+
+### Features
+
+- Http API for ClickHouse support
+- Bi-directional Compression
+  - LZ4
+- Apache HTTP Client as HTTP client
+  - Connection pooling
+  - Failures on retry  
+- SSL & mTLS support
+- Cloud support
+- Proxy support
+
+### Examples
+
+See [java client examples](../../tree/main/examples/client)
+
+See [JDBC examples](../../tree/main/examples/jdbc)
+
+## Compatibility
+
+- All projects in this repo are tested with all [active LTS versions](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) of ClickHouse.
+- [Support policy](https://github.com/ClickHouse/ClickHouse/blob/master/SECURITY.md#security-change-log-and-support)
+- We recommend to upgrade client continuously to not miss security fixes and new improvements
+  - If you have an issue with migration - create and issue and we will respond! 
+
+## Documentation
+
+[Java Client V1 Docs :: ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/client)
+
+[JDBC Docs :: ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/jdbc).
+
 
 ## Contributing
 
-Check out our [contributing guide](./CONTRIBUTING.md).
+Please see our [contributing guide](./CONTRIBUTING.md).

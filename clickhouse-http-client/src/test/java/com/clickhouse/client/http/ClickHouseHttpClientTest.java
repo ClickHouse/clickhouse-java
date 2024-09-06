@@ -140,6 +140,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = "integration")
     public void testUserAgent() throws Exception {
+        if (isCloud()) return; //TODO: testUserAgent - Revisit after the issue is resolved, see: https://github.com/ClickHouse/ClickHouse/issues/68748
         testUserAgent(ClickHouseClientOption.PRODUCT_NAME, "MyCustomProduct");
         testUserAgent(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient");
     }

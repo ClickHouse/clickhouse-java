@@ -18,7 +18,7 @@ public class ClickHouseConnectionFactory implements ConnectionFactory {
 
     @Override
     public Mono<? extends Connection> create() {
-        return Mono.just(new ClickHouseConnection(nodes));
+        return Mono.defer(() -> Mono.just(new ClickHouseConnection(nodes)));
     }
 
     @Override
