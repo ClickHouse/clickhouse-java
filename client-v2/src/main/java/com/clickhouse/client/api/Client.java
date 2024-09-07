@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -20,6 +21,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -68,6 +70,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -133,6 +136,8 @@ public class Client implements AutoCloseable {
 
     private ClickHouseClient oldClient = null;
 
+    private BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor) {
         this.endpoints = endpoints;
@@ -158,6 +163,15 @@ public class Client implements AutoCloseable {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
+
+        this.byteBufferPool = new BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator>(
+                new LinkedList<>(), 100
+        ) {
+            @Override
+            protected BinaryStreamReader.ByteBufferAllocator create() {
+                return new BinaryStreamReader.CachingByteBufferAllocator();
+            }
+        };
     }
 
     /**
@@ -1445,7 +1459,7 @@ public class Client implements AutoCloseable {
         final QuerySettings finalSettings = settings;
         return query(sqlQuery, settings).thenApply(response -> {
             try {
-                return new Records(response, finalSettings);
+                return new Records(response, finalSettings, byteBufferPool);
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -1468,7 +1482,8 @@ public class Client implements AutoCloseable {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
+                                    byteBufferPool);
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
@@ -1569,20 +1584,24 @@ public class Client implements AutoCloseable {
      * @param schema
      * @return
      */
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
         switch (response.getFormat()) {
             case Native:
-                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             case RowBinary:
-                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
@@ -1590,7 +1609,7 @@ public class Client implements AutoCloseable {
         return reader;
     }
 
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
     }
 

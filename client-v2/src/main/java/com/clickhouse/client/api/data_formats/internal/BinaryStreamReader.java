@@ -35,10 +35,17 @@ public class BinaryStreamReader {
 
     private final TimeZone timeZone;
 
+    private ByteBufferAllocator bufferAllocator;
+
     BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
+        this(input, timeZone, log, new DefaultByteBufferAllocator());
+    }
+
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
+        this.bufferAllocator = bufferAllocator;
     }
 
     public <T> T readValue(ClickHouseColumn column) throws IOException {
@@ -645,5 +652,37 @@ public class BinaryStreamReader {
             throw new EOFException("End of stream reached before reading all data");
         }
         return b;
+    }
+
+    public interface ByteBufferAllocator {
+        byte[] allocate(int size);
+    }
+
+    public static class DefaultByteBufferAllocator implements ByteBufferAllocator {
+        @Override
+        public byte[] allocate(int size) {
+            return new byte[size];
+        }
+    }
+
+    public static class CachingByteBufferAllocator implements ByteBufferAllocator {
+
+        private static final int MAX_PREALLOCATED_SIZE = 32;
+        private final byte[][] preallocated = new byte[MAX_PREALLOCATED_SIZE + 1][];
+
+        public CachingByteBufferAllocator() {
+           for (int i = 0; i < preallocated.length; i++) {
+               preallocated[i] = new byte[i];
+           }
+        }
+
+        @Override
+        public byte[] allocate(int size) {
+            if (size < preallocated.length) {
+                return preallocated[size];
+            }
+
+            return new byte[size];
+        }
     }
 }

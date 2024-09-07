@@ -1,6 +1,8 @@
 package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
@@ -12,12 +14,9 @@ import java.util.Map;
 
 public class RowBinaryFormatReader extends AbstractBinaryFormatReader {
 
-    public RowBinaryFormatReader(InputStream inputStream, TableSchema schema) {
-        this(inputStream, null, schema);
-    }
-
-    public RowBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
-        super(inputStream, querySettings, schema);
+    public RowBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
+                                 BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool) {
+        super(inputStream, querySettings, schema, byteBufferPool);
         readNextRecord();
     }
 

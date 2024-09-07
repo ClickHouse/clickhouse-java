@@ -2,9 +2,9 @@ package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.data.ClickHouseColumn;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -12,19 +12,14 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
 
     private List<String> columns = null;
 
-    public RowBinaryWithNamesFormatReader(InputStream inputStream, TableSchema schema) {
-        this(inputStream, null, schema);
-        readNextRecord();
-    }
-
-    public RowBinaryWithNamesFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
-        super(inputStream, querySettings, schema);
+    public RowBinaryWithNamesFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
+                                          BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool) {
+        super(inputStream, querySettings, schema, byteBufferPool);
         int nCol = 0;
         try {
             nCol = BinaryStreamReader.readVarInt(input);

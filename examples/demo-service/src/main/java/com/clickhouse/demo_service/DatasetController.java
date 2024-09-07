@@ -68,7 +68,7 @@ public class DatasetController {
             ArrayList<VirtualDatasetRecord> result = new ArrayList<>();
 
             // iterable approach is more efficient for large datasets because it doesn't load all records into memory
-            ClickHouseBinaryFormatReader reader = Client.newBinaryFormatReader(response);
+            ClickHouseBinaryFormatReader reader = chDirectClient.newBinaryFormatReader(response);
 
             long start = System.nanoTime();
             while (reader.next() != null) {
