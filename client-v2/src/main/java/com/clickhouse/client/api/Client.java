@@ -136,8 +136,6 @@ public class Client implements AutoCloseable {
 
     private ClickHouseClient oldClient = null;
 
-    private BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool;
-
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor) {
         this.endpoints = endpoints;
@@ -163,15 +161,6 @@ public class Client implements AutoCloseable {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
-
-        this.byteBufferPool = new BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator>(
-                new LinkedList<>(), 100
-        ) {
-            @Override
-            protected BinaryStreamReader.ByteBufferAllocator create() {
-                return new BinaryStreamReader.CachingByteBufferAllocator();
-            }
-        };
     }
 
     /**
@@ -1456,10 +1445,10 @@ public class Client implements AutoCloseable {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
 
-        final QuerySettings finalSettings = settings;
         return query(sqlQuery, settings).thenApply(response -> {
             try {
-                return new Records(response, finalSettings, byteBufferPool);
+
+                return new Records(response, newBinaryFormatReader(response));
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -1476,14 +1465,14 @@ public class Client implements AutoCloseable {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
-                                    byteBufferPool);
+                            (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
@@ -1586,6 +1575,13 @@ public class Client implements AutoCloseable {
      */
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
+        // Using caching buffer allocator is risky so this parameter is not exposed to the user
+        boolean useCachingBufferAllocator = Boolean.parseBoolean(
+                configuration.getOrDefault("client_use_caching_buffer_allocator", "false"));
+        BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
+                new BinaryStreamReader.CachingByteBufferAllocator() :
+                new BinaryStreamReader.DefaultByteBufferAllocator();
+
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),

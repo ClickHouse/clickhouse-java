@@ -60,12 +60,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private volatile boolean hasNext = true;
 
-    BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool;
-
-    BinaryStreamReader.ByteBufferAllocator byteBufferAllocator;
-
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
-                                         BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool) {
+                                         BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
         boolean useServerTimeZone = (boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
@@ -74,8 +70,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
-        this. byteBufferPool = byteBufferPool;
-        this.byteBufferAllocator = byteBufferPool.lease();
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator);
         setSchema(schema);
     }
@@ -182,9 +176,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected void endReached() {
         hasNext = false;
-        BinaryStreamReader.ByteBufferAllocator allocator = this.byteBufferAllocator;
-        this.byteBufferAllocator = null;
-        byteBufferPool.release(allocator);
     }
 
     protected void setSchema(TableSchema schema) {
@@ -636,10 +627,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public void close() throws Exception {
-        if (byteBufferAllocator != null) {
-            byteBufferPool.release(byteBufferAllocator);
-            byteBufferAllocator = null;
-        }
         input.close();
     }
 }

@@ -2,7 +2,6 @@ package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 
@@ -25,8 +24,8 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     private int blockRowIndex;
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
-                              BasicObjectsPool<BinaryStreamReader.ByteBufferAllocator> byteBufferPool) {
-        super(inputStream, settings, null, byteBufferPool);
+                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+        super(inputStream, settings, null, byteBufferAllocator);
         readNextRecord();
     }
 

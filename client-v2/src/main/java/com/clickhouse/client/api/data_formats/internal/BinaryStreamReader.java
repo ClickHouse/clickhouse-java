@@ -27,6 +27,11 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 
+/**
+ * This class is not thread safe and should not be shared between multiple threads.
+ * Internally it may use a shared buffer to read data from the input stream.
+ * It is done mainly to reduce extra memory allocations for reading numbers.
+ */
 public class BinaryStreamReader {
 
     private final InputStream input;
@@ -35,12 +40,27 @@ public class BinaryStreamReader {
 
     private final TimeZone timeZone;
 
-    private ByteBufferAllocator bufferAllocator;
+    private final ByteBufferAllocator bufferAllocator;
 
+    /**
+     * Creates a BinaryStreamReader instance that will use {@link DefaultByteBufferAllocator} to allocate buffers.
+     *
+     * @param input - source of raw data in a suitable format
+     * @param timeZone - timezone to use for date and datetime values
+     * @param log - logger
+     */
     BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
         this(input, timeZone, log, new DefaultByteBufferAllocator());
     }
 
+    /**
+     * Createa a BinaryStreamReader instance that will use the provided buffer allocator.
+     *
+     * @param input - source of raw data in a suitable format
+     * @param timeZone - timezone to use for date and datetime values
+     * @param log - logger
+     * @param bufferAllocator - byte buffer allocator
+     */
     BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
@@ -193,8 +213,8 @@ public class BinaryStreamReader {
         }
     }
 
-    private static short readShortLE(InputStream input) throws IOException {
-        return readShortLE(input, new byte[2]);
+    private short readShortLE(InputStream input) throws IOException {
+        return readShortLE(input, bufferAllocator.allocate(INT16_SIZE));
     }
 
     /**
@@ -210,8 +230,8 @@ public class BinaryStreamReader {
         return (short) (buff[0] & 0xFF | (buff[1] & 0xFF) << 8);
     }
 
-    private static int readIntLE(InputStream input) throws IOException {
-        return readIntLE(input, new byte[4]);
+    private int readIntLE(InputStream input) throws IOException {
+        return readIntLE(input, bufferAllocator.allocate(INT32_SIZE));
     }
 
     /**
@@ -227,8 +247,8 @@ public class BinaryStreamReader {
         return (buff[0] & 0xFF) | (buff[1] & 0xFF) << 8 | (buff[2] & 0xFF) << 16 | (buff[3] & 0xFF) << 24;
     }
 
-    private static long readLongLE(InputStream input) throws IOException {
-        return readLongLE(input, new byte[8]);
+    private long readLongLE(InputStream input) throws IOException {
+        return readLongLE(input, bufferAllocator.allocate(INT64_SIZE));
     }
 
     /**
@@ -246,12 +266,12 @@ public class BinaryStreamReader {
                 | (long) (buff[6] & 0xFF) << 48 | (long) (buff[7] & 0xFF) << 56;
     }
 
-    public static short readUnsignedByte(InputStream input) throws IOException {
+    public short readUnsignedByte(InputStream input) throws IOException {
         return (short) (readByteOrEOF(input) & 0xFF);
     }
 
-    private static int readUnsignedShortLE(InputStream input) throws IOException {
-        return readUnsignedShortLE(input, new byte[2]);
+    private int readUnsignedShortLE(InputStream input) throws IOException {
+        return readUnsignedShortLE(input, bufferAllocator.allocate(INT16_SIZE));
     }
 
     /**
@@ -266,7 +286,7 @@ public class BinaryStreamReader {
         return readShortLE(input, buff) & 0xFFFF;
     }
 
-    private static long readUnsignedIntLE(InputStream input) throws IOException {
+    private long readUnsignedIntLE(InputStream input) throws IOException {
         return readIntLE(input) & 0xFFFFFFFFL;
     }
 
@@ -282,8 +302,8 @@ public class BinaryStreamReader {
         return readIntLE(input, buff) & 0xFFFFFFFFL;
     }
 
-    private static BigInteger readBigIntegerLE(InputStream input, int len, boolean unsigned) throws IOException {
-        return readBigIntegerLE(input, new byte[len], len, unsigned);
+    private BigInteger readBigIntegerLE(InputStream input, int len, boolean unsigned) throws IOException {
+        return readBigIntegerLE(input, bufferAllocator.allocate(len), len, unsigned);
     }
 
     public static final int INT16_SIZE = 2;
@@ -310,15 +330,15 @@ public class BinaryStreamReader {
         return unsigned ? new BigInteger(1, bytes) : new BigInteger(bytes);
     }
 
-    public static float readFloatLE(InputStream input) throws IOException {
+    public float readFloatLE(InputStream input) throws IOException {
         return Float.intBitsToFloat(readIntLE(input));
     }
 
-    public static double readDoubleLE(InputStream input) throws IOException {
+    public double readDoubleLE(InputStream input) throws IOException {
         return Double.longBitsToDouble(readLongLE(input));
     }
 
-    public static BigDecimal readDecimal(InputStream input, int precision, int scale) throws IOException {
+    private BigDecimal readDecimal(InputStream input, int precision, int scale) throws IOException {
         BigDecimal v;
 
         if (precision <= ClickHouseDataType.Decimal32.getMaxScale()) {
@@ -361,8 +381,8 @@ public class BinaryStreamReader {
         return buffer;
     }
 
-    public static byte[] readNBytesLE(InputStream input, int len) throws IOException {
-        return readNBytesLE(input, new byte[len], 0, len);
+    private byte[] readNBytesLE(InputStream input, int len) throws IOException {
+        return readNBytesLE(input, bufferAllocator.allocate(len), 0, len);
     }
 
     /**
@@ -493,11 +513,11 @@ public class BinaryStreamReader {
         return tuple;
     }
 
-    public static double[] readGeoPoint(InputStream input) throws IOException {
+    private double[] readGeoPoint(InputStream input) throws IOException {
         return new double[]{readDoubleLE(input), readDoubleLE(input)};
     }
 
-    public static double[][] readGeoRing(InputStream input) throws IOException {
+    private double[][] readGeoRing(InputStream input) throws IOException {
         int count = readVarInt(input);
         double[][] value = new double[count][2];
         for (int i = 0; i < count; i++) {
@@ -507,7 +527,7 @@ public class BinaryStreamReader {
     }
 
 
-    public double[][][] readGeoPolygon(InputStream input) throws IOException {
+    private double[][][] readGeoPolygon(InputStream input) throws IOException {
         int count = readVarInt(input);
         double[][][] value = new double[count][][];
         for (int i = 0; i < count; i++) {
@@ -547,8 +567,8 @@ public class BinaryStreamReader {
         return value;
     }
 
-    private static ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
-        return readDate(input, new byte[INT16_SIZE], tz);
+    private ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
+        return readDate(input, bufferAllocator.allocate(INT16_SIZE), tz);
     }
 
     /**
@@ -564,9 +584,9 @@ public class BinaryStreamReader {
         return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    private static ZonedDateTime readDate32(InputStream input, TimeZone tz)
+    private ZonedDateTime readDate32(InputStream input, TimeZone tz)
             throws IOException {
-        return readDate32(input, new byte[INT32_SIZE], tz);
+        return readDate32(input, bufferAllocator.allocate(INT32_SIZE), tz);
     }
 
     /**
@@ -584,8 +604,8 @@ public class BinaryStreamReader {
         return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    private static ZonedDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
-        return readDateTime32(input, new byte[INT32_SIZE], tz);
+    private ZonedDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
+        return readDateTime32(input, bufferAllocator.allocate(INT32_SIZE), tz);
     }
 
     /**
@@ -601,8 +621,8 @@ public class BinaryStreamReader {
         return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)), tz.toZoneId()).atZone(tz.toZoneId());
     }
 
-    private static ZonedDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
-        return readDateTime64(input, new byte[INT64_SIZE], scale, tz);
+    private ZonedDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
+        return readDateTime64(input, bufferAllocator.allocate(INT64_SIZE), scale, tz);
     }
 
     public static final int[] BASES = new int[]{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
@@ -658,6 +678,9 @@ public class BinaryStreamReader {
         byte[] allocate(int size);
     }
 
+    /**
+     * Byte allocator that creates a new byte array for each request.
+     */
     public static class DefaultByteBufferAllocator implements ByteBufferAllocator {
         @Override
         public byte[] allocate(int size) {
@@ -665,6 +688,9 @@ public class BinaryStreamReader {
         }
     }
 
+    /**
+     * Byte allocator that caches preallocated byte arrays for small sizes.
+     */
     public static class CachingByteBufferAllocator implements ByteBufferAllocator {
 
         private static final int MAX_PREALLOCATED_SIZE = 32;
