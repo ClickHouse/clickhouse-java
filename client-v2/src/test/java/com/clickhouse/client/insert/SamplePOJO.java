@@ -156,7 +156,7 @@ public class SamplePOJO {
         nestedInnerString = innerString;
 
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
-        groupBitmapUint64 = ClickHouseBitmap.wrap(new Random().longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
+        groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
     }
 
     public int getInt8() {
