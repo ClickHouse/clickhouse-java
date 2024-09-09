@@ -86,12 +86,19 @@ public class QueryTests extends BaseIntegrationTest {
 
     private boolean useHttpCompression = false;
 
+    private boolean usePreallocatedBuffers = false;
+
     QueryTests(){
     }
 
     public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+        this(useServerCompression, useHttpCompression, false);
+    }
+
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
+        this.usePreallocatedBuffers = usePreallocatedBuffers;
     }
 
     @BeforeMethod(groups = {"integration"})
@@ -1455,6 +1462,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(true)
                 .useHttpCompression(useHttpCompression)
+                .setOption("client_use_caching_buffer_allocator", Boolean.valueOf(usePreallocatedBuffers).toString())
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
