@@ -1462,7 +1462,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(true)
                 .useHttpCompression(useHttpCompression)
-                .setOption("client_use_caching_buffer_allocator", Boolean.valueOf(usePreallocatedBuffers).toString())
+                .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

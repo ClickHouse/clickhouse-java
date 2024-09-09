@@ -756,6 +756,22 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configures client to reuse allocated byte buffers for numbers. It affects how binary format reader is working.
+         * If set to 'true' then {@link  Client#newBinaryFormatReader(QueryResponse)} will construct reader that will
+         * reuse buffers for numbers. It improves performance for large datasets by reducing number of allocations
+         * (therefore GC pressure).
+         * Enabling this feature is safe because each reader suppose to be used by a single thread and readers are not reused.
+         *
+         * Default is false.
+         * @param reuse - if to reuse buffers
+         * @return
+         */
+        public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
+            this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -868,6 +884,10 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
                 setMaxRetries(3);
+            }
+
+            if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
+                allowBinaryReaderToReuseBuffers(false);
             }
         }
     }
@@ -1576,8 +1596,7 @@ public class Client implements AutoCloseable {
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
         // Using caching buffer allocator is risky so this parameter is not exposed to the user
-        boolean useCachingBufferAllocator = Boolean.parseBoolean(
-                configuration.getOrDefault("client_use_caching_buffer_allocator", "false"));
+        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
         BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
                 new BinaryStreamReader.CachingByteBufferAllocator() :
                 new BinaryStreamReader.DefaultByteBufferAllocator();
