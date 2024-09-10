@@ -21,6 +21,8 @@ import java.util.UUID;
 public class SamplePOJOForSerialization {
     private int int8;
     private int int8_default;
+
+    private Integer int16_boxed;
     private int int16;
     private int int16_default;
     private int int32;
@@ -170,6 +172,14 @@ public class SamplePOJOForSerialization {
 
     public void setInt16(int int16) {
         this.int16 = int16;
+    }
+
+    public Integer getInt16Boxed() {
+        return int16_boxed;
+    }
+
+    public void setInt16Boxed(Integer int16_boxed) {
+        this.int16_boxed = int16_boxed;
     }
 
     public int getInt16Default() {

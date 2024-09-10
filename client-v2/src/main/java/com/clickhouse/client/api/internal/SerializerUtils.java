@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -31,18 +32,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.objectweb.asm.Opcodes.CHECKCAST;
-import static org.objectweb.asm.Opcodes.DLOAD;
-import static org.objectweb.asm.Opcodes.FLOAD;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.ILOAD;
+import static org.objectweb.asm.Opcodes.CHECKCAST;
+import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
+import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
-import static org.objectweb.asm.Opcodes.LLOAD;
 import static org.objectweb.asm.Opcodes.RETURN;
 
 public class SerializerUtils {
@@ -235,88 +235,6 @@ public class SerializerUtils {
         }
     }
 
-    public static boolean getBooleanValue(Object value) {
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        } else if (value instanceof Byte) {
-            return (Byte) value != 0;
-        } else if (value instanceof Short) {
-            return (Short) value != 0;
-        } else if (value instanceof Integer) {
-            return (Integer) value != 0;
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to boolean");
-        }
-    }
-
-    public static byte getByteValue(Object value) {
-        if (value instanceof Byte) {
-            return (Byte) value;
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to byte");
-        }
-    }
-
-    public static LocalDateTime getLocalDateTimeValue(Object value) {
-        if (value instanceof LocalDateTime) {
-            return (LocalDateTime) value;
-        } else if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDateTime();
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to LocalDateTime");
-        }
-    }
-
-    public static LocalDate getLocalDateValue(Object value) {
-        if (value instanceof LocalDate) {
-            return (LocalDate) value;
-        } else if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDate();
-        } else if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to LocalDateTime");
-        }
-    }
-
-    public static short getShortValue(Object value) {
-        if (value instanceof Byte) {
-            return (Byte) value;
-        } else if (value instanceof Short) {
-            return (Short) value;
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to short");
-        }
-    }
-
-    public static int getIntValue(Object value) {
-        if (value instanceof Byte) {
-            return (Byte) value;
-        } else if (value instanceof Short) {
-            return (Short) value;
-        } else if (value instanceof Integer) {
-            return (Integer) value;
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to int");
-        }
-    }
-
-    public static long getLongValue(Object value) {
-        if (value instanceof Byte) {
-            return (Byte) value;
-        } else if (value instanceof Short) {
-            return (Short) value;
-        } else if (value instanceof Integer) {
-            return (Integer) value;
-        } else if (value instanceof Long) {
-            return (Long) value;
-        } else if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValueExact();
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to long");
-        }
-    }
-
     public static <T extends Enum<T>> Set<T> parseEnumList(String value, Class<T> enumType) {
         Set<T> values = new HashSet<>();
         for (StringTokenizer causes = new StringTokenizer(value, Client.VALUES_LIST_DELIMITER); causes.hasMoreTokens(); ) {
@@ -325,23 +243,19 @@ public class SerializerUtils {
         return values;
     }
 
-    public static float getFloatValue(java.lang.Object value) {
-        if (value instanceof Float) {
-            return (Float) value;
+    public static boolean convertToBoolean(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else if (value instanceof Number) {
+            return ((Number) value).intValue() != 0;
+        } else if (value instanceof String) {
+            return Boolean.parseBoolean((String) value);
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to float");
+            throw new IllegalArgumentException("Cannot convert " + value + " to Boolean");
         }
     }
 
-    public static double getDoubleValue(java.lang.Object value) {
-        if (value instanceof Double) {
-            return (Double) value;
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " ('" + value.getClass() + "') to double");
-        }
-    }
-
-    public static List<?> getListValue(Object value) {
+    public static List<?> convertArrayValueToList(Object value) {
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).asList();
         } else if (value.getClass().isArray()) {
@@ -353,42 +267,10 @@ public class SerializerUtils {
         }
     }
 
-    public static POJOSetter<?> compilePOJOSetter(Method setterMethod) {
+    public static POJOSetter compilePOJOSetter(Method setterMethod, ClickHouseColumn column) {
         Class<?> dtoClass = setterMethod.getDeclaringClass();
-        Class<?> argType = setterMethod.getParameterTypes()[0];
 
-        String deserializeMethod = null; // use default setter
-        int typeLoadOperand = ALOAD; // any non-primitive
-        if (argType.isPrimitive()) {
-            typeLoadOperand = ILOAD; // // a boolean, byte, char, short, or int
-            if (argType.getName().equalsIgnoreCase("boolean")) {
-                deserializeMethod = "getBooleanValue";
-            } else if (argType.getName().equalsIgnoreCase("byte")) {
-                deserializeMethod = "getByteValue";
-            } else if (argType.getName().equalsIgnoreCase("short")) {
-                deserializeMethod = "getShortValue";
-            } else if (argType.getName().equalsIgnoreCase("int")) {
-                deserializeMethod = "getIntValue";
-            } else if (argType.getName().equalsIgnoreCase("long")) {
-                deserializeMethod = "getLongValue";
-                typeLoadOperand = LLOAD;
-            } else if (argType.getName().equalsIgnoreCase("float")) {
-                deserializeMethod = "getFloatValue";
-                typeLoadOperand = FLOAD;
-            } else if (argType.getName().equalsIgnoreCase("double")) {
-                deserializeMethod = "getDoubleValue";
-                typeLoadOperand = DLOAD;
-            } else {
-                throw new IllegalArgumentException("Unsupported primitive type: " + argType.getName() + " " + argType);
-            }
-        } else if (argType.isAssignableFrom(LocalDateTime.class)) {
-            deserializeMethod = "getLocalDateTimeValue";
-        } else if (argType.isAssignableFrom(LocalDate.class)) {
-            deserializeMethod = "getLocalDateValue";
-        } else if (argType.isAssignableFrom(List.class)) {
-            deserializeMethod = "getListValue";
-        }
-
+        // creating a new class to implement POJOSetter which will call the setter method to set column value
         final String pojoSetterClassName = (dtoClass.getName() + setterMethod.getName()).replace('.', '/');
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V1_8, ACC_PUBLIC, pojoSetterClassName
@@ -409,91 +291,155 @@ public class SerializerUtils {
             mv.visitEnd();
         }
 
-        if (deserializeMethod != null && argType.isPrimitive() ) {
+        /* Currently all readers operate with objects and next scenarios are possible:
+            - target is primitive and source is a boxed type
+                - source should be called `intValue()` or similar
+            - target and source are both objects
+                - no casting is needed
+            - target is a boxed type and source is too, but smaller
+                - source should be called `intValue()` or similar (target should be used to detect primitive type)
+                - then target should be boxed with `valueOf()`
+            - target is the assignable from source (e.g. target is `Object` and source is `String`)
+                - no casting is needed
+            - source should be converted before assigning to the target
+                - call conversion function
 
-            // primitive setter, ex setInt(int i)
-            {
-                MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue", pojoSetterMethodDescriptor(dtoClass,
-                        argType), null, null);
+            In the future when reader will use primitive types then call to `valueOf()` should be
+            added for boxed types.
+        */
 
-                mv.visitCode();
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitVarInsn(typeLoadOperand, 2);
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        dtoClass.getName().replace('.', '/'),
-                        setterMethod.getName(),
-                        Type.getMethodDescriptor(setterMethod),
-                        false);
-                mv.visitInsn(RETURN);
-                mv.visitMaxs(2, 2);
-                mv.visitEnd();
-            }
+        Class<?> targetType = setterMethod.getParameterTypes()[0];
+        Class<?> targetPrimitiveType = ClickHouseDataType.toPrimitiveType(targetType); // will return object class if no primitive
+        Class<?> sourceType = column.getDataType().getObjectClass(); // will return object class if no primitive
 
-            // primitive setter setValue(Object obj, int value) impl (needed because generic types are not in runtime)
-            {
-                MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue",
-                        pojoSetterMethodDescriptor(Object.class, argType), null, null);
-
-                mv.visitCode();
-                mv.visitVarInsn(ALOAD, 0);
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(dtoClass));
-                mv.visitVarInsn(typeLoadOperand, 2);
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        pojoSetterClassName,
-                        "setValue",
-                        pojoSetterMethodDescriptor(dtoClass,
-                                argType),
-                        false);
-                mv.visitInsn(RETURN);
-                mv.visitMaxs(3, 3);
-                mv.visitEnd();
-            }
-        }
-
-        // main setter setValue(T obj, Object value) impl
-        {
-            MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue", pojoSetterMethodDescriptor(dtoClass,
-                    Object.class), null, null);
-
-            mv.visitCode();
-            mv.visitVarInsn(ALOAD, 1);
-            mv.visitVarInsn(ALOAD, 2);
-            if (deserializeMethod != null) {
-                mv.visitMethodInsn(INVOKESTATIC,
-                        "com/clickhouse/client/api/internal/SerializerUtils",
-                        deserializeMethod,
-                        "(Ljava/lang/Object;)" + Type.getDescriptor(argType),
-                        false);
-            } else {
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(argType));
-            }
-            mv.visitMethodInsn(INVOKEVIRTUAL,
-                    dtoClass.getName().replace('.', '/'),
-                    setterMethod.getName(),
-                    Type.getMethodDescriptor(setterMethod),
-                    false);
-            mv.visitInsn(RETURN);
-            mv.visitMaxs(2, 2);
-            mv.visitEnd();
-        }
-
-        // main setter setValue(Object obj, Object value) impl (needed because generic types are not in runtime)
+        // setter setValue(Object obj, Object value) impl
         {
             MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue",
                     pojoSetterMethodDescriptor(Object.class, Object.class), null, null);
 
             mv.visitCode();
-            mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
             mv.visitTypeInsn(CHECKCAST, Type.getInternalName(dtoClass));
-            mv.visitVarInsn(ALOAD, 2);
+
+            if (sourceType == LocalDate.class) {
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(ZonedDateTime.class));
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        Type.getInternalName(ZonedDateTime.class),
+                        "toLocalDate",
+                        "()" + Type.getDescriptor(LocalDate.class),
+                        false);
+            } else if (sourceType == LocalDateTime.class) {
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(ZonedDateTime.class));
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        Type.getInternalName(ZonedDateTime.class),
+                        "toLocalDateTime",
+                        "()" + Type.getDescriptor(LocalDateTime.class),
+                        false);
+            } else if ((targetType == boolean.class || targetType == Boolean.class) && column.getDataType() != ClickHouseDataType.Bool) {
+                mv.visitVarInsn(ALOAD, 2); // load object
+                String sourceInternalClassName;
+                if (column.getDataType().isSigned()) {
+                    sourceInternalClassName = Type.getInternalName(sourceType);
+                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
+                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
+                } else {
+                    sourceInternalClassName = Type.getInternalName(
+                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
+                                    ClickHouseDataType.toPrimitiveType(sourceType))));
+                }
+                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
+                mv.visitMethodInsn(INVOKESTATIC,
+                        Type.getInternalName(SerializerUtils.class),
+                        "convertToBoolean",
+                        "(" + Type.getDescriptor(Object.class) + ")" + Type.getDescriptor(boolean.class),
+                        false);
+                if (!targetType.isPrimitive()) {
+                    mv.visitMethodInsn(INVOKEVIRTUAL,
+                            Type.getInternalName(Boolean.class),
+                            "valueOf",
+                            "(" + Type.getDescriptor(boolean.class) + ")" + Type.getDescriptor(targetType),
+                            false);
+                }
+            } else if (column.getDataType() == ClickHouseDataType.Tuple && targetType.isAssignableFrom(List.class)) {
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(Object[].class));
+                mv.visitMethodInsn(INVOKESTATIC,
+                        Type.getInternalName(Arrays.class),
+                        "stream",
+                        "([Ljava/lang/Object;)" + Type.getDescriptor(Stream.class),
+                        false);
+                mv.visitMethodInsn(INVOKESTATIC,
+                        Type.getInternalName(Collectors.class),
+                        "toList",
+                        "()" + Type.getDescriptor(Collector.class),
+                        false);
+                mv.visitMethodInsn(INVOKEINTERFACE,
+                        Type.getInternalName(Stream.class),
+                        "collect",
+                        "(" + Type.getDescriptor(Collector.class) + ")" + Type.getDescriptor(Object.class),
+                        true);
+            } else if (targetType.isAssignableFrom(sourceType)) { // assuming source is always object because of reader
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(sourceType));
+            } else if (column.getDataType() == ClickHouseDataType.Array) {
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(BinaryStreamReader.ArrayValue.class));
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        Type.getInternalName(BinaryStreamReader.ArrayValue.class),
+                        "asList",
+                        "()" + Type.getDescriptor(List.class),
+                        false);
+            } else if (targetType.isPrimitive() && !targetType.isArray()) {
+                // unboxing
+                mv.visitVarInsn(ALOAD, 2); // load object
+                String sourceInternalClassName;
+                if (column.getDataType().isSigned()) {
+                    sourceInternalClassName = Type.getInternalName(sourceType);
+                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
+                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
+                } else if (column.getDataType() == ClickHouseDataType.Enum8) {
+                    sourceInternalClassName = Type.getInternalName(Byte.class);
+                } else if (column.getDataType() == ClickHouseDataType.Enum16) {
+                    sourceInternalClassName = Type.getInternalName(Short.class);
+                } else {
+                    sourceInternalClassName = Type.getInternalName(
+                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
+                                    ClickHouseDataType.toPrimitiveType(sourceType))));
+                    System.out.println("sourceInternalClassName: " + sourceInternalClassName + " " + column.getColumnName());
+                }
+                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        sourceInternalClassName,
+                        targetType.getSimpleName() + "Value",
+                        "()" + Type.getDescriptor(targetType),
+                        false);
+            } else if (!targetPrimitiveType.isPrimitive()) {
+                // boxing
+                mv.visitVarInsn(ALOAD, 2); // load object
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        Type.getInternalName(sourceType),
+                        targetPrimitiveType.getSimpleName() + "Value",
+                        "()" + Type.getDescriptor(targetPrimitiveType),
+                        false);
+                mv.visitMethodInsn(INVOKESTATIC,
+                        Type.getInternalName(targetType),
+                        "valueOf",
+                        "(" + Type.getDescriptor(targetPrimitiveType) + ")" + Type.getDescriptor(targetType),
+                        false);
+            } else {
+                throw new ClientException("Unsupported conversion from " + sourceType + " to " + targetType);
+            }
+
+
+            // finally call setter with the result of last INVOKEVIRTUAL
             mv.visitMethodInsn(INVOKEVIRTUAL,
-                    pojoSetterClassName,
-                    "setValue",
-                    pojoSetterMethodDescriptor(dtoClass,
-                            Object.class),
+                    Type.getInternalName(dtoClass),
+                    setterMethod.getName(),
+                    Type.getMethodDescriptor(setterMethod),
                     false);
+
             mv.visitInsn(RETURN);
             mv.visitMaxs(3, 3);
             mv.visitEnd();
@@ -502,7 +448,7 @@ public class SerializerUtils {
         try {
             SerializerUtils.DynamicClassLoader loader = new SerializerUtils.DynamicClassLoader(dtoClass.getClassLoader());
             Class<?> clazz = loader.defineClass(pojoSetterClassName.replace('/', '.'), writer.toByteArray());
-            return (POJOSetter<?>) clazz.getDeclaredConstructor().newInstance();
+            return (POJOSetter) clazz.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
         }

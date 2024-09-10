@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -93,7 +92,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 }
                 throw e;
             } catch (Exception e) {
-                throw new ClientException("Failed to put value into POJO", e);
+                throw new ClientException("Failed to put value of '" + column.getColumnName() + "' into POJO", e);
             }
         }
         return true;

@@ -977,7 +977,7 @@ public class Client implements AutoCloseable {
             Method setterMethod = classSetters.get(propertyName);
             String columnName = column.getColumnName();
             if (setterMethod != null) {
-                classDeserializers.put(columnName, SerializerUtils.compilePOJOSetter(setterMethod));
+                classDeserializers.put(columnName, SerializerUtils.compilePOJOSetter(setterMethod, column));
             } else {
                 LOG.warn("No setter method found for column: {}", propertyName);
             }
