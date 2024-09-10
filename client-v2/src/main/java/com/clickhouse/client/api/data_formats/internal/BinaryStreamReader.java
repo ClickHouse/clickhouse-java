@@ -85,14 +85,7 @@ public class BinaryStreamReader {
                 // Primitives
                 case FixedString: {
                     byte[] bytes = readNBytes(input, column.getEstimatedLength());
-                    int end = 0;
-                    for (int i = 0; i < bytes.length; i++) {
-                        if (bytes[i] == 0) {
-                            end = i;
-                            break;
-                        }
-                    }
-                    return (T) new String(bytes, 0, end, StandardCharsets.UTF_8);
+                    return (T) new String(bytes, 0, column.getEstimatedLength(), StandardCharsets.UTF_8);
                 }
                 case String: {
                     int len = readVarInt(input);

@@ -2,14 +2,12 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.internal.BasicObjectsPool;
-import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -31,18 +29,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -78,6 +72,32 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
     protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
+
+    public boolean readToPOJO(Map<String, POJOSetter> deserializers, Object obj ) throws IOException {
+        boolean firstColumn = true;
+
+        for (ClickHouseColumn column : columns) {
+            try {
+                Object val = binaryStreamReader.readValue(column);
+                if (val != null) {
+                    POJOSetter deserializer = deserializers.get(column.getColumnName());
+                    if (deserializer != null) {
+                        deserializer.setValue(obj, val);
+                    }
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            } catch (Exception e) {
+                throw new ClientException("Failed to put value of '" + column.getColumnName() + "' into POJO", e);
+            }
+        }
+        return true;
+    }
 
     /**
      * It is still internal method and should be used with care.

@@ -31,6 +31,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.testcontainers.shaded.com.google.common.collect.Table;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -46,6 +47,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -55,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1007,7 +1010,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq("utf8 string с кириллицей そして他のホイッスル"),
-                () -> sq("7 chars"),
+                () -> sq("7 chars\0\0\0"),
                 () -> "NULL",
                 () -> sq("not null string")
         );
@@ -1343,8 +1346,18 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertEquals(((ClickHouseException) e.getCause().getCause().getCause()).getErrorCode(),
                         ServerException.TABLE_NOT_FOUND);
             }
-
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetTableSchemaFromQuery() throws Exception {
+        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2", "q1");
+        Assert.assertNotNull(schema);
+        Assert.assertEquals(schema.getColumns().size(), 2);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.UInt32);
+        Assert.assertEquals(schema.getColumns().get(1).getColumnName(), "col2");
+        Assert.assertEquals(schema.getColumns().get(1).getDataType(), ClickHouseDataType.String);
     }
 
     @Test(groups = {"integration"})
@@ -1452,6 +1465,66 @@ public class QueryTests extends BaseIntegrationTest {
         latch.await();
         Assert.assertEquals(latch.getCount(), 0);
     }
+
+    @Test(groups = {"integration"})
+    public void testQueryReadToPOJO() {
+        int limit = 10;
+        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
+                " FROM system.numbers LIMIT " + limit;
+        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        client.register(SimplePOJO.class, schema);
+
+        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
+        Assert.assertEquals(pojos.size(), limit);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryReadToPOJOWithoutGetters() {
+        int limit = 10;
+        final String sql = "SELECT toInt32(1) as p1, toInt32(1) as p2 ";
+        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        client.register(NoGettersPOJO.class, schema);
+
+        try {
+            client.queryAll(sql, SimplePOJO.class);
+            Assert.fail("No exception");
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage().contains("No deserializers found for class"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryAllWithPOJO() throws Exception {
+
+        final String tableName = "test_query_all_with_pojo";
+        final String createTableSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        client.execute("DROP TABLE IF EXISTS test_query_all_with_pojo").get();
+        client.execute(createTableSQL).get();
+
+        SamplePOJO pojo = new SamplePOJO();
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
+
+        client.insert(tableName, Collections.singletonList(pojo)).get();
+
+        // correct decimal according to the table schema
+        pojo.setDecimal32(cropDecimal(pojo.getDecimal32(), 2));
+        pojo.setDecimal64(cropDecimal(pojo.getDecimal64(), 3));
+        pojo.setDecimal128(cropDecimal(pojo.getDecimal128(),4));
+        pojo.setDecimal256(cropDecimal(pojo.getDecimal256(),5));
+
+        // adjust datetime
+        pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
+        pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
+
+        List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class);
+        Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
+    }
+
+    public static BigDecimal cropDecimal(BigDecimal value, int scale) {
+        BigInteger bi = value.unscaledValue().divide(BigInteger.TEN.pow(value.scale() - scale));
+        return new BigDecimal(bi, scale);
+    }
+
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
