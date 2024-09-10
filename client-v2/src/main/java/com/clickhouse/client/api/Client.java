@@ -20,8 +20,6 @@ import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
-import com.clickhouse.client.api.insert.SerializerNotFoundException;
-import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -64,8 +62,6 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -73,7 +69,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1560,12 +1555,12 @@ public class Client implements AutoCloseable {
 
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings();
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<T> records = new ArrayList<>();
                 RowBinaryWithNamesAndTypesFormatReader reader =
-                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                        (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                 while (true) {
                     Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
