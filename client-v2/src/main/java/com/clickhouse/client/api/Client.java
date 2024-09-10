@@ -1535,10 +1535,15 @@ public class Client implements AutoCloseable {
     }
 
     /**
+     * WARNING: Experimental API
+     *
      * <p>Queries data and returns collection with whole result. Data is read directly to a DTO
      *  to save memory on intermediate structures. DTO will be instantiated with default constructor or
      *  by using allocator</p>
      * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
+     * <p>Internally deserializer is compiled at the register stage. Compilation is done using ASM library by
+     *  writing a bytecode</p>
+     *
      * @param sqlQuery - query to execute
      * @param clazz - class of the DTO
      * @param allocator - optional supplier to create new instances of the DTO.

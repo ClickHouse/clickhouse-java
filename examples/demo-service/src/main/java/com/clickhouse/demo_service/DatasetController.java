@@ -27,6 +27,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Dataset API:
@@ -84,12 +86,14 @@ public class DatasetController {
                     " FROM system.numbers";
 
     /**
-     * Common approach to fetch data from ClickHouse using client v2.
+     * Fetches data from a DB using row binary reader. VirtualDatasetRecord objects are created on each iteration and
+     * filled with data from the reader. Gives full control on how data is processed and stored.
+     * If this method returns a lot of data it may cause application slowdown.
      *
      * @param limit
      * @return
      */
-    @GetMapping("/direct/dataset/0")
+    @GetMapping("/dataset/reader")
     public List<VirtualDatasetRecord> directDatasetFetch(@RequestParam(name = "limit", required = false) Integer limit) {
         limit = limit == null ? 100 : limit;
 
@@ -118,7 +122,7 @@ public class DatasetController {
                     response.getMetrics().getMetric(ClientMetrics.OP_DURATION).getLong(),
                     TimeUnit.NANOSECONDS.toMillis(response.getServerTime())));
 
-            return result;
+            return result.stream().findFirst().stream().collect(Collectors.toCollection(ArrayList::new));
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch dataset", e);
         }
@@ -127,12 +131,14 @@ public class DatasetController {
     private JsonMapper jsonMapper = new JsonMapper();
 
     /**
-     * Current approach is to demonstrate how to 'stream' data from ClickHouse using JSONEachRow format.
-     * This approach is faster than common one because it bypasses Spring internals and writes directly to http output stream.
+     * Reads data in JSONEachRow format, parses it into JSON library object (can be used for further processing) and
+     * writes it back to the response.
+     * This helps to reduce effort of writing data to the response.
+     *
      * @param httpResp
      * @param limit
      */
-    @GetMapping("/direct/dataset/1")
+    @GetMapping("/dataset/json_each_row_in_and_out")
     @ResponseBody
     public void directDataFetchJSONEachRow(HttpServletResponse httpResp, @RequestParam(name = "limit", required = false) Integer limit) {
         limit = limit == null ? 100 : limit;
@@ -170,19 +176,25 @@ public class DatasetController {
     }
 
     /**
-     * Using POJO deserialization to fetch data from ClickHouse. Also using a objects cache
-     * to avoid objects creation on each iteration.
+     * Using POJO deserialization to fetch data from ClickHouse.
+     * If cache is enabled, objects are reused from the pool otherwise new objects are created on each iteration.
      *
      * @param limit
      * @return
      */
-    @GetMapping("/direct/dataset/cached_objects")
-    public CalculationResult directDatasetFetchCached(@RequestParam(name = "limit", required = false) Integer limit) {
+    @GetMapping("/dataset/read_to_pojo")
+    public CalculationResult directDatasetReadToPojo(@RequestParam(name = "limit", required = false) Integer limit,
+                                                     @RequestParam(name = "cache", required = false) Boolean cache) {
         limit = limit == null ? 100 : limit;
+        cache = cache != null && cache;
+        return readToPOJO(limit, cache);
+    }
 
+    private CalculationResult readToPOJO(int limit, boolean cache) {
         final String query = DATASET_QUERY + " LIMIT " + limit;
         List<VirtualDatasetRecord> result = null;
-        ObjectsPreparedCollection<VirtualDatasetRecord> objectsPool = this.pool.lease(); // take object from the pool
+        Supplier<VirtualDatasetRecord> objectsPool = cache ? this.pool.lease()
+                : VirtualDatasetRecord::new;
         try  {
             long start = System.nanoTime();
 
@@ -193,13 +205,16 @@ public class DatasetController {
             for (VirtualDatasetRecord record : result) {
                 p1Sum += record.getP1();
             }
-            log.info(result.toString());
-            objectsPool.reset(); // reset pool to for next use
+            if (cache) {
+                ((ObjectsPreparedCollection<VirtualDatasetRecord>) objectsPool).reset();
+            }
             return new CalculationResult(p1Sum);
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch dataset", e);
         } finally {
-            this.pool.release(objectsPool);
+            if (cache) {
+                this.pool.release((ObjectsPreparedCollection<VirtualDatasetRecord>) objectsPool);
+            }
         }
     }
 }

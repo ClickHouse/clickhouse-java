@@ -394,21 +394,7 @@ public class SerializerUtils {
             } else if (targetType.isPrimitive() && !targetType.isArray()) {
                 // unboxing
                 mv.visitVarInsn(ALOAD, 2); // load object
-                String sourceInternalClassName;
-                if (column.getDataType().isSigned()) {
-                    sourceInternalClassName = Type.getInternalName(sourceType);
-                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
-                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
-                } else if (column.getDataType() == ClickHouseDataType.Enum8) {
-                    sourceInternalClassName = Type.getInternalName(Byte.class);
-                } else if (column.getDataType() == ClickHouseDataType.Enum16) {
-                    sourceInternalClassName = Type.getInternalName(Short.class);
-                } else {
-                    sourceInternalClassName = Type.getInternalName(
-                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
-                                    ClickHouseDataType.toPrimitiveType(sourceType))));
-                    System.out.println("sourceInternalClassName: " + sourceInternalClassName + " " + column.getColumnName());
-                }
+                String sourceInternalClassName = getSourceInternalClassName(column, sourceType);
                 mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
                 mv.visitMethodInsn(INVOKEVIRTUAL,
                         sourceInternalClassName,
@@ -417,21 +403,7 @@ public class SerializerUtils {
                         false);
             } else if (!targetPrimitiveType.isPrimitive()) {
                 // boxing
-                String sourceInternalClassName;
-                if (column.getDataType().isSigned()) {
-                    sourceInternalClassName = Type.getInternalName(sourceType);
-                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
-                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
-                } else if (column.getDataType() == ClickHouseDataType.Enum8) {
-                    sourceInternalClassName = Type.getInternalName(Byte.class);
-                } else if (column.getDataType() == ClickHouseDataType.Enum16) {
-                    sourceInternalClassName = Type.getInternalName(Short.class);
-                } else {
-                    sourceInternalClassName = Type.getInternalName(
-                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
-                                    ClickHouseDataType.toPrimitiveType(sourceType))));
-                    System.out.println("sourceInternalClassName: " + sourceInternalClassName + " " + column.getColumnName());
-                }
+                String sourceInternalClassName = getSourceInternalClassName(column, sourceType);
                 mv.visitVarInsn(ALOAD, 2); // load object
                 mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
                 try {
@@ -476,6 +448,24 @@ public class SerializerUtils {
         } catch (Exception e) {
             throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
         }
+    }
+
+    private static String getSourceInternalClassName(ClickHouseColumn column, Class<?> sourceType) {
+        String sourceInternalClassName;
+        if (column.getDataType().isSigned()) {
+            sourceInternalClassName = Type.getInternalName(sourceType);
+        } else if (column.getDataType() == ClickHouseDataType.UInt64) {
+            sourceInternalClassName = Type.getInternalName(BigInteger.class);
+        } else if (column.getDataType() == ClickHouseDataType.Enum8) {
+            sourceInternalClassName = Type.getInternalName(Byte.class);
+        } else if (column.getDataType() == ClickHouseDataType.Enum16) {
+            sourceInternalClassName = Type.getInternalName(Short.class);
+        } else {
+            sourceInternalClassName = Type.getInternalName(
+                    ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
+                            ClickHouseDataType.toPrimitiveType(sourceType))));
+        }
+        return sourceInternalClassName;
     }
 
     private static String pojoSetterMethodDescriptor(Class<?> dtoClass, Class<?> argType) {

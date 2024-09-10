@@ -27,6 +27,7 @@ public class DbConfiguration {
                 .setSocketTcpNodelay(true)
                 .setSocketSndbuf(500_000)
                 .setClientNetworkBufferSize(500_000)
+                .allowBinaryReaderToReuseBuffers(true) // using buffer pool for binary reader
                 .build();
     }
 }
