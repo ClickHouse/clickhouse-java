@@ -15,10 +15,6 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.NativeFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -53,7 +49,6 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -78,8 +73,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.BaseStream;
-import java.util.stream.IntStream;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class QueryTests extends BaseIntegrationTest {
 
@@ -91,12 +86,19 @@ public class QueryTests extends BaseIntegrationTest {
 
     private boolean useHttpCompression = false;
 
+    private boolean usePreallocatedBuffers = false;
+
     QueryTests(){
     }
 
     public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
+        this(useServerCompression, useHttpCompression, false);
+    }
+
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
+        this.usePreallocatedBuffers = usePreallocatedBuffers;
     }
 
     @BeforeMethod(groups = {"integration"})
@@ -366,7 +368,7 @@ public class QueryTests extends BaseIntegrationTest {
         QueryResponse queryResponse = response.get();
 
         TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
-        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, tableSchema);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, tableSchema);
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
         int rowsCount = 0;
@@ -378,28 +380,6 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         Assert.assertEquals(rowsCount, rows);
-    }
-
-    private static ClickHouseBinaryFormatReader createBinaryFormatReader(QueryResponse response, QuerySettings settings,
-                                                                         TableSchema schema) {
-        ClickHouseBinaryFormatReader reader = null;
-        switch (response.getFormat()) {
-            case Native:
-                reader = new NativeFormatReader(response.getInputStream(), settings);
-                break;
-            case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), settings);
-                break;
-            case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), settings, schema);
-                break;
-            case RowBinary:
-                reader = new RowBinaryFormatReader(response.getInputStream(), settings, schema);
-                break;
-            default:
-                Assert.fail("unsupported format: " + response.getFormat().name());
-        }
-        return reader;
     }
 
     @Test(groups = {"integration"})
@@ -415,7 +395,7 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("col1", "UInt32");
         schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
-        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
         int rowsCount = 0;
         while (reader.next() != null) {
             String hostName = reader.readValue("host");
@@ -447,7 +427,7 @@ public class QueryTests extends BaseIntegrationTest {
         schema.addColumn("col1", "UInt32");
         schema.addColumn("col3", "String");
         schema.addColumn("host", "String");
-        ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(queryResponse.getInputStream(), settings);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
 
         Map<String, Object> record;
         for (int i = 0; i < rows; i++) {
@@ -486,8 +466,7 @@ public class QueryTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
-
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
 
         Map<String, Object> record = reader.next();
         Assert.assertNotNull(record);
@@ -535,7 +514,7 @@ public class QueryTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
 
         Map<String, Object> record = reader.next();
         Assert.assertNotNull(record);
@@ -586,7 +565,7 @@ public class QueryTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchema(table);
 
         QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
 
         Map<String, Object> record = reader.next();
         Assert.assertNotNull(record);
@@ -1123,7 +1102,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             QueryResponse queryResponse = response.get();
-            ClickHouseBinaryFormatReader reader = createBinaryFormatReader(queryResponse, settings, schema);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
             Assert.assertNotNull(reader.next());
             Assert.assertEquals(verifiers.size(), columns.size(), "Number of verifiers should match number of columns");
             int colIndex = 0;
@@ -1376,8 +1355,7 @@ public class QueryTests extends BaseIntegrationTest {
                      client.query("SELECT now() as t, toDateTime(now(), 'UTC') as utc_time " +
                              "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
 
-            ClickHouseBinaryFormatReader reader =
-                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
             reader.next();
 
@@ -1407,8 +1385,7 @@ public class QueryTests extends BaseIntegrationTest {
                                  "toDateTime(now(), 'Europe/Lisbon')" +
                                  "SETTINGS session_timezone = '" + requestTimeZone + "'").get(1, TimeUnit.SECONDS)) {
 
-                ClickHouseBinaryFormatReader reader =
-                        new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
                 reader.next();
 
@@ -1440,8 +1417,7 @@ public class QueryTests extends BaseIntegrationTest {
     protected void simpleRequest(Client client) throws Exception {
         try (QueryResponse response =
                      client.query("SELECT number FROM system.numbers LIMIT 1000_000").get(1, TimeUnit.SECONDS)) {
-            ClickHouseBinaryFormatReader reader =
-                    new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
             int count = 0;
             while (reader.hasNext()) {
@@ -1486,6 +1462,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(true)
                 .useHttpCompression(useHttpCompression)
+                .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

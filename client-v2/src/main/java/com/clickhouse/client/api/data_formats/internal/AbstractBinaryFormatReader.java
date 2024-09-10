@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
@@ -41,6 +42,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -58,7 +60,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private volatile boolean hasNext = true;
 
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema) {
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
+                                         BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
         boolean useServerTimeZone = (boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
@@ -67,7 +70,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator);
         setSchema(schema);
     }
 
@@ -133,12 +136,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         try {
             nextRecordEmpty.set(true);
             if (!readRecord(nextRecord)) {
-                hasNext = false;
+                endReached();
             } else {
                 nextRecordEmpty.compareAndSet(true, false);
             }
         } catch (IOException e) {
-            hasNext = false;
+            endReached();
             throw new ClientException("Failed to read next row", e);
         }
     }
@@ -165,7 +168,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     return null;
                 }
             } catch (IOException e) {
-                hasNext = false;
+                endReached();
                 throw new ClientException("Failed to read row", e);
             }
         }
@@ -620,5 +623,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
+    }
+
+    @Override
+    public void close() throws Exception {
+        input.close();
     }
 }

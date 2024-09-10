@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -20,6 +21,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.insert.SerializerNotFoundException;
+import com.clickhouse.client.api.internal.BasicObjectsPool;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -68,6 +70,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -753,6 +756,22 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configures client to reuse allocated byte buffers for numbers. It affects how binary format reader is working.
+         * If set to 'true' then {@link  Client#newBinaryFormatReader(QueryResponse)} will construct reader that will
+         * reuse buffers for numbers. It improves performance for large datasets by reducing number of allocations
+         * (therefore GC pressure).
+         * Enabling this feature is safe because each reader suppose to be used by a single thread and readers are not reused.
+         *
+         * Default is false.
+         * @param reuse - if to reuse buffers
+         * @return
+         */
+        public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
+            this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -865,6 +884,10 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
                 setMaxRetries(3);
+            }
+
+            if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
+                allowBinaryReaderToReuseBuffers(false);
             }
         }
     }
@@ -1442,10 +1465,10 @@ public class Client implements AutoCloseable {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
 
-        final QuerySettings finalSettings = settings;
         return query(sqlQuery, settings).thenApply(response -> {
             try {
-                return new Records(response, finalSettings);
+
+                return new Records(response, newBinaryFormatReader(response));
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -1462,13 +1485,14 @@ public class Client implements AutoCloseable {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                            (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
@@ -1569,20 +1593,30 @@ public class Client implements AutoCloseable {
      * @param schema
      * @return
      */
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
+        // Using caching buffer allocator is risky so this parameter is not exposed to the user
+        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
+        BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
+                new BinaryStreamReader.CachingByteBufferAllocator() :
+                new BinaryStreamReader.DefaultByteBufferAllocator();
+
         switch (response.getFormat()) {
             case Native:
-                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             case RowBinary:
-                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
@@ -1590,7 +1624,7 @@ public class Client implements AutoCloseable {
         return reader;
     }
 
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
     }
 
