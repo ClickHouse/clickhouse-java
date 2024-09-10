@@ -417,17 +417,41 @@ public class SerializerUtils {
                         false);
             } else if (!targetPrimitiveType.isPrimitive()) {
                 // boxing
+                String sourceInternalClassName;
+                if (column.getDataType().isSigned()) {
+                    sourceInternalClassName = Type.getInternalName(sourceType);
+                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
+                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
+                } else if (column.getDataType() == ClickHouseDataType.Enum8) {
+                    sourceInternalClassName = Type.getInternalName(Byte.class);
+                } else if (column.getDataType() == ClickHouseDataType.Enum16) {
+                    sourceInternalClassName = Type.getInternalName(Short.class);
+                } else {
+                    sourceInternalClassName = Type.getInternalName(
+                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
+                                    ClickHouseDataType.toPrimitiveType(sourceType))));
+                    System.out.println("sourceInternalClassName: " + sourceInternalClassName + " " + column.getColumnName());
+                }
                 mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        Type.getInternalName(sourceType),
-                        targetPrimitiveType.getSimpleName() + "Value",
-                        "()" + Type.getDescriptor(targetPrimitiveType),
-                        false);
-                mv.visitMethodInsn(INVOKESTATIC,
-                        Type.getInternalName(targetType),
-                        "valueOf",
-                        "(" + Type.getDescriptor(targetPrimitiveType) + ")" + Type.getDescriptor(targetType),
-                        false);
+                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
+                try {
+                    if (!targetType.isAssignableFrom(Class.forName(sourceInternalClassName
+                            .replaceAll("/", ".")))) {
+                        mv.visitMethodInsn(INVOKEVIRTUAL,
+                                sourceInternalClassName,
+                                targetPrimitiveType.getSimpleName() + "Value",
+                                "()" + Type.getDescriptor(targetPrimitiveType),
+                                false);
+                        mv.visitMethodInsn(INVOKESTATIC,
+                                Type.getInternalName(targetType),
+                                "valueOf",
+                                "(" + Type.getDescriptor(targetPrimitiveType) + ")" + Type.getDescriptor(targetType),
+                                false);
+                    }
+                } catch (ClassNotFoundException e) {
+                    throw new ClientException("Cannot find class " + sourceInternalClassName + " to compile deserializer for "
+                            + column.getColumnName(), e);
+                }
             } else {
                 throw new ClientException("Unsupported conversion from " + sourceType + " to " + targetType);
             }

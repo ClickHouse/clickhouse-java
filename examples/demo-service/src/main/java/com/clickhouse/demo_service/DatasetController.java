@@ -193,6 +193,7 @@ public class DatasetController {
             for (VirtualDatasetRecord record : result) {
                 p1Sum += record.getP1();
             }
+            log.info(result.toString());
             objectsPool.reset(); // reset pool to for next use
             return new CalculationResult(p1Sum);
         } catch (Exception e) {
