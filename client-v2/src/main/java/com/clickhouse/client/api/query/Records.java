@@ -1,12 +1,9 @@
 package com.clickhouse.client.api.query;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryReaderBackedRecord;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
-import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.Iterator;
 import java.util.Spliterator;
@@ -22,13 +19,9 @@ public class Records implements Iterable<GenericRecord>, AutoCloseable {
     private boolean empty;
     private Iterator<GenericRecord> iterator;
 
-    public Records(QueryResponse response, QuerySettings finalSettings) {
+    public Records(QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.response = response;
-        if (!response.getFormat().equals(ClickHouseFormat.RowBinaryWithNamesAndTypes)) {
-            throw new ClientException("Unsupported format: " + finalSettings.getFormat());
-        }
-
-        this.reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), finalSettings);
+        this.reader = reader;
         this.empty = !reader.hasNext();
     }
 

@@ -23,12 +23,9 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     private int blockRowIndex;
 
-    public NativeFormatReader(InputStream inputStream) {
-        this(inputStream, null);
-    }
-
-    public NativeFormatReader(InputStream inputStream, QuerySettings settings) {
-        super(inputStream, settings, null);
+    public NativeFormatReader(InputStream inputStream, QuerySettings settings,
+                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+        super(inputStream, settings, null, byteBufferAllocator);
         readNextRecord();
     }
 
