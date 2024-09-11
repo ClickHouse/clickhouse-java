@@ -23,12 +23,12 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
-        return null;
+        return new ConnectionImpl(url, info);
     }
 
     @Override
     public boolean acceptsURL(String url) throws SQLException {
-        return false;
+        return url.startsWith("jdbc:clickhouse:") || url.startsWith("jdbc:ch:");
     }
 
     @Override
