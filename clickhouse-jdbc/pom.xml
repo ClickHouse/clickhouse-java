@@ -22,39 +22,18 @@
         <spec.version>4.2</spec.version>
 
         <imageName>clickhouse-jdbc-bin</imageName>
-        <mainClass>com.clickhouse.jdbc.Main</mainClass>
     </properties>
 
     <dependencies>
-<!-- GRPC Client. Deprecation.       <dependency>-->
-<!--            <groupId>${project.parent.groupId}</groupId>-->
-<!--            <artifactId>clickhouse-cli-client</artifactId>-->
-<!--            <version>${revision}</version>-->
-<!--            <optional>true</optional>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.clickhouse</groupId>-->
-<!--                    <artifactId>clickhouse-client</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
-<!--  GRPC Client. Deprecation.      <dependency>-->
-<!--            <groupId>${project.parent.groupId}</groupId>-->
-<!--            <artifactId>clickhouse-grpc-client</artifactId>-->
-<!--            <version>${revision}</version>-->
-<!--            <optional>true</optional>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.clickhouse</groupId>-->
-<!--                    <artifactId>clickhouse-client</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>client-v2</artifactId>
+            <version>${revision}</version>
+        </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -91,108 +70,6 @@
             <artifactId>gson</artifactId>
             <optional>true</optional>
         </dependency>
-<!-- GRPC Client. Deprecation.        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-api</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!-- GRPC Client. Deprecation.       <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-core</artifactId>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.google.code.gson</groupId>-->
-<!--                    <artifactId>gson</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!-- GRPC Client. Deprecation.        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-context</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!--  GRPC Client. Deprecation.      <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-netty-shaded</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!--  GRPC Client. Deprecation.      <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-okhttp</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!-- GRPC Client. Deprecation.       <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-protobuf</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.google.errorprone</groupId>-->
-<!--                    <artifactId>error_prone_annotations</artifactId>-->
-<!--                </exclusion>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.google.code.findbugs</groupId>-->
-<!--                    <artifactId>jsr305</artifactId>-->
-<!--                </exclusion>-->
-<!--                <exclusion>-->
-<!--                    <groupId>org.checkerframework</groupId>-->
-<!--                    <artifactId>checker-qual</artifactId>-->
-<!--                </exclusion>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.google.j2objc</groupId>-->
-<!--                    <artifactId>j2objc-annotations</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-stub</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-        <dependency>
-            <groupId>io.opencensus</groupId>
-            <artifactId>opencensus-impl</artifactId>
-            <optional>true</optional>
-        </dependency>
-<!-- GRPC Client. Deprecation.        <dependency>-->
-<!--            <groupId>io.opencensus</groupId>-->
-<!--            <artifactId>opencensus-contrib-grpc-metrics</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-<!-- GRPC Client. Deprecation.        <dependency>-->
-<!--            <groupId>${project.parent.groupId}</groupId>-->
-<!--            <artifactId>io.grpc</artifactId>-->
-<!--            <scope>provided</scope>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>*</groupId>-->
-<!--                    <artifactId>*</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.apache.commons.compress</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
@@ -203,7 +80,6 @@
             <artifactId>zstd-jni</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
@@ -226,97 +102,7 @@
             <artifactId>testng</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
-    <profiles>
-        <!--
-        slower than pure Java due to lack of PGO
-        https://github.com/oracle/graal/issues/979#issuecomment-480786612
-        more on
-        https://blogs.oracle.com/javamagazine/post/pedal-to-the-metal-high-performance-java-with-graalvm-native-image
-        -->
-        <profile>
-            <id>native</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.graalvm.buildtools</groupId>
-                        <artifactId>native-maven-plugin</artifactId>
-                        <extensions>true</extensions>
-                        <executions>
-                            <execution>
-                                <id>build-native</id>
-                                <goals>
-                                    <goal>compile-no-fork</goal>
-                                </goals>
-                                <phase>package</phase>
-                            </execution>
-                            <execution>
-                                <id>test-native</id>
-                                <goals>
-                                    <goal>test</goal>
-                                </goals>
-                                <phase>test</phase>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <imageName>${imageName}</imageName>
-                            <mainClass>${mainClass}</mainClass>
-                            <buildArgs>
-                                <buildArg>--no-fallback</buildArg>
-                            </buildArgs>
-                            <classpath>
-                                <param>
-                                    ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
-                            </classpath>
-                            <agent>
-                                <enabled>true</enabled>
-                            </agent>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>java-agent</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>java</executable>
-                                    <workingDirectory>${project.build.directory}</workingDirectory>
-                                    <arguments>
-                                        <argument>-classpath</argument>
-                                        <classpath>
-                                            <param>
-                                                ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
-                                        </classpath>
-                                        <argument>${mainClass}</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>native</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${project.build.directory}/${imageName}</executable>
-                                    <workingDirectory>${project.build.directory}</workingDirectory>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 
     <build>
         <plugins>
@@ -327,27 +113,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>com.helger.maven</groupId>
-                <artifactId>ph-javacc-maven-plugin</artifactId>
-                <version>${javacc-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>jjc</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>javacc</goal>
-                        </goals>
-                        <configuration>
-                            <jdkVersion>${minJdk}</jdkVersion>
-                            <javadocFriendlyComments>true</javadocFriendlyComments>
-                            <packageName>com.clickhouse.jdbc.parser</packageName>
-                            <sourceDirectory>src/main/javacc</sourceDirectory>
-                            <outputDirectory>src/main/java</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -400,7 +165,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-cli-client</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
@@ -430,7 +195,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -461,28 +225,14 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-<!-- CLI Client Deprecation                                   <include>com.clickhouse:clickhouse-client</include>-->
-<!-- CLI Client Deprecation                                   <include>com.clickhouse:clickhouse-cli-client</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>com.clickhouse:clickhouse-grpc-client</include>-->
-<!-- GRPC Client. Deprecation.                                    <include>com.clickhouse:clickhouse-http-client</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>com.google.api.grpc:proto-google-common-protos</include>-->
                                     <include>com.google.code.gson:gson</include>
                                     <include>com.google.guava:failureaccess</include>
                                     <include>com.google.guava:guava</include>
                                     <include>com.google.protobuf:protobuf-java</include>
                                     <include>com.squareup.okio:okio</include>
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-api</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-core</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-context</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-netty-shaded</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-okhttp</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-protobuf</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-protobuf-lite</include>-->
-<!-- GRPC Client. Deprecation.                                   <include>io.grpc:grpc-stub</include>-->
                                     <include>io.opencensus:opencensus-api</include>
                                     <include>io.opencensus:opencensus-impl</include>
                                     <include>io.opencensus:opencensus-impl-core</include>
-<!-- GRPC Client. Deprecation.                                   <include>io.opencensus:opencensus-contrib-grpc-metrics</include>-->
                                     <include>io.perfmark:perfmark-api</include>
                                     <include>org.apache.commons:commons-compress</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
@@ -496,10 +246,6 @@
                                     <pattern>com.google</pattern>
                                     <shadedPattern>${shade.base}.google</shadedPattern>
                                 </relocation>
-<!-- GRPC Client. Deprecation.                               <relocation>-->
-<!--                                    <pattern>io.grpc</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.grpc</shadedPattern>-->
-<!--                                </relocation>-->
                                 <relocation>
                                     <pattern>io.opencensus</pattern>
                                     <shadedPattern>${shade.base}.opencensus</shadedPattern>
@@ -532,7 +278,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -551,101 +296,6 @@
                             </filters>
                         </configuration>
                     </execution>
-<!-- GRPC Client. Deprecation.                   <execution>-->
-<!--                        <id>shade-grpc</id>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>shade</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <shadedArtifactAttached>true</shadedArtifactAttached>-->
-<!--                            <createDependencyReducedPom>true</createDependencyReducedPom>-->
-<!--                            <createSourcesJar>true</createSourcesJar>-->
-<!--                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>-->
-<!--                            <shadedClassifierName>grpc</shadedClassifierName>-->
-<!--                            <artifactSet>-->
-<!--                                <includes>-->
-<!--                                    <include>com.clickhouse:clickhouse-data</include>-->
-<!--                                    <include>com.clickhouse:clickhouse-client</include>-->
-<!--                                    <include>com.clickhouse:clickhouse-grpc-client</include>-->
-<!--                                    <include>com.google.api.grpc:proto-google-common-protos</include>-->
-<!--                                    <include>com.google.code.gson:gson</include>-->
-<!--                                    <include>com.google.guava:failureaccess</include>-->
-<!--                                    <include>com.google.guava:guava</include>-->
-<!--                                    <include>com.google.protobuf:protobuf-java</include>-->
-<!--                                    <include>com.squareup.okio:okio</include>-->
-<!--                                    <include>io.grpc:grpc-api</include>-->
-<!--                                    <include>io.grpc:grpc-core</include>-->
-<!--                                    <include>io.grpc:grpc-context</include>-->
-<!--                                    <include>io.grpc:grpc-netty-shaded</include>-->
-<!--                                    <include>io.grpc:grpc-okhttp</include>-->
-<!--                                    <include>io.grpc:grpc-protobuf</include>-->
-<!--                                    <include>io.grpc:grpc-protobuf-lite</include>-->
-<!--                                    <include>io.grpc:grpc-stub</include>-->
-<!--                                    <include>io.opencensus:opencensus-api</include>-->
-<!--                                    <include>io.opencensus:opencensus-impl</include>-->
-<!--                                    <include>io.opencensus:opencensus-impl-core</include>-->
-<!--                                    <include>io.opencensus:opencensus-contrib-grpc-metrics</include>-->
-<!--                                    <include>io.perfmark:perfmark-api</include>-->
-<!--                                    <include>org.apache.commons:commons-compress</include>-->
-<!--                                </includes>-->
-<!--                            </artifactSet>-->
-<!--                            <relocations>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>com.google</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.google</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>io.grpc</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.grpc</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>io.opencensus</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.opencensus</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>io.perfmark</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.perfmark</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>okio</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.okio</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>org.apache</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.apache</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                            </relocations>-->
-<!--                            <transformers>-->
-<!--                                <transformer-->
-<!--                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />-->
-<!--                                <transformer-->
-<!--                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />-->
-<!--                                <transformer-->
-<!--                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />-->
-<!--                                <transformer-->
-<!--                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
-<!--                                    <manifestEntries>-->
-<!--                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>-->
-<!--                                        <Main-Class>${mainClass}</Main-Class>-->
-<!--                                        <Specification-Title>${spec.title}</Specification-Title>-->
-<!--                                        <Specification-Version>${spec.version}</Specification-Version>-->
-<!--                                    </manifestEntries>-->
-<!--                                </transformer>-->
-<!--                            </transformers>-->
-<!--                            <filters>-->
-<!--                                <filter>-->
-<!--                                    <artifact>*:*</artifact>-->
-<!--                                    <excludes>-->
-<!--                                        <exclude>google/**</exclude>-->
-<!--                                        <exclude>org/checkerframework/**</exclude>-->
-<!--                                        <exclude>org/codehaus/**</exclude>-->
-<!--                                        <exclude>**/module-info.class</exclude>-->
-<!--                                    </excludes>-->
-<!--                                </filter>-->
-<!--                            </filters>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
                     <execution>
                         <id>shade-http</id>
                         <phase>package</phase>
@@ -661,7 +311,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
@@ -677,7 +327,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -693,54 +342,6 @@
                             </filters>
                         </configuration>
                     </execution>
-<!--  CLI Deprecation                  <execution>-->
-<!--                        <id>shade-cli</id>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>shade</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <shadedArtifactAttached>true</shadedArtifactAttached>-->
-<!--                            <createDependencyReducedPom>true</createDependencyReducedPom>-->
-<!--                            <createSourcesJar>true</createSourcesJar>-->
-<!--                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>-->
-<!--                            <shadedClassifierName>cli</shadedClassifierName>-->
-<!--                            <artifactSet>-->
-<!--                                <includes>-->
-<!--                                    <include>com.clickhouse:clickhouse-data</include>-->
-<!--                                    <include>com.clickhouse:clickhouse-client</include>-->
-<!--                                    <include>com.clickhouse:clickhouse-cli-client</include>-->
-<!--                                    <include>org.lz4:lz4-pure-java</include>-->
-<!--                                </includes>-->
-<!--                            </artifactSet>-->
-<!--                            <relocations>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>net.jpountz</pattern>-->
-<!--                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>-->
-<!--                                </relocation>-->
-<!--                            </relocations>-->
-<!--                            <transformers>-->
-<!--                                <transformer-->
-<!--                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
-<!--                                    <manifestEntries>-->
-<!--                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>-->
-<!--                                        <Main-Class>${mainClass}</Main-Class>-->
-<!--                                        <Specification-Title>${spec.title}</Specification-Title>-->
-<!--                                        <Specification-Version>${spec.version}</Specification-Version>-->
-<!--                                    </manifestEntries>-->
-<!--                                </transformer>-->
-<!--                            </transformers>-->
-<!--                            <filters>-->
-<!--                                <filter>-->
-<!--                                    <artifact>*:*</artifact>-->
-<!--                                    <excludes>-->
-<!--                                        <exclude>**/module-info.class</exclude>-->
-<!--                                    </excludes>-->
-<!--                                </filter>-->
-<!--                            </filters>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
-                    <!-- replace the default artifact -->
                     <execution>
                         <id>shade-default</id>
                         <phase>package</phase>
@@ -756,9 +357,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
-<!--  Deprecation                                   <include>com.clickhouse:clickhouse-cli-client</include>-->
-<!--  Deprecation                                  <include>com.clickhouse:clickhouse-grpc-client</include>-->
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                 </includes>
                             </artifactSet>
@@ -769,7 +368,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
