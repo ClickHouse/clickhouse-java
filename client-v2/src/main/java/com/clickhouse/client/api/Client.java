@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -19,7 +20,6 @@ import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
-import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -33,6 +33,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
@@ -123,6 +124,10 @@ public class Client implements AutoCloseable {
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
     private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
     private final Map<Class<?>, Map<String, Method>> getterMethods;
+
+    private final Map<Class<?>, Map<String, POJOSetter>> deserializers;
+    private final Map<Class<?>, Map<String, Method>> setterMethods;
+
     private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
@@ -140,9 +145,11 @@ public class Client implements AutoCloseable {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
-        this.serializers = new HashMap<>();
-        this.getterMethods = new HashMap<>();
-        this.hasDefaults = new HashMap<>();
+        this.serializers = new ConcurrentHashMap<>();
+        this.getterMethods = new ConcurrentHashMap<>();
+        this.hasDefaults = new ConcurrentHashMap<>();
+        this.deserializers = new ConcurrentHashMap<>();
+        this.setterMethods = new ConcurrentHashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
         if (isAsyncEnabled && sharedOperationExecutor == null) {
@@ -753,6 +760,22 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Configures client to reuse allocated byte buffers for numbers. It affects how binary format reader is working.
+         * If set to 'true' then {@link  Client#newBinaryFormatReader(QueryResponse)} will construct reader that will
+         * reuse buffers for numbers. It improves performance for large datasets by reducing number of allocations
+         * (therefore GC pressure).
+         * Enabling this feature is safe because each reader suppose to be used by a single thread and readers are not reused.
+         *
+         * Default is false.
+         * @param reuse - if to reuse buffers
+         * @return
+         */
+        public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
+            this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -866,6 +889,10 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
                 setMaxRetries(3);
             }
+
+            if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
+                allowBinaryReaderToReuseBuffers(false);
+            }
         }
     }
 
@@ -906,61 +933,76 @@ public class Client implements AutoCloseable {
      * @param clazz - class of a POJO
      * @param schema - correlating table schema
      */
-    public void register(Class<?> clazz, TableSchema schema) {
+    public synchronized void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
 
         //Create a new POJOSerializer with static .serialize(object, columns) methods
-        List<POJOSerializer> serializers = new ArrayList<>();
-        Map<String, Method> getterMethods = new HashMap<>();
-
-        for (Method method: clazz.getMethods()) {//Clean up the method names
+        Map<String, Method> classGetters = new HashMap<>();
+        Map<String, Method> classSetters = new HashMap<>();
+        for (Method method : clazz.getMethods()) {//Clean up the method names
             String methodName = method.getName();
             if (methodName.startsWith("get") || methodName.startsWith("has")) {
                 methodName = methodName.substring(3).toLowerCase();
-                getterMethods.put(methodName, method);
-            } if (methodName.startsWith("is")) {
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("is")) {
                 methodName = methodName.substring(2).toLowerCase();
-                getterMethods.put(methodName, method);
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("set")) {
+                methodName = methodName.substring(3).toLowerCase();
+                classSetters.put(methodName, method);
             }
         }
-        this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
-
-        for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".","");
-            serializers.add((obj, stream) -> {
-                if (!getterMethods.containsKey(columnName)) {
-                    LOG.warn("No getter method found for column: {}", columnName);
-                    return;
-                }
-                Method getterMethod = this.getterMethods.get(clazz).get(columnName);
-                Object value = getterMethod.invoke(obj);
-                boolean hasDefaults = this.hasDefaults.get(clazz);
-
-                //Handle null values
-                if (value == null) {
-                    if (hasDefaults && !column.hasDefault()) {//Send this only if there is no default
-                        BinaryStreamUtils.writeNonNull(stream);
-                    }
-                    BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
-                    return;
-                }
-
-                //Handle default
-                if (hasDefaults) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
-
-                //Handle nullable
-                if (column.isNullable()) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
-
-                //Handle the different types
-                SerializerUtils.serializeData(stream, value, column);
-            });
-        }
-        this.serializers.put(clazz, serializers);
+        this.getterMethods.put(clazz, classGetters);//Store the getter methods for later use
+        this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
         this.hasDefaults.put(clazz, schema.hasDefaults());
+
+        List<POJOSerializer> classSerializers = new ArrayList<>();
+        Map<String, POJOSetter> classDeserializers = new ConcurrentHashMap<>();
+        for (ClickHouseColumn column : schema.getColumns()) {
+            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+
+            Method getterMethod = classGetters.get(propertyName);
+            boolean classHashDefaults = this.hasDefaults.get(clazz);
+            if (getterMethod != null) {
+                classSerializers.add((obj, stream) -> {
+                    Object value = getterMethod.invoke(obj);
+
+                    //Handle null values
+                    if (value == null) {
+                        if (classHashDefaults && !column.hasDefault()) {//Send this only if there is no default
+                            BinaryStreamUtils.writeNonNull(stream);
+                        }
+                        BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
+                        return;
+                    }
+
+                    //Handle default
+                    if (classHashDefaults) {
+                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                    }
+
+                    //Handle nullable
+                    if (column.isNullable()) {
+                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                    }
+
+                    //Handle the different types
+                    SerializerUtils.serializeData(stream, value, column);
+                });
+            } else {
+                LOG.warn("No getter method found for column: {}", propertyName);
+            }
+
+            Method setterMethod = classSetters.get(propertyName);
+            String columnName = column.getColumnName();
+            if (setterMethod != null) {
+                classDeserializers.put(columnName, SerializerUtils.compilePOJOSetter(setterMethod, column));
+            } else {
+                LOG.warn("No setter method found for column: {}", propertyName);
+            }
+        }
+        this.serializers.put(clazz, classSerializers);
+        this.deserializers.put(clazz, classDeserializers);
     }
 
     /**
@@ -1000,9 +1042,22 @@ public class Client implements AutoCloseable {
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param settings - insert operation settings
+     * @throws IllegalArgumentException when data is empty or not registered
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName, List<?> data, InsertSettings settings) {
+
+        if (data == null || data.isEmpty()) {
+            throw new IllegalArgumentException("Data cannot be empty");
+        }
+
+        //Lookup the Serializer for the POJO
+        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+        if (serializers == null || serializers.isEmpty()) {
+            throw new IllegalArgumentException("No serializers found for class '" + data.get(0).getClass() + "'. Did you forget to register it?");
+        } else {
+            LOG.info("serializers: {}", serializers.size());
+        }
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -1011,10 +1066,6 @@ public class Client implements AutoCloseable {
         }
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
-        if (data == null || data.isEmpty()) {
-            throw new IllegalArgumentException("Data cannot be empty");
-        }
-
         //Add format to the settings
         if (settings == null) {
             settings = new InsertSettings();
@@ -1022,12 +1073,6 @@ public class Client implements AutoCloseable {
 
         boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
-
-        //Lookup the Serializer for the POJO
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new SerializerNotFoundException(data.get(0).getClass());
-        }
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1442,10 +1487,10 @@ public class Client implements AutoCloseable {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
 
-        final QuerySettings finalSettings = settings;
         return query(sqlQuery, settings).thenApply(response -> {
             try {
-                return new Records(response, finalSettings);
+
+                return new Records(response, newBinaryFormatReader(response));
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -1462,19 +1507,75 @@ public class Client implements AutoCloseable {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                            (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
                     }
                 }
+                return records;
+            }
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get query response", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get query response", e);
+        }
+    }
+
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz) {
+        return queryAll(sqlQuery, clazz, null);
+    }
+
+    /**
+     * WARNING: Experimental API
+     *
+     * <p>Queries data and returns collection with whole result. Data is read directly to a DTO
+     *  to save memory on intermediate structures. DTO will be instantiated with default constructor or
+     *  by using allocator</p>
+     * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
+     * <p>Internally deserializer is compiled at the register stage. Compilation is done using ASM library by
+     *  writing a bytecode</p>
+     *
+     * @param sqlQuery - query to execute
+     * @param clazz - class of the DTO
+     * @param allocator - optional supplier to create new instances of the DTO.
+     * @throws IllegalArgumentException when class is not registered or no setters found
+     * @return List of POJOs filled with data
+     * @param <T>
+     */
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, Supplier<T> allocator) {
+        Map<String, POJOSetter> classDeserializers = deserializers.get(clazz);
+
+        if (classDeserializers == null || classDeserializers.isEmpty()) {
+            throw new IllegalArgumentException("No deserializers found for class '" + clazz + "'. Did you forget to register it?");
+        }
+
+        try {
+            int operationTimeout = getOperationTimeout();
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
+                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+                List<T> records = new ArrayList<>();
+                RowBinaryWithNamesAndTypesFormatReader reader =
+                        (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
+
+                while (true) {
+                    Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+                    if (reader.readToPOJO(classDeserializers, record)) {
+                        records.add((T) record);
+                    } else {
+                        break;
+                    }
+                }
+
                 return records;
             }
         } catch (ExecutionException e) {
@@ -1515,6 +1616,23 @@ public class Client implements AutoCloseable {
         try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
                 query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
             return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
+        } catch (TimeoutException e) {
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get table schema", e);
+        }
+    }
+
+    public TableSchema getTableSchemaFromQuery(String sql, String name) {
+        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+
+        int operationTimeout = getOperationTimeout();
+
+        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
+                query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+            return new TableSchemaParser().readTSKV(response.getInputStream(), name, getDefaultDatabase());
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
@@ -1569,20 +1687,30 @@ public class Client implements AutoCloseable {
      * @param schema
      * @return
      */
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
+        // Using caching buffer allocator is risky so this parameter is not exposed to the user
+        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
+        BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
+                new BinaryStreamReader.CachingByteBufferAllocator() :
+                new BinaryStreamReader.DefaultByteBufferAllocator();
+
         switch (response.getFormat()) {
             case Native:
-                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             case RowBinary:
-                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
@@ -1590,7 +1718,7 @@ public class Client implements AutoCloseable {
         return reader;
     }
 
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
     }
 

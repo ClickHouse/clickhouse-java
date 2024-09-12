@@ -59,8 +59,7 @@ public class SimpleReader {
         try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS);) {
 
             // Create a reader to access the data in a convenient way
-            ClickHouseBinaryFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(),
-                    response.getSettings());
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
             while (reader.hasNext()) {
                 reader.next(); // Read the next record from stream and parse it

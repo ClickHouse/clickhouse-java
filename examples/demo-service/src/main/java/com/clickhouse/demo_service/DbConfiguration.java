@@ -18,8 +18,16 @@ public class DbConfiguration {
                 .setUsername(dbUser)
                 .setPassword(dbPassword)
                 .useNewImplementation(true) // using new transport layer implementation
-                .setLZ4UncompressedBufferSize(1050000) // increase a LZ4 buffer size
-                .setMaxConnections(50)
+
+                // sets the maximum number of connections to the server at a time
+                // this is important for services handling many concurrent requests to ClickHouse
+                .setMaxConnections(100)
+                .setLZ4UncompressedBufferSize(1058576)
+                .setSocketRcvbuf(500_000)
+                .setSocketTcpNodelay(true)
+                .setSocketSndbuf(500_000)
+                .setClientNetworkBufferSize(500_000)
+                .allowBinaryReaderToReuseBuffers(true) // using buffer pool for binary reader
                 .build();
     }
 }

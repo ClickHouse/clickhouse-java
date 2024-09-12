@@ -65,6 +65,8 @@ public class ClientTests extends BaseIntegrationTest {
                         .setUsername("default")
                         .setPassword("")
                         .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                        .setClientKey("user.key")
+                        .setClientCertificate("user.crt")
                         .build()
         };
     }
