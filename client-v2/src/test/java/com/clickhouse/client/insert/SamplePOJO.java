@@ -1,8 +1,7 @@
 package com.clickhouse.client.insert;
 
-import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseEnum;
+import com.clickhouse.data.value.ClickHouseBitmap;
+
 import org.apache.commons.lang3.RandomStringUtils;
 
 import java.math.BigDecimal;
@@ -14,13 +13,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-import java.util.stream.IntStream;
 
 public class SamplePOJO {
     private int int8;
@@ -75,6 +72,9 @@ public class SamplePOJO {
     private Map<String, Integer> map;
     private List<Integer> nestedInnerInt;
     private List<String> nestedInnerString;
+
+    private ClickHouseBitmap groupBitmapUint32;
+    private ClickHouseBitmap groupBitmapUint64;
 
     public SamplePOJO() {
         final Random random = new Random();
@@ -154,6 +154,9 @@ public class SamplePOJO {
         List<String> innerString = new ArrayList<>();
         innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
         nestedInnerString = innerString;
+
+        groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
+        groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
     }
 
     public int getInt8() {
@@ -460,6 +463,22 @@ public class SamplePOJO {
         this.nestedInnerString = nestedInnerString;
     }
 
+    public ClickHouseBitmap getGroupBitmapUint32() {
+        return groupBitmapUint32;
+    }
+
+    public void setGroupBitmapUint32(ClickHouseBitmap groupBitmapUint32) {
+        this.groupBitmapUint32 = groupBitmapUint32;
+    }
+
+    public ClickHouseBitmap getGroupBitmapUint64() {
+        return groupBitmapUint64;
+    }
+
+    public void setGroupBitmapUint64(ClickHouseBitmap groupBitmapUint64) {
+        this.groupBitmapUint64 = groupBitmapUint64;
+    }
+
     public static String generateTableCreateSQL(String tableName) {
         return "CREATE TABLE " + tableName + " (" +
                 "int8 Int8, " +
@@ -501,7 +520,9 @@ public class SamplePOJO {
                 "array Array(String), " +
                 "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
                 "map Map(String, Int32), " +
-                "nested Nested (innerInt Int32, innerString String)" +
+                "nested Nested (innerInt Int32, innerString String)," +
+                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
+                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +
                 ") ENGINE = Memory";
     }
 }

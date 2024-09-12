@@ -4,9 +4,12 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.POJOSetter;
+import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.ClickHouseBitmap;
+
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -59,6 +62,9 @@ public class SerializerUtils {
                 break;
             case Map:
                 serializeMapData(stream, value, column);
+                break;
+            case AggregateFunction:
+                serializeAggregateFunction(stream, value, column);
                 break;
             default:
                 serializePrimitiveData(stream, value, column);
@@ -194,6 +200,13 @@ public class SerializerUtils {
         }
     }
 
+    private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
+            BinaryStreamUtils.writeBitmap(stream, (ClickHouseBitmap) value);
+        } else {
+            throw new UnsupportedOperationException("Unsupported aggregate function: " + column.getAggregateFunction());
+        }
+    }
 
     public static Integer convertToInteger(Object value) {
         if (value instanceof Integer) {
