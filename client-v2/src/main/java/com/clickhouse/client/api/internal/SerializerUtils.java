@@ -9,7 +9,6 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
-
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -26,7 +25,6 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -35,16 +33,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.CHECKCAST;
-import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
@@ -304,145 +298,55 @@ public class SerializerUtils {
             mv.visitEnd();
         }
 
-        /* Currently all readers operate with objects and next scenarios are possible:
-            - target is primitive and source is a boxed type
-                - source should be called `intValue()` or similar
-            - target and source are both objects
-                - no casting is needed
-            - target is a boxed type and source is too, but smaller
-                - source should be called `intValue()` or similar (target should be used to detect primitive type)
-                - then target should be boxed with `valueOf()`
-            - target is the assignable from source (e.g. target is `Object` and source is `String`)
-                - no casting is needed
-            - source should be converted before assigning to the target
-                - call conversion function
-
-            In the future when reader will use primitive types then call to `valueOf()` should be
-            added for boxed types.
-        */
-
-        Class<?> targetType = setterMethod.getParameterTypes()[0];
-        Class<?> targetPrimitiveType = ClickHouseDataType.toPrimitiveType(targetType); // will return object class if no primitive
-        Class<?> sourceType = column.getDataType().getObjectClass(); // will return object class if no primitive
-
+        /*
+         * Next code will generate instance of POJOSetter that will
+         * call BinaryStreamReader.read* method to read value from stream
+         *
+         */
         // setter setValue(Object obj, Object value) impl
         {
             MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "setValue",
-                    pojoSetterMethodDescriptor(Object.class, Object.class), null, null);
+                    Type.getMethodDescriptor(Type.VOID_TYPE,
+                            Type.getType(Object.class), Type.getType(BinaryStreamReader.class),
+                            Type.getType(ClickHouseColumn.class)), null, new String[]{"java/io/IOException"});
+
+            Class<?> targetType = setterMethod.getParameterTypes()[0];
+            Class<?> targetPrimitiveType = ClickHouseDataType.toPrimitiveType(targetType); // will return object class if no primitive
+
 
             mv.visitCode();
-            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 1); // load target object
             mv.visitTypeInsn(CHECKCAST, Type.getInternalName(dtoClass));
+            mv.visitVarInsn(ALOAD, 2); // load reader
 
-            if (sourceType == LocalDate.class) {
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(ZonedDateTime.class));
+            if (targetType.isPrimitive() && BinaryStreamReader.isReadToPrimitive(column.getDataType())) {
+                binaryReaderMethodForType(mv,
+                        targetPrimitiveType, column.getDataType());
+            } else if (targetType.isPrimitive() && column.getDataType() == ClickHouseDataType.UInt64) {
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(BigInteger.class));
                 mv.visitMethodInsn(INVOKEVIRTUAL,
-                        Type.getInternalName(ZonedDateTime.class),
-                        "toLocalDate",
-                        "()" + Type.getDescriptor(LocalDate.class),
-                        false);
-            } else if (sourceType == LocalDateTime.class) {
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(ZonedDateTime.class));
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        Type.getInternalName(ZonedDateTime.class),
-                        "toLocalDateTime",
-                        "()" + Type.getDescriptor(LocalDateTime.class),
-                        false);
-            } else if ((targetType == boolean.class || targetType == Boolean.class) && column.getDataType() != ClickHouseDataType.Bool) {
-                mv.visitVarInsn(ALOAD, 2); // load object
-                String sourceInternalClassName;
-                if (column.getDataType().isSigned()) {
-                    sourceInternalClassName = Type.getInternalName(sourceType);
-                } else if (column.getDataType() == ClickHouseDataType.UInt64) {
-                    sourceInternalClassName = Type.getInternalName(BigInteger.class);
-                } else {
-                    sourceInternalClassName = Type.getInternalName(
-                            ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
-                                    ClickHouseDataType.toPrimitiveType(sourceType))));
-                }
-                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
-                mv.visitMethodInsn(INVOKESTATIC,
-                        Type.getInternalName(SerializerUtils.class),
-                        "convertToBoolean",
-                        "(" + Type.getDescriptor(Object.class) + ")" + Type.getDescriptor(boolean.class),
-                        false);
-                if (!targetType.isPrimitive()) {
-                    mv.visitMethodInsn(INVOKEVIRTUAL,
-                            Type.getInternalName(Boolean.class),
-                            "valueOf",
-                            "(" + Type.getDescriptor(boolean.class) + ")" + Type.getDescriptor(targetType),
-                            false);
-                }
-            } else if (column.getDataType() == ClickHouseDataType.Tuple && targetType.isAssignableFrom(List.class)) {
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(Object[].class));
-                mv.visitMethodInsn(INVOKESTATIC,
-                        Type.getInternalName(Arrays.class),
-                        "stream",
-                        "([Ljava/lang/Object;)" + Type.getDescriptor(Stream.class),
-                        false);
-                mv.visitMethodInsn(INVOKESTATIC,
-                        Type.getInternalName(Collectors.class),
-                        "toList",
-                        "()" + Type.getDescriptor(Collector.class),
-                        false);
-                mv.visitMethodInsn(INVOKEINTERFACE,
-                        Type.getInternalName(Stream.class),
-                        "collect",
-                        "(" + Type.getDescriptor(Collector.class) + ")" + Type.getDescriptor(Object.class),
-                        true);
-            } else if (targetType.isAssignableFrom(sourceType)) { // assuming source is always object because of reader
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(sourceType));
-            } else if (column.getDataType() == ClickHouseDataType.Array) {
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(BinaryStreamReader.ArrayValue.class));
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        Type.getInternalName(BinaryStreamReader.ArrayValue.class),
-                        "asList",
-                        "()" + Type.getDescriptor(List.class),
-                        false);
-            } else if (targetType.isPrimitive() && !targetType.isArray()) {
-                // unboxing
-                mv.visitVarInsn(ALOAD, 2); // load object
-                String sourceInternalClassName = getSourceInternalClassName(column, sourceType);
-                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        sourceInternalClassName,
+                        Type.getInternalName(BigInteger.class),
                         targetType.getSimpleName() + "Value",
                         "()" + Type.getDescriptor(targetType),
                         false);
-            } else if (!targetPrimitiveType.isPrimitive()) {
-                // boxing
-                String sourceInternalClassName = getSourceInternalClassName(column, sourceType);
-                mv.visitVarInsn(ALOAD, 2); // load object
-                mv.visitTypeInsn(CHECKCAST, sourceInternalClassName);
-                try {
-                    if (!targetType.isAssignableFrom(Class.forName(sourceInternalClassName
-                            .replaceAll("/", ".")))) {
-                        mv.visitMethodInsn(INVOKEVIRTUAL,
-                                sourceInternalClassName,
-                                targetPrimitiveType.getSimpleName() + "Value",
-                                "()" + Type.getDescriptor(targetPrimitiveType),
-                                false);
-                        mv.visitMethodInsn(INVOKESTATIC,
-                                Type.getInternalName(targetType),
-                                "valueOf",
-                                "(" + Type.getDescriptor(targetPrimitiveType) + ")" + Type.getDescriptor(targetType),
-                                false);
-                    }
-                } catch (ClassNotFoundException e) {
-                    throw new ClientException("Cannot find class " + sourceInternalClassName + " to compile deserializer for "
-                            + column.getColumnName(), e);
-                }
             } else {
-                throw new ClientException("Unsupported conversion from " + sourceType + " to " + targetType);
+                mv.visitVarInsn(ALOAD, 3); // column
+                // load target class into stack
+                mv.visitLdcInsn(Type.getType(targetType));
+                // call readValue method
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        Type.getInternalName(BinaryStreamReader.class),
+                        "readValue",
+                        Type.getMethodDescriptor(
+                                Type.getType(Object.class),
+                                Type.getType(ClickHouseColumn.class),
+                                Type.getType(Class.class)),
+                        false);
+                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(targetType));
+                // cast to target type
             }
 
-
-            // finally call setter with the result of last INVOKEVIRTUAL
+            // finally call setter with the result of target class
             mv.visitMethodInsn(INVOKEVIRTUAL,
                     Type.getInternalName(dtoClass),
                     setterMethod.getName(),
@@ -463,32 +367,124 @@ public class SerializerUtils {
         }
     }
 
-    private static String getSourceInternalClassName(ClickHouseColumn column, Class<?> sourceType) {
-        String sourceInternalClassName;
-        if (column.getDataType().isSigned()) {
-            sourceInternalClassName = Type.getInternalName(sourceType);
-        } else if (column.getDataType() == ClickHouseDataType.UInt64) {
-            sourceInternalClassName = Type.getInternalName(BigInteger.class);
-        } else if (column.getDataType() == ClickHouseDataType.Enum8) {
-            sourceInternalClassName = Type.getInternalName(Byte.class);
-        } else if (column.getDataType() == ClickHouseDataType.Enum16) {
-            sourceInternalClassName = Type.getInternalName(Short.class);
-        } else {
-            sourceInternalClassName = Type.getInternalName(
-                    ClickHouseDataType.toObjectType(ClickHouseDataType.toWiderPrimitiveType(
-                            ClickHouseDataType.toPrimitiveType(sourceType))));
+    private static void binaryReaderMethodForType(MethodVisitor mv, Class<?> targetType, ClickHouseDataType dataType) {
+        String readerMethod = null;
+        String readerMethodReturnType = null;
+        int convertOpcode = -1;
+
+        switch (dataType) {
+            case Int8:
+                readerMethod = "readByte";
+                readerMethodReturnType = Type.getDescriptor(byte.class);
+                break;
+            case UInt8:
+                readerMethod = "readUnsignedByte";
+                readerMethodReturnType = Type.getDescriptor(short.class);
+                break;
+            case Int16:
+                readerMethod = "readShortLE";
+                readerMethodReturnType = Type.getDescriptor(short.class);
+                break;
+            case UInt16:
+                readerMethod = "readUnsignedShortLE";
+                readerMethodReturnType = Type.getDescriptor(int.class);
+                convertOpcode = intToOpcode(targetType);
+                break;
+            case Int32:
+                readerMethod = "readIntLE";
+                readerMethodReturnType = Type.getDescriptor(int.class);
+                convertOpcode = intToOpcode(targetType);
+                break;
+            case UInt32:
+                readerMethod = "readUnsignedIntLE";
+                readerMethodReturnType = Type.getDescriptor(long.class);
+                convertOpcode = longToOpcode(targetType);
+                break;
+            case Int64:
+                readerMethod = "readLongLE";
+                readerMethodReturnType = Type.getDescriptor(long.class);
+                convertOpcode = longToOpcode(targetType);
+                break;
+            case Float32:
+                readerMethod = "readFloatLE";
+                readerMethodReturnType = Type.getDescriptor(float.class);
+                convertOpcode = floatToOpcode(targetType);
+                break;
+            case Float64:
+                readerMethod = "readDoubleLE";
+                readerMethodReturnType = Type.getDescriptor(double.class);
+                convertOpcode = doubleToOpcode(targetType);
+                break;
+            case Enum8:
+                readerMethod = "readByte";
+                readerMethodReturnType = Type.getDescriptor(byte.class);
+                break;
+            case Enum16:
+                readerMethod = "readShortLE";
+                readerMethodReturnType = Type.getDescriptor(short.class);
+                break;
+            default:
+                throw new ClientException("Column type '" + dataType + "' cannot be set to a primitive type '" + targetType + "'");
         }
-        return sourceInternalClassName;
+
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                Type.getInternalName(BinaryStreamReader.class),
+                readerMethod,
+                "()" +readerMethodReturnType,
+                false);
+        if (convertOpcode != -1) {
+            mv.visitInsn(convertOpcode);
+        }
     }
 
-    private static String pojoSetterMethodDescriptor(Class<?> dtoClass, Class<?> argType) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('(');
-        sb.append(Type.getDescriptor(dtoClass));
-        sb.append(Type.getDescriptor(argType));
-        sb.append(')');
-        sb.append('V');
-        return sb.toString();
+    private static int intToOpcode(Class<?> targetType) {
+        if (targetType == short.class) {
+            return Opcodes.I2S;
+        } else if (targetType == long.class) {
+            return Opcodes.I2L;
+        } else if (targetType == byte.class) {
+            return Opcodes.I2B;
+        } else if (targetType == char.class) {
+            return Opcodes.I2C;
+        } else if (targetType == float.class) {
+            return Opcodes.I2F;
+        } else if (targetType == double.class) {
+            return Opcodes.I2D;
+        }
+        return -1;
+    }
+
+    private static int longToOpcode(Class<?> targetType) {
+        if (targetType == int.class) {
+            return Opcodes.L2I;
+        } else if (targetType == float.class) {
+            return Opcodes.L2F;
+        } else if (targetType == double.class) {
+            return Opcodes.L2D;
+        }
+        return -1;
+    }
+
+    private static int floatToOpcode(Class<?> targetType) {
+        if (targetType == int.class) {
+            return Opcodes.F2I;
+        } else if (targetType == long.class) {
+            return Opcodes.F2L;
+        } else if (targetType == double.class) {
+            return Opcodes.F2D;
+        }
+        return -1;
+    }
+
+    private static int doubleToOpcode(Class<?> targetType) {
+        if (targetType == int.class) {
+            return Opcodes.D2I;
+        } else if (targetType == long.class) {
+            return Opcodes.D2L;
+        } else if (targetType == float.class) {
+            return Opcodes.D2F;
+        }
+        return -1;
     }
 
     public static class DynamicClassLoader extends ClassLoader {

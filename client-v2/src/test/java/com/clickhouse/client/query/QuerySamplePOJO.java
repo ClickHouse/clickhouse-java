@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 
-public class SamplePOJO {
+public class QuerySamplePOJO {
     private int int8;
     private int int8_default;
     private int int16;
@@ -35,7 +35,7 @@ public class SamplePOJO {
     private int uint8;
     private int uint16;
     private long uint32;
-    private long uint64;
+    private BigInteger uint64;
     private BigInteger uint128;
     private BigInteger uint256;
 
@@ -67,12 +67,12 @@ public class SamplePOJO {
     private Inet6Address ipv6;
 
     private List<String> array;
-    private List<Integer> tuple;
+//    private List<?> tuple;
     private Map<String, Integer> map;
     private List<Integer> nestedInnerInt;
     private List<String> nestedInnerString;
 
-    public SamplePOJO() {
+    public QuerySamplePOJO() {
         final Random random = new Random();
         int8 = random.nextInt(128);
         int16 = random.nextInt(32768);
@@ -90,11 +90,16 @@ public class SamplePOJO {
 
         int256 = upper1.or(upper2).or(lower1).or(lower2);
 
+
         uint8 = random.nextInt(255);
         uint16 = random.nextInt(32768);
         uint32 = (long) (random.nextDouble() * 4294967295L);
-        uint64 = (long) (random.nextDouble() * 18446744073709615L);
 
+        long rndUInt64 = random.nextLong();
+        uint64 = BigInteger.valueOf(rndUInt64);
+        if (rndUInt64 < 0) {
+            uint64 = uint64.add(BigInteger.ONE.shiftLeft(64));
+        }
 
         uint128 = upper.or(lower).abs();
         uint256 = upper1.or(upper2).or(lower1).or(lower2).abs();
@@ -137,7 +142,7 @@ public class SamplePOJO {
         }
 
         array = Arrays.asList("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
-        tuple = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+//        tuple = Arrays.asList(new Object[]{random.nextInt(), random.nextDouble(), "a", "b" });
         map = new HashMap<>();
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
@@ -248,11 +253,11 @@ public class SamplePOJO {
         this.uint32 = uint32;
     }
 
-    public long getUint64() {
+    public BigInteger getUint64() {
         return uint64;
     }
 
-    public void setUint64(long uint64) {
+    public void setUint64(BigInteger uint64) {
         this.uint64 = uint64;
     }
 
@@ -424,13 +429,13 @@ public class SamplePOJO {
         this.array = array;
     }
 
-    public List<Integer> getTuple() {
-        return tuple;
-    }
+//    public List<?> getTuple() {
+//        return tuple;
+//    }
 
-    public void setTuple(List<Integer> tuple) {
-        this.tuple = tuple;
-    }
+//    public void setTuple(List<?> tuple) {
+//        this.tuple = tuple;
+//    }
 
     public Map<String, Integer> getMap() {
         return map;
@@ -460,18 +465,18 @@ public class SamplePOJO {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SamplePOJO that = (SamplePOJO) o;
-        return int8 == that.int8 && int16 == that.int16 && int32 == that.int32 && int64 == that.int64 && uint8 == that.uint8 && uint16 == that.uint16 && uint32 == that.uint32 && uint64 == that.uint64 && Float.compare(float32, that.float32) == 0 && Double.compare(float64, that.float64) == 0 && bool == that.bool && enum8 == that.enum8 && enum16 == that.enum16 && Objects.equals(int128, that.int128) && Objects.equals(int256, that.int256) && Objects.equals(uint128, that.uint128) && Objects.equals(uint256, that.uint256) && Objects.equals(decimal32, that.decimal32) && Objects.equals(decimal64, that.decimal64) && Objects.equals(decimal128, that.decimal128) && Objects.equals(decimal256, that.decimal256) && Objects.equals(string, that.string) && Objects.equals(fixedString, that.fixedString) && Objects.equals(date, that.date) && Objects.equals(date32, that.date32) && Objects.equals(dateTime, that.dateTime) && Objects.equals(dateTime64, that.dateTime64) && Objects.equals(uuid, that.uuid) && Objects.equals(ipv4, that.ipv4) && Objects.equals(ipv6, that.ipv6) && Objects.equals(array, that.array) && Objects.equals(tuple, that.tuple) && Objects.equals(map, that.map) && Objects.equals(nestedInnerInt, that.nestedInnerInt) && Objects.equals(nestedInnerString, that.nestedInnerString);
+        QuerySamplePOJO that = (QuerySamplePOJO) o;
+        return int8 == that.int8 && int8_default == that.int8_default && int16 == that.int16 && int16_default == that.int16_default && int32 == that.int32 && int32_default == that.int32_default && int64 == that.int64 && int64_default == that.int64_default && uint8 == that.uint8 && uint16 == that.uint16 && uint32 == that.uint32 && Float.compare(float32, that.float32) == 0 && Double.compare(float64, that.float64) == 0 && bool == that.bool && enum8 == that.enum8 && enum16 == that.enum16 && Objects.equals(int128, that.int128) && Objects.equals(int128_default, that.int128_default) && Objects.equals(int256, that.int256) && Objects.equals(int256_default, that.int256_default) && Objects.equals(uint64, that.uint64) && Objects.equals(uint128, that.uint128) && Objects.equals(uint256, that.uint256) && Objects.equals(decimal32, that.decimal32) && Objects.equals(decimal64, that.decimal64) && Objects.equals(decimal128, that.decimal128) && Objects.equals(decimal256, that.decimal256) && Objects.equals(string, that.string) && Objects.equals(fixedString, that.fixedString) && Objects.equals(date, that.date) && Objects.equals(date32, that.date32) && Objects.equals(dateTime, that.dateTime) && Objects.equals(dateTime64, that.dateTime64) && Objects.equals(uuid, that.uuid) && Objects.equals(ipv4, that.ipv4) && Objects.equals(ipv6, that.ipv6) && Objects.equals(array, that.array) && Objects.equals(map, that.map) && Objects.equals(nestedInnerInt, that.nestedInnerInt) && Objects.equals(nestedInnerString, that.nestedInnerString);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(int8, int16, int32, int64, int128, int256, uint8, uint16, uint32, uint64, uint128, uint256, float32, float64, decimal32, decimal64, decimal128, decimal256, bool, string, fixedString, date, date32, dateTime, dateTime64, uuid, enum8, enum16, ipv4, ipv6, array, tuple, map, nestedInnerInt, nestedInnerString);
+        return Objects.hash(int8, int8_default, int16, int16_default, int32, int32_default, int64, int64_default, int128, int128_default, int256, int256_default, uint8, uint16, uint32, uint64, uint128, uint256, float32, float64, decimal32, decimal64, decimal128, decimal256, bool, string, fixedString, date, date32, dateTime, dateTime64, uuid, enum8, enum16, ipv4, ipv6, array, map, nestedInnerInt, nestedInnerString);
     }
 
     @Override
     public String toString() {
-        return "SamplePOJO{" +
+        return "QuerySamplePOJO{" +
                 "int8=" + int8 +
                 ", int8_default=" + int8_default +
                 ", int16=" + int16 +
@@ -509,7 +514,6 @@ public class SamplePOJO {
                 ", ipv4=" + ipv4 +
                 ", ipv6=" + ipv6 +
                 ", array=" + array +
-                ", tuple=" + tuple +
                 ", map=" + map +
                 ", nestedInnerInt=" + nestedInnerInt +
                 ", nestedInnerString=" + nestedInnerString +
@@ -555,7 +559,7 @@ public class SamplePOJO {
                 "ipv4 IPv4, " +
                 "ipv6 IPv6, " +
                 "array Array(String), " +
-                "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
+//                "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
                 "map Map(String, Int32), " +
                 "nested Nested (innerInt Int32, innerString String)" +
                 ") ENGINE = Memory";
