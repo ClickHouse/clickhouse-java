@@ -785,7 +785,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                             + "from system.tables t inner join system.databases d on t.database = d.name\n"
                             + "where t.database like :database and t.name like :table and TABLE_TYPE in (:types) "
                             + "order by t.database, t.name", params);
-            results.add(query(sql, true));
+            results.add(query(sql));
         }
         return new CombinedResultSet(results);
     }
