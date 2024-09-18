@@ -7,38 +7,58 @@ import java.sql.ConnectionBuilder;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.ShardingKeyBuilder;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 public class DataSourceImpl implements DataSource, JdbcWrapper {
+    private String url;
+    private Properties info;
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    private Properties getProperties() {
+        Properties copy = new Properties();
+        copy.putAll(info);
+        return copy;
+    }
+    public void setProperties(Properties info) {
+        this.info = info;
+    }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return null;
+        return new ConnectionImpl(this.url, this.info);
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return null;
+        Properties info = getProperties();
+        info.setProperty("user", username);
+        info.setProperty("password", password);
+
+        return new ConnectionImpl(this.url, info);
     }
 
     @Override
     public PrintWriter getLogWriter() throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException("Method not supported");
     }
 
     @Override
     public void setLogWriter(PrintWriter out) throws SQLException {
-
+        throw new SQLFeatureNotSupportedException("Method not supported");
     }
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-
+        throw new SQLFeatureNotSupportedException("Method not supported");
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return 0;
+        throw new SQLFeatureNotSupportedException("Method not supported");
     }
 
     @Override
@@ -48,21 +68,11 @@ public class DataSourceImpl implements DataSource, JdbcWrapper {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return null;
+        throw new SQLFeatureNotSupportedException("Method not supported");
     }
 
     @Override
     public ShardingKeyBuilder createShardingKeyBuilder() throws SQLException {
         return DataSource.super.createShardingKeyBuilder();
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return JdbcWrapper.super.isWrapperFor(iface);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return JdbcWrapper.super.unwrap(iface);
     }
 }

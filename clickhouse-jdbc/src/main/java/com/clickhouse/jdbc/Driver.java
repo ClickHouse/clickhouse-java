@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import java.sql.*;
 import java.util.*;
 
+import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -28,12 +29,15 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public boolean acceptsURL(String url) throws SQLException {
-        return url.startsWith("jdbc:clickhouse:") || url.startsWith("jdbc:ch:");
+        return JdbcConfiguration.acceptsURL(url);
     }
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        return new DriverPropertyInfo[0];
+        if (!JdbcConfiguration.acceptsURL(url)) {
+            return new DriverPropertyInfo[0];
+        }
+        return new JdbcConfiguration(url, info).getPropertyInfo();
     }
 
     @Override

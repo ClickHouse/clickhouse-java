@@ -2,9 +2,12 @@ package com.clickhouse.jdbc.internal;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.sql.DriverPropertyInfo;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -57,6 +60,22 @@ public class JdbcConfiguration {
 
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
+    }
+
+    public static boolean acceptsURL(String url) {
+        return url.startsWith("jdbc:clickhouse:") || url.startsWith("jdbc:ch:");
+    }
+
+    public DriverPropertyInfo[] getPropertyInfo() {
+        List<DriverPropertyInfo> properties = new ArrayList<>();
+        properties.add(new DriverPropertyInfo("host", host));
+        properties.add(new DriverPropertyInfo("port", String.valueOf(port)));
+        properties.add(new DriverPropertyInfo("protocol", protocol));
+        properties.add(new DriverPropertyInfo("database", database));
+        properties.add(new DriverPropertyInfo("user", user));
+        properties.add(new DriverPropertyInfo("password", "*REDACTED*"));
+        properties.add(new DriverPropertyInfo("queryParams", queryParams.toString()));
+        return properties.toArray(new DriverPropertyInfo[0]);
     }
 
     private Map<String, String> parseUrl(String urlString) {

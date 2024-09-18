@@ -79,6 +79,11 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
+        if (isClosed()) {
+            return;
+        }
+        
+        client.close();
         closed = true;
     }
 
