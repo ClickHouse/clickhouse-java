@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;

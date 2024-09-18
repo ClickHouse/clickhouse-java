@@ -1351,7 +1351,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testGetTableSchemaFromQuery() throws Exception {
-        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2", "q1");
+        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2");
         Assert.assertNotNull(schema);
         Assert.assertEquals(schema.getColumns().size(), 2);
         Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
@@ -1471,7 +1471,7 @@ public class QueryTests extends BaseIntegrationTest {
         int limit = 10;
         final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
                 " FROM system.numbers LIMIT " + limit;
-        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);
 
         List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
@@ -1482,7 +1482,7 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryReadToPOJOWithoutGetters() {
         int limit = 10;
         final String sql = "SELECT toInt32(1) as p1, toInt32(1) as p2 ";
-        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(NoGettersPOJO.class, schema);
 
         try {

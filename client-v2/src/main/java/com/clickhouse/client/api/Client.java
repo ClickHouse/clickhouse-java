@@ -42,6 +42,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.client5.http.ConnectTimeoutException;
@@ -50,6 +51,7 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.objectweb.asm.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,9 +108,9 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *
  *  if (client.ping()) {
  *      QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
- *      Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
- *      QueryResponse queryResponse = response.get();
- *  }
+ *      try (QueryResponse response = client.query("SELECT * FROM " + table, settings).get(10, TimeUnit.SECONDS)) {
+ *          ...
+ *      }
  *  }
  * </pre>
  *
@@ -122,7 +124,7 @@ public class Client implements AutoCloseable {
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
+    private final Map<Class<?>, Map<String, POJOSerializer>> serializers;
     private final Map<Class<?>, Map<String, Method>> getterMethods;
 
     private final Map<Class<?>, Map<String, POJOSetter>> deserializers;
@@ -137,6 +139,8 @@ public class Client implements AutoCloseable {
     private boolean useNewImplementation = false;
 
     private ClickHouseClient oldClient = null;
+
+    private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor) {
@@ -929,12 +933,15 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Registers a POJO class and maps its fields to a table schema</p>
+     * <p>Note: table schema will be stored in cache to be used while other operations. Call this method
+     * to update cache.</p>
      *
      * @param clazz - class of a POJO
      * @param schema - correlating table schema
      */
     public synchronized void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
+        tableSchemaCache.put(schema.getTableName(), schema);
 
         //Create a new POJOSerializer with static .serialize(object, columns) methods
         Map<String, Method> classGetters = new HashMap<>();
@@ -956,34 +963,49 @@ public class Client implements AutoCloseable {
         this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
         this.hasDefaults.put(clazz, schema.hasDefaults());
 
-        List<POJOSerializer> classSerializers = new ArrayList<>();
+        Map<String, POJOSerializer> classSerializers = new HashMap<>();
         Map<String, POJOSetter> classDeserializers = new ConcurrentHashMap<>();
         for (ClickHouseColumn column : schema.getColumns()) {
             String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
 
             Method getterMethod = classGetters.get(propertyName);
-            boolean classHashDefaults = this.hasDefaults.get(clazz);
+            boolean defaultsSupport = this.hasDefaults.get(clazz);
             if (getterMethod != null) {
-                classSerializers.add((obj, stream) -> {
+                classSerializers.put(schema.getTableName() + "." + column.getColumnName(), (obj, stream) -> {
                     Object value = getterMethod.invoke(obj);
 
-                    //Handle null values
-                    if (value == null) {
-                        if (classHashDefaults && !column.hasDefault()) {//Send this only if there is no default
+                    if (defaultsSupport) {
+                        if (value != null) {//Because we now support defaults, we have to send nonNull
+                            BinaryStreamUtils.writeNonNull(stream);//Write 0 for no default
+
+                            if (column.isNullable()) {//If the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);//Write 0 for not null
+                            }
+                        } else {//So if the object is null
+                            if (column.hasDefault()) {
+                                BinaryStreamUtils.writeNull(stream);//Send 1 for default
+                                return;
+                            } else if (column.isNullable()) {//And the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);
+                                BinaryStreamUtils.writeNull(stream);//Then we send null, write 1
+                                return;//And we're done
+                            } else if (column.getDataType() == ClickHouseDataType.Array) {//If the column is an array
+                                BinaryStreamUtils.writeNonNull(stream);//Then we send nonNull
+                            } else {
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
+                        }
+                    } else {
+                        // If column is nullable && the object is also null add the not null marker
+                        if (column.isNullable() && value != null) {
                             BinaryStreamUtils.writeNonNull(stream);
                         }
-                        BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
-                        return;
-                    }
-
-                    //Handle default
-                    if (classHashDefaults) {
-                        BinaryStreamUtils.writeNonNull(stream);//Write 0
-                    }
-
-                    //Handle nullable
-                    if (column.isNullable()) {
-                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                        if (!column.isNullable() && value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array)
+                                BinaryStreamUtils.writeNonNull(stream);
+                            else
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                        }
                     }
 
                     //Handle the different types
@@ -993,6 +1015,7 @@ public class Client implements AutoCloseable {
                 LOG.warn("No getter method found for column: {}", propertyName);
             }
 
+            // Deserialization stuff
             Method setterMethod = classSetters.get(propertyName);
             String columnName = column.getColumnName();
             if (setterMethod != null) {
@@ -1051,13 +1074,6 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Data cannot be empty");
         }
 
-        //Lookup the Serializer for the POJO
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new IllegalArgumentException("No serializers found for class '" + data.get(0).getClass() + "'. Did you forget to register it?");
-        } else {
-            LOG.info("serializers: {}", serializers.size());
-        }
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -1073,6 +1089,22 @@ public class Client implements AutoCloseable {
 
         boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
+        TableSchema tableSchema = tableSchemaCache.get(tableName);
+        if (tableSchema == null) {
+            tableSchema = getTableSchema(tableName);
+        }
+        //Lookup the Serializer for the POJO
+        Map<String, POJOSerializer> classSerializers = serializers.getOrDefault(data.get(0).getClass(), Collections.emptyMap());
+        List<POJOSerializer> serializersForTable = new ArrayList<>();
+        for (ClickHouseColumn column : tableSchema.getColumns()) {
+            POJOSerializer serializer = classSerializers.get(tableName + "." + column.getColumnName());
+            if (serializer == null) {
+                throw new IllegalArgumentException("No serializer found for column '" + column.getColumnName() + "'. Did you forget to register it?");
+            }
+            System.out.println("Serializer: " + serializer.toString() + " for column: " + column.getColumnName());
+            serializersForTable.add(serializer);
+        }
+
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1096,7 +1128,9 @@ public class Client implements AutoCloseable {
                                         out.write(format.name().getBytes());
                                         out.write(" \n".getBytes());
                                         for (Object obj : data) {
-                                            for (POJOSerializer serializer : serializers) {
+
+                                            for (POJOSerializer serializer : serializersForTable) {
+                                                System.out.println("Serializer: " + serializer.toString());
                                                 try {
                                                     serializer.serialize(obj, out);
                                                 } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1145,7 +1179,7 @@ public class Client implements AutoCloseable {
 
             //Call the static .serialize method on the POJOSerializer for each object in the list
             for (Object obj : data) {
-                for (POJOSerializer serializer : serializers) {
+                for (POJOSerializer serializer : serializersForTable) {
                     try {
                         serializer.serialize(obj, stream);
                     } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1595,13 +1629,12 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table) {
-        return getTableSchema(table, configuration.get("database"));
+        return getTableSchema(table, getDefaultDatabase());
     }
 
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
-     *
      * <p>See {@link #register(Class, TableSchema)}</p>
      *
      * @param table - table name
@@ -1610,29 +1643,26 @@ public class Client implements AutoCloseable {
      */
     public TableSchema getTableSchema(String table, String database) {
         final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
-
-        int operationTimeout = getOperationTimeout();
-
-        try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
-                query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
-        } catch (TimeoutException e) {
-            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
-        } catch (ExecutionException e) {
-            throw new ClientException("Failed to get table schema", e.getCause());
-        } catch (Exception e) {
-            throw new ClientException("Failed to get table schema", e);
-        }
+        return getTableSchemaImpl(sql, table, database);
     }
 
-    public TableSchema getTableSchemaFromQuery(String sql, String name) {
+    /**
+     * <p>Creates table schema from a query.</p>
+     * <p>Note: this method will no cache table schema </p>
+     * @param sql - SQL query which schema to return
+     * @return
+     */
+    public TableSchema getTableSchemaFromQuery(String sql) {
         final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        return getTableSchemaImpl(describeQuery, UUID.randomUUID().toString(), getDefaultDatabase());
+    }
 
+    private TableSchema getTableSchemaImpl(String describeQuery, String name, String database) {
         int operationTimeout = getOperationTimeout();
 
         try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
                 query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), name, getDefaultDatabase());
+            return new TableSchemaParser().readTSKV(response.getInputStream(), name, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
