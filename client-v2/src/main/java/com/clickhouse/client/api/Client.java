@@ -1101,7 +1101,6 @@ public class Client implements AutoCloseable {
             if (serializer == null) {
                 throw new IllegalArgumentException("No serializer found for column '" + column.getColumnName() + "'. Did you forget to register it?");
             }
-            System.out.println("Serializer: " + serializer.toString() + " for column: " + column.getColumnName());
             serializersForTable.add(serializer);
         }
 
@@ -1130,7 +1129,6 @@ public class Client implements AutoCloseable {
                                         for (Object obj : data) {
 
                                             for (POJOSerializer serializer : serializersForTable) {
-                                                System.out.println("Serializer: " + serializer.toString());
                                                 try {
                                                     serializer.serialize(obj, out);
                                                 } catch (InvocationTargetException | IllegalAccessException | IOException e) {

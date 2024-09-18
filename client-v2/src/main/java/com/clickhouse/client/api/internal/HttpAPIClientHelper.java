@@ -317,7 +317,7 @@ public class HttpAPIClientHelper {
                 }
             }
 
-            return new ServerException(serverCode, ERROR_CODE_PREFIX_PATTERN.formatted(serverCode) + " <Unreadable error message>");
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
         }
