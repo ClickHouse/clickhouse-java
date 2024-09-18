@@ -53,8 +53,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
@@ -62,6 +65,8 @@ import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.EnumSet;
@@ -272,6 +277,7 @@ public class HttpAPIClientHelper {
         return clientBuilder.build();
     }
 
+    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -279,11 +285,39 @@ public class HttpAPIClientHelper {
      * @return
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE)) {
-            httpResponse.getEntity().writeTo(out);
-            String message = out.toString();
-            int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-            return new ServerException(serverCode, message);
+        int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
+        try (InputStream body = httpResponse.getEntity().getContent()) {
+
+            byte [] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
+            byte [] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+            while (true) {
+                int rBytes = body.read(buffer);
+                if (rBytes == -1) {
+                    break;
+                } else {
+                    for (int i = 0; i < rBytes; i++) {
+                        if (buffer[i] == lookUpStr[0]) {
+                            boolean found = true;
+                            for (int j = 1; j < Math.min(rBytes - i, lookUpStr.length); j++) {
+                                if (buffer[i + j] != lookUpStr[j]) {
+                                    found = false;
+                                    break;
+                                }
+                            }
+                            if (found) {
+                                int start = i;
+                                while (i < rBytes && buffer[i] != '\n') {
+                                    i++;
+                                }
+
+                                return new ServerException(serverCode, new String(buffer, start, i -start, StandardCharsets.UTF_8));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new ServerException(serverCode, ERROR_CODE_PREFIX_PATTERN.formatted(serverCode) + " <Unreadable error message>");
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
         }
@@ -307,12 +341,13 @@ public class HttpAPIClientHelper {
                 .build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback)));
+        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback), false));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
+            httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST &&
@@ -329,8 +364,6 @@ public class HttpAPIClientHelper {
                 httpResponse.close();
                 return httpResponse;
             }
-
-            httpResponse.setEntity(wrapEntity(httpResponse.getEntity()));
             return httpResponse;
 
         } catch (UnknownHostException e) {
@@ -413,13 +446,13 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapEntity(HttpEntity httpEntity) {
+    private HttpEntity wrapEntity(HttpEntity httpEntity, boolean isResponse) {
         boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         if (serverCompression || clientCompression) {
             return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
-                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"));
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
         } else {
             return httpEntity;
         }

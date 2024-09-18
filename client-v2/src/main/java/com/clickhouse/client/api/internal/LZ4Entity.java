@@ -16,22 +16,27 @@ import java.util.Set;
 class LZ4Entity implements HttpEntity {
 
     private HttpEntity httpEntity;
-    
+
     private final boolean useHttpCompression;
-    private final boolean serverCompression;
-    private final boolean clientCompression;
-    
+
     private final int bufferSize;
 
+    private final boolean isResponse;
+
+    private boolean serverCompression;
+
+    private boolean clientCompression;
+
     LZ4Entity(HttpEntity httpEntity, boolean useHttpCompression, boolean serverCompression, boolean clientCompression,
-              int bufferSize) {
+              int bufferSize, boolean isResponse) {
         this.httpEntity = httpEntity;
         this.useHttpCompression = useHttpCompression;
+        this.bufferSize = bufferSize;
         this.serverCompression = serverCompression;
         this.clientCompression = clientCompression;
-        this.bufferSize = bufferSize;
+        this.isResponse = isResponse;
     }
-    
+
     @Override
     public boolean isRepeatable() {
         return httpEntity.isRepeatable();
@@ -39,20 +44,24 @@ class LZ4Entity implements HttpEntity {
 
     @Override
     public InputStream getContent() throws IOException, UnsupportedOperationException {
-        if (serverCompression && useHttpCompression) {
-            InputStream content = httpEntity.getContent();
-            try {
-                return new FramedLZ4CompressorInputStream(content);
-            } catch (IOException e) {
-                // This is the easiest way to handle empty content because
-                // - streams at this point wrapped with something else and we can't check content length
-                // - exception is thrown with no details
-                // So we just return original content and if there is a real data in it we will get error later
-                return content;
-            }
+        if (!isResponse && serverCompression) {
+            throw new UnsupportedOperationException("Unsupported: getting compressed content of request");
         } else if (serverCompression) {
-            return new ClickHouseLZ4InputStream(httpEntity.getContent(), LZ4Factory.fastestInstance().fastDecompressor(),
-                    bufferSize);
+            if (useHttpCompression) {
+                InputStream content = httpEntity.getContent();
+                try {
+                    return new FramedLZ4CompressorInputStream(content);
+                } catch (IOException e) {
+                    // This is the easiest way to handle empty content because
+                    // - streams at this point wrapped with something else and we can't check content length
+                    // - exception is thrown with no details
+                    // So we just return original content and if there is a real data in it we will get error later
+                    return content;
+                }
+            } else  {
+                return new ClickHouseLZ4InputStream(httpEntity.getContent(), LZ4Factory.fastestInstance().fastDecompressor(),
+                        bufferSize);
+            }
         } else {
             return httpEntity.getContent();
         }
@@ -60,11 +69,17 @@ class LZ4Entity implements HttpEntity {
 
     @Override
     public void writeTo(OutputStream outStream) throws IOException {
-        if (clientCompression && useHttpCompression) {
-            httpEntity.writeTo(new FramedLZ4CompressorOutputStream(outStream));
+        if (isResponse && serverCompression) {
+            // called by us to get compressed response
+            throw new UnsupportedOperationException("Unsupported: writing compressed response to elsewhere");
         } else if (clientCompression) {
-            httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, LZ4Factory.fastestInstance().fastCompressor(),
-                    bufferSize));
+            // called by client to send data
+            if (useHttpCompression) {
+                httpEntity.writeTo(new FramedLZ4CompressorOutputStream(outStream));
+            } else {
+                httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, LZ4Factory.fastestInstance().fastCompressor(),
+                        bufferSize));
+            }
         } else {
             httpEntity.writeTo(outStream);
         }
