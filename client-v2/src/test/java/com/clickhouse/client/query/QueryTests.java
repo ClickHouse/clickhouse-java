@@ -1474,7 +1474,7 @@ public class QueryTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);
 
-        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
+        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class, schema);
         Assert.assertEquals(pojos.size(), limit);
     }
 
@@ -1486,10 +1486,10 @@ public class QueryTests extends BaseIntegrationTest {
         client.register(NoGettersPOJO.class, schema);
 
         try {
-            client.queryAll(sql, SimplePOJO.class);
+            client.queryAll(sql, SimplePOJO.class, schema);
             Assert.fail("No exception");
         } catch (IllegalArgumentException e) {
-            Assert.assertTrue(e.getMessage().contains("No deserializers found for class"));
+            Assert.assertTrue(e.getMessage().contains("No deserializers found for the query and class"));
         }
     }
 
@@ -1502,7 +1502,8 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute(createTableSQL).get();
 
         SamplePOJO pojo = new SamplePOJO();
-        client.register(SamplePOJO.class, client.getTableSchema(tableName));
+        TableSchema schema = client.getTableSchema(tableName);
+        client.register(SamplePOJO.class, schema);
 
         client.insert(tableName, Collections.singletonList(pojo)).get();
 
@@ -1516,7 +1517,8 @@ public class QueryTests extends BaseIntegrationTest {
         pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
         pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
 
-        List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class);
+        List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class,
+                schema);
         Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
     }
 

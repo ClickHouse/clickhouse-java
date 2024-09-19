@@ -33,9 +33,10 @@ public class TableSchemaParser {
         return schema;
     }
 
-    public TableSchema readTSKV(InputStream content, String table, String database) {
+    public TableSchema readTSKV(InputStream content, String table, String sqlQuery, String database) {
         TableSchema schema = new TableSchema();
         schema.setTableName(table);
+        schema.setQuery(sqlQuery);
         schema.setDatabaseName(database);
         Properties p = new Properties();
         try (BufferedReader r = new BufferedReader(new InputStreamReader(content))) {

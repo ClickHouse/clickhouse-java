@@ -12,6 +12,8 @@ public class TableSchema {
 
     private String tableName = "";
 
+    private String query = "";
+
     private String databaseName = "";
 
     private List<ClickHouseColumn> columns;
@@ -58,6 +60,14 @@ public class TableSchema {
 
     public boolean hasDefaults() {
         return hasDefaults;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public void setQuery(String query) {
+        this.query = query;
     }
 
     public void addColumn(String name, String type) {
