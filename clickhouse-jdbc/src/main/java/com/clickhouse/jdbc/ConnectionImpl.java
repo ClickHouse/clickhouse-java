@@ -47,13 +47,13 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
         checkOpen();
-        return null;
+        throw new SQLFeatureNotSupportedException("CallableStatement not supported");
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
         checkOpen();
-        return "";
+        return sql;
     }
 
     @Override
