@@ -150,12 +150,15 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        return new StatementImpl(this);
+        checkOpen();
+        //TODO: Should this be a silent ignore?
+        throw new SQLFeatureNotSupportedException("Statement with resultSetType and resultSetConcurrency override not supported");
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        return new PreparedStatementImpl(this, sql);
+        checkOpen();
+        throw new SQLFeatureNotSupportedException("PreparedStatement with resultSetType and resultSetConcurrency override not supported");
     }
 
     @Override
@@ -215,13 +218,15 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        return new StatementImpl(this);
+        //TODO: Should this be a silent ignore?
+        throw new SQLFeatureNotSupportedException("Statement with resultSetType, resultSetConcurrency, and resultSetHoldability override not supported");
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        return new PreparedStatementImpl(this, sql);
+        //TODO: Should this be a silent ignore?
+        throw new SQLFeatureNotSupportedException("PreparedStatement with resultSetType, resultSetConcurrency, and resultSetHoldability override not supported");
     }
 
     @Override
@@ -278,7 +283,12 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public boolean isValid(int timeout) throws SQLException {
         checkOpen();
-        return false;
+        if (timeout < 0) {
+            throw new SQLException("Timeout must be >= 0");
+        }
+
+        //TODO: This is a placeholder implementation
+        return true;
     }
 
     @Override

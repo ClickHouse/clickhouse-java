@@ -13,6 +13,6 @@ public interface JdbcWrapper extends Wrapper {
         if (isWrapperFor(iface)) {
             iface.cast(this);
         }
-        throw SqlExceptionUtils.unsupportedError("Cannot unwrap to " + iface.getName());
+        throw new SQLException("Cannot unwrap to " + iface.getName());
     }
 }
