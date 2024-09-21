@@ -42,7 +42,7 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public int getMajorVersion() {
-        return 0;
+        return 1;
     }
 
     @Override
