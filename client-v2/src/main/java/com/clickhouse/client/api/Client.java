@@ -1160,7 +1160,7 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
@@ -1283,7 +1283,7 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);

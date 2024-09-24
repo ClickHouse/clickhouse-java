@@ -159,12 +159,9 @@ public class MapBackedRecord implements GenericRecord {
         switch (column.getDataType()) {
             case DateTime:
             case DateTime64:
-                LocalDateTime dateTime = readValue(colName);
-                return dateTime.atZone(column.getTimeZone().toZoneId());
             case Date:
             case Date32:
-                LocalDate data = readValue(colName);
-                return data.atStartOfDay(column.getTimeZone().toZoneId());
+                return readValue(colName);
         }
 
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
@@ -449,36 +446,40 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
-    public LocalDate getLocalDate(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+    public LocalDate getLocalDate(int index) {
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
-
     }
 
     @Override
-    public LocalDate getLocalDate(int index) {
-        Object value = readValue(index);
-        if (value instanceof LocalDateTime) {
-            return ((LocalDateTime) value).toLocalDate();
+    public LocalDate getLocalDate(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDate();
         }
         return (LocalDate) value;
+
     }
 
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
         Object value = readValue(colName);
-        if (value instanceof LocalDate) {
-            return ((LocalDate) value).atStartOfDay();
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toLocalDateTime();
+        }
+        return (LocalDateTime) value;
     }
 
     @Override

@@ -6,7 +6,6 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -38,18 +37,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
-public class HttpTransportTests extends BaseIntegrationTest{
-
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
     @SuppressWarnings("java:S2925")

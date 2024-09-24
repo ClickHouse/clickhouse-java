@@ -126,10 +126,6 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(response.getQueryId(), uuid);
     }
 
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
-
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOAndReadBack() throws Exception {
         final String tableName = "single_pojo_table";
@@ -145,23 +141,23 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getWrittenRows(), 1);
         }
 
-//        try (QueryResponse queryResponse =
-//                client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
-//
-//            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
-//            Assert.assertNotNull(reader.next());
-//
-//            Assert.assertEquals(reader.getByte("byteValue"), pojo.getByteValue());
-//            Assert.assertEquals(reader.getByte("int8"), pojo.getInt8());
-//            Assert.assertEquals(reader.getShort("uint8"), pojo.getUint8());
-//            Assert.assertEquals(reader.getShort("int16"), pojo.getInt16());
-//            Assert.assertEquals(reader.getInteger("int32"), pojo.getInt32());
-//            Assert.assertEquals(reader.getLong("int64"), pojo.getInt64());
-//            Assert.assertEquals(reader.getFloat("float32"), pojo.getFloat32());
-//            Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
-//            Assert.assertEquals(reader.getString("string"), pojo.getString());
-//            Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
-//        }
+        try (QueryResponse queryResponse =
+                client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+
+            Assert.assertEquals(reader.getByte("byteValue"), pojo.getByteValue());
+            Assert.assertEquals(reader.getByte("int8"), pojo.getInt8());
+            Assert.assertEquals(reader.getShort("uint8"), pojo.getUint8());
+            Assert.assertEquals(reader.getShort("int16"), pojo.getInt16());
+            Assert.assertEquals(reader.getInteger("int32"), pojo.getInt32());
+            Assert.assertEquals(reader.getLong("int64"), pojo.getInt64());
+            Assert.assertEquals(reader.getFloat("float32"), pojo.getFloat32());
+            Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
+            Assert.assertEquals(reader.getString("string"), pojo.getString());
+            Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+        }
     }
 
     @Test

@@ -387,6 +387,9 @@ public class HttpAPIClientHelper {
             if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {
                 req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClickHouseClientOption.FORMAT.getKey()));
             }
+            if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
+                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
+            }
         }
         req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClickHouseClientOption.DATABASE.getKey()));
         req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
