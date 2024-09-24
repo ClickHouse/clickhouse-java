@@ -92,18 +92,18 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
  * <p>{@link Builder} is designed to construct a client object with required configuration:</p>
- *  <pre>{@code
+ * {@code
  *
  *  Client client = new Client.Builder()
  *        .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
  *        .addUsername("default")
  *        .build();
- *        }
- *  </pre>
+ *  }
+ *
  *
  *
  * <p>When client object is created any operation method can be called on it:</p>
- * <pre>{@code
+ * {@code
  *
  *  if (client.ping()) {
  *      QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
@@ -111,7 +111,9 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *          ...
  *      }
  *  }
- * </pre>
+ *
+ * }
+ *
  *
  *
  * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
