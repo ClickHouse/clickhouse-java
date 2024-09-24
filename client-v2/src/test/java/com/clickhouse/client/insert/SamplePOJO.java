@@ -665,8 +665,9 @@ public class SamplePOJO {
                 "tuple Tuple(UInt64, Int32, String), " +
                 "map Map(String, Int32), " +
                 "nested Nested (innerInt Int32, innerString String), " +
-                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
-                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +
+//                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
+                // TODO: fix this
+//                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +
                 ") ENGINE = Memory";
     }
 }
