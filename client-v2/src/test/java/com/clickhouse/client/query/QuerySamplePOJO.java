@@ -67,7 +67,7 @@ public class QuerySamplePOJO {
     private Inet6Address ipv6;
 
     private List<String> array;
-//    private List<?> tuple;
+    private List<?> tuple;
     private Map<String, Integer> map;
     private List<Integer> nestedInnerInt;
     private List<String> nestedInnerString;
@@ -142,7 +142,7 @@ public class QuerySamplePOJO {
         }
 
         array = Arrays.asList("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
-//        tuple = Arrays.asList(new Object[]{random.nextInt(), random.nextDouble(), "a", "b" });
+        tuple = Arrays.asList(random.nextInt(), random.nextDouble(), "a", "b");
         map = new HashMap<>();
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
@@ -429,13 +429,13 @@ public class QuerySamplePOJO {
         this.array = array;
     }
 
-//    public List<?> getTuple() {
-//        return tuple;
-//    }
+    public List<?> getTuple() {
+        return tuple;
+    }
 
-//    public void setTuple(List<?> tuple) {
-//        this.tuple = tuple;
-//    }
+    public void setTuple(List<?> tuple) {
+        this.tuple = tuple;
+    }
 
     public Map<String, Integer> getMap() {
         return map;
@@ -559,7 +559,7 @@ public class QuerySamplePOJO {
                 "ipv4 IPv4, " +
                 "ipv6 IPv6, " +
                 "array Array(String), " +
-//                "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
+                "tuple Tuple(Int32, Float64, String, String), " +
                 "map Map(String, Int32), " +
                 "nested Nested (innerInt Int32, innerString String)" +
                 ") ENGINE = Memory";

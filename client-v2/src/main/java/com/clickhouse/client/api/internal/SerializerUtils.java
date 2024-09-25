@@ -3,7 +3,6 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -40,6 +39,7 @@ import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
+import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
@@ -347,8 +347,18 @@ public class SerializerUtils {
                                 Type.getType(ClickHouseColumn.class),
                                 Type.getType(Class.class)),
                         false);
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(targetType));
-                // cast to target type
+
+                if (targetType.isAssignableFrom(List.class) && column.getDataType() == ClickHouseDataType.Tuple) {
+                    mv.visitTypeInsn(CHECKCAST, Type.getInternalName(Object[].class));
+                    mv.visitMethodInsn(INVOKESTATIC,
+                            Type.getInternalName(Arrays.class),
+                            "asList",
+                            Type.getMethodDescriptor(Type.getType(List.class), Type.getType(Object[].class)),
+                            false);
+                } else {
+                    mv.visitTypeInsn(CHECKCAST, Type.getInternalName(targetType));
+                    // cast to target type
+                }
             }
 
             // finally call setter with the result of target class
