@@ -81,9 +81,18 @@ public class SerializerUtils {
     private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
-        List<?> values = (List<?>) value;
-        for (int i = 0; i < values.size(); i++) {
-            serializeData(stream, values.get(i), column.getNestedColumns().get(i));
+        if (value instanceof List) {
+            List<?> values = (List<?>) value;
+            for (int i = 0; i < values.size(); i++) {
+                serializeData(stream, values.get(i), column.getNestedColumns().get(i));
+            }
+        } else if (value instanceof Object[]) {
+            Object[] values = (Object[]) value;
+            for (int i = 0; i < values.length; i++) {
+                serializeData(stream, values[i], column.getNestedColumns().get(i));
+            }
+        } else {
+            throw new IllegalArgumentException("Cannot serialize " + value + " as a tuple");
         }
     }
 
