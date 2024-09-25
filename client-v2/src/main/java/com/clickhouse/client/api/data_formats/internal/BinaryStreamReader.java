@@ -3,6 +3,8 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
 
@@ -213,11 +215,13 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
 //                case SimpleAggregateFunction:
-//                case AggregateFunction:
+                case AggregateFunction:
+                    return (T) ClickHouseBitmap.deserialize(input, column.getNestedColumns().get(0).getDataType());
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
             }
         } catch (EOFException e) {
+            log.info("End of stream reached before reading all data for column " + column.getColumnName());
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to read value for column " + column.getColumnName(), e);

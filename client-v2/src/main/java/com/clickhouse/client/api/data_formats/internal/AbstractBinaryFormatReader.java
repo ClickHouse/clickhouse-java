@@ -329,12 +329,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         switch (column.getDataType()) {
             case DateTime:
             case DateTime64:
-                LocalDateTime dateTime = readValue(colName);
-                return dateTime.atZone(column.getTimeZone().toZoneId());
             case Date:
             case Date32:
-                LocalDate data = readValue(colName);
-                return data.atStartOfDay(column.getTimeZone().toZoneId());
+                return readValue(colName);
         }
 
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");

@@ -21,10 +21,6 @@ import java.util.concurrent.TimeUnit;
 public class ClientTests extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientTests.class);
 
-//    static {
-//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-//    }
-
     @Test(dataProvider = "clientProvider")
     public void testAddSecureEndpoint(Client client) {
         try {

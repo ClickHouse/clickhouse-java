@@ -42,6 +42,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.client5.http.ConnectTimeoutException;
@@ -91,26 +92,28 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
  * <p>{@link Builder} is designed to construct a client object with required configuration:</p>
- *  <pre>{@code
+ * {@code
  *
  *  Client client = new Client.Builder()
  *        .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
  *        .addUsername("default")
  *        .build();
- *        }
- *  </pre>
+ *  }
+ *
  *
  *
  * <p>When client object is created any operation method can be called on it:</p>
- * <pre>{@code
+ * {@code
  *
  *  if (client.ping()) {
  *      QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
- *      Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
- *      QueryResponse queryResponse = response.get();
+ *      try (QueryResponse response = client.query("SELECT * FROM " + table, settings).get(10, TimeUnit.SECONDS)) {
+ *          ...
+ *      }
  *  }
- *  }
- * </pre>
+ *
+ * }
+ *
  *
  *
  * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
@@ -122,13 +125,13 @@ public class Client implements AutoCloseable {
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
-    private final Map<Class<?>, Map<String, Method>> getterMethods;
 
-    private final Map<Class<?>, Map<String, POJOSetter>> deserializers;
-    private final Map<Class<?>, Map<String, Method>> setterMethods;
+    // POJO serializer mapping (class -> (schema -> (format -> serializer)))
+    private final Map<Class<?>, Map<String, Map<String, POJOSerializer>>> serializers;
 
-    private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
+    // POJO deserializer mapping (class -> (schema -> (format -> deserializer)))
+    private final Map<Class<?>, Map<String, Map<String, POJOSetter>>> deserializers;
+
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
@@ -138,6 +141,9 @@ public class Client implements AutoCloseable {
 
     private ClickHouseClient oldClient = null;
 
+    private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
+    private Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor) {
         this.endpoints = endpoints;
@@ -146,10 +152,7 @@ public class Client implements AutoCloseable {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
         this.serializers = new ConcurrentHashMap<>();
-        this.getterMethods = new ConcurrentHashMap<>();
-        this.hasDefaults = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
-        this.setterMethods = new ConcurrentHashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
         if (isAsyncEnabled && sharedOperationExecutor == null) {
@@ -929,12 +932,24 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Registers a POJO class and maps its fields to a table schema</p>
+     * <p>Note: table schema will be stored in cache to be used while other operations. Cache key is
+     *  {@link TableSchema schemaId}. Call this method
+     * to update cache.</p>
      *
      * @param clazz - class of a POJO
      * @param schema - correlating table schema
      */
     public synchronized void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
+        String schemaKey;
+        if (schema.getTableName() != null && schema.getQuery() == null) {
+            schemaKey = schema.getTableName();
+        } else if (schema.getQuery() != null && schema.getTableName() == null) {
+            schemaKey = schema.getQuery();
+        } else {
+            throw new IllegalArgumentException("Table schema has both query and table name set. Only one is allowed.");
+        }
+        tableSchemaCache.put(schemaKey, schema);
 
         //Create a new POJOSerializer with static .serialize(object, columns) methods
         Map<String, Method> classGetters = new HashMap<>();
@@ -952,38 +967,50 @@ public class Client implements AutoCloseable {
                 classSetters.put(methodName, method);
             }
         }
-        this.getterMethods.put(clazz, classGetters);//Store the getter methods for later use
-        this.setterMethods.put(clazz, classSetters);//Store the setter methods for later use
-        this.hasDefaults.put(clazz, schema.hasDefaults());
 
-        List<POJOSerializer> classSerializers = new ArrayList<>();
-        Map<String, POJOSetter> classDeserializers = new ConcurrentHashMap<>();
+        Map<String, POJOSerializer> schemaSerializers = new HashMap<>();
+        Map<String, POJOSetter> schemaDeserializers = new ConcurrentHashMap<>();
+        boolean defaultsSupport = schema.hasDefaults();
+        tableSchemaHasDefaults.put(schemaKey, defaultsSupport);
         for (ClickHouseColumn column : schema.getColumns()) {
             String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
-
             Method getterMethod = classGetters.get(propertyName);
-            boolean classHashDefaults = this.hasDefaults.get(clazz);
             if (getterMethod != null) {
-                classSerializers.add((obj, stream) -> {
+                schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
                     Object value = getterMethod.invoke(obj);
 
-                    //Handle null values
-                    if (value == null) {
-                        if (classHashDefaults && !column.hasDefault()) {//Send this only if there is no default
+                    if (defaultsSupport) {
+                        if (value != null) {//Because we now support defaults, we have to send nonNull
+                            BinaryStreamUtils.writeNonNull(stream);//Write 0 for no default
+
+                            if (column.isNullable()) {//If the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);//Write 0 for not null
+                            }
+                        } else {//So if the object is null
+                            if (column.hasDefault()) {
+                                BinaryStreamUtils.writeNull(stream);//Send 1 for default
+                                return;
+                            } else if (column.isNullable()) {//And the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);
+                                BinaryStreamUtils.writeNull(stream);//Then we send null, write 1
+                                return;//And we're done
+                            } else if (column.getDataType() == ClickHouseDataType.Array) {//If the column is an array
+                                BinaryStreamUtils.writeNonNull(stream);//Then we send nonNull
+                            } else {
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
+                        }
+                    } else {
+                        // If column is nullable && the object is also null add the not null marker
+                        if (column.isNullable() && value != null) {
                             BinaryStreamUtils.writeNonNull(stream);
                         }
-                        BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
-                        return;
-                    }
-
-                    //Handle default
-                    if (classHashDefaults) {
-                        BinaryStreamUtils.writeNonNull(stream);//Write 0
-                    }
-
-                    //Handle nullable
-                    if (column.isNullable()) {
-                        BinaryStreamUtils.writeNonNull(stream);//Write 0
+                        if (!column.isNullable() && value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array)
+                                BinaryStreamUtils.writeNonNull(stream);
+                            else
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                        }
                     }
 
                     //Handle the different types
@@ -993,16 +1020,20 @@ public class Client implements AutoCloseable {
                 LOG.warn("No getter method found for column: {}", propertyName);
             }
 
+            // Deserialization stuff
             Method setterMethod = classSetters.get(propertyName);
-            String columnName = column.getColumnName();
             if (setterMethod != null) {
-                classDeserializers.put(columnName, SerializerUtils.compilePOJOSetter(setterMethod, column));
+                schemaDeserializers.put(column.getColumnName(), SerializerUtils.compilePOJOSetter(setterMethod, column));
             } else {
                 LOG.warn("No setter method found for column: {}", propertyName);
             }
         }
-        this.serializers.put(clazz, classSerializers);
-        this.deserializers.put(clazz, classDeserializers);
+
+        Map<String, Map<String, POJOSerializer>> classSerializers = serializers.computeIfAbsent(clazz, k -> new HashMap<>());
+        Map<String, Map<String, POJOSetter>> classDeserializers = deserializers.computeIfAbsent(clazz, k -> new HashMap<>());
+
+        classSerializers.put(schemaKey, schemaSerializers);
+        classDeserializers.put(schemaKey, schemaDeserializers);
     }
 
     /**
@@ -1051,13 +1082,6 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Data cannot be empty");
         }
 
-        //Lookup the Serializer for the POJO
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new IllegalArgumentException("No serializers found for class '" + data.get(0).getClass() + "'. Did you forget to register it?");
-        } else {
-            LOG.info("serializers: {}", serializers.size());
-        }
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -1071,8 +1095,24 @@ public class Client implements AutoCloseable {
             settings = new InsertSettings();
         }
 
-        boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
+        boolean hasDefaults = this.tableSchemaHasDefaults.get(tableName);
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
+        TableSchema tableSchema = tableSchemaCache.get(tableName);
+        if (tableSchema == null) {
+            throw new IllegalArgumentException("Table schema not found for table: " + tableName + ". Did you forget to register it?");
+        }
+        //Lookup the Serializer for the POJO
+        Map<String, POJOSerializer> classSerializers = serializers.getOrDefault(data.get(0).getClass(), Collections.emptyMap())
+                .getOrDefault(tableName, Collections.emptyMap());
+        List<POJOSerializer> serializersForTable = new ArrayList<>();
+        for (ClickHouseColumn column : tableSchema.getColumns()) {
+            POJOSerializer serializer = classSerializers.get(column.getColumnName());
+            if (serializer == null) {
+                throw new IllegalArgumentException("No serializer found for column '" + column.getColumnName() + "'. Did you forget to register it?");
+            }
+            serializersForTable.add(serializer);
+        }
+
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1096,7 +1136,8 @@ public class Client implements AutoCloseable {
                                         out.write(format.name().getBytes());
                                         out.write(" \n".getBytes());
                                         for (Object obj : data) {
-                                            for (POJOSerializer serializer : serializers) {
+
+                                            for (POJOSerializer serializer : serializersForTable) {
                                                 try {
                                                     serializer.serialize(obj, out);
                                                 } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1119,7 +1160,7 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
@@ -1145,7 +1186,7 @@ public class Client implements AutoCloseable {
 
             //Call the static .serialize method on the POJOSerializer for each object in the list
             for (Object obj : data) {
-                for (POJOSerializer serializer : serializers) {
+                for (POJOSerializer serializer : serializersForTable) {
                     try {
                         serializer.serialize(obj, stream);
                     } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1242,7 +1283,7 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
@@ -1530,8 +1571,8 @@ public class Client implements AutoCloseable {
         }
     }
 
-    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz) {
-        return queryAll(sqlQuery, clazz, null);
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
+        return queryAll(sqlQuery, clazz, schema, null);
     }
 
     /**
@@ -1543,6 +1584,8 @@ public class Client implements AutoCloseable {
      * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
      * <p>Internally deserializer is compiled at the register stage. Compilation is done using ASM library by
      *  writing a bytecode</p>
+     * <p>Note: this method will cache schema and it will use sql as a key for storage.</p>
+     *
      *
      * @param sqlQuery - query to execute
      * @param clazz - class of the DTO
@@ -1551,11 +1594,13 @@ public class Client implements AutoCloseable {
      * @return List of POJOs filled with data
      * @param <T>
      */
-    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, Supplier<T> allocator) {
-        Map<String, POJOSetter> classDeserializers = deserializers.get(clazz);
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema, Supplier<T> allocator) {
+        Map<String, POJOSetter> classDeserializers = deserializers.getOrDefault(clazz,
+                Collections.emptyMap()).getOrDefault(schema.getTableName() == null?
+                schema.getQuery() : schema.getTableName(), Collections.emptyMap());
 
-        if (classDeserializers == null || classDeserializers.isEmpty()) {
-            throw new IllegalArgumentException("No deserializers found for class '" + clazz + "'. Did you forget to register it?");
+        if (classDeserializers.isEmpty()) {
+            throw new IllegalArgumentException("No deserializers found for the query and class '" + clazz + "'. Did you forget to register it?");
         }
 
         try {
@@ -1595,13 +1640,12 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table) {
-        return getTableSchema(table, configuration.get("database"));
+        return getTableSchema(table, getDefaultDatabase());
     }
 
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
-     *
      * <p>See {@link #register(Class, TableSchema)}</p>
      *
      * @param table - table name
@@ -1610,29 +1654,25 @@ public class Client implements AutoCloseable {
      */
     public TableSchema getTableSchema(String table, String database) {
         final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
-
-        int operationTimeout = getOperationTimeout();
-
-        try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
-                query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
-        } catch (TimeoutException e) {
-            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
-        } catch (ExecutionException e) {
-            throw new ClientException("Failed to get table schema", e.getCause());
-        } catch (Exception e) {
-            throw new ClientException("Failed to get table schema", e);
-        }
+        return getTableSchemaImpl(sql, table, null, database);
     }
 
-    public TableSchema getTableSchemaFromQuery(String sql, String name) {
+    /**
+     * <p>Creates table schema from a query.</p>
+     * @param sql - SQL query which schema to return
+     * @return table schema for the query
+     */
+    public TableSchema getTableSchemaFromQuery(String sql) {
         final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase());
+    }
 
+    private TableSchema getTableSchemaImpl(String describeQuery, String name, String originalQuery, String database) {
         int operationTimeout = getOperationTimeout();
 
         try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
                 query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), name, getDefaultDatabase());
+            return new TableSchemaParser().readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {

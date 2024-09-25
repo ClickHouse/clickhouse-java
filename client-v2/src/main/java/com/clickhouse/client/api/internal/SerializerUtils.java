@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -157,10 +158,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
                 break;
             case String:
-                BinaryStreamUtils.writeString(stream, (String) value);
+                BinaryStreamUtils.writeString(stream, convertToString(value));
                 break;
             case FixedString:
-                BinaryStreamUtils.writeFixedString(stream, (String) value, column.getPrecision());
+                BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
                 break;
             case Date:
                 BinaryStreamUtils.writeDate(stream, (LocalDate) value);
@@ -240,6 +241,10 @@ public class SerializerUtils {
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger");
         }
+    }
+
+    public static String convertToString(Object value) {
+        return java.lang.String.valueOf(value);
     }
 
     public static <T extends Enum<T>> Set<T> parseEnumList(String value, Class<T> enumType) {

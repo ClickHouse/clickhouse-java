@@ -89,10 +89,6 @@ public class QueryTests extends BaseIntegrationTest {
 
     private boolean usePreallocatedBuffers = false;
 
-    static {
-//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
-
     QueryTests(){
     }
 
@@ -1353,7 +1349,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testGetTableSchemaFromQuery() throws Exception {
-        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2", "q1");
+        TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, 'value' as col2");
         Assert.assertNotNull(schema);
         Assert.assertEquals(schema.getColumns().size(), 2);
         Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
@@ -1473,9 +1469,10 @@ public class QueryTests extends BaseIntegrationTest {
         int limit = 10;
         final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
                 " FROM system.numbers LIMIT " + limit;
-        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);
-        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class);
+
+        List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class, schema);
         Assert.assertEquals(pojos.size(), limit);
     }
 
@@ -1483,14 +1480,14 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryReadToPOJOWithoutGetters() {
         int limit = 10;
         final String sql = "SELECT toInt32(1) as p1, toInt32(1) as p2 ";
-        TableSchema schema = client.getTableSchemaFromQuery(sql, "q1");
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(NoGettersPOJO.class, schema);
 
         try {
-            client.queryAll(sql, SimplePOJO.class);
+            client.queryAll(sql, SimplePOJO.class, schema);
             Assert.fail("No exception");
         } catch (IllegalArgumentException e) {
-            Assert.assertTrue(e.getMessage().contains("No deserializers found for class"));
+            Assert.assertTrue(e.getMessage().contains("No deserializers found for the query and class"));
         }
     }
 
@@ -1503,7 +1500,8 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute(createTableSQL).get();
 
         QuerySamplePOJO pojo = new QuerySamplePOJO();
-        client.register(QuerySamplePOJO.class, client.getTableSchema(tableName));
+        TableSchema schema = client.getTableSchema(tableName);
+        client.register(QuerySamplePOJO.class, schema);
 
         client.insert(tableName, Collections.singletonList(pojo)).get();
 
@@ -1517,7 +1515,8 @@ public class QueryTests extends BaseIntegrationTest {
         pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
         pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
 
-        List<QuerySamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", QuerySamplePOJO.class);
+        List<QuerySamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", QuerySamplePOJO.class,
+                schema);
         Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
     }
 

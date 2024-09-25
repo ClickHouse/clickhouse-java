@@ -5,11 +5,13 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -35,18 +37,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
-public class HttpTransportTests extends BaseIntegrationTest{
-
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
     @SuppressWarnings("java:S2925")
@@ -303,5 +299,39 @@ public class HttpTransportTests extends BaseIntegrationTest{
                 {insertBody, 0, insertFunction, true},
                 {selectBody, 0, queryFunction, true}
         };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
+    public void testServerErrorHandling(ClickHouseFormat format) {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                // TODO: fix in old client
+//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+
+            QuerySettings querySettings = new QuerySettings().setFormat(format);
+            try (QueryResponse response =
+                         client.query("SELECT invalid;statement", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ClientException e) {
+                e.printStackTrace();
+                ServerException serverException = (ServerException) e.getCause();
+                Assert.assertEquals(serverException.getCode(), 62);
+                Assert.assertTrue(serverException.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
+                        "Unexpected error message: " + serverException.getMessage());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail(e.getMessage(), e);
+        }
+    }
+
+    @DataProvider(name = "testServerErrorHandlingDataProvider")
+    public static Object[] testServerErrorHandlingDataProvider() {
+        return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
     }
 }
