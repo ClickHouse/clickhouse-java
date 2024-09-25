@@ -8,6 +8,8 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -15,6 +17,7 @@ import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -66,7 +69,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
@@ -121,6 +124,62 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
         assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertPOJOAndReadBack() throws Exception {
+        final String tableName = "single_pojo_table";
+        final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final SamplePOJO pojo = new SamplePOJO();
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+
+        System.out.println("Inserting POJO: " + pojo);
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse =
+                client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+
+            Assert.assertEquals(reader.getByte("byteValue"), pojo.getByteValue());
+            Assert.assertEquals(reader.getByte("int8"), pojo.getInt8());
+            Assert.assertEquals(reader.getShort("uint8"), pojo.getUint8());
+            Assert.assertEquals(reader.getShort("int16"), pojo.getInt16());
+            Assert.assertEquals(reader.getInteger("int32"), pojo.getInt32());
+            Assert.assertEquals(reader.getLong("int64"), pojo.getInt64());
+            Assert.assertEquals(reader.getFloat("float32"), pojo.getFloat32());
+            Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
+            Assert.assertEquals(reader.getString("string"), pojo.getString());
+            Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+        }
+    }
+
+    @Test
+    public void testInsertingPOJOWithNullValueForNonNullableColumn() throws Exception {
+        final String tableName = "single_pojo_table";
+        final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final SamplePOJO pojo = new SamplePOJO();
+
+        pojo.setBoxedByte(null);
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+
+
+
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
+            fail("Should have thrown an exception");
+        } catch (ClientException e) {
+            e.printStackTrace();
+            assertTrue(e.getCause() instanceof  IllegalArgumentException);
+        }
     }
 
     @Test(groups = { "integration" }, enabled = true)

@@ -51,12 +51,14 @@ public class DatasetController {
         this.chDirectClient = chDirectClient;
     }
 
+    public TableSchema datasetQuerySchema;
+
     @PostConstruct
     public void setup() {
         chDirectClient.ping(3000); // helps to warm up the connection
 
         // Register class for deserialization
-        TableSchema datasetQuerySchema = chDirectClient.getTableSchemaFromQuery(DATASET_QUERY, "virtual_table1");
+        datasetQuerySchema = chDirectClient.getTableSchemaFromQuery(DATASET_QUERY);
         chDirectClient.register(VirtualDatasetRecord.class, datasetQuerySchema);
         log.info("Dataset schema: " + datasetQuerySchema.getColumns());
 
@@ -198,7 +200,7 @@ public class DatasetController {
         try  {
             long start = System.nanoTime();
 
-            result = chDirectClient.queryAll(query, VirtualDatasetRecord.class, objectsPool);
+            result = chDirectClient.queryAll(query, VirtualDatasetRecord.class, datasetQuerySchema, objectsPool);
             long duration = System.nanoTime() - start;
             log.info("records: " + result.size() + ", read time: " + TimeUnit.NANOSECONDS.toMillis(duration) + " ms");
             long p1Sum = 0;

@@ -1,15 +1,14 @@
 package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class InsertSettings {
     private static final int DEFAULT_INPUT_STREAM_BATCH_SIZE = 8196;
 
-    private String queryId;
     private int inputStreamCopyBufferSize;
     private String operationId;
     Map<String, Object> rawSettings;
@@ -27,7 +26,6 @@ public class InsertSettings {
 
     private void setDefaults() {// Default settings, for now a very small list
         this.setInputStreamCopyBufferSize(DEFAULT_INPUT_STREAM_BATCH_SIZE);
-        this.queryId = null;
     }
 
     /**
@@ -57,7 +55,7 @@ public class InsertSettings {
      * @return all settings
      */
     public Map<String, Object> getAllSettings() {
-        return Collections.unmodifiableMap(rawSettings);
+        return rawSettings;
     }
 
     /**
@@ -72,14 +70,14 @@ public class InsertSettings {
     }
 
     public String getQueryId() {
-        return this.queryId;
+        return (String) rawSettings.get(ClickHouseClientOption.QUERY_ID.getKey());
     }
 
     /**
      * Sets the query id. This id will be sent to the server and can be used to identify the query.
      */
     public InsertSettings setQueryId(String queryId) {
-        this.queryId = queryId;
+        rawSettings.put(ClickHouseClientOption.QUERY_ID.getKey(), queryId);
         return this;
     }
 
