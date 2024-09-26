@@ -102,7 +102,7 @@ public class BigDatasetExamples {
             ArrayList<com.clickhouse.demo_service.data.NumbersRecord> result = new ArrayList<>();
 
             // iterable approach is more efficient for large datasets because it doesn't load all records into memory
-            ClickHouseBinaryFormatReader reader = Client.newBinaryFormatReader(response);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
             long start = System.nanoTime();
             while (reader.next() != null) {

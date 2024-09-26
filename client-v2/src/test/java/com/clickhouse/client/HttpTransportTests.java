@@ -1,24 +1,35 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.time.temporal.ChronoUnit;
@@ -26,10 +37,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ConnectionManagementTests extends BaseIntegrationTest{
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
+public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")
     @SuppressWarnings("java:S2925")
@@ -143,6 +156,7 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
                 .addEndpoint("http://localhost:" + serverPort)
                 .setUsername("default")
                 .setPassword(getPassword())
+                .retryOnFailures(ClientFaultCause.None)
                 .useNewImplementation(true)
                 .setMaxConnections(1)
                 .setOption(ClickHouseClientOption.ASYNC.getKey(), "true")
@@ -185,5 +199,139 @@ public class ConnectionManagementTests extends BaseIntegrationTest{
             e.printStackTrace();
             Assert.fail(e.getMessage());
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSecureConnection() {
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword("")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertTrue(records.size() > 0);
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail(e.getMessage());
+        }
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
+    public void testInsertAndNoHttpResponseFailure(String body, int maxRetries, ThrowingFunction<Client, Void> function,
+                                                   boolean shouldFail) {
+        WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        faultyServer.start();
+
+        // First request gets no response
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .withRequestBody(WireMock.equalTo(body))
+                .inScenario("Retry")
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Failed")
+                .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
+
+        // Second request gets a response (retry)
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .withRequestBody(WireMock.equalTo(body))
+                .inScenario("Retry")
+                .whenScenarioStateIs("Failed")
+                .willSetStateTo("Done")
+                .willReturn(WireMock.aResponse()
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        Client mockServerClient = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true) // because of the internal differences
+                .compressClientRequest(false)
+                .setMaxRetries(maxRetries)
+                .build();
+
+        try {
+            function.apply(mockServerClient);
+        } catch (ClientException e) {
+            e.printStackTrace();
+            if (!shouldFail) {
+                Assert.fail("Unexpected exception", e);
+            }
+            return;
+        } catch (Exception e) {
+            Assert.fail("Unexpected exception", e);
+        } finally {
+            faultyServer.stop();
+        }
+
+        if (shouldFail) {
+            Assert.fail("Expected exception");
+        }
+    }
+
+    @DataProvider(name = "NoResponseFailureProvider")
+    public static Object[][] noResponseFailureProvider() {
+
+        String insertBody = "INSERT INTO table01 FORMAT " + ClickHouseFormat.TSV.name() + " \n1\t2\t3\n";
+        ThrowingFunction<Client, Void> insertFunction = (client) -> {
+            InsertResponse insertResponse = client.insert("table01",
+                    new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS);
+            insertResponse.close();
+            return null;
+        };
+
+        String selectBody = "select timezone()";
+        ThrowingFunction<Client, Void> queryFunction = (client) -> {
+            QueryResponse response = client.query("select timezone()").get(30, TimeUnit.SECONDS);
+            response.close();
+            return null;
+        };
+
+        return new Object[][]{
+                {insertBody, 1, insertFunction, false},
+                {selectBody, 1, queryFunction, false},
+                {insertBody, 0, insertFunction, true},
+                {selectBody, 0, queryFunction, true}
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
+    public void testServerErrorHandling(ClickHouseFormat format) {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                // TODO: fix in old client
+//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .build()) {
+
+            QuerySettings querySettings = new QuerySettings().setFormat(format);
+            try (QueryResponse response =
+                         client.query("SELECT invalid;statement", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ClientException e) {
+                e.printStackTrace();
+                ServerException serverException = (ServerException) e.getCause();
+                Assert.assertEquals(serverException.getCode(), 62);
+                Assert.assertTrue(serverException.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
+                        "Unexpected error message: " + serverException.getMessage());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail(e.getMessage(), e);
+        }
+    }
+
+    @DataProvider(name = "testServerErrorHandlingDataProvider")
+    public static Object[] testServerErrorHandlingDataProvider() {
+        return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
     }
 }

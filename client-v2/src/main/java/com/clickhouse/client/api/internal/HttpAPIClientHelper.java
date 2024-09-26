@@ -4,7 +4,9 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
@@ -12,6 +14,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -50,8 +53,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
@@ -59,9 +65,15 @@ import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -78,6 +90,8 @@ public class HttpAPIClientHelper {
 
     private String proxyAuthHeaderValue;
 
+    private final Set<ClientFaultCause> defaultRetryCauses;
+
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
@@ -93,6 +107,11 @@ public class HttpAPIClientHelper {
         boolean usingServerCompression=  chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
+
+        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get("client_retry_on_failures"), ClientFaultCause.class);
+        if (defaultRetryCauses.contains(ClientFaultCause.None)) {
+            defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
+        }
     }
 
     /**
@@ -258,6 +277,7 @@ public class HttpAPIClientHelper {
         return clientBuilder.build();
     }
 
+    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -265,11 +285,39 @@ public class HttpAPIClientHelper {
      * @return
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE)) {
-            httpResponse.getEntity().writeTo(out);
-            String message = out.toString();
-            int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-            return new ServerException(serverCode, message);
+        int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
+        try (InputStream body = httpResponse.getEntity().getContent()) {
+
+            byte [] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
+            byte [] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+            while (true) {
+                int rBytes = body.read(buffer);
+                if (rBytes == -1) {
+                    break;
+                } else {
+                    for (int i = 0; i < rBytes; i++) {
+                        if (buffer[i] == lookUpStr[0]) {
+                            boolean found = true;
+                            for (int j = 1; j < Math.min(rBytes - i, lookUpStr.length); j++) {
+                                if (buffer[i + j] != lookUpStr[j]) {
+                                    found = false;
+                                    break;
+                                }
+                            }
+                            if (found) {
+                                int start = i;
+                                while (i < rBytes && buffer[i] != '\n') {
+                                    i++;
+                                }
+
+                                return new ServerException(serverCode, new String(buffer, start, i -start, StandardCharsets.UTF_8));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
         } catch (IOException e) {
             throw new ClientException("Failed to read response body", e);
         }
@@ -293,12 +341,13 @@ public class HttpAPIClientHelper {
                 .build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback)));
+        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback), false));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
+            httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST &&
@@ -315,8 +364,6 @@ public class HttpAPIClientHelper {
                 httpResponse.close();
                 return httpResponse;
             }
-
-            httpResponse.setEntity(wrapEntity(httpResponse.getEntity()));
             return httpResponse;
 
         } catch (UnknownHostException e) {
@@ -339,6 +386,9 @@ public class HttpAPIClientHelper {
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseClientOption.FORMAT.getKey())) {
                 req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClickHouseClientOption.FORMAT.getKey()));
+            }
+            if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
+                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
             }
         }
         req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClickHouseClientOption.DATABASE.getKey()));
@@ -399,13 +449,13 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapEntity(HttpEntity httpEntity) {
+    private HttpEntity wrapEntity(HttpEntity httpEntity, boolean isResponse) {
         boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         if (serverCompression || clientCompression) {
             return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
-                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"));
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
         } else {
             return httpEntity;
         }
@@ -425,5 +475,40 @@ public class HttpAPIClientHelper {
         }
 
         return converter.apply(header.getValue());
+    }
+
+    public boolean shouldRetry(Exception ex, Map<String, Object> requestSettings) {
+        Set<ClientFaultCause> retryCauses = (Set<ClientFaultCause>)
+                requestSettings.getOrDefault("retry_on_failures", defaultRetryCauses);
+
+        if (retryCauses.contains(ClientFaultCause.None)) {
+            return false;
+        }
+
+        if (ex instanceof NoHttpResponseException ) {
+            return retryCauses.contains(ClientFaultCause.NoHttpResponse);
+        }
+
+        if (ex instanceof ConnectException) {
+            return retryCauses.contains(ClientFaultCause.ConnectTimeout);
+        }
+
+        if (ex instanceof ConnectionRequestTimeoutException) {
+            return retryCauses.contains(ClientFaultCause.ConnectionRequestTimeout);
+        }
+
+        return false;
+    }
+
+    // This method wraps some client specific exceptions into specific ClientException or just ClientException
+    // ClientException will be also wrapped
+    public ClientException wrapException(String message, Exception cause) {
+        if (cause instanceof ConnectionRequestTimeoutException ||
+                cause instanceof ConnectTimeoutException ||
+                cause instanceof ConnectException) {
+            return new ConnectionInitiationException(message, cause);
+        }
+
+        return new ClientException(message, cause);
     }
 }

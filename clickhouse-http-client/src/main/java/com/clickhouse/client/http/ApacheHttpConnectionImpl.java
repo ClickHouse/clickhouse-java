@@ -98,7 +98,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
 
         long connectionTTL = config.getLongOption(ClickHouseClientOption.CONNECTION_TTL);
-        log.info("Connection TTL: %d ms", connectionTTL);
+        log.debug("Connection TTL: %d ms", connectionTTL);
         String poolReuseStrategy = c.getStrOption(ClickHouseHttpOption.CONNECTION_REUSE_STRATEGY);
         PoolReusePolicy poolReusePolicy = PoolReusePolicy.LIFO;
         if (poolReuseStrategy != null && !poolReuseStrategy.isEmpty()) {
@@ -108,7 +108,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                 throw new IllegalArgumentException("Invalid connection reuse strategy: " + poolReuseStrategy);
             }
         }
-        log.info("Connection reuse strategy: %s", poolReusePolicy.name());
+        log.debug("Connection reuse strategy: %s", poolReusePolicy.name());
         HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c, PoolConcurrencyPolicy.LAX,
                 poolReusePolicy, TimeValue.ofMilliseconds(connectionTTL));
         int maxConnection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);

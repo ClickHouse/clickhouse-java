@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -19,7 +20,6 @@ import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
-import com.clickhouse.client.api.insert.SerializerNotFoundException;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
@@ -33,6 +33,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
@@ -41,6 +42,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.apache.hc.client5.http.ConnectTimeoutException;
@@ -71,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -82,32 +85,35 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
  * <p>{@link Builder} is designed to construct a client object with required configuration:</p>
- *  <pre>{@code
+ * {@code
  *
  *  Client client = new Client.Builder()
  *        .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
  *        .addUsername("default")
  *        .build();
- *        }
- *  </pre>
+ *  }
+ *
  *
  *
  * <p>When client object is created any operation method can be called on it:</p>
- * <pre>{@code
+ * {@code
  *
  *  if (client.ping()) {
  *      QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
- *      Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
- *      QueryResponse queryResponse = response.get();
+ *      try (QueryResponse response = client.query("SELECT * FROM " + table, settings).get(10, TimeUnit.SECONDS)) {
+ *          ...
+ *      }
  *  }
- *  }
- * </pre>
+ *
+ * }
+ *
  *
  *
  * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
@@ -119,9 +125,13 @@ public class Client implements AutoCloseable {
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private final Map<Class<?>, List<POJOSerializer>> serializers; //Order is important to preserve for RowBinary
-    private final Map<Class<?>, Map<String, Method>> getterMethods;
-    private final Map<Class<?>, Boolean> hasDefaults; // Whether the POJO has defaults
+
+    // POJO serializer mapping (class -> (schema -> (format -> serializer)))
+    private final Map<Class<?>, Map<String, Map<String, POJOSerializer>>> serializers;
+
+    // POJO deserializer mapping (class -> (schema -> (format -> deserializer)))
+    private final Map<Class<?>, Map<String, Map<String, POJOSetter>>> deserializers;
+
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
@@ -131,6 +141,9 @@ public class Client implements AutoCloseable {
 
     private ClickHouseClient oldClient = null;
 
+    private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
+    private Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor) {
         this.endpoints = endpoints;
@@ -138,9 +151,8 @@ public class Client implements AutoCloseable {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
-        this.serializers = new HashMap<>();
-        this.getterMethods = new HashMap<>();
-        this.hasDefaults = new HashMap<>();
+        this.serializers = new ConcurrentHashMap<>();
+        this.deserializers = new ConcurrentHashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
         if (isAsyncEnabled && sharedOperationExecutor == null) {
@@ -728,8 +740,47 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+
+        /**
+         * Sets list of causes that should be retried on.
+         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout]}
+         * Use {@link ClientFaultCause#None} to disable retries.
+         *
+         * @param causes - list of causes
+         * @return
+         */
+        public Builder retryOnFailures(ClientFaultCause ...causes) {
+            StringJoiner joiner = new StringJoiner(VALUES_LIST_DELIMITER);
+            for (ClientFaultCause cause : causes) {
+                joiner.add(cause.name());
+            }
+            this.configuration.put("client_retry_on_failures", joiner.toString());
+            return this;
+        }
+
+        public Builder setMaxRetries(int maxRetries) {
+            this.configuration.put(ClickHouseClientOption.RETRY.getKey(), String.valueOf(maxRetries));
+            return this;
+        }
+
+        /**
+         * Configures client to reuse allocated byte buffers for numbers. It affects how binary format reader is working.
+         * If set to 'true' then {@link  Client#newBinaryFormatReader(QueryResponse)} will construct reader that will
+         * reuse buffers for numbers. It improves performance for large datasets by reducing number of allocations
+         * (therefore GC pressure).
+         * Enabling this feature is safe because each reader suppose to be used by a single thread and readers are not reused.
+         *
+         * Default is false.
+         * @param reuse - if to reuse buffers
+         * @return
+         */
+        public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
+            this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            return this;
+        }
+
         public Client build() {
-            this.configuration = setDefaults(this.configuration);
+            setDefaults();
 
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -776,65 +827,75 @@ public class Client implements AutoCloseable {
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
         }
 
-        private Map<String, String> setDefaults(Map<String, String> userConfig) {
+        private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
+
+        private void setDefaults() {
 
             // set default database name if not specified
-            if (!userConfig.containsKey("database")) {
-                userConfig.put("database", (String) ClickHouseDefaults.DATABASE.getDefaultValue());
+            if (!configuration.containsKey("database")) {
+                setDefaultDatabase((String) ClickHouseDefaults.DATABASE.getDefaultValue());
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
-                userConfig.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(),
-                        String.valueOf(ClickHouseClientOption.MAX_EXECUTION_TIME.getDefaultValue()));
+            if (!configuration.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
+                setExecutionTimeout(0, MILLIS);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
-                userConfig.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
+            if (!configuration.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
+                configuration.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
                         String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
             }
 
-            if (!userConfig.containsKey("compression.lz4.uncompressed_buffer_size")) {
-                userConfig.put("compression.lz4.uncompressed_buffer_size",
-                        String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE));
+            if (!configuration.containsKey("compression.lz4.uncompressed_buffer_size")) {
+                setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
-                userConfig.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "true");
+            if (!configuration.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+                useServerTimeZone(true);
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
-                userConfig.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            if (!configuration.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+                setServerTimeZone("UTC");
             }
 
-            if (!userConfig.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
-                userConfig.put(ClickHouseClientOption.ASYNC.getKey(), "false");
+            if (!configuration.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
+                useAsyncRequests(false);
             }
 
-            if (!userConfig.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
-                userConfig.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), "10");
+            if (!configuration.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
+                setMaxConnections(10);
             }
 
-            if (!userConfig.containsKey("connection_request_timeout")) {
-                userConfig.put("connection_request_timeout", "10000");
+            if (!configuration.containsKey("connection_request_timeout")) {
+                setConnectionRequestTimeout(10, SECONDS);
             }
 
-            if (!userConfig.containsKey("connection_reuse_strategy")) {
-                userConfig.put("connection_reuse_strategy", ConnectionReuseStrategy.FIFO.name());
+            if (!configuration.containsKey("connection_reuse_strategy")) {
+                setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
             }
 
-            if (!userConfig.containsKey("connection_pool_enabled")) {
-                userConfig.put("connection_pool_enabled", "true");
+            if (!configuration.containsKey("connection_pool_enabled")) {
+                enableConnectionPool(true);
             }
 
-            if (!userConfig.containsKey("connection_ttl")) {
-                userConfig.put("connection_ttl", "-1");
+            if (!configuration.containsKey("connection_ttl")) {
+                setConnectionTTL(-1, MILLIS);
             }
 
-            if (!userConfig.containsKey("client_network_buffer_size")) {
-                setClientNetworkBufferSize(8192);
+            if (!configuration.containsKey("client_retry_on_failures")) {
+                retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout, ClientFaultCause.ConnectionRequestTimeout);
             }
 
-            return userConfig;
+            if (!configuration.containsKey("client_network_buffer_size")) {
+                setClientNetworkBufferSize(DEFAULT_NETWORK_BUFFER_SIZE);
+            }
+
+            if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
+                setMaxRetries(3);
+            }
+
+            if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
+                allowBinaryReaderToReuseBuffers(false);
+            }
         }
     }
 
@@ -871,65 +932,108 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Registers a POJO class and maps its fields to a table schema</p>
+     * <p>Note: table schema will be stored in cache to be used while other operations. Cache key is
+     *  {@link TableSchema schemaId}. Call this method
+     * to update cache.</p>
      *
      * @param clazz - class of a POJO
      * @param schema - correlating table schema
      */
-    public void register(Class<?> clazz, TableSchema schema) {
+    public synchronized void register(Class<?> clazz, TableSchema schema) {
         LOG.debug("Registering POJO: {}", clazz.getName());
+        String schemaKey;
+        if (schema.getTableName() != null && schema.getQuery() == null) {
+            schemaKey = schema.getTableName();
+        } else if (schema.getQuery() != null && schema.getTableName() == null) {
+            schemaKey = schema.getQuery();
+        } else {
+            throw new IllegalArgumentException("Table schema has both query and table name set. Only one is allowed.");
+        }
+        tableSchemaCache.put(schemaKey, schema);
 
         //Create a new POJOSerializer with static .serialize(object, columns) methods
-        List<POJOSerializer> serializers = new ArrayList<>();
-        Map<String, Method> getterMethods = new HashMap<>();
-
-        for (Method method: clazz.getMethods()) {//Clean up the method names
+        Map<String, Method> classGetters = new HashMap<>();
+        Map<String, Method> classSetters = new HashMap<>();
+        for (Method method : clazz.getMethods()) {//Clean up the method names
             String methodName = method.getName();
             if (methodName.startsWith("get") || methodName.startsWith("has")) {
                 methodName = methodName.substring(3).toLowerCase();
-                getterMethods.put(methodName, method);
-            } if (methodName.startsWith("is")) {
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("is")) {
                 methodName = methodName.substring(2).toLowerCase();
-                getterMethods.put(methodName, method);
+                classGetters.put(methodName, method);
+            } else if (methodName.startsWith("set")) {
+                methodName = methodName.substring(3).toLowerCase();
+                classSetters.put(methodName, method);
             }
         }
-        this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
 
+        Map<String, POJOSerializer> schemaSerializers = new HashMap<>();
+        Map<String, POJOSetter> schemaDeserializers = new ConcurrentHashMap<>();
+        boolean defaultsSupport = schema.hasDefaults();
+        tableSchemaHasDefaults.put(schemaKey, defaultsSupport);
         for (ClickHouseColumn column : schema.getColumns()) {
-            String columnName = column.getColumnName().toLowerCase().replace("_", "").replace(".","");
-            serializers.add((obj, stream) -> {
-                if (!getterMethods.containsKey(columnName)) {
-                    LOG.warn("No getter method found for column: {}", columnName);
-                    return;
-                }
-                Method getterMethod = this.getterMethods.get(clazz).get(columnName);
-                Object value = getterMethod.invoke(obj);
-                boolean hasDefaults = this.hasDefaults.get(clazz);
+            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+            Method getterMethod = classGetters.get(propertyName);
+            if (getterMethod != null) {
+                schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
+                    Object value = getterMethod.invoke(obj);
 
-                //Handle null values
-                if (value == null) {
-                    if (hasDefaults && !column.hasDefault()) {//Send this only if there is no default
-                        BinaryStreamUtils.writeNonNull(stream);
+                    if (defaultsSupport) {
+                        if (value != null) {//Because we now support defaults, we have to send nonNull
+                            BinaryStreamUtils.writeNonNull(stream);//Write 0 for no default
+
+                            if (column.isNullable()) {//If the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);//Write 0 for not null
+                            }
+                        } else {//So if the object is null
+                            if (column.hasDefault()) {
+                                BinaryStreamUtils.writeNull(stream);//Send 1 for default
+                                return;
+                            } else if (column.isNullable()) {//And the column is nullable
+                                BinaryStreamUtils.writeNonNull(stream);
+                                BinaryStreamUtils.writeNull(stream);//Then we send null, write 1
+                                return;//And we're done
+                            } else if (column.getDataType() == ClickHouseDataType.Array) {//If the column is an array
+                                BinaryStreamUtils.writeNonNull(stream);//Then we send nonNull
+                            } else {
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
+                        }
+                    } else {
+                        // If column is nullable && the object is also null add the not null marker
+                        if (column.isNullable() && value != null) {
+                            BinaryStreamUtils.writeNonNull(stream);
+                        }
+                        if (!column.isNullable() && value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array)
+                                BinaryStreamUtils.writeNonNull(stream);
+                            else
+                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                        }
                     }
-                    BinaryStreamUtils.writeNull(stream);//We send this regardless of default or nullable
-                    return;
-                }
 
-                //Handle default
-                if (hasDefaults) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
+                    //Handle the different types
+                    SerializerUtils.serializeData(stream, value, column);
+                });
+            } else {
+                LOG.warn("No getter method found for column: {}", propertyName);
+            }
 
-                //Handle nullable
-                if (column.isNullable()) {
-                    BinaryStreamUtils.writeNonNull(stream);//Write 0
-                }
-
-                //Handle the different types
-                SerializerUtils.serializeData(stream, value, column);
-            });
+            // Deserialization stuff
+            Method setterMethod = classSetters.get(propertyName);
+            if (setterMethod != null) {
+                schemaDeserializers.put(column.getColumnName(), SerializerUtils.compilePOJOSetter(setterMethod, column));
+            } else {
+                LOG.warn("No setter method found for column: {}", propertyName);
+            }
         }
-        this.serializers.put(clazz, serializers);
-        this.hasDefaults.put(clazz, schema.hasDefaults());
+
+        Map<String, Map<String, POJOSerializer>> classSerializers = serializers.computeIfAbsent(clazz, k -> new HashMap<>());
+        Map<String, Map<String, POJOSetter>> classDeserializers = deserializers.computeIfAbsent(clazz, k -> new HashMap<>());
+
+        classSerializers.put(schemaKey, schemaSerializers);
+        classDeserializers.put(schemaKey, schemaDeserializers);
     }
 
     /**
@@ -969,9 +1073,15 @@ public class Client implements AutoCloseable {
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param settings - insert operation settings
+     * @throws IllegalArgumentException when data is empty or not registered
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName, List<?> data, InsertSettings settings) {
+
+        if (data == null || data.isEmpty()) {
+            throw new IllegalArgumentException("Data cannot be empty");
+        }
+
 
         String operationId = startOperation();
         settings.setOperationId(operationId);
@@ -980,23 +1090,29 @@ public class Client implements AutoCloseable {
         }
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
-        if (data == null || data.isEmpty()) {
-            throw new IllegalArgumentException("Data cannot be empty");
-        }
-
         //Add format to the settings
         if (settings == null) {
             settings = new InsertSettings();
         }
 
-        boolean hasDefaults = this.hasDefaults.get(data.get(0).getClass());
+        boolean hasDefaults = this.tableSchemaHasDefaults.get(tableName);
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
-
-        //Lookup the Serializer for the POJO
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new SerializerNotFoundException(data.get(0).getClass());
+        TableSchema tableSchema = tableSchemaCache.get(tableName);
+        if (tableSchema == null) {
+            throw new IllegalArgumentException("Table schema not found for table: " + tableName + ". Did you forget to register it?");
         }
+        //Lookup the Serializer for the POJO
+        Map<String, POJOSerializer> classSerializers = serializers.getOrDefault(data.get(0).getClass(), Collections.emptyMap())
+                .getOrDefault(tableName, Collections.emptyMap());
+        List<POJOSerializer> serializersForTable = new ArrayList<>();
+        for (ClickHouseColumn column : tableSchema.getColumns()) {
+            POJOSerializer serializer = classSerializers.get(column.getColumnName());
+            if (serializer == null) {
+                throw new IllegalArgumentException("No serializer found for column '" + column.getColumnName() + "'. Did you forget to register it?");
+            }
+            serializersForTable.add(serializer);
+        }
+
 
         if (useNewImplementation) {
             String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
@@ -1008,6 +1124,7 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
@@ -1019,7 +1136,8 @@ public class Client implements AutoCloseable {
                                         out.write(format.name().getBytes());
                                         out.write(" \n".getBytes());
                                         for (Object obj : data) {
-                                            for (POJOSerializer serializer : serializers) {
+
+                                            for (POJOSerializer serializer : serializersForTable) {
                                                 try {
                                                     serializer.serialize(obj, out);
                                                 } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1042,20 +1160,23 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException e) {
-                        LOG.warn("Failed to get response. Retrying.", e);
-                        selectedNode = getNextAliveNode();
-                        continue;
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying", e);
+                            selectedNode = getNextAliveNode();
+                        } else {
+                            throw lastException;
+                        }
                     } catch (IOException e) {
-                        LOG.info("Interrupted while waiting for response.");
-                        throw new ClientException("Failed to get query response", e);
+                        throw new ClientException("Insert request failed", e);
                     }
                 }
-                throw new ClientException("Failed to get table schema: too many retries");
+                throw new ClientException("Insert request failed after retries", lastException);
             };
 
             return runAsyncOperation(supplier, settings.getAllSettings());
@@ -1065,7 +1186,7 @@ public class Client implements AutoCloseable {
 
             //Call the static .serialize method on the POJOSerializer for each object in the list
             for (Object obj : data) {
-                for (POJOSerializer serializer : serializers) {
+                for (POJOSerializer serializer : serializersForTable) {
                     try {
                         serializer.serialize(obj, stream);
                     } catch (InvocationTargetException | IllegalAccessException | IOException e) {
@@ -1075,7 +1196,6 @@ public class Client implements AutoCloseable {
             }
 
             globalClientStats.get(operationId).stop(ClientMetrics.OP_SERIALIZATION);
-            LOG.debug("Total serialization time: {}", globalClientStats.get(operationId).getElapsedTime("serialization"));
             return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
         }
     }
@@ -1132,6 +1252,7 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
 
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     // Execute request
                     try (ClassicHttpResponse httpResponse =
@@ -1162,29 +1283,31 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.QPARAM_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch (NoHttpResponseException e) {
-                        if (i < maxRetries) {
-                            try {
-                                data.reset();
-                            } catch (IOException ioe) {
-                                throw new ClientException("Failed to get response", e);
-                            }
-                            LOG.warn("Failed to get response. Retrying.", e);
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying", e);
                             selectedNode = getNextAliveNode();
                         } else {
-                            throw new ClientException("Server did not respond", e);
+                            throw lastException;
                         }
-                        continue;
                     } catch (IOException e) {
-                        LOG.info("Interrupted while waiting for response.");
-                        throw new ClientException("Failed to get query response", e);
+                        throw new ClientException("Insert request failed", e);
+                    }
+
+                    if (i < maxRetries) {
+                        try {
+                            data.reset();
+                        } catch (IOException ioe) {
+                            throw new ClientException("Failed to reset stream before next attempt", ioe);
+                        }
                     }
                 }
-                throw new ClientException("Failed to insert data: too many retries");
+                throw new ClientException("Insert request failed after retries", lastException);
             };
         } else {
             responseSupplier = () -> {
@@ -1211,7 +1334,6 @@ public class Client implements AutoCloseable {
                         clickHouseResponse = future.get();
                     }
                     InsertResponse response = new InsertResponse(clickHouseResponse, clientStats);
-                    LOG.debug("Total insert (InputStream) time: {}", clientStats.getElapsedTime("insert"));
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
@@ -1300,6 +1422,7 @@ public class Client implements AutoCloseable {
             responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
+                ClientException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
@@ -1325,15 +1448,23 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
+
+                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                        lastException = httpClientHelper.wrapException("Query request initiation failed", e);
+                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                            LOG.warn("Retrying.", e);
+                            selectedNode = getNextAliveNode();
+                        } else {
+                            throw lastException;
+                        }
                     } catch (ClientException e) {
                         throw e;
-                    } catch (ConnectionRequestTimeoutException | ConnectTimeoutException e) {
-                        throw new ConnectionInitiationException("Failed to get connection", e);
                     } catch (Exception e) {
-                        throw new ClientException("Failed to execute query", e);
+                        throw new ClientException("Query request failed", e);
                     }
                 }
-                throw new ClientException("Failed to get table schema: too many retries");
+
+                throw new ClientException("Query request failed after retries", lastException);
             };
         } else {
             ClickHouseRequest<?> request = oldClient.read(getServerNode());
@@ -1397,10 +1528,10 @@ public class Client implements AutoCloseable {
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
 
-        final QuerySettings finalSettings = settings;
         return query(sqlQuery, settings).thenApply(response -> {
             try {
-                return new Records(response, finalSettings);
+
+                return new Records(response, newBinaryFormatReader(response));
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -1417,19 +1548,79 @@ public class Client implements AutoCloseable {
     public List<GenericRecord> queryAll(String sqlQuery) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
-                            new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                            (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
                         records.add(new MapBackedRecord(record, reader.getSchema()));
                     }
                 }
+                return records;
+            }
+        } catch (ExecutionException e) {
+            throw new ClientException("Failed to get query response", e.getCause());
+        } catch (Exception e) {
+            throw new ClientException("Failed to get query response", e);
+        }
+    }
+
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
+        return queryAll(sqlQuery, clazz, schema, null);
+    }
+
+    /**
+     * WARNING: Experimental API
+     *
+     * <p>Queries data and returns collection with whole result. Data is read directly to a DTO
+     *  to save memory on intermediate structures. DTO will be instantiated with default constructor or
+     *  by using allocator</p>
+     * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
+     * <p>Internally deserializer is compiled at the register stage. Compilation is done using ASM library by
+     *  writing a bytecode</p>
+     * <p>Note: this method will cache schema and it will use sql as a key for storage.</p>
+     *
+     *
+     * @param sqlQuery - query to execute
+     * @param clazz - class of the DTO
+     * @param allocator - optional supplier to create new instances of the DTO.
+     * @throws IllegalArgumentException when class is not registered or no setters found
+     * @return List of POJOs filled with data
+     * @param <T>
+     */
+    public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema, Supplier<T> allocator) {
+        Map<String, POJOSetter> classDeserializers = deserializers.getOrDefault(clazz,
+                Collections.emptyMap()).getOrDefault(schema.getTableName() == null?
+                schema.getQuery() : schema.getTableName(), Collections.emptyMap());
+
+        if (classDeserializers.isEmpty()) {
+            throw new IllegalArgumentException("No deserializers found for the query and class '" + clazz + "'. Did you forget to register it?");
+        }
+
+        try {
+            int operationTimeout = getOperationTimeout();
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
+                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+                List<T> records = new ArrayList<>();
+                RowBinaryWithNamesAndTypesFormatReader reader =
+                        (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
+
+                while (true) {
+                    Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+                    if (reader.readToPOJO(classDeserializers, record)) {
+                        records.add((T) record);
+                    } else {
+                        break;
+                    }
+                }
+
                 return records;
             }
         } catch (ExecutionException e) {
@@ -1449,13 +1640,12 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table) {
-        return getTableSchema(table, configuration.get("database"));
+        return getTableSchema(table, getDefaultDatabase());
     }
 
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
-     *
      * <p>See {@link #register(Class, TableSchema)}</p>
      *
      * @param table - table name
@@ -1464,12 +1654,25 @@ public class Client implements AutoCloseable {
      */
     public TableSchema getTableSchema(String table, String database) {
         final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
+        return getTableSchemaImpl(sql, table, null, database);
+    }
 
+    /**
+     * <p>Creates table schema from a query.</p>
+     * @param sql - SQL query which schema to return
+     * @return table schema for the query
+     */
+    public TableSchema getTableSchemaFromQuery(String sql) {
+        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase());
+    }
+
+    private TableSchema getTableSchemaImpl(String describeQuery, String name, String originalQuery, String database) {
         int operationTimeout = getOperationTimeout();
 
-        try (QueryResponse response = operationTimeout == 0 ? query(sql).get() :
-                query(sql).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), table, database);
+        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
+                query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+            return new TableSchemaParser().readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
@@ -1524,20 +1727,30 @@ public class Client implements AutoCloseable {
      * @param schema
      * @return
      */
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
+        // Using caching buffer allocator is risky so this parameter is not exposed to the user
+        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
+        BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
+                new BinaryStreamReader.CachingByteBufferAllocator() :
+                new BinaryStreamReader.DefaultByteBufferAllocator();
+
         switch (response.getFormat()) {
             case Native:
-                reader = new NativeFormatReader(response.getInputStream(), response.getSettings());
+                reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings());
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
+                        byteBufferPool);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             case RowBinary:
-                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema);
+                reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
+                        byteBufferPool);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
@@ -1545,7 +1758,7 @@ public class Client implements AutoCloseable {
         return reader;
     }
 
-    public static ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
     }
 
@@ -1610,4 +1823,6 @@ public class Client implements AutoCloseable {
     private ClickHouseNode getNextAliveNode() {
         return serverNodes.get(0);
     }
+
+    public static final String VALUES_LIST_DELIMITER = ",";
 }

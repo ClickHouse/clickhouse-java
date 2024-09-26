@@ -1,6 +1,5 @@
-package com.clickhouse.client.insert;
+package com.clickhouse.client.query;
 
-import com.clickhouse.data.value.ClickHouseBitmap;
 import org.apache.commons.lang3.RandomStringUtils;
 
 import java.math.BigDecimal;
@@ -15,23 +14,18 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 
-
 public class SamplePOJO {
-    private byte byteValue;
-    private Byte boxedByte;
     private int int8;
     private int int8_default;
     private int int16;
-    private Short boxedShort;
     private int int16_default;
     private int int32;
-    private Integer boxedInt;
     private int int32_default;
     private long int64;
-    private Long boxedLong;
     private long int64_default;
     private BigInteger int128;
     private BigInteger int128_default;
@@ -46,9 +40,7 @@ public class SamplePOJO {
     private BigInteger uint256;
 
     private float float32;
-    private Float boxedFloat;
     private double float64;
-    private Double boxedDouble;
 
     private BigDecimal decimal32;
     private BigDecimal decimal64;
@@ -56,7 +48,6 @@ public class SamplePOJO {
     private BigDecimal decimal256;
 
     private boolean bool;
-    private Boolean boxedBool;
 
     private String string;
     private String fixedString;
@@ -76,25 +67,17 @@ public class SamplePOJO {
     private Inet6Address ipv6;
 
     private List<String> array;
-    private List<?> tuple;
+    private List<Integer> tuple;
     private Map<String, Integer> map;
     private List<Integer> nestedInnerInt;
     private List<String> nestedInnerString;
 
-    private ClickHouseBitmap groupBitmapUint32;
-    private ClickHouseBitmap groupBitmapUint64;
-
     public SamplePOJO() {
         final Random random = new Random();
-        byteValue = (byte) random.nextInt();
-        boxedByte = (byte) random.nextInt();
         int8 = random.nextInt(128);
         int16 = random.nextInt(32768);
-        boxedShort = (short) random.nextInt();
         int32 = random.nextInt();
-        boxedInt = random.nextInt();
         int64 = random.nextLong();
-        boxedLong = random.nextLong();
         BigInteger upper = BigInteger.valueOf(random.nextLong()).shiftLeft(64);
         BigInteger lower = BigInteger.valueOf(random.nextLong()).and(BigInteger.valueOf(Long.MAX_VALUE));
 
@@ -118,8 +101,6 @@ public class SamplePOJO {
 
         float32 = random.nextFloat();
         float64 = random.nextDouble();
-        boxedFloat = random.nextFloat();
-        boxedDouble = random.nextDouble();
 
         decimal32 = BigDecimal.valueOf(random.nextDouble());
         decimal64 = BigDecimal.valueOf(random.nextDouble());
@@ -156,7 +137,7 @@ public class SamplePOJO {
         }
 
         array = Arrays.asList("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
-        tuple = Arrays.asList(uint64, int32, string);
+        tuple = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         map = new HashMap<>();
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
@@ -169,73 +150,6 @@ public class SamplePOJO {
         List<String> innerString = new ArrayList<>();
         innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
         nestedInnerString = innerString;
-
-        groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
-        groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
-    }
-
-    public byte getByteValue() {
-        return byteValue;
-    }
-
-    public void setByteValue(byte byteValue) {
-        this.byteValue = byteValue;
-    }
-
-    public Byte getBoxedByte() {
-        return boxedByte;
-    }
-
-    public void setBoxedByte(Byte boxedByte) {
-        this.boxedByte = boxedByte;
-    }
-
-    public Short getBoxedShort() {
-        return boxedShort;
-    }
-
-    public void setBoxedShort(Short boxedShort) {
-        this.boxedShort = boxedShort;
-    }
-
-    public Integer getBoxedInt() {
-        return boxedInt;
-    }
-
-    public void setBoxedInt(Integer boxedInt) {
-        this.boxedInt = boxedInt;
-    }
-
-    public Long getBoxedLong() {
-        return boxedLong;
-    }
-
-    public void setBoxedLong(Long boxedLong) {
-        this.boxedLong = boxedLong;
-    }
-
-    public Float getBoxedFloat() {
-        return boxedFloat;
-    }
-
-    public void setBoxedFloat(Float boxedFloat) {
-        this.boxedFloat = boxedFloat;
-    }
-
-    public Double getBoxedDouble() {
-        return boxedDouble;
-    }
-
-    public void setBoxedDouble(Double boxedDouble) {
-        this.boxedDouble = boxedDouble;
-    }
-
-    public Boolean getBoxedBool() {
-        return boxedBool;
-    }
-
-    public void setBoxedBool(Boolean boxedBool) {
-        this.boxedBool = boxedBool;
     }
 
     public int getInt8() {
@@ -510,7 +424,7 @@ public class SamplePOJO {
         this.array = array;
     }
 
-    public List<?> getTuple() {
+    public List<Integer> getTuple() {
         return tuple;
     }
 
@@ -542,37 +456,29 @@ public class SamplePOJO {
         this.nestedInnerString = nestedInnerString;
     }
 
-    public ClickHouseBitmap getGroupBitmapUint32() {
-        return groupBitmapUint32;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SamplePOJO that = (SamplePOJO) o;
+        return int8 == that.int8 && int16 == that.int16 && int32 == that.int32 && int64 == that.int64 && uint8 == that.uint8 && uint16 == that.uint16 && uint32 == that.uint32 && uint64 == that.uint64 && Float.compare(float32, that.float32) == 0 && Double.compare(float64, that.float64) == 0 && bool == that.bool && enum8 == that.enum8 && enum16 == that.enum16 && Objects.equals(int128, that.int128) && Objects.equals(int256, that.int256) && Objects.equals(uint128, that.uint128) && Objects.equals(uint256, that.uint256) && Objects.equals(decimal32, that.decimal32) && Objects.equals(decimal64, that.decimal64) && Objects.equals(decimal128, that.decimal128) && Objects.equals(decimal256, that.decimal256) && Objects.equals(string, that.string) && Objects.equals(fixedString, that.fixedString) && Objects.equals(date, that.date) && Objects.equals(date32, that.date32) && Objects.equals(dateTime, that.dateTime) && Objects.equals(dateTime64, that.dateTime64) && Objects.equals(uuid, that.uuid) && Objects.equals(ipv4, that.ipv4) && Objects.equals(ipv6, that.ipv6) && Objects.equals(array, that.array) && Objects.equals(tuple, that.tuple) && Objects.equals(map, that.map) && Objects.equals(nestedInnerInt, that.nestedInnerInt) && Objects.equals(nestedInnerString, that.nestedInnerString);
     }
 
-    public void setGroupBitmapUint32(ClickHouseBitmap groupBitmapUint32) {
-        this.groupBitmapUint32 = groupBitmapUint32;
-    }
-
-    public ClickHouseBitmap getGroupBitmapUint64() {
-        return groupBitmapUint64;
-    }
-
-    public void setGroupBitmapUint64(ClickHouseBitmap groupBitmapUint64) {
-        this.groupBitmapUint64 = groupBitmapUint64;
+    @Override
+    public int hashCode() {
+        return Objects.hash(int8, int16, int32, int64, int128, int256, uint8, uint16, uint32, uint64, uint128, uint256, float32, float64, decimal32, decimal64, decimal128, decimal256, bool, string, fixedString, date, date32, dateTime, dateTime64, uuid, enum8, enum16, ipv4, ipv6, array, tuple, map, nestedInnerInt, nestedInnerString);
     }
 
     @Override
     public String toString() {
         return "SamplePOJO{" +
-                "byteValue=" + byteValue +
-                ", boxedByte=" + boxedByte +
-                ", int8=" + int8 +
+                "int8=" + int8 +
                 ", int8_default=" + int8_default +
                 ", int16=" + int16 +
-                ", boxedShort=" + boxedShort +
                 ", int16_default=" + int16_default +
                 ", int32=" + int32 +
-                ", boxedInt=" + boxedInt +
                 ", int32_default=" + int32_default +
                 ", int64=" + int64 +
-                ", boxedLong=" + boxedLong +
                 ", int64_default=" + int64_default +
                 ", int128=" + int128 +
                 ", int128_default=" + int128_default +
@@ -585,15 +491,12 @@ public class SamplePOJO {
                 ", uint128=" + uint128 +
                 ", uint256=" + uint256 +
                 ", float32=" + float32 +
-                ", boxedFloat=" + boxedFloat +
                 ", float64=" + float64 +
-                ", boxedDouble=" + boxedDouble +
                 ", decimal32=" + decimal32 +
                 ", decimal64=" + decimal64 +
                 ", decimal128=" + decimal128 +
                 ", decimal256=" + decimal256 +
                 ", bool=" + bool +
-                ", boxedBool=" + boxedBool +
                 ", string='" + string + '\'' +
                 ", fixedString='" + fixedString + '\'' +
                 ", date=" + date +
@@ -610,25 +513,18 @@ public class SamplePOJO {
                 ", map=" + map +
                 ", nestedInnerInt=" + nestedInnerInt +
                 ", nestedInnerString=" + nestedInnerString +
-                ", groupBitmapUint32=" + groupBitmapUint32 +
-                ", groupBitmapUint64=" + groupBitmapUint64 +
                 '}';
     }
 
     public static String generateTableCreateSQL(String tableName) {
         return "CREATE TABLE " + tableName + " (" +
-                "byteValue Int8," +
                 "int8 Int8, " +
-                "boxedByte Int8, " +
                 "int8_default Int8 DEFAULT 0, " +
                 "int16 Int16, " +
-                "boxedShort Int16, " +
                 "int16_default Int16 DEFAULT 0, " +
                 "int32 Int32, " +
-                "boxedInt Int32, " +
                 "int32_default Int32 DEFAULT 0, " +
                 "int64 Int64, " +
-                "boxedLong Int64, " +
                 "int64_default Int64 DEFAULT 0, " +
                 "int128 Int128, " +
                 "int128_default Int128 DEFAULT 0, " +
@@ -641,15 +537,12 @@ public class SamplePOJO {
                 "uint128 UInt128, " +
                 "uint256 UInt256, " +
                 "float32 Float32, " +
-                "boxedFloat Float32, " +
                 "float64 Float64, " +
-                "boxedDouble Float64, " +
                 "decimal32 Decimal32(2), " +
                 "decimal64 Decimal64(3), " +
                 "decimal128 Decimal128(4), " +
                 "decimal256 Decimal256(5), " +
                 "bool UInt8, " +
-//                "boxedBool UInt8, " +
                 "string String, " +
                 "fixedString FixedString(3), " +
                 "date Date, " +
@@ -662,12 +555,9 @@ public class SamplePOJO {
                 "ipv4 IPv4, " +
                 "ipv6 IPv6, " +
                 "array Array(String), " +
-                "tuple Tuple(UInt64, Int32, String), " +
+                "tuple Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32), " +
                 "map Map(String, Int32), " +
-                "nested Nested (innerInt Int32, innerString String), " +
-//                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
-                // TODO: fix this
-//                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +
+                "nested Nested (innerInt Int32, innerString String)" +
                 ") ENGINE = Memory";
     }
 }

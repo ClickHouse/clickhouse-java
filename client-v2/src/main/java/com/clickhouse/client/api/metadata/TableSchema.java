@@ -12,9 +12,13 @@ public class TableSchema {
 
     private String tableName = "";
 
+    private String query = "";
+
     private String databaseName = "";
 
     private List<ClickHouseColumn> columns;
+
+    private List<ClickHouseColumn> columnsView;
 
     private Map<String, Map<String, Object>> metadata;
 
@@ -25,6 +29,7 @@ public class TableSchema {
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
+        this.columnsView = Collections.unmodifiableList(this.columns);
         this.colIndex = new HashMap<>();
     }
 
@@ -34,7 +39,7 @@ public class TableSchema {
      * @return - collection of columns in the table
      */
     public List<ClickHouseColumn> getColumns() {
-        return Collections.unmodifiableList(columns);
+        return columnsView;
     }
 
     public String getDatabaseName() {
@@ -55,6 +60,14 @@ public class TableSchema {
 
     public boolean hasDefaults() {
         return hasDefaults;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public void setQuery(String query) {
+        this.query = query;
     }
 
     public void addColumn(String name, String type) {

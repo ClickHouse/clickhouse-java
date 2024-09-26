@@ -85,6 +85,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.ow2.asm/asm -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.7</version>
+        </dependency>
+
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
@@ -121,6 +129,11 @@
             <groupId>com.github.tomakehurst</groupId>
             <artifactId>wiremock-jre8</artifactId>
             <version>2.35.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

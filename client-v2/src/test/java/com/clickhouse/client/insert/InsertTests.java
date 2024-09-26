@@ -8,6 +8,8 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -15,6 +17,7 @@ import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -33,6 +36,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 public class InsertTests extends BaseIntegrationTest {
     private Client client;
@@ -64,7 +69,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
@@ -122,6 +127,62 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" }, enabled = true)
+    public void insertPOJOAndReadBack() throws Exception {
+        final String tableName = "single_pojo_table";
+        final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final SamplePOJO pojo = new SamplePOJO();
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+
+        System.out.println("Inserting POJO: " + pojo);
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse =
+                client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+
+            Assert.assertEquals(reader.getByte("byteValue"), pojo.getByteValue());
+            Assert.assertEquals(reader.getByte("int8"), pojo.getInt8());
+            Assert.assertEquals(reader.getShort("uint8"), pojo.getUint8());
+            Assert.assertEquals(reader.getShort("int16"), pojo.getInt16());
+            Assert.assertEquals(reader.getInteger("int32"), pojo.getInt32());
+            Assert.assertEquals(reader.getLong("int64"), pojo.getInt64());
+            Assert.assertEquals(reader.getFloat("float32"), pojo.getFloat32());
+            Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
+            Assert.assertEquals(reader.getString("string"), pojo.getString());
+            Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+        }
+    }
+
+    @Test
+    public void testInsertingPOJOWithNullValueForNonNullableColumn() throws Exception {
+        final String tableName = "single_pojo_table";
+        final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final SamplePOJO pojo = new SamplePOJO();
+
+        pojo.setBoxedByte(null);
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+
+
+
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
+            fail("Should have thrown an exception");
+        } catch (ClientException e) {
+            e.printStackTrace();
+            assertTrue(e.getCause() instanceof  IllegalArgumentException);
+        }
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
     public void insertRawData() throws Exception {
         final String tableName = "raw_data_table";
         final String createSQL = "CREATE TABLE " + tableName +
@@ -168,52 +229,5 @@ public class InsertTests extends BaseIntegrationTest {
                 ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
         OperationMetrics metrics = response.getMetrics();
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
-    }
-
-    @Test(groups = { "integration" }, enabled = true)
-    public void testNoHttpResponseFailure() {
-        WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
-                .options().port(9090).notifier(new ConsoleNotifier(false)));
-        faultyServer.start();
-
-        byte[] requestBody = ("INSERT INTO table01 FORMAT " +
-                ClickHouseFormat.TSV.name() + " \n1\t2\t3\n").getBytes();
-
-        // First request gets no response
-        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                        .withRequestBody(WireMock.binaryEqualTo(requestBody))
-                .inScenario("Retry")
-                .whenScenarioStateIs(STARTED)
-                .willSetStateTo("Failed")
-                .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
-
-        // Second request gets a response (retry)
-        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                        .withRequestBody(WireMock.binaryEqualTo(requestBody))
-                .inScenario("Retry")
-                .whenScenarioStateIs("Failed")
-                .willSetStateTo("Done")
-                .willReturn(WireMock.aResponse()
-                        .withHeader("X-ClickHouse-Summary",
-                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
-
-        Client mockServerClient = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
-                .setUsername("default")
-                .setPassword("")
-                .useNewImplementation(true)
-//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .compressClientRequest(false)
-                .setOption(ClickHouseClientOption.RETRY.getKey(), "2")
-                .build();
-        try {
-            InsertResponse insertResponse = mockServerClient.insert("table01",
-                    new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
-            insertResponse.close();
-        } catch (Exception e) {
-            Assert.fail("Unexpected exception", e);
-        } finally {
-            faultyServer.stop();
-        }
     }
 }

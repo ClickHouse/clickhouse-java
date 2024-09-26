@@ -1,5 +1,37 @@
 ## Latest
 
+## 0.6.5
+
+### Deprecations
+- Following components will be deprecated and removed in 0.7.0 release:
+  - clickhouse-cli-client
+  - clickhouse-grpc-client
+- Projects cli-client and grpc-client are excluded from release and build.
+- No more builds for non-lts Java versions - no more Java 9 release builds.
+
+### Performance Improvements
+- [client-v2] `queryAll()` optimized to use less memory (https://github.com/ClickHouse/clickhouse-java/pull/1779)
+- [client-v2] `Client.Builder#setClientNetworkBufferSize` introduced to allow increasing a buffer that is used 
+to transfer data from socket buffer to application memory. When set to >= of send/receive socket buffer size it
+significantly reduces number of system calls and improves performance. (https://github.com/ClickHouse/clickhouse-java/pull/1784)
+
+### New Features
+- [client-v2] Client will retry on `NoHttpResponseException` when using Apache HTTP client. 
+  It is useful when close/stale connection is leased from connection pool. No client will 
+retry one more time instead of failing. `Client.Builder#retryOnFailures` and `Client.Builder#setMaxRetries` were 
+introduced to configure client behavior. (https://github.com/ClickHouse/clickhouse-java/pull/1768)
+
+### Bug Fixes
+- [client-v2] Correct timezone used when reading DateTime values. Affects how date/datetime values
+  are read when `session_timezone` is used (https://github.com/ClickHouse/clickhouse-java/issues/1780)
+- [client-v2] Fix reading big integers. Previously was causing incorrect values
+  (https://github.com/ClickHouse/clickhouse-java/issues/1786)
+  (https://github.com/ClickHouse/clickhouse-java/issues/1776)
+- [client-v2] Fix server compressions when using a client instance concurrently 
+(https://github.com/ClickHouse/clickhouse-java/pull/1791) 
+- [client-v2] Fix reading arrays as list. Also affected reading nested arrays (https://github.com/ClickHouse/clickhouse-java/pull/1800)
+- [client-v1] Fix handling summary metadata for write operations. Previously was causing empty metadata 
+
 ## 0.6.4
 
 ### Deprecations
