@@ -4,6 +4,7 @@ import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseProtocol;
 
+import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

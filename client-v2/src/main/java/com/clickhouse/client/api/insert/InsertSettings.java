@@ -1,8 +1,13 @@
 package com.clickhouse.client.api.insert;
 
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -138,5 +143,66 @@ public class InsertSettings {
 
     public boolean isClientRequestEnabled() {
         return (Boolean) rawSettings.get("decompress");
+    }
+
+    /**
+     * Defines list of headers that should be sent with current request. The Client will use a header value
+     * defined in {@code headers} instead of any other.
+     *
+     * @see Client.Builder#httpHeaders(Map)
+     * @param key - header name.
+     * @param value - header value.
+     * @return same instance of the builder
+     */
+    public InsertSettings httpHeader(String key, String value) {
+        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, value);
+        return this;
+    }
+
+    /**
+     * {@see #httpHeader(String, String)} but for multiple values.
+     * @param key - name of the header
+     * @param values - collection of values
+     * @return same instance of the builder
+     */
+    public InsertSettings httpHeader(String key, Collection<String> values) {
+        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, ClientSettings.commaSeparated(values));
+        return this;
+    }
+
+    /**
+     * {@see #httpHeader(String, String)} but for multiple headers.
+     * @param headers - map of headers
+     * @return same instance of the builder
+     */
+    public InsertSettings httpHeaders(Map<String, String> headers) {
+        headers.forEach(this::httpHeader);
+        return this;
+    }
+
+    /**
+     * Defines list of server settings that should be sent with each request. The Client will use a setting value
+     * defined in {@code settings} instead of any other.
+     * Operation settings may override these values.
+     *
+     * @see Client.Builder#serverSetting(String, Collection)
+     * @param name - name of the setting
+     * @param value - value of the setting
+     * @return same instance of the builder
+     */
+    public InsertSettings serverSetting(String name, String value) {
+        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, value);
+        return this;
+    }
+
+    /**
+     * {@see #serverSetting(String, String)} but for multiple values.
+     * @param name - name of the setting without special prefix
+     * @param values - collection of values
+     * @return same instance of the builder
+     */
+    public InsertSettings serverSetting(String name, Collection<String> values) {
+        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, ClientSettings.commaSeparated(values));
+        return this;
     }
 }

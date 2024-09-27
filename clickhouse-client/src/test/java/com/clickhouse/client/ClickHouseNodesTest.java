@@ -214,8 +214,9 @@ public class ClickHouseNodesTest {
         Assert.assertEquals(nodes.get(), ClickHouseNode.of("tcp://b:9000/test?x=1"));
     }
 
-    @Test(groups = { "unit" })
+    @Test(groups = { "unit" }, enabled = false)
     public void testQueryWithSlash() {
+        // test is disabled because this format of urls is not supported
         ClickHouseNodes servers = ClickHouseNodes
                 .of("https://node1?a=/b/c/d,node2/db2?/a/b/c=d,node3/db1?a=/d/c.b");
         Assert.assertEquals(servers.nodes.get(0).getDatabase().orElse(null), "db1");
@@ -268,30 +269,33 @@ public class ClickHouseNodesTest {
         Assert.assertEquals(ClickHouseNodes.of("http://(a) , {b}, [::1]"), new ClickHouseNodes(
                 Arrays.asList(ClickHouseNode.of("http://a"), ClickHouseNode.of("http://b"),
                         ClickHouseNode.of("http://[::1]"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c"), new ClickHouseNodes(
-                Arrays.asList(ClickHouseNode.of("http://a"), ClickHouseNode.of("tcp://b"),
-                        ClickHouseNode.of("grpc://c"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c/"), new ClickHouseNodes(
-                Arrays.asList(ClickHouseNode.of("http://a"), ClickHouseNode.of("tcp://b"),
-                        ClickHouseNode.of("grpc://c"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c/db1"), new ClickHouseNodes(
-                Arrays.asList(ClickHouseNode.of("http://a/db1"), ClickHouseNode.of("tcp://b/db1"),
-                        ClickHouseNode.of("grpc://c/db1"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c?a=1"), new ClickHouseNodes(
-                Arrays.asList(ClickHouseNode.of("http://a?a=1"), ClickHouseNode.of("tcp://b?a=1"),
-                        ClickHouseNode.of("grpc://c?a=1"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c#dc1"), new ClickHouseNodes(
-                Arrays.asList(ClickHouseNode.of("http://a#dc1"), ClickHouseNode.of("tcp://b#dc1"),
-                        ClickHouseNode.of("grpc://c#dc1"))));
-        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c:1234/some/db?a=1#dc1"),
-                new ClickHouseNodes(
-                        Arrays.asList(ClickHouseNode.of("http://a/some/db?a=1#dc1"),
-                                ClickHouseNode.of("tcp://b/some/db?a=1#dc1"),
-                                ClickHouseNode.of("grpc://c:1234/some/db?a=1#dc1"))));
+
+        // THIS IS SHOULD NOT BE SUPPORTED
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c"), new ClickHouseNodes(
+//                Arrays.asList(ClickHouseNode.of("http://a"), ClickHouseNode.of("tcp://b"),
+//                        ClickHouseNode.of("grpc://c"))));
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c/"), new ClickHouseNodes(
+//                Arrays.asList(ClickHouseNode.of("http://a"), ClickHouseNode.of("tcp://b"),
+//                        ClickHouseNode.of("grpc://c"))));
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c/db1"), new ClickHouseNodes(
+//                Arrays.asList(ClickHouseNode.of("http://a/db1"), ClickHouseNode.of("tcp://b/db1"),
+//                        ClickHouseNode.of("grpc://c/db1"))));
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c?a=1"), new ClickHouseNodes(
+//                Arrays.asList(ClickHouseNode.of("http://a?a=1"), ClickHouseNode.of("tcp://b?a=1"),
+//                        ClickHouseNode.of("grpc://c?a=1"))));
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c#dc1"), new ClickHouseNodes(
+//                Arrays.asList(ClickHouseNode.of("http://a#dc1"), ClickHouseNode.of("tcp://b#dc1"),
+//                        ClickHouseNode.of("grpc://c#dc1"))));
+//        Assert.assertEquals(ClickHouseNodes.of("http://a,tcp://b,grpc://c:1234/some/db?a=1#dc1"),
+//                new ClickHouseNodes(
+//                        Arrays.asList(ClickHouseNode.of("http://a/some/db?a=1#dc1"),
+//                                ClickHouseNode.of("tcp://b/some/db?a=1#dc1"),
+//                                ClickHouseNode.of("grpc://c:1234/some/db?a=1#dc1"))));
     }
 
-    @Test(groups = { "unit" })
+    @Test(groups = { "unit" }, enabled = false)
     public void testManageAndUnmanageNewNode() {
+        // test is disabled because this format of urls is not supported
         ClickHouseNodes nodes = ClickHouseNodes.create("https://a,grpcs://b,mysql://c", null);
         Assert.assertEquals(nodes.getPolicy(), ClickHouseLoadBalancingPolicy.DEFAULT);
         Assert.assertEquals(nodes.nodes.size(), 3);
@@ -322,7 +326,7 @@ public class ClickHouseNodesTest {
 
     @Test(groups = { "unit" })
     public void testManageAndUnmanageSameNode() {
-        ClickHouseNodes nodes = ClickHouseNodes.create("grpc://(http://a), tcp://b, c", null);
+        ClickHouseNodes nodes = ClickHouseNodes.create("http://a,b,c", null);
         Assert.assertEquals(nodes.nodes.size(), 3);
         Assert.assertEquals(nodes.faultyNodes.size(), 0);
         ClickHouseNode node = ClickHouseNode.of("http://a");
@@ -337,7 +341,7 @@ public class ClickHouseNodesTest {
         Assert.assertEquals(nodes.faultyNodes.size(), 0);
 
         // now repeat same scenario but using different method
-        node = ClickHouseNode.of("tcp://b");
+        node = ClickHouseNode.of("http://b");
         Assert.assertTrue(node.isStandalone(), "Newly created node is always standalone");
         node.setManager(nodes);
         Assert.assertTrue(node.isManaged(), "Node should be managed");
