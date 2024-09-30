@@ -52,6 +52,16 @@
 <!--        </dependency>-->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-client</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-data</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
             <optional>true</optional>
@@ -401,11 +411,11 @@
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
                                     <include>com.clickhouse:clickhouse-client</include>
-                                    <include>com.clickhouse:clickhouse-cli-client</include>
+<!--                                    <include>com.clickhouse:clickhouse-cli-client</include>-->
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
-                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
+<!--                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>-->
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
@@ -461,6 +471,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
 <!-- CLI Client Deprecation                                   <include>com.clickhouse:clickhouse-client</include>-->
 <!-- CLI Client Deprecation                                   <include>com.clickhouse:clickhouse-cli-client</include>-->
 <!-- GRPC Client. Deprecation.                                   <include>com.clickhouse:clickhouse-grpc-client</include>-->
@@ -485,6 +496,7 @@
 <!-- GRPC Client. Deprecation.                                   <include>io.opencensus:opencensus-contrib-grpc-metrics</include>-->
                                     <include>io.perfmark:perfmark-api</include>
                                     <include>org.apache.commons:commons-compress</include>
+                                    <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
