@@ -230,4 +230,31 @@ public class InsertTests extends BaseIntegrationTest {
         OperationMetrics metrics = response.getMetrics();
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
     }
+
+    @Test(groups = { "integration" })
+    public void testInsertMetricsOperationId() throws Exception {
+        final String tableName = "insert_metrics_test";
+        final String createSQL = "CREATE TABLE " + tableName +
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+        dropTable(tableName);
+        createTable(createSQL);
+
+        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(data);
+        int numberOfRecords = 3;
+        for (int i = 0; i < numberOfRecords; i++) {
+            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+        }
+        writer.flush();
+
+        InsertSettings settings = new InsertSettings()
+                .setQueryId(String.valueOf(UUID.randomUUID()))
+                .setOperationId(UUID.randomUUID().toString());
+        InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
+                ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals((int)response.getWrittenRows(), numberOfRecords );
+        assertEquals(metrics.getQueryId(), settings.getQueryId());
+        assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+    }
 }
