@@ -1,5 +1,47 @@
 ## Latest
 
+## 0.7.0
+
+### Deprecations
+- Following deprecated components are removed:
+  - clickhouse-cli-client
+  - clickhouse-grpc-client
+
+### Important Changes
+- [client-v2] New transport layer implementation is used by default. It is still possible to switch back 
+using old implementation by setting `com.clickhouse.client.api.Client.Builder#useNewImplementation` to `false`. (https://github.com/ClickHouse/clickhouse-java/pull/1847)
+- [doc] Main documentation on official ClickHouse website is updated. See https://clickhouse.com/docs/en/integrations/java. 
+Each client has its own page with detailed information. Added documentation for client v2.
+
+### New Features
+- [client-v2] Now there is an easy way to set custom header globally for client and per operation. 
+See `com.clickhouse.client.api.Client.Builder.httpHeader(java.lang.String, java.lang.String)` for details. (https://github.com/ClickHouse/clickhouse-java/issues/1782)
+- [client-v2] Not there is a way to set any server settings globally for client and per operation.
+See `com.clickhouse.client.api.Client.Builder.serverSetting(java.lang.String, java.lang.String)` for details. (https://github.com/ClickHouse/clickhouse-java/issues/1782)
+- [client-v2] Added support for writing AggregateFunction values (bitmap serialization). !! Reading is not 
+supported but will be added in next release. (https://github.com/ClickHouse/clickhouse-java/pull/1814)
+- [r2dbc] Defer connection creation. This allows pool to create a new instance on every subscription, 
+instead of always returning the same one. (https://github.com/ClickHouse/clickhouse-java/pull/1810) 
+
+### Performance Improvements
+- [client-v2] Improved reading fixed length data like numbers. It is possible to configure readers to 
+use pre-allocated buffers to avoid memory allocation for each data row/block. 
+See `com.clickhouse.client.api.Client.Builder.allowBinaryReaderToReuseBuffers` for details. (https://github.com/ClickHouse/clickhouse-java/pull/1816)
+- [client-v2] New query method introduced to read data into a POJO. POJO deserializers are compiled into 
+bytecode (with help of https://asm.ow2.io/ library) and optimized for each schema. It is great performance boost 
+because data is read without additional copies. As serde code is implemented without reflection using JVM bytecode 
+then code can be optimized by JVM while runtime. Using ASM allows handle primitive types without boxing. (https://github.com/ClickHouse/clickhouse-java/pull/1794, 
+https://github.com/ClickHouse/clickhouse-java/pull/1826)
+
+
+### Bug Fixes
+- [client-v2] Fix for case when missing operation metrics were causing NPE. (https://github.com/ClickHouse/clickhouse-java/pull/1846)
+- [client-v2] Fix for handling empty result by BinaryFormat readers. (https://github.com/ClickHouse/clickhouse-java/pull/1845)
+- [jdbc] Content of an artifact 'clickhouse-jdbc-{version}-all.jar' is fixed and contains all required classes from `clickhouse-client` 
+and `clickhouse-data`. (https://github.com/ClickHouse/clickhouse-java/pull/1842)
+- [client-v1, jdbc] Endpoints definition parsing fixed to grub properties correctly. Now even properties with key-value 
+pairs are supported. (https://github.com/ClickHouse/clickhouse-java/pull/1841, https://github.com/ClickHouse/clickhouse-java/issues/1665)
+
 ## 0.6.5
 
 ### Deprecations

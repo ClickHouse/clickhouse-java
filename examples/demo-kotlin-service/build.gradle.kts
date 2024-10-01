@@ -33,7 +33,7 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
 
     // https://mvnrepository.com/artifact/com.clickhouse/client-v2
-    implementation("com.clickhouse:client-v2:0.6.5-SNAPSHOT")
+    implementation("com.clickhouse:client-v2:0.7.0-SNAPSHOT")
 
     // http client used by clickhouse client
     implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
