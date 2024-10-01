@@ -79,7 +79,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.6.5-SNAPSHOT</revision>
+        <revision>0.7.0-SNAPSHOT</revision>
         <project.current.year>2024</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

@@ -29,7 +29,7 @@ dependencies {
 
 	// -- clickhouse dependencies
 	// Main dependency
-	implementation("com.clickhouse:client-v2:0.6.5-SNAPSHOT") // nightly build
+	implementation("com.clickhouse:client-v2:0.7.0-SNAPSHOT") // nightly build
 //	implementation("com.clickhouse:client-v2:0.6.5") // stable version
 	// http client used by clickhouse client
 	implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
