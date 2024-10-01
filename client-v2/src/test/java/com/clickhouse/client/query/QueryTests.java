@@ -261,12 +261,23 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertFalse(iter.hasNext());
     }
 
-    @Test(groups = {"integration"})
-    public void testReadRecordsNoResult() throws Exception {
-        Records records = client.queryRecords("CREATE DATABASE IF NOT EXISTS test_db").get(3, TimeUnit.SECONDS);
+    @Test(description = "Verifies correct handling of empty data set while column information is present", groups = {"integration"})
+    public void testQueryRecordsOnEmptyDataset() throws Exception {
+        Records records = client.queryRecords("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS);
 
         Iterator<GenericRecord> iter = records.iterator();
         Assert.assertFalse(iter.hasNext());
+    }
+
+    @Test(description = "Verifies correct handling when no column information expected", groups = {"integration"})
+    public void testQueryRecordsWithEmptyResult() throws Exception {
+        // This test uses a query that returns no data and no column information
+        try (Records records = client.queryRecords("CREATE DATABASE IF NOT EXISTS test_db").get(3, TimeUnit.SECONDS)) {
+            Assert.assertTrue(records.isEmpty());
+            for (GenericRecord record : records) {
+               Assert.fail("unexpected record: " + record);
+            }
+        }
     }
 
     @Test(groups = {"integration"})
@@ -298,7 +309,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAllNoResult() throws Exception {
-        List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
+        List<GenericRecord> records = client.queryAll("SELECT 1 LIMIT 0");
+        Assert.assertEquals(records.size(), 0);
         Assert.assertTrue(records.isEmpty());
     }
 
@@ -457,6 +469,14 @@ public class QueryTests extends BaseIntegrationTest {
             }
     );
 
+    @Test(groups = {"integration"})
+    public void testBinaryReaderOnQueryWithNoResult() throws Exception {
+        try (QueryResponse response = client.query("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertFalse(reader.hasNext());
+            Assert.assertNull(reader.next());
+        }
+    }
 
     @Test(groups = {"integration"})
     public void testArrayValues() throws Exception {
@@ -539,6 +559,31 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testQueryRecordsEmptyResult() throws Exception {
+        try (Records records = client.queryRecords("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS)) {
+            Assert.assertTrue(records.isEmpty());
+            for (GenericRecord record : records) {
+               Assert.fail("unexpected record: " + record);
+            }
+        }
+    }
+
+    @Test(description = "Verifies that queryRecords reads all values from the response", groups = {"integration"})
+    public void testQueryRecordsReadsAllValues() throws Exception {
+        try (Records records = client.queryRecords("SELECT toInt32(number) FROM system.numbers LIMIT 3").get(3, TimeUnit.SECONDS)) {
+            Assert.assertFalse(records.isEmpty());
+            Assert.assertEquals(records.getResultRows(), 3);
+
+            int expectedNumber = 0;
+            for (GenericRecord record : records) {
+                Assert.assertEquals(record.getInteger(1), expectedNumber);
+                expectedNumber++;
+            }
+
+            Assert.assertEquals(expectedNumber, 3);
+        }
+    }
 
     private final static List<String> NULL_DATASET_COLUMNS = Arrays.asList(
             "id UInt32",

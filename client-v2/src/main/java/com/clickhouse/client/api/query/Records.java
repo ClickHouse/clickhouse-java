@@ -55,10 +55,12 @@ public class Records implements Iterable<GenericRecord>, AutoCloseable {
 
     /**
      * Returns {@code true} if this collection contains no elements.
+     * Prefer this method over {@link #getResultRows()} == 0 because current method reflect actual state of the collection
+     * while {@link #getResultRows()} is send from server before sending actual data.
      *
      * @return {@code true} if this collection contains no elements
      */
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return empty;
     }
 

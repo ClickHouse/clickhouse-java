@@ -54,6 +54,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private volatile boolean hasNext = true;
 
+
+    private volatile boolean initialState = true; // reader is in initial state, no records have been read yet
+
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
@@ -148,11 +151,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasNext() {
+        if (initialState) {
+            readNextRecord();
+        }
+
         return hasNext;
     }
 
 
     protected void readNextRecord() {
+        initialState = false;
         try {
             nextRecordEmpty.set(true);
             if (!readRecord(nextRecord)) {
@@ -195,6 +203,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     protected void endReached() {
+        initialState = false;
         hasNext = false;
     }
 
