@@ -206,7 +206,7 @@ public class Client implements AutoCloseable {
 
         // Read-only configuration
         private Map<String, String> configuration;
-        private boolean useNewImplementation = false;
+        private boolean useNewImplementation = true;
 
         private ExecutorService sharedOperationExecutor = null;
 
@@ -581,8 +581,8 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Switches to new implementation of the client.
-         * @deprecated - do not use - it is only for development
+         * Switches to new implementation of the client. Default is true.
+         * @deprecated
          */
         public Builder useNewImplementation(boolean useNewImplementation) {
             this.useNewImplementation = useNewImplementation;
@@ -599,7 +599,6 @@ public class Client implements AutoCloseable {
         /**
          * Defines path to the trust store file. It cannot be combined with
          * certificates. Either trust store or certificates should be used.
-         *
          * {@see setSSLTrustStorePassword} and {@see setSSLTrustStoreType}
          * @param path
          * @return
