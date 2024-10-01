@@ -66,6 +66,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -120,6 +121,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *
  */
 public class Client implements AutoCloseable {
+
     private HttpAPIClientHelper httpClientHelper = null;
 
     private final Set<String> endpoints;
@@ -775,6 +777,72 @@ public class Client implements AutoCloseable {
          */
         public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
             this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            return this;
+        }
+
+        /**
+         * Defines list of headers that should be sent with each request. The Client will use a header value
+         * defined in {@code headers} instead of any other.
+         * Operation settings may override these headers.
+         *
+         * @see InsertSettings#httpHeaders(Map)
+         * @see QuerySettings#httpHeaders(Map)
+         * @see CommandSettings#httpHeaders(Map)
+         * @param key - a name of the header.
+         * @param value - a value of the header.
+         * @return same instance of the builder
+         */
+        public Builder httpHeader(String key, String value) {
+            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key, value);
+            return this;
+        }
+
+        /**
+         * {@see #httpHeader(String, String)} but for multiple values.
+         * @param key - name of the header
+         * @param values - collection of values
+         * @return same instance of the builder
+         */
+        public Builder httpHeader(String key, Collection<String> values) {
+            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key, ClientSettings.commaSeparated(values));
+            return this;
+        }
+
+        /**
+         * {@see #httpHeader(String, String)} but for multiple headers.
+         * @param headers - map of headers
+         * @return same instance of the builder
+         */
+        public Builder httpHeaders(Map<String, String> headers) {
+            headers.forEach(this::httpHeader);
+            return this;
+        }
+
+        /**
+         * Defines list of server settings that should be sent with each request. The Client will use a setting value
+         * defined in {@code settings} instead of any other.
+         * Operation settings may override these values.
+         *
+         * @see InsertSettings#serverSetting(String, String) (Map)
+         * @see QuerySettings#serverSetting(String, String) (Map)
+         * @see CommandSettings#serverSetting(String, String) (Map)
+         * @param name - name of the setting without special prefix
+         * @param value - value of the setting
+         * @return same instance of the builder
+         */
+        public Builder serverSetting(String name, String value) {
+            this.configuration.put(ClientSettings.SERVER_SETTING_PREFIX + name, value);
+            return this;
+        }
+
+        /**
+         * {@see #serverSetting(String, String)} but for multiple values.
+         * @param name - name of the setting without special prefix
+         * @param values - collection of values
+         * @return same instance of the builder
+         */
+        public Builder serverSetting(String name,  Collection<String> values) {
+            this.configuration.put(ClientSettings.SERVER_SETTING_PREFIX + name, ClientSettings.commaSeparated(values));
             return this;
         }
 

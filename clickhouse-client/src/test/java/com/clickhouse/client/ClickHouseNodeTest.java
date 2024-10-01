@@ -1,6 +1,8 @@
 package com.clickhouse.client;
 
+import com.clickhouse.config.ClickHouseOption;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.net.URI;
@@ -437,5 +439,35 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
                 ClickHouseNode.of("http://test:test@server1.dc1/db1?user=default&!async&auto_discovery#apj,r1s1")
                         .toUri().toString(),
                 "http://server1.dc1:8123/db1?async=false&auto_discovery=true#apj,r1s1");
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "testPropertyWithValueList_endpoints")
+    public void testPropertyWithValueList(String endpoints, int numOfNodes, String[] expectedBaseUris) {
+        ClickHouseNodes node = ClickHouseNodes.of(endpoints);
+        Assert.assertEquals(node.nodes.size(), numOfNodes, "Number of nodes does not match");
+
+        int i = 0;
+        for (ClickHouseNode n : node.nodes) {
+            Assert.assertEquals(n.config.getDatabase(), "my_db");
+            Assert.assertEquals(expectedBaseUris[i++], n.getBaseUri());
+            String customSettings = (String)n.config.getOption(ClickHouseClientOption.CUSTOM_SETTINGS);
+            String configSettings = (String) n.config.getOption(ClickHouseClientOption.CUSTOM_SETTINGS);
+
+            Arrays.asList(customSettings, configSettings).forEach((settings) -> {
+                Map<String, String> settingsMap = ClickHouseOption.toKeyValuePairs(settings);
+                Assert.assertEquals(settingsMap.get("param1"), "value1");
+                Assert.assertEquals(settingsMap.get("param2"), "value2");
+            });
+        }
+    }
+
+    @DataProvider(name = "testPropertyWithValueList_endpoints")
+    public static Object[][] endpoints() {
+        return new Object[][] {
+            { "http://server1:9090/my_db?custom_settings=param1=value1,param2=value2", 1, new String[]{"http://server1:9090/"} },
+            { "http://server1/my_db?custom_settings=param1=value1,param2=value2", 1, new String[]{"http://server1:8123/"} },
+            { "http://server1:9090,server2/my_db?custom_settings=param1=value1,param2=value2", 2, new String[]{"http://server1:9090/", "http://server2:8123/"} },
+            { "http://server1,server2:9090/my_db?custom_settings=param1=value1,param2=value2", 2, new String[]{"http://server1:8123/", "http://server2:9090/"} }
+        };
     }
 }

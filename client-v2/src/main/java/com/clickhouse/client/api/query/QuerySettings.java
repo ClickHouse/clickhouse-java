@@ -2,10 +2,16 @@ package com.clickhouse.client.api.query;
 
 
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 
+import javax.management.Query;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
@@ -152,5 +158,67 @@ public class QuerySettings {
 
     public TimeZone getServerTimeZone() {
         return (TimeZone) rawSettings.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+    }
+
+
+    /**
+     * Defines list of headers that should be sent with current request. The Client will use a header value
+     * defined in {@code headers} instead of any other.
+     *
+     * @see Client.Builder#httpHeaders(Map)
+     * @param key - header name.
+     * @param value - header value.
+     * @return same instance of the builder
+     */
+    public QuerySettings httpHeader(String key, String value) {
+        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, value);
+        return this;
+    }
+
+    /**
+     * {@see #httpHeader(String, String)} but for multiple values.
+     * @param key - name of the header
+     * @param values - collection of values
+     * @return same instance of the builder
+     */
+    public QuerySettings httpHeader(String key, Collection<String> values) {
+        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, ClientSettings.commaSeparated(values));
+        return this;
+    }
+
+    /**
+     * {@see #httpHeader(String, String)} but for multiple headers.
+     * @param headers - map of headers
+     * @return same instance of the builder
+     */
+    public QuerySettings httpHeaders(Map<String, String> headers) {
+        headers.forEach(this::httpHeader);
+        return this;
+    }
+
+    /**
+     * Defines list of server settings that should be sent with each request. The Client will use a setting value
+     * defined in {@code settings} instead of any other.
+     * Operation settings may override these values.
+     *
+     * @see Client.Builder#serverSetting(String, Collection)
+     * @param name - name of the setting
+     * @param value - value of the setting
+     * @return same instance of the builder
+     */
+    public QuerySettings serverSetting(String name, String value) {
+        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, value);
+        return this;
+    }
+
+    /**
+     * {@see #serverSetting(String, String)} but for multiple values.
+     * @param name - name of the setting without special prefix
+     * @param values - collection of values
+     * @return same instance of the builder
+     */
+    public QuerySettings serverSetting(String name, Collection<String> values) {
+        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, ClientSettings.commaSeparated(values));
+        return this;
     }
 }
