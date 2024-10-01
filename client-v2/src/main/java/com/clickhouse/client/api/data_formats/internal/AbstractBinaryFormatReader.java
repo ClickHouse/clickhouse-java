@@ -76,17 +76,27 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
 
+    /**
+     * Reads next record into POJO object using set of serializers.
+     * There should be a serializer for each column in the record, otherwise it will silently skip a field
+     * It is done in such a way because it is not the reader concern. Calling code should validate this.
+     *
+     * Note: internal API
+     * @param deserializers
+     * @param obj
+     * @return
+     * @throws IOException
+     */
     public boolean readToPOJO(Map<String, POJOSetter> deserializers, Object obj ) throws IOException {
         boolean firstColumn = true;
 
         for (ClickHouseColumn column : columns) {
             try {
-                Object val = binaryStreamReader.readValue(column);
-                if (val != null) {
-                    POJOSetter deserializer = deserializers.get(column.getColumnName());
-                    if (deserializer != null) {
-                        deserializer.setValue(obj, val);
-                    }
+                POJOSetter deserializer = deserializers.get(column.getColumnName());
+                if (deserializer != null) {
+                    deserializer.setValue(obj, binaryStreamReader, column);
+                } else {
+                    binaryStreamReader.skipValue(column);
                 }
                 firstColumn = false;
             } catch (EOFException e) {

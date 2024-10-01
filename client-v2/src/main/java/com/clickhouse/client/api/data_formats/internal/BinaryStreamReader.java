@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,11 +71,28 @@ public class BinaryStreamReader {
         this.bufferAllocator = bufferAllocator;
     }
 
+    /**
+     * Reads a value from the internal input stream.
+     * @param column - column information
+     * @return value
+     * @param <T> - target type of the value
+     * @throws IOException when IO error occurs
+     */
     public <T> T readValue(ClickHouseColumn column) throws IOException {
-        return readValueImpl(column);
+        return readValue(column, null);
     }
 
-    private <T> T readValueImpl(ClickHouseColumn column) throws IOException {
+    /**
+     * Reads a value from the internal input stream. Method will use type hint to do smarter conversion if possible.
+     * For example, all datetime values are of {@link ZonedDateTime}; if a type hint is {@link LocalDateTime} then
+     * {@link ZonedDateTime#toLocalDateTime()} .
+     * @param column - column information
+     * @param typeHint - type hint
+     * @return value
+     * @param <T> - target type of the value
+     * @throws IOException when IO error occurs
+     */
+    public <T> T readValue(ClickHouseColumn column, Class<?> typeHint) throws IOException {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
@@ -97,64 +115,64 @@ public class BinaryStreamReader {
                     return (T) new String(readNBytes(input, len), StandardCharsets.UTF_8);
                 }
                 case Int8:
-                    return (T) Byte.valueOf((byte) readByteOrEOF(input));
+                    return (T) Byte.valueOf(readByte());
                 case UInt8:
-                    return (T) Short.valueOf(readUnsignedByte(input));
+                    return (T) Short.valueOf(readUnsignedByte());
                 case Int16:
-                    return (T) Short.valueOf(readShortLE(input));
+                    return (T) Short.valueOf(readShortLE());
                 case UInt16:
-                    return (T) Integer.valueOf(readUnsignedShortLE(input));
+                    return (T) Integer.valueOf(readUnsignedShortLE());
                 case Int32:
-                    return (T) Integer.valueOf(readIntLE(input));
+                    return (T) Integer.valueOf(readIntLE());
                 case UInt32:
-                    return (T) Long.valueOf(readUnsignedIntLE(input));
+                    return (T) Long.valueOf(readUnsignedIntLE());
                 case Int64:
-                    return (T) Long.valueOf(readLongLE(input));
+                    return (T) Long.valueOf(readLongLE());
                 case UInt64:
-                    return (T) readBigIntegerLE(input, INT64_SIZE, true);
+                    return (T) readBigIntegerLE(INT64_SIZE, true);
                 case Int128:
-                    return (T) readBigIntegerLE(input, INT128_SIZE, false);
+                    return (T) readBigIntegerLE(INT128_SIZE, false);
                 case UInt128:
-                    return (T) readBigIntegerLE(input, INT128_SIZE, true);
+                    return (T) readBigIntegerLE(INT128_SIZE, true);
                 case Int256:
-                    return (T) readBigIntegerLE(input, INT256_SIZE, false);
+                    return (T) readBigIntegerLE(INT256_SIZE, false);
                 case UInt256:
-                    return (T) readBigIntegerLE(input, INT256_SIZE, true);
+                    return (T) readBigIntegerLE(INT256_SIZE, true);
                 case Decimal:
-                    return (T) readDecimal(input, column.getPrecision(), column.getScale());
+                    return (T) readDecimal(column.getPrecision(), column.getScale());
                 case Decimal32:
-                    return (T) readDecimal(input, ClickHouseDataType.Decimal32.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal32.getMaxPrecision(), column.getScale());
                 case Decimal64:
-                    return (T) readDecimal(input, ClickHouseDataType.Decimal64.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal64.getMaxPrecision(), column.getScale());
                 case Decimal128:
-                    return (T) readDecimal(input, ClickHouseDataType.Decimal128.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal128.getMaxPrecision(), column.getScale());
                 case Decimal256:
-                    return (T) readDecimal(input, ClickHouseDataType.Decimal256.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), column.getScale());
                 case Float32:
-                    return (T) Float.valueOf(readFloatLE(input));
+                    return (T) Float.valueOf(readFloatLE());
                 case Float64:
-                    return (T) Double.valueOf(readDoubleLE(input));
+                    return (T) Double.valueOf(readDoubleLE());
                 case Bool:
                     return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
                 case Enum8:
-                    return (T) Byte.valueOf((byte) readUnsignedByte(input));
+                    return (T) Byte.valueOf((byte) readUnsignedByte());
                 case Enum16:
-                    return (T) Short.valueOf((short) readUnsignedShortLE(input));
+                    return (T) Short.valueOf((short) readUnsignedShortLE());
                 case Date:
-                    return (T) readDate(input, column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone());
+                    return convertDateTime(readDate(column.getTimeZone() == null ? timeZone :
+                            column.getTimeZone()), typeHint);
                 case Date32:
-                    return (T) readDate32(input, column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone());
+                    return convertDateTime(readDate32(column.getTimeZone() == null ? timeZone :
+                            column.getTimeZone()), typeHint);
                 case DateTime:
-                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone());
+                    return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
+                            column.getTimeZone()), typeHint);
                 case DateTime32:
-                    return (T) readDateTime32(input, column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone());
+                    return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
+                            column.getTimeZone()), typeHint);
                 case DateTime64:
-                    return (T) readDateTime64(input, 3, column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone());
+                    return convertDateTime(readDateTime64(3, column.getTimeZone() == null ? timeZone :
+                            column.getTimeZone()), typeHint);
 
                 case IntervalYear:
                 case IntervalQuarter:
@@ -167,7 +185,7 @@ public class BinaryStreamReader {
                 case IntervalMicrosecond:
                 case IntervalMillisecond:
                 case IntervalNanosecond:
-                    return (T) readBigIntegerLE(input, 8, true);
+                    return (T) readBigIntegerLE(8, true);
                 case IPv4:
                     // https://clickhouse.com/docs/en/sql-reference/data-types/ipv4
                     return (T) Inet4Address.getByAddress(readNBytesLE(input, 4));
@@ -175,20 +193,20 @@ public class BinaryStreamReader {
                     // https://clickhouse.com/docs/en/sql-reference/data-types/ipv6
                     return (T) Inet6Address.getByAddress(readNBytes(input, 16));
                 case UUID:
-                    return (T) new UUID(readLongLE(input), readLongLE(input));
+                    return (T) new UUID(readLongLE(), readLongLE());
                 case Point:
-                    return (T) readGeoPoint(input);
+                    return (T) readGeoPoint();
                 case Polygon:
-                    return (T) readGeoPolygon(input);
+                    return (T) readGeoPolygon();
                 case MultiPolygon:
-                    return (T) readGeoMultiPolygon(input);
+                    return (T) readGeoMultiPolygon();
                 case Ring:
-                    return (T) readGeoRing(input);
+                    return (T) readGeoRing();
 
 //                case JSON: // obsolete https://clickhouse.com/docs/en/sql-reference/data-types/json#displaying-json-column
 //                case Object:
                 case Array:
-                    return (T) readArray(column);
+                    return convertArray(readArray(column), typeHint);
                 case Map:
                     return (T) readMap(column);
 //                case Nested:
@@ -210,7 +228,37 @@ public class BinaryStreamReader {
         }
     }
 
-    private short readShortLE(InputStream input) throws IOException {
+    private static <T> T convertDateTime(ZonedDateTime value, Class<?> typeHint) {
+        if (typeHint == null) {
+            return (T) value;
+        }
+        if (typeHint.isAssignableFrom(LocalDateTime.class)) {
+            return (T) value.toLocalDateTime();
+        } else if (typeHint.isAssignableFrom(LocalDate.class)) {
+            return (T) value.toLocalDate();
+        }
+
+        return (T) value;
+    }
+
+    private static <T> T convertArray(ArrayValue value, Class<?> typeHint) {
+        if (typeHint == null) {
+            return (T) value;
+        }
+        if (typeHint.isAssignableFrom(List.class)) {
+            return (T) value.asList();
+        }
+
+        return (T) value;
+    }
+
+    /**
+     * Read a short value in little-endian from the internal input stream.
+     *
+     * @return short value
+     * @throws IOException when IO error occurs
+     */
+    public short readShortLE() throws IOException {
         return readShortLE(input, bufferAllocator.allocate(INT16_SIZE));
     }
 
@@ -220,14 +268,19 @@ public class BinaryStreamReader {
      * @param input - source of bytes
      * @param buff  - buffer to store data
      * @return short value
-     * @throws IOException
+     * @throws IOException when IO error occurs
      */
     public static short readShortLE(InputStream input, byte[] buff) throws IOException {
         readNBytes(input, buff, 0, 2);
         return (short) (buff[0] & 0xFF | (buff[1] & 0xFF) << 8);
     }
 
-    private int readIntLE(InputStream input) throws IOException {
+    /**
+     * Reads an int value in little-endian from the internal input stream.
+     * @return int value
+     * @throws IOException when IO error occurs
+     */
+    public int readIntLE() throws IOException {
         return readIntLE(input, bufferAllocator.allocate(INT32_SIZE));
     }
 
@@ -237,14 +290,20 @@ public class BinaryStreamReader {
      * @param input - source of bytes
      * @param buff  - buffer to store data
      * @return - int value
-     * @throws IOException
+     * @throws IOException when IO error occurs
      */
     public static int readIntLE(InputStream input, byte[] buff) throws IOException {
         readNBytes(input, buff, 0, 4);
         return (buff[0] & 0xFF) | (buff[1] & 0xFF) << 8 | (buff[2] & 0xFF) << 16 | (buff[3] & 0xFF) << 24;
     }
 
-    private long readLongLE(InputStream input) throws IOException {
+    /**
+     * Reads a long value in little-endian from the internal input stream.
+     *
+     * @return long value
+     * @throws IOException when IO error occurs
+     */
+    public long readLongLE() throws IOException {
         return readLongLE(input, bufferAllocator.allocate(INT64_SIZE));
     }
 
@@ -254,7 +313,7 @@ public class BinaryStreamReader {
      * @param input - source of bytes
      * @param buff  - buffer to store data
      * @return - long value
-     * @throws IOException
+     * @throws IOException when IO error occurs
      */
     public static long readLongLE(InputStream input, byte[] buff) throws IOException {
         readNBytes(input, buff, 0, 8);
@@ -263,11 +322,30 @@ public class BinaryStreamReader {
                 | (long) (buff[6] & 0xFF) << 48 | (long) (buff[7] & 0xFF) << 56;
     }
 
-    public short readUnsignedByte(InputStream input) throws IOException {
+    /**
+     * Read byte from the internal input stream.
+     * @return byte value
+     * @throws IOException when IO error occurs
+     */
+    public byte readByte() throws IOException {
+        return (byte) readByteOrEOF(input);
+    }
+
+    /**
+     * Reads an unsigned byte value from the internal input stream.
+     * @return unsigned byte value
+     * @throws IOException when IO error occurs
+     */
+    public short readUnsignedByte() throws IOException {
         return (short) (readByteOrEOF(input) & 0xFF);
     }
 
-    private int readUnsignedShortLE(InputStream input) throws IOException {
+    /**
+     * Reads an unsigned short value from the internal input stream.
+     * @return unsigned short value
+     * @throws IOException when IO error occurs
+     */
+    public int readUnsignedShortLE() throws IOException {
         return readUnsignedShortLE(input, bufferAllocator.allocate(INT16_SIZE));
     }
 
@@ -283,8 +361,14 @@ public class BinaryStreamReader {
         return readShortLE(input, buff) & 0xFFFF;
     }
 
-    private long readUnsignedIntLE(InputStream input) throws IOException {
-        return readIntLE(input) & 0xFFFFFFFFL;
+    /**
+     * Reads an unsigned int value in little-endian from the internal input stream.
+     *
+     * @return unsigned int value
+     * @throws IOException when IO error occurs
+     */
+    public long readUnsignedIntLE() throws IOException {
+        return readIntLE() & 0xFFFFFFFFL;
     }
 
     /**
@@ -292,14 +376,21 @@ public class BinaryStreamReader {
      *
      * @param input - source of bytes
      * @param buff - buffer to store data
-     * @return
-     * @throws IOException
+     * @return - unsigned int value
+     * @throws IOException when IO error occurs
      */
     public static long readUnsignedIntLE(InputStream input, byte[] buff) throws IOException {
         return readIntLE(input, buff) & 0xFFFFFFFFL;
     }
 
-    private BigInteger readBigIntegerLE(InputStream input, int len, boolean unsigned) throws IOException {
+    /**
+     * Reads a big integer value in little-endian from the internal input stream.
+     * @param len - number of bytes to read
+     * @param unsigned - whether the value is unsigned
+     * @return big integer value
+     * @throws IOException when IO error occurs
+     */
+    public BigInteger readBigIntegerLE(int len, boolean unsigned) throws IOException {
         return readBigIntegerLE(input, bufferAllocator.allocate(len), len, unsigned);
     }
 
@@ -327,25 +418,43 @@ public class BinaryStreamReader {
         return unsigned ? new BigInteger(1, bytes) : new BigInteger(bytes);
     }
 
-    public float readFloatLE(InputStream input) throws IOException {
-        return Float.intBitsToFloat(readIntLE(input));
+
+    /**
+     * Reads a decimal value from the internal input stream.
+     * @return decimal value
+     * @throws IOException when IO error occurs
+     */
+    public float readFloatLE() throws IOException {
+        return Float.intBitsToFloat(readIntLE());
     }
 
-    public double readDoubleLE(InputStream input) throws IOException {
-        return Double.longBitsToDouble(readLongLE(input));
+    /**
+     * Reads a double value from the internal input stream.
+     * @return double value
+     * @throws IOException when IO error occurs
+     */
+    public double readDoubleLE() throws IOException {
+        return Double.longBitsToDouble(readLongLE());
     }
 
-    private BigDecimal readDecimal(InputStream input, int precision, int scale) throws IOException {
+    /**
+     * Reads a decimal value from the internal input stream.
+     * @param precision - precision of the decimal value
+     * @param scale - scale of the decimal value
+     * @return decimal value
+     * @throws IOException when IO error occurs
+     */
+    public BigDecimal readDecimal(int precision, int scale) throws IOException {
         BigDecimal v;
 
         if (precision <= ClickHouseDataType.Decimal32.getMaxScale()) {
-            return BigDecimal.valueOf(readIntLE(input), scale);
+            return BigDecimal.valueOf(readIntLE(), scale);
         } else if (precision <= ClickHouseDataType.Decimal64.getMaxScale()) {
-            v = BigDecimal.valueOf(readLongLE(input), scale);
+            v = BigDecimal.valueOf(readLongLE(), scale);
         } else if (precision <= ClickHouseDataType.Decimal128.getMaxScale()) {
-            v = new BigDecimal(readBigIntegerLE(input, INT128_SIZE, false), scale);
+            v = new BigDecimal(readBigIntegerLE(INT128_SIZE, false), scale);
         } else {
-            v = new BigDecimal(readBigIntegerLE(input, INT256_SIZE, false), scale);
+            v = new BigDecimal(readBigIntegerLE(INT256_SIZE, false), scale);
         }
 
         return v;
@@ -407,8 +516,13 @@ public class BinaryStreamReader {
         return bytes;
     }
 
-
-    private ArrayValue readArray(ClickHouseColumn column) throws IOException {
+    /**
+     * Reads a array into an ArrayValue object.
+     * @param column - column information
+     * @return array value
+     * @throws IOException when IO error occurs
+     */
+    public ArrayValue readArray(ClickHouseColumn column) throws IOException {
         Class<?> itemType = column.getArrayBaseColumn().getDataType().getWiderPrimitiveClass();
         int len = readVarInt(input);
         ArrayValue array = new ArrayValue(column.getArrayNestedLevel() > 1 ? ArrayValue.class : itemType, len);
@@ -418,10 +532,14 @@ public class BinaryStreamReader {
         }
 
         for (int i = 0; i < len; i++) {
-            array.set(i, readValueImpl(column.getNestedColumns().get(0)));
+            array.set(i, readValue(column.getNestedColumns().get(0)));
         }
 
         return array;
+    }
+
+    public void skipValue(ClickHouseColumn column) throws IOException {
+        readValue(column, null);
     }
 
     public static class ArrayValue {
@@ -483,7 +601,13 @@ public class BinaryStreamReader {
         }
     }
 
-    private Map<?, ?> readMap(ClickHouseColumn column) throws IOException {
+    /**
+     * Reads a map.
+     * @param column - column information
+     * @return a map
+     * @throws IOException when IO error occurs
+     */
+    public Map<?, ?> readMap(ClickHouseColumn column) throws IOException {
         int len = readVarInt(input);
         if (len == 0) {
             return Collections.emptyMap();
@@ -493,51 +617,77 @@ public class BinaryStreamReader {
         ClickHouseColumn valueType = column.getValueInfo();
         LinkedHashMap<Object, Object> map = new LinkedHashMap<>(len);
         for (int i = 0; i < len; i++) {
-            Object key = readValueImpl(keyType);
-            Object value = readValueImpl(valueType);
+            Object key = readValue(keyType);
+            Object value = readValue(valueType);
             map.put(key, value);
         }
         return map;
     }
 
-    private Object[] readTuple(ClickHouseColumn column) throws IOException {
+    /**
+     * Reads a tuple.
+     * @param column - column information
+     * @return a tuple
+     * @throws IOException when IO error occurs
+     */
+    public Object[] readTuple(ClickHouseColumn column) throws IOException {
         int len = column.getNestedColumns().size();
         Object[] tuple = new Object[len];
         for (int i = 0; i < len; i++) {
-            tuple[i] = readValueImpl(column.getNestedColumns().get(i));
+            tuple[i] = readValue(column.getNestedColumns().get(i));
         }
 
         return tuple;
     }
 
-    private double[] readGeoPoint(InputStream input) throws IOException {
-        return new double[]{readDoubleLE(input), readDoubleLE(input)};
+    /**
+     * Reads a GEO point as an array of two doubles what represents coordinates (X, Y).
+     * @return X, Y coordinates
+     * @throws IOException when IO error occurs
+     */
+    public double[] readGeoPoint() throws IOException {
+        return new double[]{readDoubleLE(), readDoubleLE()};
     }
 
-    private double[][] readGeoRing(InputStream input) throws IOException {
+    /**
+     * Reads a GEO ring as an array of points.
+     * @return array of points
+     * @throws IOException when IO error occurs
+     */
+    public double[][] readGeoRing() throws IOException {
         int count = readVarInt(input);
         double[][] value = new double[count][2];
         for (int i = 0; i < count; i++) {
-            value[i] = readGeoPoint(input);
+            value[i] = readGeoPoint();
         }
         return value;
     }
 
 
-    private double[][][] readGeoPolygon(InputStream input) throws IOException {
+    /**
+     * Reads a GEO polygon as an array of rings.
+     * @return polygon
+     * @throws IOException when IO error occurs
+     */
+    public double[][][] readGeoPolygon() throws IOException {
         int count = readVarInt(input);
         double[][][] value = new double[count][][];
         for (int i = 0; i < count; i++) {
-            value[i] = readGeoRing(input);
+            value[i] = readGeoRing();
         }
         return value;
     }
 
-    private double[][][][] readGeoMultiPolygon(InputStream input) throws IOException {
+    /**
+     * Reads a GEO multipolygon as an array of polygons.
+     * @return multipolygon
+     * @throws IOException when IO error occurs
+     */
+    private double[][][][] readGeoMultiPolygon() throws IOException {
         int count = readVarInt(input);
         double[][][][] value = new double[count][][][];
         for (int i = 0; i < count; i++) {
-            value[i] = readGeoPolygon(input);
+            value[i] = readGeoPolygon();
         }
         return value;
     }
@@ -564,7 +714,13 @@ public class BinaryStreamReader {
         return value;
     }
 
-    private ZonedDateTime readDate(InputStream input, TimeZone tz) throws IOException {
+    /**
+     * Reads a Date value from internal input stream.
+     * @param tz - timezone
+     * @return ZonedDateTime
+     * @throws IOException when IO error occurs
+     */
+    private ZonedDateTime readDate(TimeZone tz) throws IOException {
         return readDate(input, bufferAllocator.allocate(INT16_SIZE), tz);
     }
 
@@ -573,15 +729,21 @@ public class BinaryStreamReader {
      * @param input - source of bytes
      * @param buff - for reading short value. Should be 2 bytes.
      * @param tz - timezone
-     * @return
-     * @throws IOException
+     * @return ZonedDateTime
+     * @throws IOException when IO error occurs
      */
     public static ZonedDateTime readDate(InputStream input, byte[] buff, TimeZone tz) throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readUnsignedShortLE(input, buff));
         return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    private ZonedDateTime readDate32(InputStream input, TimeZone tz)
+    /**
+     * Reads a Date32 value from internal input stream.
+     * @param tz - timezone
+     * @return ZonedDateTime
+     * @throws IOException when IO error occurs
+     */
+    public ZonedDateTime readDate32(TimeZone tz)
             throws IOException {
         return readDate32(input, bufferAllocator.allocate(INT32_SIZE), tz);
     }
@@ -592,8 +754,8 @@ public class BinaryStreamReader {
      * @param input - source of bytes
      * @param buff - for reading int value. Should be 4 bytes.
      * @param tz - timezone
-     * @return
-     * @throws IOException
+     * @return ZonedDateTime
+     * @throws IOException when IO error occurs
      */
     public static ZonedDateTime readDate32(InputStream input, byte[] buff, TimeZone tz)
             throws IOException {
@@ -601,7 +763,7 @@ public class BinaryStreamReader {
         return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
-    private ZonedDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
+    private ZonedDateTime readDateTime32(TimeZone tz) throws IOException {
         return readDateTime32(input, bufferAllocator.allocate(INT32_SIZE), tz);
     }
 
@@ -611,17 +773,28 @@ public class BinaryStreamReader {
      * @param buff - for reading int value. Should be 4 bytes.
      * @param tz - timezone
      * @return ZonedDateTime
-     * @throws IOException
+     * @throws IOException when IO error occurs
      */
     public static ZonedDateTime readDateTime32(InputStream input, byte[] buff, TimeZone tz) throws IOException {
         long time = readUnsignedIntLE(input, buff);
         return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)), tz.toZoneId()).atZone(tz.toZoneId());
     }
 
-    private ZonedDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
+    /**
+     * Reads a datetime64 from internal input stream.
+     * @param scale - scale of the datetime64
+     * @param tz - timezone
+     * @return ZonedDateTime
+     * @throws IOException when IO error occurs
+     */
+    public ZonedDateTime readDateTime64(int scale, TimeZone tz) throws IOException {
         return readDateTime64(input, bufferAllocator.allocate(INT64_SIZE), scale, tz);
     }
 
+
+    /**
+     * Bases for datetime64.
+     */
     public static final int[] BASES = new int[]{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
             1000000000};
 
@@ -655,6 +828,12 @@ public class BinaryStreamReader {
                 .atZone(tz.toZoneId());
     }
 
+    /**
+     * Reads a decimal value from input stream.
+     * @param input - source of bytes
+     * @return String
+     * @throws IOException when IO error occurs
+     */
     public static String readString(InputStream input) throws IOException {
         int len = readVarInt(input);
         if (len == 0) {
@@ -663,7 +842,7 @@ public class BinaryStreamReader {
         return new String(readNBytes(input, len), StandardCharsets.UTF_8);
     }
 
-    private static int readByteOrEOF(InputStream input) throws IOException {
+    public static int readByteOrEOF(InputStream input) throws IOException {
         int b = input.read();
         if (b < 0) {
             throw new EOFException("End of stream reached before reading all data");
@@ -685,6 +864,25 @@ public class BinaryStreamReader {
         }
     }
 
+    public static boolean isReadToPrimitive(ClickHouseDataType dataType) {
+        switch (dataType) {
+            case Int8:
+            case UInt8:
+            case Int16:
+            case UInt16:
+            case Int32:
+            case UInt32:
+            case Int64:
+            case Float32:
+            case Float64:
+            case Bool:
+            case Enum8:
+            case Enum16:
+                return true;
+            default:
+                return false;
+        }
+    }
     /**
      * Byte allocator that caches preallocated byte arrays for small sizes.
      */
