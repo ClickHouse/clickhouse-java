@@ -10,8 +10,6 @@
 ### Important Changes
 - [client-v2] New transport layer implementation is used by default. It is still possible to switch back 
 using old implementation by setting `com.clickhouse.client.api.Client.Builder#useNewImplementation` to `false`. (https://github.com/ClickHouse/clickhouse-java/pull/1847)
-- [doc] Main documentation on official ClickHouse website is updated. See https://clickhouse.com/docs/en/integrations/java. 
-Each client has its own page with detailed information. Added documentation for client v2.
 
 ### New Features
 - [client-v2] Now there is an easy way to set custom header globally for client and per operation. 
@@ -32,7 +30,14 @@ bytecode (with help of https://asm.ow2.io/ library) and optimized for each schem
 because data is read without additional copies. As serde code is implemented without reflection using JVM bytecode 
 then code can be optimized by JVM while runtime. Using ASM allows handle primitive types without boxing. (https://github.com/ClickHouse/clickhouse-java/pull/1794, 
 https://github.com/ClickHouse/clickhouse-java/pull/1826)
+- [client-v2] Optimized reading columns - internally data is read into map of column-values. It is done 
+to allow reading same column more than once. Previously map was cleared each row what caused a lot 
+internal objects creation. Now values are overridden because schema doesn't change between rows. (https://github.com/ClickHouse/clickhouse-java/pull/1795)
 
+### Documentation
+- [client-v2] Added example for Kotlin (https://github.com/ClickHouse/clickhouse-java/pull/1793)
+- [doc] Main documentation on official ClickHouse website is updated. See https://clickhouse.com/docs/en/integrations/java.
+  Each client has its own page with detailed information. Added documentation for client v2.
 
 ### Bug Fixes
 - [client-v2] Fix for case when missing operation metrics were causing NPE. (https://github.com/ClickHouse/clickhouse-java/pull/1846)
