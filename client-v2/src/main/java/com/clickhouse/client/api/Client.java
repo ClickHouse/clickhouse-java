@@ -1083,7 +1083,7 @@ public class Client implements AutoCloseable {
         }
 
 
-        String operationId = startOperation();
+        String operationId = registerOperationMetrics();
         settings.setOperationId(operationId);
         if (useNewImplementation) {
             globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
@@ -1225,13 +1225,18 @@ public class Client implements AutoCloseable {
                                      InputStream data,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
+
         String operationId = (String) settings.getOperationId();
-        if (operationId == null) {
-            operationId = startOperation();
-            settings.setOperationId(operationId);
+        ClientStatisticsHolder clientStats = null;
+        if (operationId != null) {
+            clientStats = globalClientStats.remove(operationId);
         }
-        ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
+
+        if (clientStats == null) {
+            clientStats = new ClientStatisticsHolder();
+        }
         clientStats.start(ClientMetrics.OP_DURATION);
+        final ClientStatisticsHolder finalClientStats = clientStats;
 
         Supplier<InsertResponse> responseSupplier;
         if (useNewImplementation) {
@@ -1280,7 +1285,7 @@ public class Client implements AutoCloseable {
                             continue;
                         }
 
-                        OperationMetrics metrics = new OperationMetrics(clientStats);
+                        OperationMetrics metrics = new OperationMetrics(finalClientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
                         String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
@@ -1333,7 +1338,7 @@ public class Client implements AutoCloseable {
                     } else {
                         clickHouseResponse = future.get();
                     }
-                    InsertResponse response = new InsertResponse(clickHouseResponse, clientStats);
+                    InsertResponse response = new InsertResponse(clickHouseResponse, finalClientStats);
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
@@ -1762,7 +1767,7 @@ public class Client implements AutoCloseable {
         return  newBinaryFormatReader(response, null);
     }
 
-    private String startOperation() {
+    private String registerOperationMetrics() {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
