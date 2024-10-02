@@ -221,7 +221,6 @@ public class BinaryStreamReader {
                     throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
             }
         } catch (EOFException e) {
-            log.info("End of stream reached before reading all data for column " + column.getColumnName());
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to read value for column " + column.getColumnName(), e);
