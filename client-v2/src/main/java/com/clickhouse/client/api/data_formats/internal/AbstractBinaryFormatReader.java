@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
@@ -37,6 +38,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -52,6 +54,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private ClickHouseColumn[] columns;
 
+    private Map[] convertions;
+
     private volatile boolean hasNext = true;
 
 
@@ -61,14 +65,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        boolean useServerTimeZone = (boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
-        TimeZone timeZone = useServerTimeZone ? querySettings.getServerTimeZone() :
+        Boolean useServerTimeZone = (Boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+        TimeZone timeZone = useServerTimeZone == Boolean.TRUE && querySettings != null ? querySettings.getServerTimeZone() :
                 (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator);
-        setSchema(schema);
+        if (schema != null) {
+            setSchema(schema);
+        }
     }
 
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
@@ -219,9 +225,50 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected void setSchema(TableSchema schema) {
         this.schema = schema;
-        if (schema != null) {
-            columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        this.columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        this.convertions = new Map[columns.length];
+
+        for (int i = 0; i < columns.length; i++) {
+            ClickHouseColumn column = columns[i];
+
+            Map<NumberType, Function<Number, ?>> converters = new HashMap<>();
+            switch (column.getDataType()) {
+                case Int8:
+                    converters.put(NumberType.Byte, SerializerUtils::convertToByte);
+                case Int16:
+                case UInt8:
+                    converters.put(NumberType.Short, SerializerUtils::convertToShort);
+                case Int32:
+                case UInt16:
+                    converters.put(NumberType.Int, SerializerUtils::convertToInt);
+                case Int64:
+                case UInt32:
+                    converters.put(NumberType.Long, SerializerUtils::convertToLong);
+                    converters.put(NumberType.Float, SerializerUtils::convertToFloat);
+                    converters.put(NumberType.Double, SerializerUtils::convertToDouble);
+                case Int128:
+                case UInt64:
+                case Int256:
+                case UInt128:
+                case UInt256:
+                    converters.put(NumberType.BigInteger, SerializerUtils::convertToBigInteger);
+                    converters.put(NumberType.BigDecimal, SerializerUtils::convertToBigDecimal);
+                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
+                    break;
+                case Float32:
+                    converters.put(NumberType.Float, SerializerUtils::convertToFloat);
+                case Float64:
+                    converters.put(NumberType.Double, SerializerUtils::convertToDouble);
+                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
+                    break;
+                case Bool:
+                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
+                    break;
+            }
+
+            this.convertions[i] = converters;
         }
+
     }
 
     @Override
@@ -252,65 +299,65 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return value.toString();
     }
 
-    private <T> T readPrimitiveValue(String colName, String typeName) {
-        Object value = readValue(colName);
-        if (value == null) {
-            throw new NullValueException("Column '" + colName + "' has null value and it cannot be cast to " + typeName);
+    private <T> T readNumberValue(String colName, NumberType targetType) {
+        int colIndex = schema.nameToIndex(colName);
+        Function<Number, Number> converter = (Function<Number, Number>) convertions[colIndex].get(targetType);
+        if (converter != null) {
+            Number value = readValue(colName);
+            if (value == null) {
+                throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
+                        targetType.getTypeName());
+            }
+            return (T) converter.apply(value);
+        } else {
+            throw new ClientException("Column " + colName + " " + columns[colIndex].getDataType().name() +
+                    " cannot be converted to " + targetType.getTypeName());
         }
-        return (T) value;
-    }
-
-    private <T> T readPrimitiveValue(int colIndex, String typeName) {
-        Object value = readValue(colIndex);
-        if (value == null) {
-            throw new NullValueException("Column at index = " + colIndex + " has null value and it cannot be cast to " + typeName);
-        }
-        return (T) value;
     }
 
     @Override
     public byte getByte(String colName) {
-        return readPrimitiveValue(colName, "byte");
+        return readNumberValue(colName, NumberType.Byte);
     }
 
     @Override
     public short getShort(String colName) {
-        return readPrimitiveValue(colName, "short");
+        return readNumberValue(colName, NumberType.Short);
     }
 
     @Override
     public int getInteger(String colName) {
-        return readPrimitiveValue(colName, "int");
+        return readNumberValue(colName, NumberType.Int);
     }
 
     @Override
     public long getLong(String colName) {
-        return readPrimitiveValue(colName, "long");
+        return readNumberValue(colName, NumberType.Long);
     }
 
     @Override
     public float getFloat(String colName) {
-        return readPrimitiveValue(colName, "float");
+        return readNumberValue(colName, NumberType.Float);
     }
 
     @Override
     public double getDouble(String colName) {
-        return readPrimitiveValue(colName, "double");
+        return readNumberValue(colName, NumberType.Double);
     }
 
     @Override
     public boolean getBoolean(String colName) {
-        return readPrimitiveValue(colName, "boolean");
+        return readNumberValue(colName, NumberType.Boolean);
     }
 
     @Override
     public BigInteger getBigInteger(String colName) {
-        return readValue(colName);
+        return readNumberValue(colName, NumberType.BigInteger);
     }
 
     @Override
     public BigDecimal getBigDecimal(String colName) {
-        return readValue(colName);
+        return readNumberValue(colName, NumberType.BigDecimal);
     }
 
     @Override
@@ -471,47 +518,47 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getByte(int index) {
-        return readPrimitiveValue(index, "byte");
+        return getByte(schema.indexToName(index - 1 ));
     }
 
     @Override
     public short getShort(int index) {
-        return readPrimitiveValue(index, "short");
+        return getShort(schema.indexToName(index - 1));
     }
 
     @Override
     public int getInteger(int index) {
-        return readPrimitiveValue(index, "int");
+        return getInteger(schema.indexToName(index - 1));
     }
 
     @Override
     public long getLong(int index) {
-        return readPrimitiveValue(index, "long");
+        return getLong(schema.indexToName(index - 1));
     }
 
     @Override
     public float getFloat(int index) {
-        return readPrimitiveValue(index, "float");
+        return getFloat(schema.indexToName(index - 1));
     }
 
     @Override
     public double getDouble(int index) {
-        return readPrimitiveValue(index, "double");
+        return getDouble(schema.indexToName(index - 1));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return readPrimitiveValue(index, "boolean");
+        return getBoolean(schema.indexToName(index - 1));
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return readValue(index);
+        return getBigInteger(schema.indexToName(index - 1));
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return readValue(index);
+        return getBigDecimal(schema.indexToName(index - 1));
     }
 
     @Override
@@ -664,5 +711,20 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public void close() throws Exception {
         input.close();
+    }
+
+    private enum NumberType {
+        Byte("byte"), Short("short"), Int("int"), Long("long"), BigInteger("BigInteger"), Float("float"),
+        Double("double"), BigDecimal("BigDecimal"), Boolean("boolean");
+
+        private final String typeName;
+
+        NumberType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
     }
 }

@@ -152,7 +152,7 @@ public class QuerySettings {
             throw new ValidationUtils.SettingsValidationException("use_time_zone",
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put("use_time_zone", timeZone);
+        rawSettings.put("use_time_zone", TimeZone.getTimeZone(timeZone));
         return this;
     }
 
