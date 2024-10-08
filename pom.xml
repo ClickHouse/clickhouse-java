@@ -88,7 +88,7 @@
         <apache.httpclient.version>5.2.1</apache.httpclient.version>
         <arrow.version>12.0.1</arrow.version>
         <asm.version>9.5</asm.version>
-        <avro.version>1.11.3</avro.version>
+        <avro.version>1.11.4</avro.version>
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.12.0</brotli4j.version>
         <caffeine.version>3.1.7</caffeine.version>
