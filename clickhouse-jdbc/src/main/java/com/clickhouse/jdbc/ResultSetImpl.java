@@ -10,6 +10,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Calendar;
 import java.util.Map;
 
@@ -143,13 +144,21 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Time getTime(int columnIndex) throws SQLException {
         checkClosed();
-        return Time.valueOf(reader.getLocalDateTime(columnIndex).toLocalTime());
+        LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
+        if(localDateTime == null) {
+            return null;
+        }
+        return Time.valueOf(localDateTime.toLocalTime());
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         checkClosed();
-        return Timestamp.valueOf(reader.getLocalDateTime(columnIndex));
+        LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
+        if(localDateTime == null) {
+            return null;
+        }
+        return Timestamp.valueOf(localDateTime);
     }
 
     @Override
@@ -244,13 +253,21 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Time getTime(String columnLabel) throws SQLException {
         checkClosed();
-        return Time.valueOf(reader.getLocalDateTime(columnLabel).toLocalTime());
+        LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+        if(localDateTime == null) {
+            return null;
+        }
+        return Time.valueOf(localDateTime.toLocalTime());
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
         checkClosed();
-        return Timestamp.valueOf(reader.getLocalDateTime(columnLabel));
+        LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+        if(localDateTime == null) {
+            return null;
+        }
+        return Timestamp.valueOf(localDateTime);
     }
 
     @Override
@@ -732,6 +749,7 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
         checkClosed();
+        //TODO: Should we implement?
         return null;
     }
 
@@ -792,45 +810,37 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
         checkClosed();
-        LocalDate localDate = reader.getLocalDate(columnIndex);
-        if(localDate == null) {
-            return null;
-        }
-        return Date.valueOf(localDate);
+        return getDate(columnIndex);
     }
 
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        LocalDate localDate = reader.getLocalDate(columnLabel);
-        if(localDate == null) {
-            return null;
-        }
-        return Date.valueOf(localDate);
+        return getDate(columnLabel);
     }
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
         checkClosed();
-        return Time.valueOf(reader.getLocalDateTime(columnIndex).toLocalTime());
+        return getTime(columnIndex);
     }
 
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return Time.valueOf(reader.getLocalDateTime(columnLabel).toLocalTime());
+        return getTime(columnLabel);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
         checkClosed();
-        return Timestamp.valueOf(reader.getLocalDateTime(columnIndex));
+        return getTimestamp(columnIndex);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return Timestamp.valueOf(reader.getLocalDateTime(columnLabel));
+        return getTimestamp(columnLabel);
     }
 
     @Override
