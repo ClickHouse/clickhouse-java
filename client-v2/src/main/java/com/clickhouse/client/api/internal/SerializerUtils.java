@@ -252,6 +252,18 @@ public class SerializerUtils {
         }
     }
 
+    public static BigDecimal convertToBigDecimal(Object value) {
+        if (value instanceof BigInteger) {
+            return new BigDecimal((BigInteger) value);
+        } else if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue());
+        } else if (value instanceof String) {
+            return new BigDecimal((String) value);
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to BigDecimal");
+        }
+    }
+
     public static String convertToString(Object value) {
         return java.lang.String.valueOf(value);
     }
@@ -264,11 +276,19 @@ public class SerializerUtils {
         return values;
     }
 
+    public static boolean numberToBoolean(Number value) {
+        return value.doubleValue() != 0;
+    }
+
     public static boolean convertToBoolean(Object value) {
         if (value instanceof Boolean) {
             return (Boolean) value;
+        } else if (value instanceof BigInteger) {
+            return ((BigInteger) value).compareTo(BigInteger.ZERO) != 0;
+        } else if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).compareTo(BigDecimal.ZERO) != 0;
         } else if (value instanceof Number) {
-            return ((Number) value).intValue() != 0;
+            return ((Number) value).longValue() != 0;
         } else if (value instanceof String) {
             return Boolean.parseBoolean((String) value);
         } else {
@@ -519,5 +539,29 @@ public class SerializerUtils {
         public Class<?> defineClass(String name, byte[] code) throws ClassNotFoundException {
             return super.defineClass(name, code, 0, code.length);
         }
+    }
+
+    public static byte convertToByte(Number value) {
+        return value.byteValue();
+    }
+
+    public static short convertToShort(Number value) {
+        return value.shortValue();
+    }
+
+    public static int convertToInt(Number value) {
+        return value.intValue();
+    }
+
+    public static long convertToLong(Number value) {
+        return value.longValue();
+    }
+
+    public static float convertToFloat(Number value) {
+        return value.floatValue();
+    }
+
+    public static double convertToDouble(Number value) {
+        return value.doubleValue();
     }
 }
