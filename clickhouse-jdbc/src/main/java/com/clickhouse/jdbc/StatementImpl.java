@@ -1,44 +1,166 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcWrapper {
-    Connection connection;
-    public StatementImpl(Connection connection) {
+    private static final Logger log = LoggerFactory.getLogger(StatementImpl.class);
+
+    ConnectionImpl connection;
+    private int queryTimeout;
+    private boolean closed;
+    private ResultSetImpl currentResultSet;
+    private OperationMetrics metrics;
+    private List<String> batch;
+
+    public StatementImpl(ConnectionImpl connection) {
         this.connection = connection;
+        this.queryTimeout = 0;
+        this.closed = false;
+        this.currentResultSet = null;
+        this.metrics = null;
+        this.batch = new ArrayList<>();
+    }
+
+    private void checkClosed() throws SQLException {
+        if (closed) {
+            throw new SQLException("Statement is closed");
+        }
+    }
+
+    private enum StatementType {
+        SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
+    }
+
+    private StatementType parseStatementType(String sql) {
+        String[] tokens = sql.trim().split("\\s+");
+        if (tokens.length == 0) {
+            return StatementType.OTHER;
+        }
+
+        return switch (tokens[0].toUpperCase()) {
+            case "SELECT" -> StatementType.SELECT;
+            case "INSERT" -> StatementType.INSERT;
+            case "DELETE" -> StatementType.DELETE;
+            case "UPDATE" -> StatementType.UPDATE;
+            case "CREATE" -> StatementType.CREATE;
+            case "DROP" -> StatementType.DROP;
+            case "ALTER" -> StatementType.ALTER;
+            case "TRUNCATE" -> StatementType.TRUNCATE;
+            case "USE" -> StatementType.USE;
+            case "SHOW" -> StatementType.SHOW;
+            case "DESCRIBE" -> StatementType.DESCRIBE;
+            case "EXPLAIN" -> StatementType.EXPLAIN;
+            case "SET" -> StatementType.SET;
+            case "KILL" -> StatementType.KILL;
+            default -> StatementType.OTHER;
+        };
+    }
+
+    private String parseTableName(String sql) {
+        String[] tokens = sql.trim().split("\\s+");
+        if (tokens.length < 3) {
+            return null;
+        }
+
+        return tokens[2];
+    }
+
+    public static String parseJdbcEscapeSyntax(String sql) {
+        log.trace("Original SQL: {}", sql);
+        // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
+        sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
+
+        // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
+        sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
+
+        // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
+        sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
+
+        // Handle outer escape syntax
+        //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
+
+        // Add more replacements as needed for other JDBC escape sequences
+        log.trace("Parsed SQL: {}", sql);
+        return sql;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        return null;
+        checkClosed();
+
+        try {
+            sql = parseJdbcEscapeSyntax(sql);
+            QueryResponse response = connection.client.query(sql).get(queryTimeout, TimeUnit.SECONDS);
+            ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
+            currentResultSet = new ResultSetImpl(response, reader);
+            metrics = response.getMetrics();
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
+
+        return currentResultSet;
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        return 0;
+        checkClosed();
+        
+        if (parseStatementType(sql) == StatementType.SELECT) {
+            throw new SQLException("executeUpdate() cannot be called with a SELECT statement");
+        }
+
+        try {
+            sql = parseJdbcEscapeSyntax(sql);
+            QueryResponse response = connection.client.query(sql).get(queryTimeout, TimeUnit.SECONDS);
+            currentResultSet = null;
+            metrics = response.getMetrics();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
     }
 
     @Override
     public void close() throws SQLException {
-
+        closed = true;
+        connection.close();
+        if (currentResultSet != null) {
+            currentResultSet.close();
+            currentResultSet = null;
+        }
     }
 
     @Override
     public int getMaxFieldSize() throws SQLException {
+        checkClosed();
         return 0;
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
-
+        checkClosed();
+        throw new SQLFeatureNotSupportedException("Set max field size is not supported.");
     }
 
     @Override
     public int getMaxRows() throws SQLException {
+        checkClosed();
         return 0;
     }
 
@@ -54,17 +176,20 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public int getQueryTimeout() throws SQLException {
-        return 0;
+        checkClosed();
+        return queryTimeout;
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
-
+        checkClosed();
+        queryTimeout = seconds;
     }
 
     @Override
     public void cancel() throws SQLException {
-
+        checkClosed();
+        throw new UnsupportedOperationException("Cancel is not supported.");
     }
 
     @Override
@@ -84,32 +209,53 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        return false;
+        checkClosed();
+        StatementType type = parseStatementType(sql);
+
+        if (type == StatementType.SELECT) {
+            executeQuery(sql);
+            return true;
+        } else {
+            executeUpdate(sql);
+            return false;
+        }
     }
 
     @Override
     public ResultSet getResultSet() throws SQLException {
-        return null;
+        checkClosed();
+
+        ResultSet resultSet = currentResultSet;
+        currentResultSet = null;
+        return resultSet;
     }
 
     @Override
     public int getUpdateCount() throws SQLException {
-        return 0;
+        checkClosed();
+        if (currentResultSet == null) {
+            return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+        }
+
+        return -1;
     }
 
     @Override
     public boolean getMoreResults() throws SQLException {
+        checkClosed();
         return false;
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
-
+        checkClosed();
+        throw new UnsupportedOperationException("Fetch direction is not supported.");
     }
 
     @Override
     public int getFetchDirection() throws SQLException {
-        return 0;
+        checkClosed();
+        return ResultSet.FETCH_FORWARD;
     }
 
     @Override
@@ -124,32 +270,43 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public int getResultSetConcurrency() throws SQLException {
-        return 0;
+        checkClosed();
+        return ResultSet.CONCUR_READ_ONLY;
     }
 
     @Override
     public int getResultSetType() throws SQLException {
-        return 0;
+        checkClosed();
+        return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     @Override
     public void addBatch(String sql) throws SQLException {
-
+        checkClosed();
+        batch.add(sql);
     }
 
     @Override
     public void clearBatch() throws SQLException {
-
+        checkClosed();
+        batch.clear();
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
-        return new int[0];
+        checkClosed();
+        List<Integer> results = new ArrayList<>();
+
+        for(String sql : batch) {
+            results.add(executeUpdate(sql));
+        }
+
+        return results.stream().mapToInt(i -> i).toArray();
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return null;
+        return connection;
     }
 
     @Override
@@ -164,32 +321,32 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        return 0;
+        return executeUpdate(sql);
     }
 
     @Override
     public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        return 0;
+        return executeUpdate(sql);
     }
 
     @Override
     public int executeUpdate(String sql, String[] columnNames) throws SQLException {
-        return 0;
+        return executeUpdate(sql);
     }
 
     @Override
     public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
-        return false;
+        return execute(sql);
     }
 
     @Override
     public boolean execute(String sql, int[] columnIndexes) throws SQLException {
-        return false;
+        return execute(sql);
     }
 
     @Override
     public boolean execute(String sql, String[] columnNames) throws SQLException {
-        return false;
+        return execute(sql);
     }
 
     @Override
@@ -199,7 +356,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public boolean isClosed() throws SQLException {
-        return false;
+        return closed;
     }
 
     @Override
@@ -224,61 +381,73 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     @Override
     public long getLargeUpdateCount() throws SQLException {
+        checkClosed();
         return Statement.super.getLargeUpdateCount();
     }
 
     @Override
     public void setLargeMaxRows(long max) throws SQLException {
+        checkClosed();
         Statement.super.setLargeMaxRows(max);
     }
 
     @Override
     public long getLargeMaxRows() throws SQLException {
+        checkClosed();
         return Statement.super.getLargeMaxRows();
     }
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
+        checkClosed();
         return Statement.super.executeLargeBatch();
     }
 
     @Override
     public long executeLargeUpdate(String sql) throws SQLException {
+        checkClosed();
         return Statement.super.executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
+        checkClosed();
         return Statement.super.executeLargeUpdate(sql, autoGeneratedKeys);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int[] columnIndexes) throws SQLException {
+        checkClosed();
         return Statement.super.executeLargeUpdate(sql, columnIndexes);
     }
 
     @Override
     public long executeLargeUpdate(String sql, String[] columnNames) throws SQLException {
+        checkClosed();
         return Statement.super.executeLargeUpdate(sql, columnNames);
     }
 
     @Override
     public String enquoteLiteral(String val) throws SQLException {
+        checkClosed();
         return Statement.super.enquoteLiteral(val);
     }
 
     @Override
     public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
+        checkClosed();
         return Statement.super.enquoteIdentifier(identifier, alwaysQuote);
     }
 
     @Override
     public boolean isSimpleIdentifier(String identifier) throws SQLException {
+        checkClosed();
         return Statement.super.isSimpleIdentifier(identifier);
     }
 
     @Override
     public String enquoteNCharLiteral(String val) throws SQLException {
+        checkClosed();
         return Statement.super.enquoteNCharLiteral(val);
     }
 }
