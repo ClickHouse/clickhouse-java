@@ -37,18 +37,6 @@
             <artifactId>r2dbc-spi</artifactId>
             <version>${r2dbc-spi.version}</version>
         </dependency>
-        <!-- Deprecation. <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-cli-client</artifactId>
-            <version>${revision}</version>
-            <optional>true</optional>
-        </dependency> -->
-       <!-- Deprecation. <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-grpc-client</artifactId>
-            <version>${revision}</version>
-            <optional>true</optional>
-        </dependency> -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
@@ -229,10 +217,6 @@
                                     <pattern>com.google</pattern>
                                     <shadedPattern>${shade.base}.google</shadedPattern>
                                 </relocation>
-                                <!--Deprecation. <relocation>
-                                    <pattern>io.grpc</pattern>
-                                    <shadedPattern>${shade.base}.grpc</shadedPattern>
-                                </relocation> -->
                                 <relocation>
                                     <pattern>io.opencensus</pattern>
                                     <shadedPattern>${shade.base}.opencensus</shadedPattern>
@@ -342,24 +326,6 @@
                                 </transformer>
                             </transformers>
                             <filters>
-                                <!-- Deprecation. <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-cli-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter> -->
-                                <!-- Deprecation.<filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter> -->
-                                <!-- Deprecation. <filter>
-                                    <artifact>${project.parent.groupId}:io.grpc</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter> -->
                                 <filter>
                                     <artifact>${project.parent.groupId}:org.roaringbitmap</artifact>
                                     <excludes>

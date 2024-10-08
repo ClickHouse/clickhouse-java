@@ -1,0 +1,10 @@
+ktor:
+    application:
+        modules:
+            - com.clickhouse.examples.service.ApplicationKt.module
+    deployment:
+        port: 8080
+    database:
+        url: 'http://localhost:8123/default'
+        user: 'default'
+        password: ''

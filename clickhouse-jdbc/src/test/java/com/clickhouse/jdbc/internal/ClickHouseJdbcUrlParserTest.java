@@ -6,12 +6,14 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseJdbcUrlParserTest {
@@ -153,5 +155,25 @@ public class ClickHouseJdbcUrlParserTest {
                 .getServer();
         Assert.assertEquals(server.getCredentials().get().getUserName(), "let@me:in");
         Assert.assertEquals(server.getCredentials().get().getPassword(), "let@me:in");
+    }
+
+    @Test(groups = "unit", dataProvider = "testParseUrlPropertiesProvider")
+    public void testParseUrlProperties(String url, int numOfNodes) throws SQLException {
+
+        ConnectionInfo info = ClickHouseJdbcUrlParser.parse(url, null);
+        Assert.assertEquals(info.getNodes().getNodes().size(), numOfNodes);
+        Assert.assertEquals(info.getNodes().getPolicy().getClass().getSimpleName(), "FirstAlivePolicy");
+        for (ClickHouseNode n : info.getNodes().getNodes()) {
+            Assert.assertEquals(n.getOptions().get("connect_timeout"), "10000");
+            Assert.assertEquals(n.getOptions().get("http_connection_provider"), "HTTP_CLIENT");
+        }
+    }
+
+    @DataProvider(name = "testParseUrlPropertiesProvider")
+    public static Object[][] testParseUrlPropertiesProvider() {
+        return new Object[][] {
+                { "jdbc:clickhouse://host1:8123,host2:8123,host3:8123/db1?http_connection_provider=HTTP_CLIENT&load_balancing_policy=firstAlive&connect_timeout=10000", 3 },
+                { "jdbc:clickhouse:http://host1:8123,host2:8123,host3:8123/db1?http_connection_provider=HTTP_CLIENT&load_balancing_policy=firstAlive&connect_timeout=10000", 3 }
+        };
     }
 }

@@ -31,7 +31,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.testcontainers.shaded.com.google.common.collect.Table;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -47,7 +46,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -261,12 +259,23 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertFalse(iter.hasNext());
     }
 
-    @Test(groups = {"integration"})
-    public void testReadRecordsNoResult() throws Exception {
-        Records records = client.queryRecords("CREATE DATABASE IF NOT EXISTS test_db").get(3, TimeUnit.SECONDS);
+    @Test(description = "Verifies correct handling of empty data set while column information is present", groups = {"integration"})
+    public void testQueryRecordsOnEmptyDataset() throws Exception {
+        Records records = client.queryRecords("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS);
 
         Iterator<GenericRecord> iter = records.iterator();
         Assert.assertFalse(iter.hasNext());
+    }
+
+    @Test(description = "Verifies correct handling when no column information expected", groups = {"integration"})
+    public void testQueryRecordsWithEmptyResult() throws Exception {
+        // This test uses a query that returns no data and no column information
+        try (Records records = client.queryRecords("CREATE DATABASE IF NOT EXISTS test_db").get(3, TimeUnit.SECONDS)) {
+            Assert.assertTrue(records.isEmpty());
+            for (GenericRecord record : records) {
+               Assert.fail("unexpected record: " + record);
+            }
+        }
     }
 
     @Test(groups = {"integration"})
@@ -298,7 +307,8 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAllNoResult() throws Exception {
-        List<GenericRecord> records = client.queryAll("CREATE DATABASE IF NOT EXISTS test_db");
+        List<GenericRecord> records = client.queryAll("SELECT 1 LIMIT 0");
+        Assert.assertEquals(records.size(), 0);
         Assert.assertTrue(records.isEmpty());
     }
 
@@ -457,6 +467,14 @@ public class QueryTests extends BaseIntegrationTest {
             }
     );
 
+    @Test(groups = {"integration"})
+    public void testBinaryReaderOnQueryWithNoResult() throws Exception {
+        try (QueryResponse response = client.query("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertFalse(reader.hasNext());
+            Assert.assertNull(reader.next());
+        }
+    }
 
     @Test(groups = {"integration"})
     public void testArrayValues() throws Exception {
@@ -539,6 +557,31 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testQueryRecordsEmptyResult() throws Exception {
+        try (Records records = client.queryRecords("SELECT 1 LIMIT 0").get(3, TimeUnit.SECONDS)) {
+            Assert.assertTrue(records.isEmpty());
+            for (GenericRecord record : records) {
+               Assert.fail("unexpected record: " + record);
+            }
+        }
+    }
+
+    @Test(description = "Verifies that queryRecords reads all values from the response", groups = {"integration"})
+    public void testQueryRecordsReadsAllValues() throws Exception {
+        try (Records records = client.queryRecords("SELECT toInt32(number) FROM system.numbers LIMIT 3").get(3, TimeUnit.SECONDS)) {
+            Assert.assertFalse(records.isEmpty());
+            Assert.assertEquals(records.getResultRows(), 3);
+
+            int expectedNumber = 0;
+            for (GenericRecord record : records) {
+                Assert.assertEquals(record.getInteger(1), expectedNumber);
+                expectedNumber++;
+            }
+
+            Assert.assertEquals(expectedNumber, 3);
+        }
+    }
 
     private final static List<String> NULL_DATASET_COLUMNS = Arrays.asList(
             "id UInt32",
@@ -1497,13 +1540,13 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryAllWithPOJO() throws Exception {
 
         final String tableName = "test_query_all_with_pojo";
-        final String createTableSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final String createTableSQL = QuerySamplePOJO.generateTableCreateSQL(tableName);
         client.execute("DROP TABLE IF EXISTS test_query_all_with_pojo").get();
         client.execute(createTableSQL).get();
 
-        SamplePOJO pojo = new SamplePOJO();
+        QuerySamplePOJO pojo = new QuerySamplePOJO();
         TableSchema schema = client.getTableSchema(tableName);
-        client.register(SamplePOJO.class, schema);
+        client.register(QuerySamplePOJO.class, schema);
 
         client.insert(tableName, Collections.singletonList(pojo)).get();
 
@@ -1517,7 +1560,7 @@ public class QueryTests extends BaseIntegrationTest {
         pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
         pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
 
-        List<SamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", SamplePOJO.class,
+        List<QuerySamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", QuerySamplePOJO.class,
                 schema);
         Assert.assertEquals(pojos.get(0), pojo, "Expected " + pojo + " but got " + pojos.get(0));
     }

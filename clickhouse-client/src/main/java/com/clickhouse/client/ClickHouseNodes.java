@@ -68,6 +68,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         } else {
             index = 0;
         }
+        
 
         String defaultParams = "";
         Set<String> list = new LinkedHashSet<>();
@@ -95,14 +96,19 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
             }
 
             int endIndex = i;
+            // parsing host name
             for (int j = i + 1; j < len; j++) {
                 ch = endpoints.charAt(j);
                 if (ch == stopChar || Character.isWhitespace(ch)) {
                     endIndex = j;
                     break;
+                } else if ( stopChar == ',' && ( ch == '/' || ch == '?' || ch == '#') ) {
+                    break;
                 }
             }
+
             if (endIndex > i) {
+                // add host name to list
                 list.add(endpoints.substring(index, endIndex).trim());
                 i = endIndex;
                 index = endIndex + 1;

@@ -6,6 +6,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -411,8 +412,26 @@ public class HttpAPIClientHelper {
                 req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
+
+        for (Map.Entry<String, String> entry : chConfig.entrySet()) {
+            if (entry.getKey().startsWith(ClientSettings.HTTP_HEADER_PREFIX)) {
+                req.addHeader(entry.getKey().substring(ClientSettings.HTTP_HEADER_PREFIX.length()), entry.getValue());
+            }
+        }
+        for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
+            if (entry.getKey().startsWith(ClientSettings.HTTP_HEADER_PREFIX)) {
+                req.addHeader(entry.getKey().substring(ClientSettings.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+            }
+        }
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
+
+        for (Map.Entry<String, String> entry : chConfig.entrySet()) {
+            if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
+                req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue());
+            }
+        }
+
         if (requestConfig != null) {
             if (requestConfig.containsKey(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey())) {
                 req.addParameter(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey(),
@@ -445,6 +464,14 @@ public class HttpAPIClientHelper {
             }
             if (clientCompression) {
                 req.addParameter("decompress", "1");
+            }
+        }
+
+        if (requestConfig != null) {
+            for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
+                if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
+                    req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
+                }
             }
         }
     }

@@ -33,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -333,5 +334,86 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testServerErrorHandlingDataProvider")
     public static Object[] testServerErrorHandlingDataProvider() {
         return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
+    }
+
+    @Test(groups = { "integration" })
+    public void testAdditionalHeaders() {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                .httpHeader("X-ClickHouse-Test", "default_value")
+                .httpHeader("X-ClickHouse-Test-2", Arrays.asList("default_value1", "default_value2"))
+                .httpHeader("X-ClickHouse-Test-3", Arrays.asList("default_value1", "default_value2"))
+                .httpHeader("X-ClickHouse-Test-4", "default_value4")
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("X-ClickHouse-Test", WireMock.equalTo("test"))
+                    .withHeader("X-ClickHouse-Test-2", WireMock.equalTo("test1,test2"))
+                    .withHeader("X-ClickHouse-Test-3", WireMock.equalTo("default_value1,default_value2"))
+                    .withHeader("X-ClickHouse-Test-4", WireMock.equalTo("default_value4"))
+
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            QuerySettings querySettings = new QuerySettings()
+                    .httpHeader("X-ClickHouse-Test", "test")
+                    .httpHeader("X-ClickHouse-Test-2", Arrays.asList("test1", "test2"));
+
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testServerSettings() {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                .serverSetting("max_threads", "10")
+                .serverSetting("async_insert", "1")
+                .serverSetting("roles", Arrays.asList("role1", "role2"))
+                .compressClientRequest(true)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                            .withQueryParam("max_threads", WireMock.equalTo("10"))
+                            .withQueryParam("async_insert", WireMock.equalTo("1"))
+                            .withQueryParam("roles", WireMock.equalTo("role3,role2"))
+                            .withQueryParam("compress", WireMock.equalTo("0"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            QuerySettings querySettings = new QuerySettings()
+                    .serverSetting("max_threads", "10")
+                    .serverSetting("async_insert", "3")
+                    .serverSetting("roles", Arrays.asList("role3", "role2"))
+                    .serverSetting("compress", "0");
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        }
+
     }
 }
