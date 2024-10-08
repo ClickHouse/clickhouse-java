@@ -80,7 +80,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
         return tokens[2];
     }
 
-    public static String parseJdbcEscapeSyntax(String sql) {
+    private static String parseJdbcEscapeSyntax(String sql) {
         log.trace("Original SQL: {}", sql);
         // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
         sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
