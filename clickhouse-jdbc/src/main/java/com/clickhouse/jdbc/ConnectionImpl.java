@@ -13,8 +13,8 @@ import java.util.concurrent.Executor;
 public class ConnectionImpl implements Connection, JdbcWrapper {
     private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
 
-    private final Client client;
-    private final JdbcConfiguration config;
+    protected final Client client;
+    protected final JdbcConfiguration config;
 
     private boolean closed = false;
     private String catalog;

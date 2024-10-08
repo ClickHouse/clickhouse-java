@@ -4,7 +4,6 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

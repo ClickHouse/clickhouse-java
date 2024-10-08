@@ -13,8 +13,9 @@ import java.util.Properties;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcIntegrationTest.class);
+
     public String getEndpointString() {
-        return getEndpointString(false);
+        return getEndpointString(isCloud());
     }
     public String getEndpointString(boolean includeDbName) {
         return "jdbc:ch:" + (isCloud() ? "https" : "http") + "://" +
@@ -29,5 +30,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
         return new ConnectionImpl(getEndpointString(), info);
         //return DriverManager.getConnection(getEndpointString(), "default", ClickHouseServerForTest.getPassword());
+    }
+
+    protected static String getDatabase() {
+        return isCloud() ? ClickHouseServerForTest.getDatabase() : "default";
     }
 }
