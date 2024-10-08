@@ -80,6 +80,7 @@ public class SamplePOJO {
     private Map<String, Integer> map;
     private List<Integer> nestedInnerInt;
     private List<String> nestedInnerString;
+    private List<Integer> nestedInnerNullableInt;
 
     private ClickHouseBitmap groupBitmapUint32;
     private ClickHouseBitmap groupBitmapUint64;
@@ -169,6 +170,10 @@ public class SamplePOJO {
         List<String> innerString = new ArrayList<>();
         innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
         nestedInnerString = innerString;
+
+        List<Integer> innerNullableInt = new ArrayList<>();
+        innerNullableInt.add(null);
+        nestedInnerNullableInt = innerNullableInt;
 
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
@@ -542,6 +547,14 @@ public class SamplePOJO {
         this.nestedInnerString = nestedInnerString;
     }
 
+    public List<Integer> getNestedInnerNullableInt() {
+        return nestedInnerNullableInt;
+    }
+
+    public void setNestedInnerNullableInt(List<Integer> nestedInnerNullableInt) {
+        this.nestedInnerNullableInt = nestedInnerNullableInt;
+    }
+
     public ClickHouseBitmap getGroupBitmapUint32() {
         return groupBitmapUint32;
     }
@@ -664,7 +677,7 @@ public class SamplePOJO {
                 "array Array(String), " +
                 "tuple Tuple(UInt64, Int32, String), " +
                 "map Map(String, Int32), " +
-                "nested Nested (innerInt Int32, innerString String), " +
+                "nested Nested (innerInt Int32, innerString String, innerNullableInt Nullable(Int32))" +
 //                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
                 // TODO: fix this
 //                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +

@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
@@ -74,7 +75,11 @@ public class SerializerUtils {
         List<?> values = (List<?>) value;
         BinaryStreamUtils.writeVarInt(stream, values.size());
         for (Object val : values) {
-            serializeData(stream, val, column.getArrayBaseColumn());
+            if (column.getArrayBaseColumn().isNullable() && val == null) {
+                BinaryStreamUtils.writeNull(stream);
+            } else {
+                serializeData(stream, val, column.getArrayBaseColumn());
+            }
         }
     }
 
