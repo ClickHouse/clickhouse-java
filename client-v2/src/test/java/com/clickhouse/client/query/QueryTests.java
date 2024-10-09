@@ -12,8 +12,10 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -26,6 +28,7 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,6 +39,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import org.testng.util.Strings;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -56,6 +60,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1568,6 +1573,72 @@ public class QueryTests extends BaseIntegrationTest {
     public static BigDecimal cropDecimal(BigDecimal value, int scale) {
         BigInteger bi = value.unscaledValue().divide(BigInteger.TEN.pow(value.scale() - scale));
         return new BigDecimal(bi, scale);
+    }
+
+    @DataProvider(name = "sessionRoles")
+    private static Object[][] sessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+                {new String[]{"ROL1", "ROL2"}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
+    public void testOperationCustomRoles(String[] roles) throws Exception {
+        final String password = UUID.randomUUID().toString();
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        }
+        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
+        }
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
+    }
+
+    @DataProvider(name = "clientSessionRoles")
+    private static Object[][] clientSessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+        };
+    }
+    @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
+    public void testClientCustomRoles(String[] roles) throws Exception {
+        final String password = UUID.randomUUID().toString();
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        }
+        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
+        }
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            userClient.setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
     }
 
 

@@ -70,6 +70,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
@@ -425,6 +427,9 @@ public class HttpAPIClientHelper {
         }
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
+        if (requestConfig == null) {
+            requestConfig = Collections.emptyMap();
+        }
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
@@ -432,19 +437,17 @@ public class HttpAPIClientHelper {
             }
         }
 
-        if (requestConfig != null) {
-            if (requestConfig.containsKey(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey())) {
-                req.addParameter(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey(),
-                        requestConfig.get(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey()).toString());
-            }
-            if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
-                req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
-            }
-            if (requestConfig.containsKey("statement_params")) {
-                Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
-                for (Map.Entry<String, Object> entry : params.entrySet()) {
-                    req.addParameter("param_" + entry.getKey(), String.valueOf(entry.getValue()));
-                }
+        if (requestConfig.containsKey(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey())) {
+            req.addParameter(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey(),
+                    requestConfig.get(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey()).toString());
+        }
+        if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
+            req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
+        }
+        if (requestConfig.containsKey("statement_params")) {
+            Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
+            for (Map.Entry<String, Object> entry : params.entrySet()) {
+                req.addParameter("param_" + entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
 
@@ -467,11 +470,16 @@ public class HttpAPIClientHelper {
             }
         }
 
-        if (requestConfig != null) {
-            for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
-                if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
-                    req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
-                }
+        Collection<String> sessionRoles = (Collection<String>) requestConfig.getOrDefault(ClientSettings.SESSION_DB_ROLES,
+                ClientSettings.valuesFromCommaSeparated(chConfiguration.getOrDefault(ClientSettings.SESSION_DB_ROLES, "")));
+        if (!sessionRoles.isEmpty()) {
+
+            sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
+        }
+
+        for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
+            if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
+                req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
             }
         }
     }
