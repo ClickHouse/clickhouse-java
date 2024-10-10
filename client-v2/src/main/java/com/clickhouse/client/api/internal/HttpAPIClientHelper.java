@@ -394,8 +394,11 @@ public class HttpAPIClientHelper {
         }
         req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClickHouseClientOption.DATABASE.getKey()));
         req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
-        req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClickHouseDefaults.PASSWORD.getKey()));
-
+        if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
+            req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
+        } else {
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClickHouseDefaults.PASSWORD.getKey()));
+        }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }

@@ -6,6 +6,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -414,6 +415,38 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.fail("Unexpected exception", e);
             }
         }
+    }
 
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
+    @Test(groups = { "integration" })
+    public void testSSLAuthentication() throws Exception {
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .setUsername("default")
+                .setPassword("")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
+            }
+        }
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .useSSLAuthentication(true)
+                .setUsername("some_user")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setClientCertificate("some_user.crt")
+                .setClientKey("some_user.key")
+                .compressServerResponse(false)
+                .build()) {
+
+            try (QueryResponse resp = client.query("SELECT 1").get()) {
+                Assert.assertEquals(resp.getReadRows(), 1);
+            }
+        }
     }
 }
