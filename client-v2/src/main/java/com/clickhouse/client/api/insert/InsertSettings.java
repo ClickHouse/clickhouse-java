@@ -205,4 +205,23 @@ public class InsertSettings {
         rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, ClientSettings.commaSeparated(values));
         return this;
     }
+
+    /**
+     * Sets the comment that will be added to the query log record associated with the query.
+     * @param logComment - comment to be added to the log
+     * @return same instance of the builder
+     */
+    public InsertSettings logComment(String logComment) {
+        this.logComment = logComment;
+        if (logComment != null && !logComment.isEmpty()) {
+            rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + "log_comment", logComment);
+        }
+        return this;
+    }
+
+    private String logComment = null;
+
+    public String getLogComment() {
+        return logComment;
+    }
 }
