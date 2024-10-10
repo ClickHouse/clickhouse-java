@@ -51,4 +51,5 @@ public class ClickHouseHttpProto {
      */
     public static final String QPARAM_QUERY_ID = "query_id";
 
+    public static final String QPARAM_ROLE = "role";
 }
