@@ -31,6 +31,7 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -1588,6 +1589,12 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
     public void testOperationCustomRoles(String[] roles) throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
+            System.out.println("Test is skipped: feature is supported since 24.4");
+            return;
+        }
+
         final String password = UUID.randomUUID().toString();
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
@@ -1600,6 +1607,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
         try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
         }
+
 
         try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
             QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
@@ -1619,6 +1627,12 @@ public class QueryTests extends BaseIntegrationTest {
     }
     @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
     public void testClientCustomRoles(String[] roles) throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
+            System.out.println("Test is skipped: feature is supported since 24.4");
+            return;
+        }
+
         final String password = UUID.randomUUID().toString();
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
