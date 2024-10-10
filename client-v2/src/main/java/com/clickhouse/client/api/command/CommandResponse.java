@@ -5,7 +5,7 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 
-public class CommandResponse{
+public class CommandResponse implements AutoCloseable {
 
     private final QueryResponse response;
 
@@ -70,5 +70,10 @@ public class CommandResponse{
      */
     public long getServerTime() {
         return response.getServerTime();
+    }
+
+    @Override
+    public void close() throws Exception {
+        response.close();
     }
 }

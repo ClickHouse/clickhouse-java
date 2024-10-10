@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -18,6 +19,7 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -256,5 +258,33 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
         assertEquals(metrics.getQueryId(), settings.getQueryId());
         assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testLogComment() throws Exception {
+
+        String logComment = "Test log comment";
+        InsertSettings settings = new InsertSettings()
+                .setQueryId(UUID.randomUUID().toString())
+                .logComment(logComment);
+
+        final String tableName = "single_pojo_table";
+        final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        final SamplePOJO pojo = new SamplePOJO();
+
+        dropTable(tableName);
+        createTable(createSQL);
+        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
+        }
+
+        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
     }
 }
