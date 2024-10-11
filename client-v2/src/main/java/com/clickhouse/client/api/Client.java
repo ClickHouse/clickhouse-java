@@ -1040,7 +1040,7 @@ public class Client implements AutoCloseable {
         boolean defaultsSupport = schema.hasDefaults();
         tableSchemaHasDefaults.put(schemaKey, defaultsSupport);
         for (ClickHouseColumn column : schema.getColumns()) {
-            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+            String propertyName = column.getColumnName().toLowerCase().replace(".", "");
             Method getterMethod = classGetters.get(propertyName);
             if (getterMethod != null) {
                 schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
