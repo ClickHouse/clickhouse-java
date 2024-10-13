@@ -60,7 +60,7 @@ public abstract class BaseIntegrationTest {
         return ipAddress;
     }
 
-    protected boolean isCloud() {
+    protected static boolean isCloud() {
         return ClickHouseServerForTest.isCloud();
     }
 

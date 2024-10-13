@@ -9,7 +9,7 @@ import java.util.Calendar;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcWrapper {
     String sql;
-    public PreparedStatementImpl(Connection connection, String sql) {
+    public PreparedStatementImpl(ConnectionImpl connection, String sql) {
         super(connection);
         this.sql = sql;
     }
