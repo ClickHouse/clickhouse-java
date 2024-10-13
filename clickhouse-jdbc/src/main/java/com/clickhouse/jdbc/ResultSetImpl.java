@@ -134,6 +134,7 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         checkClosed();
+        //TODO: Add this to ClickHouseBinaryFormatReader
         LocalDate localDate = reader.getLocalDate(columnIndex);
         if(localDate == null) {
             return null;
@@ -164,7 +165,8 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
         checkClosed();
-        return new ByteArrayInputStream(reader.getString(columnIndex).getBytes(StandardCharsets.UTF_8));
+        //TODO: Add this to ClickHouseBinaryFormatReader
+        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.");
     }
 
     @Override
@@ -243,6 +245,7 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public Date getDate(String columnLabel) throws SQLException {
         checkClosed();
+        //TODO: Add this to ClickHouseBinaryFormatReader
         LocalDate localDate = reader.getLocalDate(columnLabel);
         if(localDate == null) {
             return null;
@@ -273,7 +276,8 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
         checkClosed();
-        return new ByteArrayInputStream(reader.getString(columnLabel).getBytes(StandardCharsets.UTF_8));
+        //TODO: Add this to ClickHouseBinaryFormatReader
+        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.");
     }
 
     @Override
