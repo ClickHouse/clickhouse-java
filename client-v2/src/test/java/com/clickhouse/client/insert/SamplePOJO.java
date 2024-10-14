@@ -173,6 +173,7 @@ public class SamplePOJO {
 
         List<Integer> innerNullableInt = new ArrayList<>();
         innerNullableInt.add(null);
+        innerNullableInt.add(random.nextInt(Integer.MAX_VALUE));
         nestedInnerNullableInt = innerNullableInt;
 
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());

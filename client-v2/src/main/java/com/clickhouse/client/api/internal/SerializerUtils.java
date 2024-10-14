@@ -74,11 +74,14 @@ public class SerializerUtils {
         List<?> values = (List<?>) value;
         BinaryStreamUtils.writeVarInt(stream, values.size());
         for (Object val : values) {
-            if (column.getArrayBaseColumn().isNullable() && val == null) {
-                BinaryStreamUtils.writeNull(stream);
-            } else {
-                serializeData(stream, val, column.getArrayBaseColumn());
+            if (column.getArrayBaseColumn().isNullable()) {
+                if (val == null) {
+                    BinaryStreamUtils.writeNull(stream);
+                    continue;
+                }
+                BinaryStreamUtils.writeNonNull(stream);
             }
+            serializeData(stream, val, column.getArrayBaseColumn());
         }
     }
 
