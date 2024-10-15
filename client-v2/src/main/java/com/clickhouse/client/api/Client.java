@@ -872,6 +872,11 @@ public class Client implements AutoCloseable {
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
+                    (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
+                throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
+            }
+
+            if (this.configuration.containsKey("ssl_authentication") &&
                 !this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
                 throw new IllegalArgumentException("SSL authentication requires a client certificate");
             }

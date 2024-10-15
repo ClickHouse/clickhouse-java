@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.Assert.fail;
 
 public class HttpTransportTests extends BaseIntegrationTest {
 
@@ -422,6 +423,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
     @Test(groups = { "integration" })
     public void testSSLAuthentication() throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
                 .setUsername("default")
@@ -447,6 +451,28 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse resp = client.query("SELECT 1").get()) {
                 Assert.assertEquals(resp.getReadRows(), 1);
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLAuthentication_invalidConfig() throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .useSSLAuthentication(true)
+                .setUsername("some_user")
+                .setPassword("s3cret")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setClientCertificate("some_user.crt")
+                .setClientKey("some_user.key")
+                .compressServerResponse(false)
+                .build()) {
+            fail("Expected exception");
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+                Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
 }
