@@ -9,11 +9,13 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseRecord;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.util.Iterator;
@@ -81,5 +83,29 @@ public class MetadataTests extends BaseIntegrationTest {
         } catch (Exception e) {
             Assert.fail("Failed to prepare data set", e);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testMatchingNormalizationData")
+    public void testDefaultColumnToMethodMatchingStrategy(String methodName, String columnName) {
+        methodName = DefaultColumnToMethodMatchingStrategy.INSTANCE.normalizeMethodName(methodName);
+        columnName = DefaultColumnToMethodMatchingStrategy.INSTANCE.normalizeColumnName(columnName);
+        Assert.assertEquals(methodName, columnName, "Method name: " + methodName + " Column name: " + columnName);
+    }
+
+    @DataProvider(name = "testMatchingNormalizationData")
+    public Object[][] testMatchingNormalizationData() {
+        return new Object[][]{
+                {"getLastName", "LastName"},
+                {"getLastName", "last_name"},
+                {"getLastName", "last.name"},
+                {"setLastName", "last.name"},
+                {"isLastUpdate", "last_update"},
+                {"hasMore", "more"},
+                {"getFIRST_NAME", "first_name"},
+                {"setUPDATED_ON", "updated.ON"},
+                {"getNUM_OF_TRIES", "num_of_tries"},
+                {"gethas_more", "has_more"},
+
+        };
     }
 }
