@@ -171,7 +171,7 @@ public class BinaryStreamReader {
                     return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
                             column.getTimeZone()), typeHint);
                 case DateTime64:
-                    return convertDateTime(readDateTime64(3, column.getTimeZone() == null ? timeZone :
+                    return convertDateTime(readDateTime64(column.getScale(), column.getTimeZone() == null ? timeZone :
                             column.getTimeZone()), typeHint);
 
                 case IntervalYear:
