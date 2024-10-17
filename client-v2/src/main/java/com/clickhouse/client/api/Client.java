@@ -321,6 +321,17 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Makes client to use SSL Client Certificate to authenticate with server.
+         * Client certificate should be set as well. {@link Client.Builder#setClientCertificate(String)}
+         * @param useSSLAuthentication
+         * @return
+         */
+        public Builder useSSLAuthentication(boolean useSSLAuthentication) {
+            this.configuration.put("ssl_authentication", String.valueOf(useSSLAuthentication));
+            return this;
+        }
+
+        /**
          * Configures client to use build-in connection pool
          * @param enable - if connection pool should be enabled
          * @return
@@ -854,12 +865,24 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
             // check if username and password are empty. so can not initiate client?
-            if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
-                throw new IllegalArgumentException("Username and password are required");
+            if (!this.configuration.containsKey("access_token") &&
+                (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
+                !MapUtils.getFlag(this.configuration, "ssl_authentication")) {
+                throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
             }
 
-            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE) &&
-                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE)) {
+            if (this.configuration.containsKey("ssl_authentication") &&
+                    (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
+                throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
+            }
+
+            if (this.configuration.containsKey("ssl_authentication") &&
+                !this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
+                throw new IllegalArgumentException("SSL authentication requires a client certificate");
+            }
+
+            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE.getKey()) &&
+                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
