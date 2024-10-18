@@ -1111,9 +1111,13 @@ public class Client implements AutoCloseable {
                             }
                         }
                     } else {
-                        // If column is nullable && the object is also null add the not null marker
-                        if (column.isNullable() && value != null) {
+                        if (column.isNullable()) {
+                            // If column is nullable && the object is also null add the not null marker
                             BinaryStreamUtils.writeNonNull(stream);
+                            if (value == null) {
+                                BinaryStreamUtils.writeNull(stream);
+                                return;
+                            }
                         }
                         if (!column.isNullable() && value == null) {
                             if (column.getDataType() == ClickHouseDataType.Array)
