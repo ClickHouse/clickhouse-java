@@ -29,6 +29,8 @@ import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
+import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -146,8 +148,10 @@ public class Client implements AutoCloseable {
     private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
     private Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
+    private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -170,6 +174,7 @@ public class Client implements AutoCloseable {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
+        this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
     }
 
     /**
@@ -211,6 +216,7 @@ public class Client implements AutoCloseable {
         private boolean useNewImplementation = true;
 
         private ExecutorService sharedOperationExecutor = null;
+        private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -857,6 +863,18 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets column to method matching strategy. It is used while registering POJO serializers and deserializers.
+         * Default is {@link DefaultColumnToMethodMatchingStrategy}.
+         *
+         * @param strategy - matching strategy
+         * @return same instance of the builder
+         */
+        public Builder columnToMethodMatchingStrategy(ColumnToMethodMatchingStrategy strategy) {
+            this.columnToMethodMatchingStrategy = strategy;
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -914,7 +932,7 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
         }
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
@@ -986,6 +1004,10 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
                 allowBinaryReaderToReuseBuffers(false);
             }
+
+            if (columnToMethodMatchingStrategy == null) {
+                columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
+            }
         }
     }
 
@@ -1041,19 +1063,17 @@ public class Client implements AutoCloseable {
         }
         tableSchemaCache.put(schemaKey, schema);
 
+        ColumnToMethodMatchingStrategy matchingStrategy = columnToMethodMatchingStrategy;
+
         //Create a new POJOSerializer with static .serialize(object, columns) methods
         Map<String, Method> classGetters = new HashMap<>();
         Map<String, Method> classSetters = new HashMap<>();
         for (Method method : clazz.getMethods()) {//Clean up the method names
-            String methodName = method.getName();
-            if (methodName.startsWith("get") || methodName.startsWith("has")) {
-                methodName = methodName.substring(3).toLowerCase();
+            if (matchingStrategy.isGetter(method.getName())) {
+                String methodName = matchingStrategy.normalizeMethodName(method.getName());
                 classGetters.put(methodName, method);
-            } else if (methodName.startsWith("is")) {
-                methodName = methodName.substring(2).toLowerCase();
-                classGetters.put(methodName, method);
-            } else if (methodName.startsWith("set")) {
-                methodName = methodName.substring(3).toLowerCase();
+            } else if (matchingStrategy.isSetter(method.getName())) {
+                String methodName = matchingStrategy.normalizeMethodName(method.getName());
                 classSetters.put(methodName, method);
             }
         }
@@ -1063,7 +1083,7 @@ public class Client implements AutoCloseable {
         boolean defaultsSupport = schema.hasDefaults();
         tableSchemaHasDefaults.put(schemaKey, defaultsSupport);
         for (ClickHouseColumn column : schema.getColumns()) {
-            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+            String propertyName = columnToMethodMatchingStrategy.normalizeColumnName(column.getColumnName());
             Method getterMethod = classGetters.get(propertyName);
             if (getterMethod != null) {
                 schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
