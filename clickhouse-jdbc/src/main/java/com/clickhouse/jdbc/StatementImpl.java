@@ -4,8 +4,8 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -18,11 +18,11 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcWrapper {
-    private static final Logger log = LoggerFactory.getLogger(StatementImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
     ConnectionImpl connection;
     private int queryTimeout;
-    private boolean closed;
+    protected boolean closed;
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     private List<String> batch;
@@ -36,17 +36,17 @@ public class StatementImpl implements Statement, JdbcWrapper {
         this.batch = new ArrayList<>();
     }
 
-    private void checkClosed() throws SQLException {
+    protected void checkClosed() throws SQLException {
         if (closed) {
             throw new SQLException("Statement is closed");
         }
     }
 
-    private enum StatementType {
+    protected enum StatementType {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
     }
 
-    private StatementType parseStatementType(String sql) {
+    protected StatementType parseStatementType(String sql) {
         String[] tokens = sql.trim().split("\\s+");
         if (tokens.length == 0) {
             return StatementType.OTHER;
@@ -71,7 +71,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
         };
     }
 
-    private String parseTableName(String sql) {
+    protected String parseTableName(String sql) {
         String[] tokens = sql.trim().split("\\s+");
         if (tokens.length < 3) {
             return null;
@@ -80,8 +80,8 @@ public class StatementImpl implements Statement, JdbcWrapper {
         return tokens[2];
     }
 
-    private static String parseJdbcEscapeSyntax(String sql) {
-        log.trace("Original SQL: {}", sql);
+    protected static String parseJdbcEscapeSyntax(String sql) {
+        LOG.trace("Original SQL: {}", sql);
         // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
         sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
 
@@ -95,7 +95,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
         //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
 
         // Add more replacements as needed for other JDBC escape sequences
-        log.trace("Parsed SQL: {}", sql);
+        LOG.trace("Parsed SQL: {}", sql);
         return sql;
     }
 

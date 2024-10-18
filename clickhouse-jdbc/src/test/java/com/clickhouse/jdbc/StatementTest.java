@@ -1,7 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseServerForTest;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -9,10 +7,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Time;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
