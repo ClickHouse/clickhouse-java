@@ -4,8 +4,8 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcWrapper {
-    private static final Logger log = LoggerFactory.getLogger(StatementImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
     ConnectionImpl connection;
     private int queryTimeout;
@@ -81,7 +81,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
     }
 
     protected static String parseJdbcEscapeSyntax(String sql) {
-        log.trace("Original SQL: {}", sql);
+        LOG.trace("Original SQL: {}", sql);
         // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
         sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
 
@@ -95,7 +95,7 @@ public class StatementImpl implements Statement, JdbcWrapper {
         //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
 
         // Add more replacements as needed for other JDBC escape sequences
-        log.trace("Parsed SQL: {}", sql);
+        LOG.trace("Parsed SQL: {}", sql);
         return sql;
     }
 

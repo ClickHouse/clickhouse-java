@@ -1,7 +1,7 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -12,19 +12,19 @@ import java.sql.*;
 import java.util.Calendar;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcWrapper {
-    private static final Logger log = LoggerFactory.getLogger(PreparedStatementImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
-    String initialSql;
+    String originalSql;
     String [] sqlSegments;
     Object [] parameters;
     public PreparedStatementImpl(ConnectionImpl connection, String sql) {
         super(connection);
-        this.initialSql = sql;
+        this.originalSql = sql;
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = sql.split("\\?");
 
         //Create an array of objects to store the parameters
-        if (initialSql.contains("?")) {
+        if (originalSql.contains("?")) {
             this.parameters = new Object[sqlSegments.length];
         } else {
             this.parameters = new Object[0];
@@ -39,8 +39,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 sb.append(parameters[i]);
             }
         }
-        log.trace("Compiled SQL: {}", sb);
-        System.out.println("Compiled SQL: " + sb);
+        LOG.trace("Compiled SQL: {}", sb);
         return sb.toString();
     }
 
@@ -161,7 +160,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        if (initialSql.contains("?")) {
+        if (originalSql.contains("?")) {
             this.parameters = new Object[sqlSegments.length];
         } else {
             this.parameters = new Object[0];
