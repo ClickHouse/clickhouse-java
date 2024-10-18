@@ -35,14 +35,6 @@ dependencies {
     // https://mvnrepository.com/artifact/com.clickhouse/client-v2
     implementation("com.clickhouse:client-v2:0.7.0-SNAPSHOT")
 
-    // http client used by clickhouse client
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
-    // compression dependencies
-    runtimeOnly("org.apache.commons:commons-compress:1.26.2")
-    runtimeOnly("org.lz4:lz4-pure-java:1.8.0")
-
-
-
     testImplementation("io.ktor:ktor-server-test-host-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
