@@ -351,19 +351,15 @@ public class HttpAPIClientHelper {
             httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST &&
-                    httpResponse.getCode() < HttpStatus.SC_SERVER_ERROR) {
+            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
+                httpResponse.close();
+                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST) {
                 try {
                     throw readError(httpResponse);
                 } finally {
                     httpResponse.close();
                 }
-            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
-                httpResponse.close();
-                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_INTERNAL_SERVER_ERROR) {
-                httpResponse.close();
-                return httpResponse;
             }
             return httpResponse;
 
