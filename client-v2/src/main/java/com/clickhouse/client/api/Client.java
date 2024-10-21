@@ -1069,18 +1069,17 @@ public class Client implements AutoCloseable {
                         }
                     } else {
                         if (column.isNullable()) {
-                            // If column is nullable && the object is also null add the not null marker
-                            BinaryStreamUtils.writeNonNull(stream);
                             if (value == null) {
                                 BinaryStreamUtils.writeNull(stream);
                                 return;
                             }
-                        }
-                        if (!column.isNullable() && value == null) {
-                            if (column.getDataType() == ClickHouseDataType.Array)
+                            BinaryStreamUtils.writeNonNull(stream);
+                        } else if (value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array) {
                                 BinaryStreamUtils.writeNonNull(stream);
-                            else
+                            } else {
                                 throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
                         }
                     }
 
