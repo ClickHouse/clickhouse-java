@@ -165,9 +165,11 @@ public class SamplePOJO {
 
         List<Integer> innerInt = new ArrayList<>();
         innerInt.add(random.nextInt(Integer.MAX_VALUE));
+        innerInt.add(random.nextInt(Integer.MAX_VALUE));
         nestedInnerInt = innerInt;
 
         List<String> innerString = new ArrayList<>();
+        innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
         innerString.add(RandomStringUtils.randomAlphabetic(1, 256));
         nestedInnerString = innerString;
 
