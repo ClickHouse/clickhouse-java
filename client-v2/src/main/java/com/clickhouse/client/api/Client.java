@@ -1111,15 +1111,18 @@ public class Client implements AutoCloseable {
                             }
                         }
                     } else {
-                        // If column is nullable && the object is also null add the not null marker
-                        if (column.isNullable() && value != null) {
+                        if (column.isNullable()) {
+                            if (value == null) {
+                                BinaryStreamUtils.writeNull(stream);
+                                return;
+                            }
                             BinaryStreamUtils.writeNonNull(stream);
-                        }
-                        if (!column.isNullable() && value == null) {
-                            if (column.getDataType() == ClickHouseDataType.Array)
+                        } else if (value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array) {
                                 BinaryStreamUtils.writeNonNull(stream);
-                            else
+                            } else {
                                 throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
                         }
                     }
 
