@@ -234,34 +234,28 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             Map<NumberType, Function<Number, ?>> converters = new HashMap<>();
             switch (column.getDataType()) {
                 case Int8:
-                    converters.put(NumberType.Byte, SerializerUtils::convertToByte);
                 case Int16:
                 case UInt8:
-                    converters.put(NumberType.Short, SerializerUtils::convertToShort);
                 case Int32:
                 case UInt16:
-                    converters.put(NumberType.Int, SerializerUtils::convertToInt);
                 case Int64:
                 case UInt32:
-                    converters.put(NumberType.Long, SerializerUtils::convertToLong);
-                    converters.put(NumberType.Float, SerializerUtils::convertToFloat);
-                    converters.put(NumberType.Double, SerializerUtils::convertToDouble);
                 case Int128:
                 case UInt64:
                 case Int256:
                 case UInt128:
                 case UInt256:
-                    converters.put(NumberType.BigInteger, SerializerUtils::convertToBigInteger);
-                    converters.put(NumberType.BigDecimal, SerializerUtils::convertToBigDecimal);
-                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
-                    break;
                 case Float32:
-                    converters.put(NumberType.Float, SerializerUtils::convertToFloat);
                 case Float64:
-                    converters.put(NumberType.Double, SerializerUtils::convertToDouble);
-                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
-                    break;
                 case Bool:
+                    converters.put(NumberType.Byte, SerializerUtils.NumberConverter::toByte);
+                    converters.put(NumberType.Short, SerializerUtils.NumberConverter::toShort);
+                    converters.put(NumberType.Int, SerializerUtils.NumberConverter::toInt);
+                    converters.put(NumberType.Long, SerializerUtils.NumberConverter::toLong);
+                    converters.put(NumberType.BigInteger, SerializerUtils.NumberConverter::toBigInteger);
+                    converters.put(NumberType.BigDecimal, SerializerUtils.NumberConverter::toBigDecimal);
+                    converters.put(NumberType.Float, SerializerUtils.NumberConverter::toFloat);
+                    converters.put(NumberType.Double, SerializerUtils.NumberConverter::toDouble);
                     converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
                     break;
             }

@@ -541,27 +541,75 @@ public class SerializerUtils {
         }
     }
 
-    public static byte convertToByte(Number value) {
-        return value.byteValue();
-    }
+    public static class NumberConverter {
 
-    public static short convertToShort(Number value) {
-        return value.shortValue();
-    }
+        public static byte toByte(Number value) {
+            if (value.byteValue() == value.shortValue()) {
+                return value.byteValue();
+            } else {
+                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as byte");
+            }
+        }
 
-    public static int convertToInt(Number value) {
-        return value.intValue();
-    }
+        public static short toShort(Number value) {
+            if (value.shortValue() == value.intValue()) {
+                return value.shortValue();
+            } else {
+                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as short");
+            }
+        }
 
-    public static long convertToLong(Number value) {
-        return value.longValue();
-    }
+        public static int toInt(Number value) {
+            if (value.intValue() == value.longValue()) {
+                return value.intValue();
+            } else {
+                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as int");
+            }
+        }
 
-    public static float convertToFloat(Number value) {
-        return value.floatValue();
-    }
+        public static long toLong(Number value) {
+            if (value.longValue() == value.doubleValue()) {
+                return value.longValue();
+            } else {
+                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as long");
+            }
+        }
 
-    public static double convertToDouble(Number value) {
-        return value.doubleValue();
+
+        public static BigInteger toBigInteger(Number value) {
+            return value instanceof BigInteger ? (BigInteger) value : BigInteger.valueOf(value.longValue());
+        }
+
+        public static BigInteger toBigInteger(String value) {
+            return new BigInteger(value);
+        }
+
+        public static float toFloat(Number value) {
+            if (value instanceof Float) {
+                return (Float) value;
+            } else if (value.floatValue() == value.doubleValue()) {
+                return value.floatValue();
+            } else {
+                throw new ArithmeticException("float overflow: " + value + " cannot be presented as float");
+            }
+        }
+
+        public static double toDouble(Number value) {
+            if (value instanceof Double) {
+                return (Double) value;
+            } else if (value.doubleValue() == value.floatValue()) {
+                return value.doubleValue();
+            } else {
+                throw new ArithmeticException("double overflow: " + value + " cannot be presented as double");
+            }
+        }
+
+        public static BigDecimal toBigDecimal(Number value) {
+            return value instanceof BigDecimal ? (BigDecimal) value : BigDecimal.valueOf(value.doubleValue());
+        }
+
+        public static BigDecimal toBigDecimal(String value) {
+            return new BigDecimal(value);
+        }
     }
 }
