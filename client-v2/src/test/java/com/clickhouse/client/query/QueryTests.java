@@ -16,6 +16,7 @@ import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
@@ -26,6 +27,7 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.insert.SamplePOJO;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -1618,6 +1620,36 @@ public class QueryTests extends BaseIntegrationTest {
         return new BigDecimal(bi, scale);
     }
 
+    @Test(groups = { "integration" }, enabled = true)
+    public void testReadingBitmap() throws Exception {
+        final String tableName = "bitmaps_test_table";
+        final String createSQL = AggregateFuncDTO.generateTableCreateSQL(tableName);
+        final AggregateFuncDTO pojo = new AggregateFuncDTO();
+
+        try {
+            client.execute("DROP TABLE IF EXISTS " + tableName).get();
+            client.execute(createSQL).get();
+        } catch (Exception e) {
+            throw e;
+        }
+
+        client.register(AggregateFuncDTO.class, client.getTableSchema(tableName, "default"));
+
+        try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo)).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse =
+                     client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(reader.hasNext());
+
+            Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint32"), pojo.getGroupBitmapUint32());
+            Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint64"), pojo.getGroupBitmapUint64());
+        }
+    }
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

@@ -354,7 +354,7 @@ public abstract class ClickHouseBitmap {
             byte[] bytes = new byte[2 + byteLen * cardinality];
             bytes[0] = (byte) flag;
             bytes[1] = cardinality;
-            in.read(bytes, 2, bytes.length - 2);
+            in.readFully(bytes, 2, bytes.length - 2);
 
             rb = ClickHouseBitmap.deserialize(bytes, innerType);
         } else {
