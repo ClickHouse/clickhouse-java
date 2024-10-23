@@ -30,16 +30,10 @@ dependencies {
 	// -- clickhouse dependencies
 	// Main dependency
 	implementation("com.clickhouse:client-v2:0.7.0-SNAPSHOT") // nightly build
-//	implementation("com.clickhouse:client-v2:0.6.5") // stable version
-	// http client used by clickhouse client
-	implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
-	// compression dependencies
-	runtimeOnly("org.apache.commons:commons-compress:1.26.2")
-	runtimeOnly("org.lz4:lz4-pure-java:1.8.0")
-	// client V1 if old implementation is needed
-//	implementation("com.clickhouse:clickhouse-http-client:0.6.5")
+//	implementation("com.clickhouse:client-v2:0.7.0") // stable version
 
-
+	// -- clickhouse-http-client dependencies if old implementation is needed
+//	implementation("com.clickhouse:clickhouse-http-client:0.7.0-SNAPSHOT")
 
 	// -- application dependencies
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
