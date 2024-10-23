@@ -321,12 +321,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse response =
                          client.query("SELECT invalid;statement", querySettings).get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
-            } catch (ClientException e) {
+            } catch (ServerException e) {
                 e.printStackTrace();
-                ServerException serverException = (ServerException) e.getCause();
-                Assert.assertEquals(serverException.getCode(), 62);
-                Assert.assertTrue(serverException.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
-                        "Unexpected error message: " + serverException.getMessage());
+                Assert.assertEquals(e.getCode(), 62);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
+                        "Unexpected error message: " + e.getMessage());
             }
         } catch (Exception e) {
             e.printStackTrace();

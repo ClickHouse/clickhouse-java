@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
 import org.testng.Assert;
@@ -45,8 +46,10 @@ public class CommandTests extends BaseIntegrationTest {
     public void testInvalidCommandExecution() throws Exception {
         try {
             client.execute("ALTER TABLE non_existing_table ADD COLUMN id2 UInt32").get(10, TimeUnit.SECONDS);
+        } catch (ServerException e) {
+            Assert.assertEquals(e.getCode(), 60);
         } catch (ExecutionException e) {
-            Assert.assertTrue(e.getCause() instanceof ClientException);
+            Assert.assertTrue(e.getCause() instanceof ServerException);
         } catch (ClientException e) {
             // expected
         }

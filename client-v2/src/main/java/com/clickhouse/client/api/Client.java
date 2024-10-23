@@ -1807,6 +1807,8 @@ public class Client implements AutoCloseable {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
             throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (ServerException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get table schema", e);
         }

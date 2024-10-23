@@ -550,8 +550,10 @@ public class QueryTests extends BaseIntegrationTest {
         try {
             client.queryRecords("SELECT * FROM unknown_table").get(3, TimeUnit.SECONDS);
             Assert.fail("expected exception");
+        } catch (ServerException e) {
+            Assert.assertTrue(e.getMessage().contains("Unknown table"));
         } catch (ExecutionException e) {
-            Assert.assertTrue(e.getCause() instanceof ClientException);
+            Assert.assertTrue(e.getCause() instanceof ServerException);
         } catch (ClientException e) {
             // expected
         }
