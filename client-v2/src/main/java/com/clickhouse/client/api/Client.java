@@ -1035,6 +1035,7 @@ public class Client implements AutoCloseable {
             try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
                 return true;
             } catch (Exception e) {
+                LOG.debug("Failed to connect to the server", e);
                 return false;
             }
         } else {
