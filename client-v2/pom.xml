@@ -16,6 +16,10 @@
     <description>New client api for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-client-api</url>
 
+    <properties>
+        <apache.httpclient.version>5.3.1</apache.httpclient.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
@@ -26,6 +30,7 @@
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -35,7 +40,7 @@
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
-            <version>5.3.1</version>
+            <version>${apache.httpclient.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.luben</groupId>
@@ -45,20 +50,23 @@
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-pure-java</artifactId>
-            <optional>true</optional>
+            <version>${lz4.version}</version>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>org.apache.commons.compress</artifactId>
-            <version>${repackaged.version}</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${compress.version}</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.7</version>
+        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.17.2</version>
         </dependency>
-
         <!-- Test Dependencies -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
@@ -73,25 +81,12 @@
             <scope>test</scope>
             <version>2.17.2</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <optional>true</optional>
-        </dependency>
         <!-- necessary for Java 9+ -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>
             <artifactId>annotations-api</artifactId>
             <scope>provided</scope>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/org.ow2.asm/asm -->
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm</artifactId>
-            <version>9.7</version>
-        </dependency>
-
 
         <!-- Test dependencies -->
         <dependency>
