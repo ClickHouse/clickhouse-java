@@ -25,6 +25,7 @@ import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTraff
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.eclipse.jetty.server.Server;
 import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -336,6 +337,43 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testServerErrorHandlingDataProvider")
     public static Object[] testServerErrorHandlingDataProvider() {
         return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testErrorWithSuccessfulResponse() {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressServerResponse(false)
+                .useNewImplementation(true)
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withChunkedDribbleDelay(2, 200)
+                            .withHeader("X-ClickHouse-Exception-Code", "241")
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"))
+                    .build());
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getMessage(), "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB");
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            mockServer.stop();
+        }
     }
 
     @Test(groups = { "integration" })

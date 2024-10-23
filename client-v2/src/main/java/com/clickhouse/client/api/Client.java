@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -80,6 +81,7 @@ import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -1455,6 +1457,11 @@ public class Client implements AutoCloseable {
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (InterruptedException | TimeoutException e) {
                     throw  new ClientException("Operation has likely timed out.", e);
                 }
@@ -1575,7 +1582,7 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } catch (ClientException e) {
+                    } catch (ClientException | ServerException e) {
                         throw e;
                     } catch (Exception e) {
                         throw new ClientException("Query request failed", e);
@@ -1609,6 +1616,11 @@ public class Client implements AutoCloseable {
                     return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (Exception e) {
                     throw new ClientException("Failed to get query response", e);
                 }

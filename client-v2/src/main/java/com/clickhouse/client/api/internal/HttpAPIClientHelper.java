@@ -348,13 +348,14 @@ public class HttpAPIClientHelper {
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
+            httpResponse.getEntity().getTrailers().get();
             httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
                 httpResponse.close();
                 throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST) {
+            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
                 try {
                     throw readError(httpResponse);
                 } finally {
