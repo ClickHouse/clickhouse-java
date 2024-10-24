@@ -533,6 +533,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             try (QueryResponse resp = client.query("INSERT INTO test_omm_table SELECT randomString(16) FROM numbers(300000000)", settings).get()) {
 
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), 241);
             }
         }
     }
