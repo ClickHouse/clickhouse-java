@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.query;
 
+import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -489,4 +490,8 @@ public interface GenericRecord {
     Object getObject(String colName);
 
     Object getObject(int index);
+
+    ClickHouseBitmap getClickHouseBitmap(String colName);
+
+    ClickHouseBitmap getClickHouseBitmap(int index);
 }

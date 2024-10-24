@@ -216,7 +216,7 @@ public class BinaryStreamReader {
                     return null;
 //                case SimpleAggregateFunction:
                 case AggregateFunction:
-                    return (T) ClickHouseBitmap.deserialize(input, column.getNestedColumns().get(0).getDataType());
+                    return (T) readBitmap( column);
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
             }
@@ -885,6 +885,11 @@ public class BinaryStreamReader {
                 return false;
         }
     }
+
+    private ClickHouseBitmap readBitmap(ClickHouseColumn column) throws IOException {
+        return ClickHouseBitmap.deserialize(input, column.getNestedColumns().get(0).getDataType());
+    }
+
     /**
      * Byte allocator that caches preallocated byte arrays for small sizes.
      */

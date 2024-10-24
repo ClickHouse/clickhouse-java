@@ -680,10 +680,10 @@ public class SamplePOJO {
                 "array Array(String), " +
                 "tuple Tuple(UInt64, Int32, String), " +
                 "map Map(String, Int32), " +
-                "nested Nested (innerInt Int32, innerString String, innerNullableInt Nullable(Int32))" +
-//                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32)," +
-                // TODO: fix this
-//                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64)" +
+                "nested Nested (innerInt Int32, innerString String, " +
+                "innerNullableInt Nullable(Int32)), " +
+                "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
+                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
                 ") ENGINE = Memory";
     }
 }

@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -519,4 +520,8 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     LocalDateTime getLocalDateTime(int index);
 
     TableSchema getSchema();
+
+    ClickHouseBitmap getClickHouseBitmap(String colName);
+
+    ClickHouseBitmap getClickHouseBitmap(int index);
 }

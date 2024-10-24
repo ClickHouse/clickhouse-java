@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -354,6 +355,16 @@ public class BinaryReaderBackedRecord implements GenericRecord {
 
     @Override
     public Object getObject(int index) {
+        return reader.readValue(index);
+    }
+
+    @Override
+    public ClickHouseBitmap getClickHouseBitmap(String colName) {
+        return reader.readValue(colName);
+    }
+
+    @Override
+    public ClickHouseBitmap getClickHouseBitmap(int index) {
         return reader.readValue(index);
     }
 }
