@@ -348,7 +348,6 @@ public class HttpAPIClientHelper {
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
-            httpResponse.getEntity().getTrailers().get();
             httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
