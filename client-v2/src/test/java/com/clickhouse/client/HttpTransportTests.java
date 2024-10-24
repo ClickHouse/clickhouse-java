@@ -512,4 +512,30 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testErrorWithSendProgressHeaders() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(false)
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) Engine = MergeTree ORDER BY () ").get()) {
+            }
+
+            QuerySettings settings = new QuerySettings()
+                    .serverSetting("send_progress_in_http_headers", "1")
+                    .serverSetting("max_memory_usage", "54M");
+
+            try (QueryResponse resp = client.query("INSERT INTO test_omm_table SELECT randomString(16) FROM numbers(300000000)", settings).get()) {
+
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), 241);
+            }
+        }
+    }
 }
