@@ -25,6 +25,7 @@ import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTraff
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.eclipse.jetty.server.Server;
 import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -320,12 +321,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse response =
                          client.query("SELECT invalid;statement", querySettings).get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
-            } catch (ClientException e) {
+            } catch (ServerException e) {
                 e.printStackTrace();
-                ServerException serverException = (ServerException) e.getCause();
-                Assert.assertEquals(serverException.getCode(), 62);
-                Assert.assertTrue(serverException.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
-                        "Unexpected error message: " + serverException.getMessage());
+                Assert.assertEquals(e.getCode(), 62);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
+                        "Unexpected error message: " + e.getMessage());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -336,6 +336,43 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testServerErrorHandlingDataProvider")
     public static Object[] testServerErrorHandlingDataProvider() {
         return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testErrorWithSuccessfulResponse() {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressServerResponse(false)
+                .useNewImplementation(true)
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withChunkedDribbleDelay(2, 200)
+                            .withHeader("X-ClickHouse-Exception-Code", "241")
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"))
+                    .build());
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getMessage(), "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB");
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            mockServer.stop();
+        }
     }
 
     @Test(groups = { "integration" })
