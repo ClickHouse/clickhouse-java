@@ -294,4 +294,31 @@ public class InsertTests extends BaseIntegrationTest {
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + new_database + "." + tableName);
         assertEquals(records.size(), 1000);
     }
+
+    @Test(groups = { "integration" })
+    public void testInsertSettingsDeduplicationToken() throws Exception {
+        final String tableName = "insert_settings_database_test";
+        final String createTableSQL = "CREATE TABLE " + tableName + " ( A Int64 ) ENGINE = MergeTree ORDER BY A SETTINGS " +
+                                      "non_replicated_deduplication_window = 100";
+        final String deduplicationToken = RandomStringUtils.randomAlphabetic(36);
+
+        dropTable(tableName);
+        createTable(createTableSQL);
+
+        InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
+            .setDeduplicationToken(deduplicationToken);
+
+        for (int i = 0; i < 3; ++i) {
+            ByteArrayOutputStream data = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(data);
+            writer.printf("%d\n", i);
+            writer.flush();
+            InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()), ClickHouseFormat.TSV, insertSettings)
+                .get(30, TimeUnit.SECONDS);
+            response.close();
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
+        assertEquals(records.size(), 1);
+    }
 }
