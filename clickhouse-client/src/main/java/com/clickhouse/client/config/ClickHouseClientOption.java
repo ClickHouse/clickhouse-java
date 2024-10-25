@@ -182,6 +182,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     FORMAT("format", ClickHouseDataConfig.DEFAULT_FORMAT, "Default format."),
     /**
+     * Token used to deduplicate insert query.
+     */
+    INSERT_DEDUPLICATION_TOKEN("insert_deduplication_token", "",
+        "Token used to deduplicate insert query, an empty token means no deduplication."),
+    /**
      * Whether to log leading comment(as log_comment in system.query_log) of the
      * query.
      */

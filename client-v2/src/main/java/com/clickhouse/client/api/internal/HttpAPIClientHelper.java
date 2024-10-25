@@ -449,8 +449,8 @@ public class HttpAPIClientHelper {
             if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
                 req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
             }
-            if (requestConfig.containsKey("insert_deduplication_token")){
-                req.addParameter("insert_deduplication_token", requestConfig.get("insert_deduplication_token").toString());
+            if (requestConfig.containsKey(ClickHouseClientOption.INSERT_DEDUPLICATION_TOKEN.getKey())){
+                req.addParameter("insert_deduplication_token", requestConfig.get(ClickHouseClientOption.INSERT_DEDUPLICATION_TOKEN.getKey()).toString());
             }
             if (requestConfig.containsKey("statement_params")) {
                 Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");

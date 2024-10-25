@@ -70,7 +70,7 @@ public class InsertSettings {
      * @return
      */
     public InsertSettings setDeduplicationToken(String token) {
-        rawSettings.put("insert_deduplication_token", token);
+        rawSettings.put(ClickHouseClientOption.INSERT_DEDUPLICATION_TOKEN.getKey(), token);
         return this;
     }
 
