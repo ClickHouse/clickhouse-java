@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -96,9 +97,20 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
         E[] array = (E[]) Array.newInstance(ClickHouseChecker.nonNull(clazz, ClickHouseValues.TYPE_CLASS), v.length);
         int index = 0;
         for (T o : v) {
-            array[index++] = clazz.cast(o);
+            array[index++] = castOrConvert(o, clazz);
         }
         return array;
+    }
+
+    private <E> E castOrConvert(T o, Class<E> clazz) {
+        if (o instanceof LocalDate && clazz == java.sql.Date.class) {
+            return (E) Date.valueOf((LocalDate) o);
+        } else if (o instanceof LocalDateTime && clazz == java.sql.Timestamp.class) {
+            return (E) java.sql.Timestamp.valueOf((LocalDateTime) o);
+        } else if (o instanceof LocalTime && clazz == java.sql.Time.class) {
+            return (E) java.sql.Time.valueOf((LocalTime) o);
+        }
+        return clazz.cast(o);
     }
 
     @Override

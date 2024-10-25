@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Map;
 
 import com.clickhouse.data.ClickHouseChecker;
@@ -46,24 +47,29 @@ public class ClickHouseArray implements Array {
     public Object getArray() throws SQLException {
         ensureValid();
 
-        return resultSet.getValue(columnIndex).asObject();
+        return resultSet.getObject(columnIndex);
     }
 
     @Override
     public Object getArray(Map<String, Class<?>> map) throws SQLException {
-        return getArray();
+        ensureValid();
+
+        return resultSet.getObject(columnIndex, map);
     }
 
     @Override
     public Object getArray(long index, int count) throws SQLException {
         ensureValid();
-
-        throw SqlExceptionUtils.unsupportedError("getArray not implemented");
+        Object[] arr = (Object[]) getArray();
+        return Arrays.copyOfRange(arr, (int) index, (int) (index + count));
     }
 
     @Override
     public Object getArray(long index, int count, Map<String, Class<?>> map) throws SQLException {
-        return getArray(index, count);
+        ensureValid();
+
+        Object[] arr = (Object[]) getArray(map);
+        return Arrays.copyOfRange(arr, (int) index, (int) (index + count));
     }
 
     @Override

@@ -39,9 +39,13 @@ import java.util.TimeZone;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.value.ClickHouseArrayValue;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.ClickHouseDateValue;
 
 public class ClickHouseResultSet extends AbstractResultSet {
     private ClickHouseRecord currentRow;
@@ -147,7 +151,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         ensureOpen();
 
         if (currentRow == null) {
-            throw new SQLException("No data available for reading", SqlExceptionUtils.SQL_STATE_NO_DATA);
+            throw new SQLException("No data available for reading. Was next() called?", SqlExceptionUtils.SQL_STATE_NO_DATA);
         } else if (columnIndex < 1 || columnIndex > columns.size()) {
             throw SqlExceptionUtils.clientError(ClickHouseUtils
                     .format("Column index must between 1 and %d but we got %d", columns.size() + 1, columnIndex));
@@ -362,7 +366,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        ClickHouseValue value = getValue(columnIndex);
+        return getDateFromValue(getValue(columnIndex), cal);
+    }
+
+    private Date getDateFromValue(ClickHouseValue value, Calendar cal ) {
         if (value.isNullOrEmpty()) {
             return null;
         }
@@ -490,7 +497,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         Object value;
         if (!wrapObject) {
-            value = javaType != null ? v.asObject(javaType) : v.asObject();
+            if (javaType == null) {
+                value = getJDBCDefault( v, c);
+            } else {
+                value = v.asObject(javaType);
+            }
         } else if (c.isArray()) {
             value = new ClickHouseArray(this, columnIndex);
         } else if (c.isTuple() || c.isNested() || c.isMap()) {
@@ -500,6 +511,28 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
 
         return value;
+    }
+
+    private Object getJDBCDefault(ClickHouseValue v, ClickHouseColumn c) {
+        if (v instanceof ClickHouseDateValue) {
+            return getDateFromValue( v, null);
+        } else if (v instanceof ClickHouseDateTimeValue) {
+            return getTimestampFromValue(v, c, null);
+        } else if (v instanceof ClickHouseArrayValue<?>) {
+            switch (c.getArrayBaseColumn().getDataType()) {
+                case Date:
+                case Date32:
+                    return ((ClickHouseArrayValue)v).asArray(java.sql.Date.class);
+                case DateTime:
+                case DateTime32:
+                case DateTime64:
+                    return ((ClickHouseArrayValue)v).asArray(java.sql.Timestamp.class);
+                default:
+                    return v.asObject();
+            }
+        } else {
+            return v.asObject();
+        }
     }
 
     @Override
@@ -636,6 +669,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
 
         ClickHouseColumn column = columns.get(columnIndex - 1);
+        return getTimestampFromValue(value, column, cal);
+    }
+
+    private Timestamp getTimestampFromValue(ClickHouseValue value, ClickHouseColumn column, Calendar cal) {
         TimeZone tz = column.getTimeZone();
         LocalDateTime dt = tz == null ? value.asDateTime(column.getScale())
                 : value.asOffsetDateTime(column.getScale()).toLocalDateTime();

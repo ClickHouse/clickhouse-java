@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -455,6 +456,34 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Timestamp tzTimeTimestamp = rs.getTimestamp(2);
             Assert.assertEquals(serverNowTime, tzTimeTime);
             Assert.assertEquals(serverNowTimestamp, tzTimeTimestamp);
+        }
+    }
+
+
+    @Test(groups = "integration")
+    public void testGettingDateTimeColumns() throws SQLException {
+        final String sql = "SELECT toDate(now()) AS d,  array(toDate(now())) AS d_arr, " +
+                " toDateTime(now()) AS dt, array(toDateTime(now())) AS dt_arr";
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            rs.next();
+
+            Assert.assertTrue(rs.getObject("d") instanceof java.sql.Date, "Expected java.sql.Date");
+            Assert.assertTrue(rs.getObject("dt") instanceof java.sql.Timestamp, "Expected java.sql.Timestamp");
+            Assert.assertTrue(rs.getObject("d_arr") instanceof java.sql.Date[], "Expected java.sql.Date[]");
+            Assert.assertTrue(rs.getObject("dt_arr") instanceof java.sql.Timestamp[], "Expected java.sql.Timestamp[]");
+
+            Assert.assertNotNull(rs.getTime("d"));
+            Assert.assertNotNull(rs.getTime("dt"));
+            Assert.assertTrue(rs.getArray("d_arr").getArray() instanceof java.sql.Date[], "Expected java.sql.Date[]");
+            Assert.assertTrue(rs.getArray("dt_arr").getArray() instanceof java.sql.Timestamp[], "Expected java.sql.Timestamp[]");
+
+
+            Assert.assertNotNull(rs.getObject("d", LocalDate.class), "Expected LocalDate");
+            Assert.assertNotNull(rs.getObject("dt", LocalDateTime.class), "Expected LocalDateTime");
+            Assert.assertNotNull(rs.getObject("d_arr", LocalDate[].class), "Expected LocalDate[]");
+            Assert.assertNotNull(rs.getObject("dt_arr", LocalDateTime[].class), "Expected LocalDateTime[]");
         }
     }
 }
