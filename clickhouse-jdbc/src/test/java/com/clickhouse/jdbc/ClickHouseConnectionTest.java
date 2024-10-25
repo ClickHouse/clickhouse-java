@@ -102,7 +102,8 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
             array = conn.createArrayOf("Int8", new Byte[] { -1, 0, 1 });
             Assert.assertEquals(array.getArray(), new byte[] { -1, 0, 1 });
             array = conn.createArrayOf("UInt8", new Byte[] { -1, 0, 1 });
-            Assert.assertEquals(array.getArray(), new byte[] { -1, 0, 1 });
+            Assert.assertEquals(array.getArray(), new UnsignedByte[] { UnsignedByte.valueOf((byte) -1), UnsignedByte.ZERO,
+            UnsignedByte.ONE});
 
             array = conn.createArrayOf("Nullable(Int8)", new Byte[] { -1, null, 1 });
             Assert.assertEquals(array.getArray(), new Byte[] { -1, null, 1 });

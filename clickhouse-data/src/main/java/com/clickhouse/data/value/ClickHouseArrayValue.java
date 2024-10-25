@@ -110,6 +110,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
         } else if (o instanceof LocalTime && clazz == java.sql.Time.class) {
             return (E) java.sql.Time.valueOf((LocalTime) o);
         }
+
         return clazz.cast(o);
     }
 

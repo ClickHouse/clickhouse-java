@@ -46,6 +46,7 @@ import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseDateTimeValue;
 import com.clickhouse.data.value.ClickHouseDateValue;
+import com.clickhouse.data.value.ClickHouseOffsetDateTimeValue;
 
 public class ClickHouseResultSet extends AbstractResultSet {
     private ClickHouseRecord currentRow;
@@ -496,7 +497,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
 
         Object value;
-        if (!wrapObject) {
+        if (!wrapObject && !c.isArray()) {
             if (javaType == null) {
                 value = getJDBCDefault( v, c);
             } else {
@@ -518,18 +519,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
             return getDateFromValue( v, null);
         } else if (v instanceof ClickHouseDateTimeValue) {
             return getTimestampFromValue(v, c, null);
+        } else if (v instanceof ClickHouseOffsetDateTimeValue) {
+            return getTimestampFromValue( v, c, null);
         } else if (v instanceof ClickHouseArrayValue<?>) {
-            switch (c.getArrayBaseColumn().getDataType()) {
-                case Date:
-                case Date32:
-                    return ((ClickHouseArrayValue)v).asArray(java.sql.Date.class);
-                case DateTime:
-                case DateTime32:
-                case DateTime64:
-                    return ((ClickHouseArrayValue)v).asArray(java.sql.Timestamp.class);
-                default:
-                    return v.asObject();
-            }
+           throw new RuntimeException("This method does not support array type");
         } else {
             return v.asObject();
         }
@@ -542,12 +535,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        return getValue(columnIndex).asObject(type);
+        ClickHouseValue v = getValue(columnIndex);
+        if (v instanceof ClickHouseArrayValue) {
+            return (T) ((ClickHouseArrayValue)v).asArray(type.componentType());
+        } else {
+            return v.asObject(type);
+        }
     }
 
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        return getValue(findColumn(columnLabel)).asObject(type);
+        return getObject(findColumn(columnLabel), type);
     }
 
     @Override
@@ -673,6 +671,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     private Timestamp getTimestampFromValue(ClickHouseValue value, ClickHouseColumn column, Calendar cal) {
+        if (value.isNullOrEmpty()) {
+            return null;
+        }
         TimeZone tz = column.getTimeZone();
         LocalDateTime dt = tz == null ? value.asDateTime(column.getScale())
                 : value.asOffsetDateTime(column.getScale()).toLocalDateTime();

@@ -8,6 +8,8 @@ import java.util.Map;
 
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.value.ClickHouseArrayValue;
 
 public class ClickHouseArray implements Array {
     private final int columnIndex;
@@ -25,6 +27,10 @@ public class ClickHouseArray implements Array {
         }
     }
 
+    /**
+     * Returns Array base column
+     * @return
+     */
     protected ClickHouseColumn getBaseColumn() {
         return resultSet.columns.get(columnIndex - 1).getArrayBaseColumn();
     }
@@ -46,15 +52,26 @@ public class ClickHouseArray implements Array {
     @Override
     public Object getArray() throws SQLException {
         ensureValid();
-
-        return resultSet.getObject(columnIndex);
+        return getArray(null);
     }
 
     @Override
     public Object getArray(Map<String, Class<?>> map) throws SQLException {
         ensureValid();
 
-        return resultSet.getObject(columnIndex, map);
+        ClickHouseValue v = resultSet.getValue(columnIndex);
+        Class<?> targetClass = map != null ? map.get(getBaseTypeName()) : null;
+        switch (getBaseColumn().getDataType()) {
+            case Date:
+            case Date32:
+                return ((ClickHouseArrayValue)v).asArray(targetClass == null ? java.sql.Date.class : targetClass);
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                return ((ClickHouseArrayValue)v).asArray(targetClass == null ? java.sql.Timestamp.class : targetClass);
+            default:
+                return targetClass == null ? v.asArray() : v.asArray(targetClass);
+        }
     }
 
     @Override

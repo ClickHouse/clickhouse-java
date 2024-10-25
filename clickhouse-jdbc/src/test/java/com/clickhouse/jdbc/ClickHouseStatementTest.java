@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -115,7 +116,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getString(1), "k");
                 ps.setString(1, rs.getString(1));
-                Object[] values = (Object[]) rs.getObject(2);
+                Object[] values = (Object[]) ((Array)rs.getObject(2)).getArray();
                 ps.setObject(2, values);
                 Assert.assertEquals(values.length, 4);
                 for (int i = 0; i < values.length; i++) {
@@ -250,7 +251,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject("ts", LocalDateTime.class), LocalDateTime.of(2021, 11, 1, 12, 34, 56));
             Assert.assertEquals(rs.getObject("t", LocalTime.class), LocalTime.of(12, 34, 56));
-            Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
+            Assert.assertEquals(rs.getObject("d"), Date.valueOf(LocalDate.of(2021, 11, 1)));
             Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
             Assert.assertFalse(rs.next());
         }
@@ -815,7 +816,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getArray(1).getArray(), expectedArray);
-            Assert.assertEquals(rs.getObject(1), expectedArray);
+            Assert.assertEquals(rs.getObject(1, List.class), expectedArray);
             Assert.assertEquals(rs.getObject(2), expectedTuple);
             Assert.assertFalse(rs.next());
         }
@@ -904,12 +905,12 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select now(), now('Asia/Chongqing')");
             Assert.assertTrue(rs.next());
-            LocalDateTime dt1 = (LocalDateTime) rs.getObject(1);
+            Timestamp dt1 = (Timestamp) rs.getObject(1);
             LocalDateTime dt2 = rs.getObject(1, LocalDateTime.class);
-            Assert.assertTrue(dt1 == dt2);
-            OffsetDateTime ot1 = (OffsetDateTime) rs.getObject(2);
+            Assert.assertEquals(dt1.toLocalDateTime(), dt2);
+            Timestamp ot1 = (Timestamp) rs.getObject(2);
             OffsetDateTime ot2 = rs.getObject(2, OffsetDateTime.class);
-            Assert.assertTrue(ot1 == ot2);
+            Assert.assertEquals(ot1.toLocalDateTime(), ot2.toLocalDateTime());
             Assert.assertFalse(rs.next());
         }
 
@@ -925,8 +926,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1),
-                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(1616633456L), ZoneId.of(tz))
-                            .toLocalDateTime());
+                    Timestamp.valueOf(ZonedDateTime.ofInstant(Instant.ofEpochSecond(1616633456L), ZoneId.of(tz))
+                            .toLocalDateTime()));
             Assert.assertFalse(rs.next());
         }
     }
@@ -1033,14 +1034,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
             Assert.assertEquals(rs.getObject(index++), 1L);
             Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
-            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
-            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
-            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
-            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
-            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
-            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
-            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
-            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++, byte[].class), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++, byte[].class), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++, short[].class), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++, short[].class), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++, int[].class), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++, int[].class), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++, long[].class), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++, long[].class), new long[] { 1L });
             Assert.assertFalse(rs.next());
         }
 
@@ -1059,14 +1060,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
             Assert.assertEquals(rs.getObject(index++), 1L);
             Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
-            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
-            Assert.assertEquals(rs.getObject(index++), new UnsignedByte[] { UnsignedByte.ONE });
-            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
-            Assert.assertEquals(rs.getObject(index++), new UnsignedShort[] { UnsignedShort.ONE });
-            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
-            Assert.assertEquals(rs.getObject(index++), new UnsignedInteger[] { UnsignedInteger.ONE });
-            Assert.assertEquals(rs.getObject(index++), new Long[] { 1L });
-            Assert.assertEquals(rs.getObject(index++), new UnsignedLong[] { UnsignedLong.ONE });
+            Assert.assertEquals(rs.getObject(index++, byte[].class), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++, UnsignedByte[].class), new UnsignedByte[] { UnsignedByte.ONE });
+            Assert.assertEquals(rs.getObject(index++, short[].class), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++, UnsignedShort[].class), new UnsignedShort[] { UnsignedShort.ONE });
+            Assert.assertEquals(rs.getObject(index++, int[].class), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++, UnsignedInteger[].class), new UnsignedInteger[] { UnsignedInteger.ONE });
+            Assert.assertEquals(rs.getObject(index++, Long[].class), new Long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++, UnsignedLong[].class), new UnsignedLong[] { UnsignedLong.ONE });
             Assert.assertFalse(rs.next());
         }
 
@@ -1085,14 +1086,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
             Assert.assertEquals(rs.getObject(index++), 1L);
             Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
-            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
-            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
-            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
-            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
-            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
-            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
-            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
-            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++, byte[].class), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++, byte[].class), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++, short[].class), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++, short[].class), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++, int[].class), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++, int[].class), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++, long[].class), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++, long[].class), new long[] { 1L });
             Assert.assertFalse(rs.next());
         }
     }
@@ -1139,23 +1140,24 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
-                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0), UnsignedShort.ZERO);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(1), new int[] { 1, 2 });
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0), UnsignedShort.ONE);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(1), new int[] { 2, 3 });
+                Array array = (Array)rs.getObject(2);
+                Assert.assertEquals(((Object[]) array.getArray()).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(0), UnsignedShort.ZERO);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(1), new int[] { 1, 2 });
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(0), UnsignedShort.ONE);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(1), new int[] { 2, 3 });
                 Assert.assertTrue(rs.next());
-                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0),
+                Assert.assertEquals(((Object[]) array.getArray()).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(0),
                         UnsignedShort.valueOf((short) 2));
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(1), new int[] { 4, 5 });
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0),
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(1), new int[] { 4, 5 });
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(0),
                         UnsignedShort.valueOf((short) 3));
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(1), new int[] { 6, 7 });
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(1), new int[] { 6, 7 });
                 Assert.assertFalse(rs.next());
             }
 
@@ -1165,34 +1167,35 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
-                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0), UnsignedShort.ZERO);
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[0],
+                Array array = (Array)rs.getObject(2);
+                Assert.assertEquals(((Object[]) array.getArray()).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(0), UnsignedShort.ZERO);
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[0]).get(1))[0],
                         BigDecimal.valueOf(1));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[1],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[0]).get(1))[1],
                         BigDecimal.valueOf(2));
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0), UnsignedShort.ONE);
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[0],
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(0), UnsignedShort.ONE);
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[1]).get(1))[0],
                         BigDecimal.valueOf(2));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[1],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[1]).get(1))[1],
                         BigDecimal.valueOf(3));
                 Assert.assertTrue(rs.next());
-                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0),
+                Assert.assertEquals(((Object[]) array.getArray()).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[0]).get(0),
                         UnsignedShort.valueOf((short) 2));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[0],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[0]).get(1))[0],
                         BigDecimal.valueOf(4));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[1],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[0]).get(1))[1],
                         BigDecimal.valueOf(5));
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
-                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0),
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) array.getArray())[1]).get(0),
                         UnsignedShort.valueOf((short) 3));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[0],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[1]).get(1))[0],
                         BigDecimal.valueOf(6));
-                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[1],
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) array.getArray())[1]).get(1))[1],
                         BigDecimal.valueOf(7));
                 Assert.assertFalse(rs.next());
             }
@@ -1211,16 +1214,17 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                                 "select * from (select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v) order by id")) {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), arr1 = (Object[][]) rs.getArray(2).getArray());
-            Assert.assertEquals(((Object[][]) rs.getObject(2)).length, 2);
-            Assert.assertEquals(((Object[][]) rs.getObject(2))[0], new Object[] { "1", "2" });
-            Assert.assertEquals(((Object[][]) rs.getObject(2))[1], new Object[] { "3", "4" });
+            Array array = (Array)rs.getObject(2);
+            Assert.assertEquals(array.getArray(), arr1 = (Object[][]) rs.getArray(2).getArray());
+            Assert.assertEquals(((Object[][]) array.getArray()).length, 2);
+            Assert.assertEquals(((Object[][]) array.getArray())[0], new Object[] { "1", "2" });
+            Assert.assertEquals(((Object[][]) array.getArray())[1], new Object[] { "3", "4" });
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), arr2 = (Object[][]) rs.getArray(2).getArray());
-            Assert.assertEquals(((Object[][]) rs.getObject(2)).length, 2);
-            Assert.assertEquals(((Object[][]) rs.getObject(2))[0], new Object[] { "5", "6" });
-            Assert.assertEquals(((Object[][]) rs.getObject(2))[1], new Object[] { "7", "8" });
+            Assert.assertEquals(array.getArray(), arr2 = (Object[][]) rs.getArray(2).getArray());
+            Assert.assertEquals(((Object[][]) array.getArray()).length, 2);
+            Assert.assertEquals(((Object[][]) array.getArray())[0], new Object[] { "5", "6" });
+            Assert.assertEquals(((Object[][]) array.getArray())[1], new Object[] { "7", "8" });
             Assert.assertFalse(rs.next());
         }
 
@@ -1238,7 +1242,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), Arrays.asList(UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2)));
-            Assert.assertEquals(rs.getObject(2), new byte[] { (byte) 3, (byte) 4 });
+            Assert.assertEquals(rs.getObject(2, byte[].class), new byte[] { (byte) 3, (byte) 4 });
             Assert.assertFalse(rs.next());
         }
 
@@ -1248,7 +1252,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), Arrays.asList(UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2)));
-            Assert.assertEquals(rs.getObject(2),
+            Assert.assertEquals(rs.getObject(2, UnsignedByte[].class),
                     new UnsignedByte[] { UnsignedByte.valueOf((byte) 3), UnsignedByte.valueOf((byte) 4) });
             Assert.assertFalse(rs.next());
         }
@@ -1259,8 +1263,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getObject(1), Arrays.asList((short) 1, (short) 2));
-            Assert.assertEquals(rs.getObject(2), new short[] { (short) 3, (short) 4 });
+            Assert.assertEquals(rs.getObject(2, short[].class), new short[] { (short) 3, (short) 4 });
+            Assert.assertEquals(rs.getObject(1, List.class), Arrays.asList((short) 1, (short) 2));
             Assert.assertFalse(rs.next());
         }
 
@@ -1272,6 +1276,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(((ClickHouseStruct) rs.getObject(1)).getAttributes(),
                     new Object[] { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2) });
+            Assert.assertTrue(rs.getObject(2) instanceof Array);
             Assert.assertEquals(((ClickHouseArray) rs.getObject(2)).getArray(), rs.getArray(2).getArray());
             Assert.assertFalse(rs.next());
         }
@@ -1467,8 +1472,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery("select toDateTime('2024-01-01 10:00:00', 'America/Los_Angeles'), toDateTime('2024-05-01 10:00:00', " +
                     " 'America/Los_Angeles'), now() SETTINGS session_timezone = 'America/Los_Angeles'");
             rs.next();
-            OffsetDateTime dstStart = (OffsetDateTime) rs.getObject(1);
-            OffsetDateTime dstEnd = (OffsetDateTime) rs.getObject(2);
+            OffsetDateTime dstStart = rs.getObject(1, OffsetDateTime.class);
+            OffsetDateTime dstEnd = rs.getObject(2, OffsetDateTime.class);
             OffsetDateTime now = rs.getObject(3, OffsetDateTime.class);
             System.out.println("dstStart: " + dstStart + ", dstEnd: " + dstEnd + ", now: " + now);
             Assert.assertEquals(dstStart.getOffset(), ZoneOffset.ofHours(-8));

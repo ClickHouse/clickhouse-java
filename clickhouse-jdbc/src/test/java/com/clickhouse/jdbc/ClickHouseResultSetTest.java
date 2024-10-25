@@ -2,12 +2,14 @@ package com.clickhouse.jdbc;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -43,6 +45,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     private Object[][] getNullableTypes() {
         return new Object[][] {
                 new Object[] { ClickHouseDataType.Int32, Integer.valueOf(12345),
+                        Integer.valueOf(12345),
                         new BiFunction<ResultSet, Integer, Object>() {
                             @Override
                             public Object apply(ResultSet rs, Integer i) {
@@ -61,6 +64,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                             }
                         } },
                 new Object[] { ClickHouseDataType.Date, LocalDate.of(2022, 1, 7),
+                        Date.valueOf(LocalDate.of(2022, 1, 7)),
                         new BiFunction<ResultSet, Integer, Object>() {
                             @Override
                             public Object apply(ResultSet rs, Integer i) {
@@ -78,7 +82,9 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                                 }
                             }
                         } },
-                new Object[] { ClickHouseDataType.DateTime, LocalDateTime.of(2022, 1, 7, 19, 11, 55),
+                new Object[] { ClickHouseDataType.DateTime,
+                        LocalDateTime.of(2022, 1, 7, 19, 11, 55),
+                        Timestamp.valueOf(LocalDateTime.of(2022, 1, 7, 19, 11, 55)),
                         new BiFunction<ResultSet, Integer, Object>() {
                             @Override
                             public Object apply(ResultSet rs, Integer i) {
@@ -178,27 +184,29 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                     "select [1,2,3] v1, ['a','b', 'c'] v2, arrayZip(v1, v2) v3, cast(['2021-11-01 01:02:03', '2021-11-02 02:03:04'] as Array(DateTime32)) v4");
             Assert.assertTrue(rs.next());
 
-            Assert.assertEquals(rs.getObject(1), new byte[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getArray(1).getArray(), new byte[] { 1, 2, 3 });
-            Assert.assertTrue(rs.getArray(1).getArray() == rs.getObject(1));
+            Assert.assertEquals(rs.getObject(1, byte[].class), new byte[] { 1, 2, 3 });
+            Assert.assertEquals(rs.getArray(1).getArray(), new UnsignedByte[] { UnsignedByte.valueOf((byte) 1), UnsignedByte.valueOf((byte) 2), UnsignedByte.valueOf((byte) 3) });
+            Assert.assertEquals(rs.getArray(1).getArray(), ((Array)rs.getObject(1)).getArray());
 
-            Assert.assertEquals(rs.getObject(2), new String[] { "a", "b", "c" });
+            Assert.assertEquals(rs.getObject(2, String[].class), new String[] { "a", "b", "c" });
             Assert.assertEquals(rs.getArray(2).getArray(), new String[] { "a", "b", "c" });
-            Assert.assertTrue(rs.getArray(2).getArray() == rs.getObject(2));
+            Assert.assertEquals(rs.getArray(2).getArray(), ((Array)rs.getObject(2)).getArray());
 
-            Assert.assertEquals(rs.getObject(3), new List[] { Arrays.asList(UnsignedByte.ONE, "a"),
+            Assert.assertEquals(rs.getObject(3, List[].class), new List[] { Arrays.asList(UnsignedByte.ONE, "a"),
                     Arrays.asList(UnsignedByte.valueOf((byte) 2), "b"),
                     Arrays.asList(UnsignedByte.valueOf((byte) 3), "c") });
             Assert.assertEquals(rs.getArray(3).getArray(), new List[] { Arrays.asList(UnsignedByte.ONE, "a"),
                     Arrays.asList(UnsignedByte.valueOf((byte) 2), "b"),
                     Arrays.asList(UnsignedByte.valueOf((byte) 3), "c") });
-            Assert.assertTrue(rs.getArray(3).getArray() == rs.getObject(3));
+            Assert.assertEquals(rs.getArray(3).getArray(), ((Array)rs.getObject(3)).getArray());
 
-            Assert.assertEquals(rs.getObject(4), new LocalDateTime[] { LocalDateTime.of(2021, 11, 1, 1, 2, 3),
-                    LocalDateTime.of(2021, 11, 2, 2, 3, 4) });
-            Assert.assertEquals(rs.getArray(4).getArray(), new LocalDateTime[] { LocalDateTime.of(2021, 11, 1, 1, 2, 3),
-                    LocalDateTime.of(2021, 11, 2, 2, 3, 4) });
-            Assert.assertTrue(rs.getArray(4).getArray() == rs.getObject(4));
+            Assert.assertEquals(rs.getObject(4, Timestamp[].class), new Timestamp[] {
+                    Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 1, 2, 3)),
+                    Timestamp.valueOf(LocalDateTime.of(2021, 11, 2, 2, 3, 4)) });
+            Assert.assertEquals(rs.getArray(4).getArray(), new Timestamp[] {
+                    Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 1, 2, 3)),
+                    Timestamp.valueOf(LocalDateTime.of(2021, 11, 2, 2, 3, 4)) });
+            Assert.assertEquals(rs.getArray(4).getArray(), ((Array)rs.getObject(4)).getArray());
 
             Assert.assertFalse(rs.next());
         }
@@ -322,7 +330,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "nullableTypes", groups = "integration")
-    public void testNullableValues(ClickHouseDataType type, Object value, BiFunction<ResultSet, Integer, Object> func)
+    public void testNullableValues(ClickHouseDataType type, Object value, Object expectedValue, BiFunction<ResultSet, Integer, Object> func)
             throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
@@ -335,7 +343,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
 
             ResultSet rs = stmt.executeQuery(ddl + insert + query);
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getObject(1), value);
+            Assert.assertEquals(rs.getObject(1), expectedValue);
             Assert.assertNotNull(rs.getString(1));
             Assert.assertNotNull(func.apply(rs, 1));
             Assert.assertNull(rs.getObject(2));
@@ -441,8 +449,8 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             OffsetDateTime serverNowOffseted = rs.getObject(1, OffsetDateTime.class);
-            LocalDateTime serverNow = (LocalDateTime) rs.getObject(1);
-            OffsetDateTime tzTime = (OffsetDateTime) rs.getObject(2);
+            LocalDateTime serverNow = rs.getObject(1, LocalDateTime.class);
+            OffsetDateTime tzTime = rs.getObject(2, OffsetDateTime.class);
             ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
             Assert.assertTrue(serverNow.isEqual(tzTime.toLocalDateTime()));
             Assert.assertTrue(serverNow.isEqual(serverNowOffseted.toLocalDateTime()));
@@ -471,11 +479,10 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
 
             Assert.assertTrue(rs.getObject("d") instanceof java.sql.Date, "Expected java.sql.Date");
             Assert.assertTrue(rs.getObject("dt") instanceof java.sql.Timestamp, "Expected java.sql.Timestamp");
-            Assert.assertTrue(rs.getObject("d_arr") instanceof java.sql.Date[], "Expected java.sql.Date[]");
-            Assert.assertTrue(rs.getObject("dt_arr") instanceof java.sql.Timestamp[], "Expected java.sql.Timestamp[]");
-
-            Assert.assertNotNull(rs.getTime("d"));
-            Assert.assertNotNull(rs.getTime("dt"));
+            Assert.assertTrue(rs.getObject("d_arr") instanceof Array);
+            Assert.assertTrue(rs.getObject("dt_arr") instanceof Array);
+            Assert.assertTrue(((Array) rs.getObject("d_arr")).getArray() instanceof java.sql.Date[], "Expected java.sql.Date[]");
+            Assert.assertTrue(((Array) rs.getObject("dt_arr")).getArray() instanceof java.sql.Timestamp[], "Expected java.sql.Timestamp[]");
             Assert.assertTrue(rs.getArray("d_arr").getArray() instanceof java.sql.Date[], "Expected java.sql.Date[]");
             Assert.assertTrue(rs.getArray("dt_arr").getArray() instanceof java.sql.Timestamp[], "Expected java.sql.Timestamp[]");
 
