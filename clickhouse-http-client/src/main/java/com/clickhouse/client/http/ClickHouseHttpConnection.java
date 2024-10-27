@@ -9,15 +9,8 @@ import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
@@ -417,10 +410,23 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return config.getClientName();
     }
 
+    protected String getAdditionalFrameworkUserAgent() {
+        List<String> frameworks = List.of("apache.spark");
+        Set<String> inferredFrameworks = new LinkedHashSet<>();
+        for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+            for (String framework : frameworks) {
+                if (ste.toString().contains(framework)) {
+                    inferredFrameworks.add(String.format("(%s)", framework));
+                }
+            }
+        }
+        return String.join("; ", inferredFrameworks);
+    }
+
     protected final String getUserAgent() {
         final ClickHouseConfig c = config;
         String name = c.getClientName();
-        String userAgent = getDefaultUserAgent();
+        String userAgent = getDefaultUserAgent() + getAdditionalFrameworkUserAgent();
 
         if (!ClickHouseClientOption.CLIENT_NAME.getDefaultValue().equals(name)) {
             return name + " " + userAgent;
