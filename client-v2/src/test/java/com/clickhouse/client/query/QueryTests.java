@@ -12,9 +12,12 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -26,8 +29,10 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,6 +41,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import org.testng.util.Strings;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -49,6 +55,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -56,6 +63,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -64,6 +72,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -550,8 +559,10 @@ public class QueryTests extends BaseIntegrationTest {
         try {
             client.queryRecords("SELECT * FROM unknown_table").get(3, TimeUnit.SECONDS);
             Assert.fail("expected exception");
+        } catch (ServerException e) {
+            Assert.assertTrue(e.getMessage().contains("Unknown table"));
         } catch (ExecutionException e) {
-            Assert.assertTrue(e.getCause() instanceof ClientException);
+            Assert.assertTrue(e.getCause() instanceof ServerException);
         } catch (ClientException e) {
             // expected
         }
@@ -706,18 +717,36 @@ public class QueryTests extends BaseIntegrationTest {
                 "min_date Date",
                 "max_date Date",
                 "min_dateTime DateTime",
-                "max_dateTime DateTime"
+                "max_dateTime DateTime",
+                "min_dateTime64 DateTime64",
+                "max_dateTime64 DateTime64",
+                "min_dateTime64_6 DateTime64(6)",
+                "max_dateTime64_6 DateTime64(6)",
+                "min_dateTime64_9 DateTime64(9)",
+                "max_dateTime64_9 DateTime64(9)"
         );
 
         final LocalDate minDate = LocalDate.parse("1970-01-01");
         final LocalDate maxDate = LocalDate.parse("2149-06-06");
-        final LocalDateTime minDateTime = LocalDateTime.parse("1970-01-01T00:00:00");
+        final LocalDateTime minDateTime = LocalDateTime.parse("1970-01-01T01:02:03");
         final LocalDateTime maxDateTime = LocalDateTime.parse("2106-02-07T06:28:15");
+        final LocalDateTime minDateTime64 = LocalDateTime.parse("1970-01-01T01:02:03.123");
+        final LocalDateTime maxDateTime64 = LocalDateTime.parse("2106-02-07T06:28:15.123");
+        final LocalDateTime minDateTime64_6 = LocalDateTime.parse("1970-01-01T01:02:03.123456");
+        final LocalDateTime maxDateTime64_6 = LocalDateTime.parse("2106-02-07T06:28:15.123456");
+        final LocalDateTime minDateTime64_9 = LocalDateTime.parse("1970-01-01T01:02:03.123456789");
+        final LocalDateTime maxDateTime64_9 = LocalDateTime.parse("2106-02-07T06:28:15.123456789");
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> sq(minDate.toString()),
                 () -> sq(maxDate.toString()),
-                () -> sq(minDateTime.format(DataTypeUtils.DATE_TIME_FORMATTER)),
-                () -> sq(maxDateTime.format(DataTypeUtils.DATE_TIME_FORMATTER))
+                () -> sq(minDateTime.format(DataTypeUtils.DATETIME_FORMATTER)),
+                () -> sq(maxDateTime.format(DataTypeUtils.DATETIME_FORMATTER)),
+                () -> sq(minDateTime64.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER)),
+                () -> sq(maxDateTime64.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER)),
+                () -> sq(minDateTime64_6.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER)),
+                () -> sq(maxDateTime64_6.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER)),
+                () -> sq(minDateTime64_9.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER)),
+                () -> sq(maxDateTime64_9.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER))
         );
 
         final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
@@ -740,6 +769,36 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertTrue(r.hasValue("max_dateTime"), "No value for column max_dateTime found");
             Assert.assertEquals(r.getLocalDateTime("max_dateTime"), maxDateTime);
             Assert.assertEquals(r.getLocalDateTime(4), maxDateTime);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_dateTime64"), "No value for column min_dateTime64 found");
+            Assert.assertEquals(r.getLocalDateTime("min_dateTime64"), minDateTime64);
+            Assert.assertEquals(r.getLocalDateTime(5), minDateTime64);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_dateTime64"), "No value for column max_dateTime64 found");
+            Assert.assertEquals(r.getLocalDateTime("max_dateTime64"), maxDateTime64);
+            Assert.assertEquals(r.getLocalDateTime(6), maxDateTime64);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_dateTime64_6"), "No value for column min_dateTime64_6 found");
+            Assert.assertEquals(r.getLocalDateTime("min_dateTime64_6"), minDateTime64_6);
+            Assert.assertEquals(r.getLocalDateTime(7), minDateTime64_6);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_dateTime64_6"), "No value for column max_dateTime64_6 found");
+            Assert.assertEquals(r.getLocalDateTime("max_dateTime64_6"), maxDateTime64_6);
+            Assert.assertEquals(r.getLocalDateTime(8), maxDateTime64_6);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("min_dateTime64_9"), "No value for column min_dateTime64_9 found");
+            Assert.assertEquals(r.getLocalDateTime("min_dateTime64_9"), minDateTime64_9);
+            Assert.assertEquals(r.getLocalDateTime(9), minDateTime64_9);
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("max_dateTime64_9"), "No value for column max_dateTime64_9 found");
+            Assert.assertEquals(r.getLocalDateTime("max_dateTime64_9"), maxDateTime64_9);
+            Assert.assertEquals(r.getLocalDateTime(10), maxDateTime64_9);
         });
 
         testDataTypes(columns, valueGenerators, verifiers);
@@ -932,6 +991,40 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers);
     }
 
+
+    @Test(groups = {"integration"})
+    public void testArrayTuples() {
+        final List<String> columns = Arrays.asList(
+            "col1 Array(Tuple(UInt32, String))",
+            "col2 Array(Tuple(UInt32, String, Float32))",
+            "col3 Array(Tuple(UInt32, Tuple(Float32, String)))"
+        );
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+            () -> "[(1, 'value1'), (2, 'value2')]",
+            () -> "[(1, 'value2', 23.43), (2, 'value3', 43.21)]",
+            () -> "[(1, (23.43, 'value3')), (2, (43.21, 'value4'))]"
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col1"), "No value for column col1 found");
+            Assert.assertEquals(r.getList("col1").get(0), new Object[]{1L, "value1"});
+            Assert.assertEquals(r.getList("col1").get(1), new Object[]{2L, "value2"});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col2"), "No value for column col2 found");
+            Assert.assertEquals(r.getList("col2").get(0),  new Object[]{1L, "value2", 23.43f});
+            Assert.assertEquals(r.getList("col2").get(1), new Object[]{2L, "value3", 43.21f});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col3"), "No value for column col2 found");
+            Assert.assertEquals(r.getList("col3").get(0), new Object[]{1L, new Object[]{23.43f, "value3"}});
+            Assert.assertEquals(r.getList("col3").get(1), new Object[]{2L, new Object[]{43.21f, "value4"}});
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
     @Test(groups = {"integration"})
     public void testTuples() {
         final List<String> columns = Arrays.asList(
@@ -1568,6 +1661,85 @@ public class QueryTests extends BaseIntegrationTest {
     public static BigDecimal cropDecimal(BigDecimal value, int scale) {
         BigInteger bi = value.unscaledValue().divide(BigInteger.TEN.pow(value.scale() - scale));
         return new BigDecimal(bi, scale);
+    }
+
+    @DataProvider(name = "sessionRoles")
+    private static Object[][] sessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+                {new String[]{"ROL1", "ROL2"}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
+    public void testOperationCustomRoles(String[] roles) throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
+            System.out.println("Test is skipped: feature is supported since 24.4");
+            return;
+        }
+
+        final String password = UUID.randomUUID().toString();
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        }
+        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
+        }
+
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
+    }
+
+    @DataProvider(name = "clientSessionRoles")
+    private static Object[][] clientSessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+        };
+    }
+    @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
+    public void testClientCustomRoles(String[] roles) throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
+            System.out.println("Test is skipped: feature is supported since 24.4");
+            return;
+        }
+
+        final String password = UUID.randomUUID().toString();
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
+        }
+        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+        }
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        }
+        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
+        }
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            userClient.setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
     }
 
 

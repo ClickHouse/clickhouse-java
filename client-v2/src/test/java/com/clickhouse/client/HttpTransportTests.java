@@ -6,6 +6,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -24,6 +25,7 @@ import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTraff
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.eclipse.jetty.server.Server;
 import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -42,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.Assert.fail;
 
 public class HttpTransportTests extends BaseIntegrationTest {
 
@@ -318,12 +321,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse response =
                          client.query("SELECT invalid;statement", querySettings).get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
-            } catch (ClientException e) {
+            } catch (ServerException e) {
                 e.printStackTrace();
-                ServerException serverException = (ServerException) e.getCause();
-                Assert.assertEquals(serverException.getCode(), 62);
-                Assert.assertTrue(serverException.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
-                        "Unexpected error message: " + serverException.getMessage());
+                Assert.assertEquals(e.getCode(), 62);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
+                        "Unexpected error message: " + e.getMessage());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -334,6 +336,43 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testServerErrorHandlingDataProvider")
     public static Object[] testServerErrorHandlingDataProvider() {
         return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testErrorWithSuccessfulResponse() {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressServerResponse(false)
+                .useNewImplementation(true)
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withChunkedDribbleDelay(2, 200)
+                            .withHeader("X-ClickHouse-Exception-Code", "241")
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"))
+                    .build());
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getMessage(), "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB");
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            mockServer.stop();
+        }
     }
 
     @Test(groups = { "integration" })
@@ -414,6 +453,89 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.fail("Unexpected exception", e);
             }
         }
+    }
 
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
+    @Test(groups = { "integration" })
+    public void testSSLAuthentication() throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .setUsername("default")
+                .setPassword("")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
+            }
+        }
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .useSSLAuthentication(true)
+                .setUsername("some_user")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setClientCertificate("some_user.crt")
+                .setClientKey("some_user.key")
+                .compressServerResponse(false)
+                .build()) {
+
+            try (QueryResponse resp = client.query("SELECT 1").get()) {
+                Assert.assertEquals(resp.getReadRows(), 1);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLAuthentication_invalidConfig() throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                .useSSLAuthentication(true)
+                .setUsername("some_user")
+                .setPassword("s3cret")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setClientCertificate("some_user.crt")
+                .setClientKey("some_user.key")
+                .compressServerResponse(false)
+                .build()) {
+            fail("Expected exception");
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+                Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testErrorWithSendProgressHeaders() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(false)
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) Engine = MergeTree ORDER BY () ").get()) {
+            }
+
+            QuerySettings settings = new QuerySettings()
+                    .serverSetting("send_progress_in_http_headers", "1")
+                    .serverSetting("max_memory_usage", "54M");
+
+            try (QueryResponse resp = client.query("INSERT INTO test_omm_table SELECT randomString(16) FROM numbers(300000000)", settings).get()) {
+
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), 241);
+            }
+        }
     }
 }

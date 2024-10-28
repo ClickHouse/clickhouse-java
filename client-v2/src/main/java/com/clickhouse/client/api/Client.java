@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -29,6 +30,8 @@ import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
+import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -78,6 +81,7 @@ import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -146,8 +150,10 @@ public class Client implements AutoCloseable {
     private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
     private Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
+    private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -170,6 +176,7 @@ public class Client implements AutoCloseable {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
             LOG.info("Using old http client implementation");
         }
+        this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
     }
 
     /**
@@ -211,6 +218,7 @@ public class Client implements AutoCloseable {
         private boolean useNewImplementation = true;
 
         private ExecutorService sharedOperationExecutor = null;
+        private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -317,6 +325,17 @@ public class Client implements AutoCloseable {
          */
         public Builder setAccessToken(String accessToken) {
             this.configuration.put("access_token", accessToken);
+            return this;
+        }
+
+        /**
+         * Makes client to use SSL Client Certificate to authenticate with server.
+         * Client certificate should be set as well. {@link Client.Builder#setClientCertificate(String)}
+         * @param useSSLAuthentication
+         * @return
+         */
+        public Builder useSSLAuthentication(boolean useSSLAuthentication) {
+            this.configuration.put("ssl_authentication", String.valueOf(useSSLAuthentication));
             return this;
         }
 
@@ -846,6 +865,18 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets column to method matching strategy. It is used while registering POJO serializers and deserializers.
+         * Default is {@link DefaultColumnToMethodMatchingStrategy}.
+         *
+         * @param strategy - matching strategy
+         * @return same instance of the builder
+         */
+        public Builder columnToMethodMatchingStrategy(ColumnToMethodMatchingStrategy strategy) {
+            this.columnToMethodMatchingStrategy = strategy;
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -854,12 +885,24 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
             // check if username and password are empty. so can not initiate client?
-            if (!this.configuration.containsKey("access_token") && (!this.configuration.containsKey("user") || !this.configuration.containsKey("password"))) {
-                throw new IllegalArgumentException("Username and password are required");
+            if (!this.configuration.containsKey("access_token") &&
+                (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
+                !MapUtils.getFlag(this.configuration, "ssl_authentication")) {
+                throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
             }
 
-            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE) &&
-                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE)) {
+            if (this.configuration.containsKey("ssl_authentication") &&
+                    (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
+                throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
+            }
+
+            if (this.configuration.containsKey("ssl_authentication") &&
+                !this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
+                throw new IllegalArgumentException("SSL authentication requires a client certificate");
+            }
+
+            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE.getKey()) &&
+                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
@@ -891,7 +934,7 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
         }
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
@@ -963,6 +1006,10 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
                 allowBinaryReaderToReuseBuffers(false);
             }
+
+            if (columnToMethodMatchingStrategy == null) {
+                columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
+            }
         }
     }
 
@@ -990,6 +1037,7 @@ public class Client implements AutoCloseable {
             try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
                 return true;
             } catch (Exception e) {
+                LOG.debug("Failed to connect to the server", e);
                 return false;
             }
         } else {
@@ -1018,19 +1066,17 @@ public class Client implements AutoCloseable {
         }
         tableSchemaCache.put(schemaKey, schema);
 
+        ColumnToMethodMatchingStrategy matchingStrategy = columnToMethodMatchingStrategy;
+
         //Create a new POJOSerializer with static .serialize(object, columns) methods
         Map<String, Method> classGetters = new HashMap<>();
         Map<String, Method> classSetters = new HashMap<>();
         for (Method method : clazz.getMethods()) {//Clean up the method names
-            String methodName = method.getName();
-            if (methodName.startsWith("get") || methodName.startsWith("has")) {
-                methodName = methodName.substring(3).toLowerCase();
+            if (matchingStrategy.isGetter(method.getName())) {
+                String methodName = matchingStrategy.normalizeMethodName(method.getName());
                 classGetters.put(methodName, method);
-            } else if (methodName.startsWith("is")) {
-                methodName = methodName.substring(2).toLowerCase();
-                classGetters.put(methodName, method);
-            } else if (methodName.startsWith("set")) {
-                methodName = methodName.substring(3).toLowerCase();
+            } else if (matchingStrategy.isSetter(method.getName())) {
+                String methodName = matchingStrategy.normalizeMethodName(method.getName());
                 classSetters.put(methodName, method);
             }
         }
@@ -1040,7 +1086,7 @@ public class Client implements AutoCloseable {
         boolean defaultsSupport = schema.hasDefaults();
         tableSchemaHasDefaults.put(schemaKey, defaultsSupport);
         for (ClickHouseColumn column : schema.getColumns()) {
-            String propertyName = column.getColumnName().toLowerCase().replace("_", "").replace(".", "");
+            String propertyName = columnToMethodMatchingStrategy.normalizeColumnName(column.getColumnName());
             Method getterMethod = classGetters.get(propertyName);
             if (getterMethod != null) {
                 schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
@@ -1068,15 +1114,18 @@ public class Client implements AutoCloseable {
                             }
                         }
                     } else {
-                        // If column is nullable && the object is also null add the not null marker
-                        if (column.isNullable() && value != null) {
+                        if (column.isNullable()) {
+                            if (value == null) {
+                                BinaryStreamUtils.writeNull(stream);
+                                return;
+                            }
                             BinaryStreamUtils.writeNonNull(stream);
-                        }
-                        if (!column.isNullable() && value == null) {
-                            if (column.getDataType() == ClickHouseDataType.Array)
+                        } else if (value == null) {
+                            if (column.getDataType() == ClickHouseDataType.Array) {
                                 BinaryStreamUtils.writeNonNull(stream);
-                            else
+                            } else {
                                 throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
+                            }
                         }
                     }
 
@@ -1409,6 +1458,11 @@ public class Client implements AutoCloseable {
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (InterruptedException | TimeoutException e) {
                     throw  new ClientException("Operation has likely timed out.", e);
                 }
@@ -1529,7 +1583,7 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } catch (ClientException e) {
+                    } catch (ClientException | ServerException e) {
                         throw e;
                     } catch (Exception e) {
                         throw new ClientException("Query request failed", e);
@@ -1563,6 +1617,11 @@ public class Client implements AutoCloseable {
                     return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (Exception e) {
                     throw new ClientException("Failed to get query response", e);
                 }
@@ -1617,10 +1676,10 @@ public class Client implements AutoCloseable {
      * @param sqlQuery - SQL query
      * @return - complete list of records
      */
-    public List<GenericRecord> queryAll(String sqlQuery) {
+    public List<GenericRecord> queryAll(String sqlQuery, QuerySettings settings) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
@@ -1641,6 +1700,10 @@ public class Client implements AutoCloseable {
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
+    }
+
+    public List<GenericRecord> queryAll(String sqlQuery) {
+        return queryAll(sqlQuery, new QuerySettings());
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
@@ -1749,6 +1812,8 @@ public class Client implements AutoCloseable {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
             throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (ServerException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get table schema", e);
         }
@@ -1891,6 +1956,28 @@ public class Client implements AutoCloseable {
         return Collections.unmodifiableSet(endpoints);
     }
 
+    /**
+     * Sets list of DB roles that should be applied to each query.
+     *
+     * @param dbRoles
+     */
+    public void setDBRoles(Collection<String> dbRoles) {
+        this.configuration.put(ClientSettings.SESSION_DB_ROLES, ClientSettings.commaSeparated(dbRoles));
+        this.unmodifiableDbRolesView =
+                Collections.unmodifiableCollection(ClientSettings.valuesFromCommaSeparated(
+                        this.configuration.get(ClientSettings.SESSION_DB_ROLES)));
+    }
+
+    private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
+
+    /**
+     * Returns list of DB roles that should be applied to each query.
+     *
+     * @return List of DB roles
+     */
+    public Collection<String> getDBRoles() {
+        return unmodifiableDbRolesView;
+    }
 
     private ClickHouseNode getNextAliveNode() {
         return serverNodes.get(0);

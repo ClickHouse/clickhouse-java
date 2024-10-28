@@ -46,9 +46,12 @@ public class ClickHouseHttpProto {
 
     public static final String HEADER_DB_PASSWORD = "X-ClickHouse-Key";
 
+    public static final String HEADER_SSL_CERT_AUTH = "x-clickhouse-ssl-certificate-auth";
+
     /**
      * Query parameter to specify the query ID.
      */
     public static final String QPARAM_QUERY_ID = "query_id";
 
+    public static final String QPARAM_ROLE = "role";
 }
