@@ -53,7 +53,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
-    private static final List<String> FRAMEWORKS_TO_INFER = List.of("apache.spark");
 
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
         return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
@@ -411,22 +410,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return config.getClientName();
     }
 
-    protected String getAdditionalFrameworkUserAgent() {
-        Set<String> inferredFrameworks = new LinkedHashSet<>();
-        for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
-            for (String framework : FRAMEWORKS_TO_INFER) {
-                if (ste.toString().contains(framework)) {
-                    inferredFrameworks.add(String.format("(%s)", framework));
-                }
-            }
-        }
-        return String.join("; ", inferredFrameworks);
-    }
-
     protected final String getUserAgent() {
         final ClickHouseConfig c = config;
         String name = c.getClientName();
-        String userAgent = getDefaultUserAgent() + getAdditionalFrameworkUserAgent();
+        String userAgent = getDefaultUserAgent();
 
         if (!ClickHouseClientOption.CLIENT_NAME.getDefaultValue().equals(name)) {
             return name + " " + userAgent;

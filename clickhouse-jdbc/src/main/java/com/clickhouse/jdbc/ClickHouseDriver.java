@@ -6,14 +6,7 @@ import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.ServiceLoader;
+import java.util.*;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -48,6 +41,32 @@ public class ClickHouseDriver implements Driver {
     static final ClickHouseVersion specVersion;
 
     static final java.util.logging.Logger parentLogger = java.util.logging.Logger.getLogger("com.clickhouse.jdbc");
+
+    static String frameworksDetected = null;
+
+    private static class FrameworksDetection {
+        private static final List<String> FRAMEWORKS_TO_DETECT = List.of("apache.spark");
+        static volatile String frameworksDetected = null;
+
+        private FrameworksDetection() {
+        }
+        public static String getFrameworksDetected() {
+            if (frameworksDetected == null) {
+                Set<String> inferredFrameworks = new LinkedHashSet<>();
+                for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+                    for (String framework : FRAMEWORKS_TO_DETECT) {
+                        if (ste.toString().contains(framework)) {
+                            inferredFrameworks.add(String.format("(%s)", framework));
+                        }
+                    }
+                }
+
+                frameworksDetected = String.join("; ", inferredFrameworks);
+            }
+            return frameworksDetected;
+        }
+
+    }
 
     static {
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
@@ -115,7 +134,8 @@ public class ClickHouseDriver implements Driver {
                 options.put(o, ClickHouseOption.fromString(e.getValue().toString(), o.getValueType()));
             }
         }
-
+        if (frameworksDetected != null)
+            options.put(ClickHouseClientOption.PRODUCT_NAME, frameworksDetected);
         return options;
     }
 
@@ -128,7 +148,7 @@ public class ClickHouseDriver implements Driver {
 
         Class<?> clazz = option.getValueType();
         if (Boolean.class == clazz || boolean.class == clazz) {
-            propInfo.choices = new String[] { "true", "false" };
+            propInfo.choices = new String[]{"true", "false"};
         } else if (clazz.isEnum()) {
             Object[] values = clazz.getEnumConstants();
             String[] names = new String[values.length];
@@ -152,6 +172,8 @@ public class ClickHouseDriver implements Driver {
         if (!acceptsURL(url)) {
             return null;
         }
+        if (!url.toLowerCase().contains("disable-frameworks-detection"))
+            frameworksDetected = FrameworksDetection.getFrameworksDetected();
 
         log.debug("Creating connection");
         return new ClickHouseConnectionImpl(url, info);
