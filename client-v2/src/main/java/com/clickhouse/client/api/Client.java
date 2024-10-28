@@ -1676,10 +1676,10 @@ public class Client implements AutoCloseable {
      * @param sqlQuery - SQL query
      * @return - complete list of records
      */
-    public List<GenericRecord> queryAll(String sqlQuery) {
+    public List<GenericRecord> queryAll(String sqlQuery, QuerySettings settings) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
@@ -1700,6 +1700,10 @@ public class Client implements AutoCloseable {
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
+    }
+
+    public List<GenericRecord> queryAll(String sqlQuery) {
+        return queryAll(sqlQuery, new QuerySettings());
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
@@ -1952,6 +1956,28 @@ public class Client implements AutoCloseable {
         return Collections.unmodifiableSet(endpoints);
     }
 
+    /**
+     * Sets list of DB roles that should be applied to each query.
+     *
+     * @param dbRoles
+     */
+    public void setDBRoles(Collection<String> dbRoles) {
+        this.configuration.put(ClientSettings.SESSION_DB_ROLES, ClientSettings.commaSeparated(dbRoles));
+        this.unmodifiableDbRolesView =
+                Collections.unmodifiableCollection(ClientSettings.valuesFromCommaSeparated(
+                        this.configuration.get(ClientSettings.SESSION_DB_ROLES)));
+    }
+
+    private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
+
+    /**
+     * Returns list of DB roles that should be applied to each query.
+     *
+     * @return List of DB roles
+     */
+    public Collection<String> getDBRoles() {
+        return unmodifiableDbRolesView;
+    }
 
     private ClickHouseNode getNextAliveNode() {
         return serverNodes.get(0);
