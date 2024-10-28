@@ -19,18 +19,12 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
-import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import com.github.tomakehurst.wiremock.http.Fault;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -43,7 +37,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
@@ -260,10 +253,9 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
     }
 
-    @Test(groups = {"integration"})
-    public void testLogComment() throws Exception {
+    @Test(groups = {"integration"}, dataProviderClass = InsertTests.class, dataProvider = "logCommentDataProvider")
+    public void testLogComment(String logComment) throws Exception {
 
-        String logComment = "Test log comment";
         InsertSettings settings = new InsertSettings()
                 .setQueryId(UUID.randomUUID().toString())
                 .logComment(logComment);
@@ -285,6 +277,19 @@ public class InsertTests extends BaseIntegrationTest {
 
         List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
         Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
-        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
+        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+    }
+
+    @DataProvider( name = "logCommentDataProvider")
+    public static Object[] logCommentDataProvider() {
+        return new Object[][] {
+                { "Test log comment" },
+                { "Another log comment?" },
+                { "Log comment with special characters: !@#$%^&*()" },
+                { "Log comment with unicode: 你好" },
+                { "", },
+                { "               "},
+                { null }
+        };
     }
 }
