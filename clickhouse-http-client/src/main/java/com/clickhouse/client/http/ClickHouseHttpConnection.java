@@ -53,6 +53,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
+    private static final List<String> FRAMEWORKS = List.of("apache.spark");
 
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
         return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
@@ -411,10 +412,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected String getAdditionalFrameworkUserAgent() {
-        List<String> frameworks = List.of("apache.spark");
         Set<String> inferredFrameworks = new LinkedHashSet<>();
         for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
-            for (String framework : frameworks) {
+            for (String framework : FRAMEWORKS) {
                 if (ste.toString().contains(framework)) {
                     inferredFrameworks.add(String.format("(%s)", framework));
                 }
