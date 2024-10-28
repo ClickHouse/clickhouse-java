@@ -3,7 +3,6 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
@@ -22,13 +21,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
+
+import static com.clickhouse.data.ClickHouseDataType.toObjectType;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -171,7 +171,7 @@ public class BinaryStreamReader {
                     return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
                             column.getTimeZone()), typeHint);
                 case DateTime64:
-                    return convertDateTime(readDateTime64(3, column.getTimeZone() == null ? timeZone :
+                    return convertDateTime(readDateTime64(column.getScale(), column.getTimeZone() == null ? timeZone :
                             column.getTimeZone()), typeHint);
 
                 case IntervalYear:
@@ -523,6 +523,9 @@ public class BinaryStreamReader {
      */
     public ArrayValue readArray(ClickHouseColumn column) throws IOException {
         Class<?> itemType = column.getArrayBaseColumn().getDataType().getWiderPrimitiveClass();
+        if (column.getArrayBaseColumn().isNullable()) {
+            itemType = toObjectType(itemType);
+        }
         int len = readVarInt(input);
         ArrayValue array = new ArrayValue(column.getArrayNestedLevel() > 1 ? ArrayValue.class : itemType, len);
 
@@ -556,6 +559,8 @@ public class BinaryStreamReader {
             try {
                 if (itemType.isArray()) {
                     array = Array.newInstance(ArrayValue.class, length);
+                } else if (itemType == List.class) {
+                    array = Array.newInstance(Object[].class, length);
                 } else {
                     array = Array.newInstance(itemType, length);
                 }

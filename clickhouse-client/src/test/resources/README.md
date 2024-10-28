@@ -18,3 +18,11 @@ openssl x509 -req -in server.csr -CA myCA.crt -CAkey myCA.key -CAcreateserial -o
 openssl req -nodes -subj "/CN=me" -newkey rsa:2048 -keyout client.key -out client.csr
 openssl x509 -req -in client.csr -out client.crt -CAcreateserial -CA myCA.crt -CAkey myCA.key -days 36500
 ```
+
+### Some_user
+
+```bash
+openssl req -nodes -subj "/CN=some_user" -newkey rsa:2048 -keyout some_user.key -out some_user.csr
+openssl x509 -req -in some_user.csr -out some_user.crt -CAcreateserial -CA marsnet_ca.crt -CAkey marsnet_ca.key -days 36500
+
+```

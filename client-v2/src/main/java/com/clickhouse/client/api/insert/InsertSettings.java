@@ -207,6 +207,25 @@ public class InsertSettings {
     }
 
     /**
+     * Sets DB roles for an operation. Roles that were set by {@link Client#setDBRoles(Collection)} will be overridden.
+     *
+     * @param dbRoles
+     */
+    public InsertSettings setDBRoles(Collection<String> dbRoles) {
+        rawSettings.put(ClientSettings.SESSION_DB_ROLES, dbRoles);
+        return this;
+    }
+
+    /**
+     * Gets DB roles for an operation.
+     *
+     * @return list of DB roles
+     */
+    public Collection<String> getDBRoles() {
+        return (Collection<String>) rawSettings.get(ClientSettings.SESSION_DB_ROLES);
+    }
+
+    /**
      * Sets the comment that will be added to the query log record associated with the query.
      * @param logComment - comment to be added to the log
      * @return same instance of the builder

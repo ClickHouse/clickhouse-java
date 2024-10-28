@@ -21,19 +21,25 @@ public class SettingsConverter {
         Map<String, Serializable> requestSettings = new HashMap<>();
 
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
-            if (REQUEST_OPTIONS.get(entry.getKey()) != null) {
+            String key = entry.getKey();
+            boolean isServerSetting = key.startsWith("clickhouse_setting_");
+            if (!isServerSetting && REQUEST_OPTIONS.get(key) != null) {
                 // This definitely is a request option
                 continue;
             }
 
+            if (isServerSetting) {
+                key = key.substring("clickhouse_setting_".length());
+            }
+
             if (entry.getValue() instanceof Map<?,?>) {
                 Map<String, String> map = (Map<String, String>) entry.getValue();
-                requestSettings.put(entry.getKey(), convertMapToStringValue(map));
+                requestSettings.put(key, convertMapToStringValue(map));
             } else if (entry.getValue() instanceof Collection<?>) {
                 Collection<?> collection = (Collection<?>) entry.getValue();
-                requestSettings.put(entry.getKey(), convertCollectionToStringValue(collection));
+                requestSettings.put(key, convertCollectionToStringValue(collection));
             } else {
-                requestSettings.put(entry.getKey(), (Serializable) entry.getValue());
+                requestSettings.put(key, (Serializable) entry.getValue());
             }
         }
 
