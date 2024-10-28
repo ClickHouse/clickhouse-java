@@ -15,6 +15,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -49,6 +50,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -64,6 +66,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -982,6 +985,40 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers);
     }
 
+
+    @Test(groups = {"integration"})
+    public void testArrayTuples() {
+        final List<String> columns = Arrays.asList(
+            "col1 Array(Tuple(UInt32, String))",
+            "col2 Array(Tuple(UInt32, String, Float32))",
+            "col3 Array(Tuple(UInt32, Tuple(Float32, String)))"
+        );
+
+        final List<Supplier<String>> valueGenerators = Arrays.asList(
+            () -> "[(1, 'value1'), (2, 'value2')]",
+            () -> "[(1, 'value2', 23.43), (2, 'value3', 43.21)]",
+            () -> "[(1, (23.43, 'value3')), (2, (43.21, 'value4'))]"
+        );
+
+        final List<Consumer<ClickHouseBinaryFormatReader>> verifiers = new ArrayList<>();
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col1"), "No value for column col1 found");
+            Assert.assertEquals(r.getList("col1").get(0), new Object[]{1L, "value1"});
+            Assert.assertEquals(r.getList("col1").get(1), new Object[]{2L, "value2"});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col2"), "No value for column col2 found");
+            Assert.assertEquals(r.getList("col2").get(0),  new Object[]{1L, "value2", 23.43f});
+            Assert.assertEquals(r.getList("col2").get(1), new Object[]{2L, "value3", 43.21f});
+        });
+        verifiers.add(r -> {
+            Assert.assertTrue(r.hasValue("col3"), "No value for column col2 found");
+            Assert.assertEquals(r.getList("col3").get(0), new Object[]{1L, new Object[]{23.43f, "value3"}});
+            Assert.assertEquals(r.getList("col3").get(1), new Object[]{2L, new Object[]{43.21f, "value4"}});
+        });
+
+        testDataTypes(columns, valueGenerators, verifiers);
+    }
     @Test(groups = {"integration"})
     public void testTuples() {
         final List<String> columns = Arrays.asList(

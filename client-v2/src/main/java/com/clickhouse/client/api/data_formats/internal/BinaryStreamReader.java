@@ -559,6 +559,8 @@ public class BinaryStreamReader {
             try {
                 if (itemType.isArray()) {
                     array = Array.newInstance(ArrayValue.class, length);
+                } else if (itemType == List.class) {
+                    array = Array.newInstance(Object[].class, length);
                 } else {
                     array = Array.newInstance(itemType, length);
                 }
