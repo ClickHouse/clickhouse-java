@@ -15,6 +15,7 @@ import java.util.Calendar;
 import java.util.Map;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -29,7 +30,7 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     public ResultSetImpl(QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.response = response;
         this.reader = reader;
-        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData();
+        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
     }
 
@@ -37,6 +38,10 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
         if (closed) {
             throw new SQLException("ResultSet is closed.");
         }
+    }
+
+    public TableSchema getSchema() {
+        return reader.getSchema();
     }
 
 

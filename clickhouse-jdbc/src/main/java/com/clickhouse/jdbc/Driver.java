@@ -12,8 +12,19 @@ import com.clickhouse.logging.LoggerFactory;
  */
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
+    public static final String driverVersion;
 
     static {
+        String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
+        //If the version is not available, set it to 1.0
+        if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
+            log.warn("ClickHouse JDBC driver version is not available");
+            tempDriverVersion = "1.0";
+        }
+
+        driverVersion = tempDriverVersion;
+        log.info("ClickHouse JDBC driver version: {}", driverVersion);
+
         try {
             DriverManager.registerDriver(new Driver());
         } catch (SQLException e) {
@@ -40,14 +51,24 @@ public class Driver implements java.sql.Driver {
         return new JdbcConfiguration(url, info).getPropertyInfo();
     }
 
+    public static int getDriverMajorVersion() {
+        return Integer.parseInt(driverVersion.split("\\.")[0]);
+    }
+
     @Override
     public int getMajorVersion() {
-        return 1;
+        //Convert the version string to an integer
+        return Integer.parseInt(driverVersion.split("\\.")[0]);
+    }
+
+    public static int getDriverMinorVersion() {
+        return Integer.parseInt(driverVersion.split("\\.")[1]);
     }
 
     @Override
     public int getMinorVersion() {
-        return 0;
+        //Convert the version string to an integer
+        return Integer.parseInt(driverVersion.split("\\.")[1]);
     }
 
     @Override
