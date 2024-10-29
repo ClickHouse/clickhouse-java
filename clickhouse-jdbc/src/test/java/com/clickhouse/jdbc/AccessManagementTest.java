@@ -195,9 +195,9 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
         try (Connection connection = dataSource.getConnection("some_user", identifyBy)) {
             Statement st = connection.createStatement();
-            ResultSet rs = st.executeQuery("SELECT 1");
+            ResultSet rs = st.executeQuery("SELECT user() AS user_name");
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getString(1), "some_user");
         } catch (Exception e) {
             Assert.fail("Failed to authenticate", e);
         }
@@ -207,6 +207,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
     private static Object[][] passwordAuthMethods() {
         return new Object[][] {
                 { "plaintext_password", "password" },
+                { "plaintext_password", "" },
                 { "plaintext_password", "S3Cr=?t"},
                 { "plaintext_password", "123§" },
                 { "sha256_password", "password" },

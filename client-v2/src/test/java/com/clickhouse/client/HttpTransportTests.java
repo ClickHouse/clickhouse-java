@@ -517,9 +517,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setPassword(identifyBy)
                 .build()) {
 
-            try (QueryResponse resp = client.query("SELECT 1").get()) {
-                Assert.assertEquals(resp.getReadRows(), 1);
-            }
+            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
         } catch (Exception e) {
             Assert.fail("Failed to authenticate", e);
         }
@@ -529,6 +527,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     public static Object[][] testPasswordAuthenticationProvider() {
         return new Object[][] {
                 { "plaintext_password", "password" },
+                { "plaintext_password", "" },
                 { "plaintext_password", "S3Cr=?t"},
                 { "plaintext_password", "123§" },
                 { "sha256_password", "password" },

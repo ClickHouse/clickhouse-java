@@ -243,9 +243,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
                 map.put("x-clickhouse-user", credentials.getUserName());
                 map.put("x-clickhouse-ssl-certificate-auth", "on");
-            } else if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
+            } else {
+                String password = credentials.getPassword() == null ? "" : credentials.getPassword();
                 map.put(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
-                        .encodeToString((credentials.getUserName() + ":" + credentials.getPassword()).getBytes(StandardCharsets.UTF_8)));
+                        .encodeToString((credentials.getUserName() + ":" + password).getBytes(StandardCharsets.UTF_8)));
             }
         }
 
