@@ -35,4 +35,6 @@ public class ClientSettings {
     }
 
     public static final String SESSION_DB_ROLES = "session_db_roles";
+
+    public static final String SETTING_LOG_COMMENT = SERVER_SETTING_PREFIX + "log_comment";
 }

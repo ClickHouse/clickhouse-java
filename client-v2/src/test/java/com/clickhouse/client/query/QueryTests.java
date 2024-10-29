@@ -1743,6 +1743,26 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
 
+    @Test(groups = {"integration"})
+    public void testLogComment() throws Exception {
+
+        String logComment = "Test log comment";
+        QuerySettings settings = new QuerySettings()
+                .setQueryId(UUID.randomUUID().toString())
+                .logComment(logComment);
+        try (QueryResponse response = client.query("SELECT 1", settings).get()) {
+            Assert.assertNotNull(response.getQueryId());
+            Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
+        }
+
+        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
+        }
+
+        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         return new Client.Builder()

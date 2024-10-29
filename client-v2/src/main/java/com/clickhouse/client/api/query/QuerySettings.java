@@ -240,4 +240,23 @@ public class QuerySettings {
     public Collection<String> getDBRoles() {
         return (Collection<String>) rawSettings.get(ClientSettings.SESSION_DB_ROLES);
     }
+
+    /**
+     * Sets the comment that will be added to the query log record associated with the query.
+     * @param logComment - comment to be added to the log
+     * @return same instance of the builder
+     */
+    public QuerySettings logComment(String logComment) {
+        this.logComment = logComment;
+        if (logComment != null && !logComment.isEmpty()) {
+            rawSettings.put(ClientSettings.SETTING_LOG_COMMENT, logComment);
+        }
+        return this;
+    }
+
+    private String logComment = null;
+
+    public String getLogComment() {
+        return logComment;
+    }
 }
