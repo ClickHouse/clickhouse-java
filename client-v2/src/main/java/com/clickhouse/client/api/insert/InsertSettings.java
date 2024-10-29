@@ -233,7 +233,7 @@ public class InsertSettings {
     public InsertSettings logComment(String logComment) {
         this.logComment = logComment;
         if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + "log_comment", logComment);
+            rawSettings.put(ClientSettings.SETTING_LOG_COMMENT, logComment);
         }
         return this;
     }

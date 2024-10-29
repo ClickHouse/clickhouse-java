@@ -249,7 +249,7 @@ public class QuerySettings {
     public QuerySettings logComment(String logComment) {
         this.logComment = logComment;
         if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + "log_comment", logComment);
+            rawSettings.put(ClientSettings.SETTING_LOG_COMMENT, logComment);
         }
         return this;
     }
