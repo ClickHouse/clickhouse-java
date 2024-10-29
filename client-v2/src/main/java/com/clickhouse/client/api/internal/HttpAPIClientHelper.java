@@ -63,6 +63,7 @@ import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -338,13 +339,14 @@ public class HttpAPIClientHelper {
                 .build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback), false));
+        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback), HttpStatus.SC_OK, false));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
-            httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), true));
+            httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), httpResponse.getCode(), true));
+
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
@@ -395,11 +397,12 @@ public class HttpAPIClientHelper {
                 req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
             }
         }
-        req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
         } else {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClickHouseDefaults.PASSWORD.getKey()));
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
+                    (chConfig.get(ClickHouseDefaults.USER.getKey()) + ":" + chConfig.get(ClickHouseDefaults.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));
         }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
@@ -487,15 +490,26 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapEntity(HttpEntity httpEntity, boolean isResponse) {
-        boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
-        boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
-        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
-        if (serverCompression || clientCompression) {
-            return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
-                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
-        } else {
-            return httpEntity;
+    private HttpEntity wrapEntity(HttpEntity httpEntity, int httpStatus, boolean isResponse) {
+
+        switch (httpStatus) {
+            case HttpStatus.SC_OK:
+            case HttpStatus.SC_CREATED:
+            case HttpStatus.SC_ACCEPTED:
+            case HttpStatus.SC_NO_CONTENT:
+            case HttpStatus.SC_PARTIAL_CONTENT:
+            case HttpStatus.SC_RESET_CONTENT:
+            case HttpStatus.SC_NOT_MODIFIED:
+            case HttpStatus.SC_BAD_REQUEST:
+                boolean serverCompression = chConfiguration.getOrDefault(ClickHouseClientOption.COMPRESS.getKey(), "false").equalsIgnoreCase("true");
+                boolean clientCompression = chConfiguration.getOrDefault(ClickHouseClientOption.DECOMPRESS.getKey(), "false").equalsIgnoreCase("true");
+                boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+                if (serverCompression || clientCompression) {
+                    return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
+                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
+                }
+            default:
+                return httpEntity;
         }
     }
 

@@ -458,6 +458,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     static {
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
     }
+
     @Test(groups = { "integration" })
     public void testSSLAuthentication() throws Exception {
         if (isCloud()) {
@@ -489,6 +490,52 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertEquals(resp.getReadRows(), 1);
             }
         }
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "testPasswordAuthenticationProvider", dataProviderClass = HttpTransportTests.class)
+    public void testPasswordAuthentication(String identifyWith, String identifyBy) throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+            }
+        } catch (Exception e) {
+            Assert.fail("Failed on setup", e);
+        }
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("some_user")
+                .setPassword(identifyBy)
+                .build()) {
+
+            try (QueryResponse resp = client.query("SELECT 1").get()) {
+                Assert.assertEquals(resp.getReadRows(), 1);
+            }
+        } catch (Exception e) {
+            Assert.fail("Failed to authenticate", e);
+        }
+    }
+
+    @DataProvider(name = "testPasswordAuthenticationProvider")
+    public static Object[][] testPasswordAuthenticationProvider() {
+        return new Object[][] {
+                { "plaintext_password", "password" },
+                { "plaintext_password", "S3Cr=?t"},
+                { "plaintext_password", "123§" },
+                { "sha256_password", "password" },
+                { "sha256_password", "123§" },
+                { "sha256_password", "S3Cr=?t"},
+                { "sha256_password", "S3Cr?=t"},
+        };
     }
 
     @Test(groups = { "integration" })
