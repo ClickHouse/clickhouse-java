@@ -1,9 +1,9 @@
 package com.clickhouse.client.internal;
 
-import com.clickhouse.client.api.internal.SerializerUtils;
+import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import org.testng.annotations.Test;
 
-import static org.testng.AssertJUnit.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 public class SerializerUtilsTests {
 
