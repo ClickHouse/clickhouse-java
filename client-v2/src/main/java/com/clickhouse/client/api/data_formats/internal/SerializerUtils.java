@@ -1,8 +1,7 @@
-package com.clickhouse.client.api.internal;
+package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -72,14 +71,14 @@ public class SerializerUtils {
         //Serialize the array to the stream
         //The array is a list of values
         List<?> values = (List<?>) value;
-        BinaryStreamUtils.writeVarInt(stream, values.size());
+        writeVarInt(stream, values.size());
         for (Object val : values) {
             if (column.getArrayBaseColumn().isNullable()) {
                 if (val == null) {
-                    BinaryStreamUtils.writeNull(stream);
+                    writeNull(stream);
                     continue;
                 }
-                BinaryStreamUtils.writeNonNull(stream);
+                writeNonNull(stream);
             }
             serializeData(stream, val, column.getArrayBaseColumn());
         }
@@ -107,7 +106,7 @@ public class SerializerUtils {
         //Serialize the map to the stream
         //The map is a list of key-value pairs
         Map<?, ?> map = (Map<?, ?>) value;
-        BinaryStreamUtils.writeVarInt(stream, map.size());
+        writeVarInt(stream, map.size());
         map.forEach((key, val) -> {
             try {
                 serializePrimitiveData(stream, key, Objects.requireNonNull(column.getKeyInfo()));
@@ -213,7 +212,13 @@ public class SerializerUtils {
 
     private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
-            BinaryStreamUtils.writeBitmap(stream, (ClickHouseBitmap) value);
+            if (value == null) {
+                throw new IllegalArgumentException("Cannot serialize null value for aggregate function: " + column.getAggregateFunction());
+            } else if (value instanceof ClickHouseBitmap) {
+                stream.write(((ClickHouseBitmap)value).toBytes()); // TODO: review toBytes() implementation - it can be simplified
+            } else {
+                throw new IllegalArgumentException("Cannot serialize value of type " + value.getClass() + " for aggregate function: " + column.getAggregateFunction());
+            }
         } else {
             throw new UnsupportedOperationException("Unsupported aggregate function: " + column.getAggregateFunction());
         }
@@ -546,6 +551,36 @@ public class SerializerUtils {
         public Class<?> defineClass(String name, byte[] code) throws ClassNotFoundException {
             return super.defineClass(name, code, 0, code.length);
         }
+    }
+
+    public static void writeVarInt(OutputStream output, long value) throws IOException {
+        // reference code https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L187
+        for (int i = 0; i < 9; i++) {
+            byte b = (byte) (value & 0x7F);
+
+            if (value > 0x7F) {
+                b |= 0x80;
+            }
+
+            output.write(b);
+            value >>= 7;
+
+            if (value == 0) {
+                return;
+            }
+        }
+    }
+
+    public static void writeNull(OutputStream output) throws IOException {
+        writeBoolean(output, true);
+    }
+
+    public static void writeNonNull(OutputStream output) throws IOException {
+        writeBoolean(output, false);
+    }
+
+    public static void writeBoolean(OutputStream output, boolean value) throws IOException {
+        output.write(value ? 1 : 0);
     }
 
     public static class NumberConverter {

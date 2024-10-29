@@ -6,6 +6,7 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseArrayValue;
+import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -484,6 +485,16 @@ public class MapBackedRecord implements GenericRecord {
             return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
+    }
+
+    @Override
+    public ClickHouseBitmap getClickHouseBitmap(String colName) {
+        return readValue(colName);
+    }
+
+    @Override
+    public ClickHouseBitmap getClickHouseBitmap(int index) {
+        return readValue(index);
     }
 
     @Override
