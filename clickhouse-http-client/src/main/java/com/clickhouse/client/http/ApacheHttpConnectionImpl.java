@@ -194,11 +194,11 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private void checkResponse(ClickHouseConfig config, CloseableHttpResponse response) throws IOException {
-        if (response.getCode() == HttpURLConnection.HTTP_OK) {
+        final Header errorCode = response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
+        if (response.getCode() == HttpURLConnection.HTTP_OK && errorCode == null) {
             return;
         }
 
-        final Header errorCode = response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
         final Header serverName = response.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME);
         if (response.getEntity() == null) {
             throw new ConnectException(

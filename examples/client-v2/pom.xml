@@ -65,7 +65,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <clickhouse-java.version>0.7.0-SNAPSHOT</clickhouse-java.version>
-        <apache-httpclient.version>5.2.1</apache-httpclient.version>
+        <apache-httpclient.version>5.3.1</apache-httpclient.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
@@ -78,32 +78,14 @@
             <artifactId>client-v2</artifactId>
             <version>${clickhouse-java.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${clickhouse-java.version}</version>
-        </dependency>
 
-        <!-- Recommended to communicate with ClickHouse server over http -->
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <version>${apache-httpclient.version}</version>
-        </dependency>
+        <!-- If Old implementation needed -->
+<!--        <dependency>-->
+<!--            <groupId>com.clickhouse</groupId>-->
+<!--            <artifactId>clickhouse-http-client</artifactId>-->
+<!--            <version>${clickhouse-java.version}</version>-->
+<!--        </dependency>-->
 
-        <!-- Support of the compression -->
-        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <version>1.26.2</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.lz4/lz4-java -->
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-            <version>1.8.0</version>
-        </dependency>
 
         <!-- Recommended for JSON parsing -->
         <dependency>

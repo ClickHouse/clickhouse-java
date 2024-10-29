@@ -242,8 +242,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(String colName) {
-        ClickHouseArrayValue<?> array = readValue(colName);
-        return null;
+        return getList(schema.nameToIndex(colName));
     }
 
 
@@ -388,7 +387,12 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else {
+            throw new ClientException("Column is not of array type");
+        }
     }
 
     @Override

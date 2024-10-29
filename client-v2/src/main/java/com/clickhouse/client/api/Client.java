@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -79,6 +80,7 @@ import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -1034,6 +1036,7 @@ public class Client implements AutoCloseable {
             try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
                 return true;
             } catch (Exception e) {
+                LOG.debug("Failed to connect to the server", e);
                 return false;
             }
         } else {
@@ -1454,6 +1457,11 @@ public class Client implements AutoCloseable {
                     return response;
                 } catch (ExecutionException e) {
                     throw  new ClientException("Failed to get insert response", e.getCause());
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (InterruptedException | TimeoutException e) {
                     throw  new ClientException("Operation has likely timed out.", e);
                 }
@@ -1574,7 +1582,7 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } catch (ClientException e) {
+                    } catch (ClientException | ServerException e) {
                         throw e;
                     } catch (Exception e) {
                         throw new ClientException("Query request failed", e);
@@ -1608,6 +1616,11 @@ public class Client implements AutoCloseable {
                     return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
                 } catch (ClientException e) {
                     throw e;
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ClickHouseException) {
+                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
+                    }
+                    throw new ClientException("Failed to get query response", e.getCause());
                 } catch (Exception e) {
                     throw new ClientException("Failed to get query response", e);
                 }
@@ -1662,10 +1675,10 @@ public class Client implements AutoCloseable {
      * @param sqlQuery - SQL query
      * @return - complete list of records
      */
-    public List<GenericRecord> queryAll(String sqlQuery) {
+    public List<GenericRecord> queryAll(String sqlQuery, QuerySettings settings) {
         try {
             int operationTimeout = getOperationTimeout();
-            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .waitEndOfQuery(true);
             try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
@@ -1686,6 +1699,10 @@ public class Client implements AutoCloseable {
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
+    }
+
+    public List<GenericRecord> queryAll(String sqlQuery) {
+        return queryAll(sqlQuery, new QuerySettings());
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
@@ -1794,6 +1811,8 @@ public class Client implements AutoCloseable {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
             throw new ClientException("Failed to get table schema", e.getCause());
+        } catch (ServerException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get table schema", e);
         }
@@ -1936,6 +1955,28 @@ public class Client implements AutoCloseable {
         return Collections.unmodifiableSet(endpoints);
     }
 
+    /**
+     * Sets list of DB roles that should be applied to each query.
+     *
+     * @param dbRoles
+     */
+    public void setDBRoles(Collection<String> dbRoles) {
+        this.configuration.put(ClientSettings.SESSION_DB_ROLES, ClientSettings.commaSeparated(dbRoles));
+        this.unmodifiableDbRolesView =
+                Collections.unmodifiableCollection(ClientSettings.valuesFromCommaSeparated(
+                        this.configuration.get(ClientSettings.SESSION_DB_ROLES)));
+    }
+
+    private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
+
+    /**
+     * Returns list of DB roles that should be applied to each query.
+     *
+     * @return List of DB roles
+     */
+    public Collection<String> getDBRoles() {
+        return unmodifiableDbRolesView;
+    }
 
     private ClickHouseNode getNextAliveNode() {
         return serverNodes.get(0);
