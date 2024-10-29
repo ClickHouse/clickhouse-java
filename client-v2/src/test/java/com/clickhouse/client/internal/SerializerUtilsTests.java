@@ -1,28 +1,16 @@
 package com.clickhouse.client.internal;
 
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.query.POJOSetter;
-import com.clickhouse.client.query.QuerySamplePOJO;
-import com.clickhouse.client.query.SimplePOJO;
-import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.client.api.internal.SerializerUtils;
+import org.testng.annotations.Test;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
+import static org.testng.AssertJUnit.assertEquals;
 
 public class SerializerUtilsTests {
 
-
-    public static class SamplePOJOInt256Setter implements POJOSetter {
-
-        @Override
-        public void setValue(Object obj, BinaryStreamReader reader, ClickHouseColumn column) throws IOException {
-            ((QuerySamplePOJO)obj).setDateTime(((ZonedDateTime)reader.readValue(column)).toLocalDateTime());
-        }
-
-        public void readValue(Object obj, BinaryStreamReader reader, ClickHouseColumn column) throws IOException {
-//            ((SamplePOJO)obj).setDateTime(((ZonedDateTime)reader.readValue(column)).toLocalDateTime());
-            ((SimplePOJO)obj).setId(reader.readIntLE());
-        }
+    @Test
+    public void testConvertToInteger() {
+        int expected = 1640995199; // Unix timestamp for the given date
+        assertEquals(expected, SerializerUtils.convertToInteger("1640995199").intValue());
+        assertEquals(0, SerializerUtils.convertToInteger(false).intValue());
     }
 }

@@ -247,6 +247,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case UInt256:
                 case Float32:
                 case Float64:
+                case Decimal:
+                case Decimal32:
+                case Decimal64:
+                case Decimal128:
+                case Decimal256:
                 case Bool:
                     converters.put(NumberType.Byte, SerializerUtils.NumberConverter::toByte);
                     converters.put(NumberType.Short, SerializerUtils.NumberConverter::toShort);
