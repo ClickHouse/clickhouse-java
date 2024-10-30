@@ -1,7 +1,9 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.JdbcWrapper;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -52,21 +54,23 @@ public class ParameterMetaData implements java.sql.ParameterMetaData, JdbcWrappe
 
     @Override
     public int getParameterType(int param) throws SQLException {
-        return 0;
+        //TODO: Should we implement .getSQLType()?
+        return JdbcUtils.convertToSqlType(getParam(param).getDataType());
     }
 
     @Override
     public String getParameterTypeName(int param) throws SQLException {
-        return "";
+        return getParam(param).getDataType().name();
     }
 
     @Override
     public String getParameterClassName(int param) throws SQLException {
-        return "";
+        //TODO: Should we implement .getClassName()?
+        return getParam(param).getDataType().getObjectClass().getName();
     }
 
     @Override
     public int getParameterMode(int param) throws SQLException {
-        return 0;
+        return parameterModeIn;
     }
 }

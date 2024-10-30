@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -9,10 +11,12 @@ import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 public class ConnectionImpl implements Connection, JdbcWrapper {
     private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
 
+    protected final String url;
     protected final Client client;
     protected final JdbcConfiguration config;
 
@@ -21,6 +25,7 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     private String schema;
 
     public ConnectionImpl(String url, Properties info) {
+        this.url = url;
         this.config = new JdbcConfiguration(url, info);
         this.client = new Client.Builder()
                 .addEndpoint(config.getProtocol() + "://" + config.getHost() + ":" + config.getPort())
@@ -31,6 +36,46 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
                 .build();
     }
 
+    public String getUser() {
+        return config.getUser();
+    }
+
+    public String getURL() {
+        return url;
+    }
+
+    private String getServerVersion() throws SQLException {
+        try (QueryResponse response = client.query("SELECT version()").get(30, TimeUnit.SECONDS)) {
+            // Create a reader to access the data in a convenient way
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            // Read the next record from stream and parse it as a string
+            reader.next();
+            return reader.getString(0);
+        } catch (Exception e) {
+            log.error("Failed to retrieve server version.", e);
+            throw new SQLException("Failed to retrieve server version.", e);
+        }
+    }
+
+    public int getMajorVersion() throws SQLException {
+        String version = getServerVersion();
+        try {
+            return Integer.parseInt(version.split("\\.")[0]);
+        } catch (NumberFormatException e) {
+            log.error("Failed to parse major version from server version: " + version, e);
+            throw new SQLException("Failed to parse major version from server version: " + version);
+        }
+    }
+
+    public int getMinorVersion() throws SQLException {
+        String version = getServerVersion();
+        try {
+            return Integer.parseInt(version.split("\\.")[1]);
+        } catch (NumberFormatException e) {
+            log.error("Failed to parse minor version from server version: " + version, e);
+            throw new SQLException("Failed to parse minor version from server version: " + version);
+        }
+    }
 
     @Override
     public Statement createStatement() throws SQLException {
@@ -95,7 +140,7 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
         checkOpen();
-        return new com.clickhouse.jdbc.metadata.DatabaseMetaData();
+        return new com.clickhouse.jdbc.metadata.DatabaseMetaData(this);
     }
 
     @Override
@@ -109,7 +154,7 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     @Override
     public boolean isReadOnly() throws SQLException {
         checkOpen();
-        return true;
+        return false;
     }
 
     @Override
