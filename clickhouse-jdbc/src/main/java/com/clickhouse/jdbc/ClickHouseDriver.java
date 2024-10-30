@@ -42,9 +42,9 @@ public class ClickHouseDriver implements Driver {
 
     static final java.util.logging.Logger parentLogger = java.util.logging.Logger.getLogger("com.clickhouse.jdbc");
 
-    static String frameworksDetected = null;
+    public static String frameworksDetected = null;
 
-    private static class FrameworksDetection {
+    public static class FrameworksDetection {
         private static final List<String> FRAMEWORKS_TO_DETECT = List.of("apache.spark");
         static volatile String frameworksDetected = null;
 
@@ -134,8 +134,6 @@ public class ClickHouseDriver implements Driver {
                 options.put(o, ClickHouseOption.fromString(e.getValue().toString(), o.getValueType()));
             }
         }
-        if (frameworksDetected != null)
-            options.put(ClickHouseClientOption.PRODUCT_NAME, frameworksDetected);
         return options;
     }
 
@@ -172,8 +170,6 @@ public class ClickHouseDriver implements Driver {
         if (!acceptsURL(url)) {
             return null;
         }
-        if (!url.toLowerCase().contains("disable-frameworks-detection"))
-            frameworksDetected = FrameworksDetection.getFrameworksDetected();
 
         log.debug("Creating connection");
         return new ClickHouseConnectionImpl(url, info);
