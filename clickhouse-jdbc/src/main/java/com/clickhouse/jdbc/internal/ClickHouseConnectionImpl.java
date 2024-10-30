@@ -291,7 +291,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
         Properties props = connInfo.getProperties();
         jvmTimeZone = TimeZone.getDefault();
-
+        if (props.get("disable_frameworks_detection") == null || !props.get("disable_frameworks_detection").toString().equalsIgnoreCase("true")) {
+            ClickHouseDriver.frameworksDetected = ClickHouseDriver.FrameworksDetection.getFrameworksDetected();
+            if (ClickHouseDriver.frameworksDetected != null)
+                props.setProperty(ClickHouseClientOption.PRODUCT_NAME.getKey(), props.getProperty(ClickHouseClientOption.PRODUCT_NAME.getKey()) + ClickHouseDriver.frameworksDetected);
+        }
         ClickHouseClientBuilder clientBuilder = ClickHouseClient.builder()
                 .options(ClickHouseDriver.toClientOptions(props))
                 .defaultCredentials(connInfo.getDefaultCredentials());
