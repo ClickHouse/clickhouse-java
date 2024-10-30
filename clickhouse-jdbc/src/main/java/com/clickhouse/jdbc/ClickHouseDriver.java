@@ -45,7 +45,7 @@ public class ClickHouseDriver implements Driver {
     public static String frameworksDetected = null;
 
     public static class FrameworksDetection {
-        private static final List<String> FRAMEWORKS_TO_DETECT = List.of("apache.spark");
+        private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark");
         static volatile String frameworksDetected = null;
 
         private FrameworksDetection() {
