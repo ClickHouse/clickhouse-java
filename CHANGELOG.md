@@ -1,4 +1,40 @@
-## Latest
+## 0.7.1 
+
+### New Features
+- [client-v2] Implemented more friendly number conversion. Now it is possible to convert smaller type to bigger one. 
+It is also possible to convert bigger into smaller if value fits into the range. (https://github.com/ClickHouse/clickhouse-java/issues/1852)
+- [client-v2] Ported a feature that allows to remember DB roles for a client instance. See `com.clickhouse.client.api.Client#setDBRoles` 
+for details. (https://github.com/ClickHouse/clickhouse-java/issues/1832)
+- [client-v2] Ported a feature that allows adding comments to a query. 
+See `com.clickhouse.client.api.insert.InsertSettings#logComment` and `com.clickhouse.client.api.query.QuerySettings#logComment` 
+for details. (https://github.com/ClickHouse/clickhouse-java/issues/1836)
+- [client-v2] Added support for SSL Authentication with client certificates. (https://github.com/ClickHouse/clickhouse-java/issues/1837)
+- [client-v2] Implemented a way to define a custom matching between a column name and a field in a POJO in `Client#register` method. (https://github.com/ClickHouse/clickhouse-java/issues/1866)
+- [client-v1, client-v2] Implemented HTTP Basic authentication and made it a default auth method for HTTP interface. It 
+was done to address problem with passwords contianing special and UTF8 characters. New configuration option 
+`com.clickhouse.client.http.config.ClickHouseHttpOption.USE_BASIC_AUTHENTICATION` for client v1 is added. For client v2 
+use `com.clickhouse.client.api.Client.Builder#useHTTPBasicAuth` method. (https://github.com/ClickHouse/clickhouse-java/issues/1305)
+
+
+### Dependency Updates
+- [client] Bumped org.apache.avro:avro version to 1.11.4 (https://github.com/ClickHouse/clickhouse-java/pull/1855)
+
+### Documentation
+- [client] Added links to javadoc for all classes in the README.md (https://github.com/ClickHouse/clickhouse-java/pull/1878)
+
+### Bug Fixes
+- [client-v2] Fixed deserializing nullable columns of `Nested` type (https://github.com/ClickHouse/clickhouse-java/issues/1858)
+- [client-v2] Fixed dependencies needed for compression to work out of the box (https://github.com/ClickHouse/clickhouse-java/issues/1805)
+- [client-v2] Fixed dependency on SNAPSHOT component (https://github.com/ClickHouse/clickhouse-java/issues/1853)
+- [client-v2] Fixed using `scale` from a column definition when deserializing DateTime64 values (https://github.com/ClickHouse/clickhouse-java/issues/1851)
+- [client-v2] Fixed applying database from insert settings (https://github.com/ClickHouse/clickhouse-java/issues/1868)
+- [client-v2] Fixed error handling from server (https://github.com/ClickHouse/clickhouse-java/issues/1874)
+- [client-v2] Fixed SerDe for SimpleAggregateFunction columns (https://github.com/ClickHouse/clickhouse-java/pull/1876)
+- [client] Fixed handling error from server in response with `200 OK` status. Happens when 
+`send_progress_in_http_headers` is requested and query runs for a long time. (https://github.com/ClickHouse/clickhouse-java/issues/1821)
+- [jdbc] Fixed incorrect error logging (https://github.com/ClickHouse/clickhouse-java/issues/1827)
+- [client-v2] Fixed handling tuples in arrays (https://github.com/ClickHouse/clickhouse-java/issues/1882)
+- [client-v2] Fixed passing `insert_duplication_token` through `InsertSettings`. (https://github.com/ClickHouse/clickhouse-java/issues/1877)
 
 ## 0.7.0
 
