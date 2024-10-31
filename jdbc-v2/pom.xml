@@ -9,45 +9,58 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>clickhouse-jdbc</artifactId>
+    <artifactId>jdbc-v2</artifactId>
     <packaging>jar</packaging>
 
     <name>ClickHouse JDBC Driver</name>
     <description>JDBC driver for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-jdbc</url>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/jdbc-v2</url>
 
     <properties>
         <javacc-plugin.version>4.1.4</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
 
-        <imageName>clickhouse-jdbc-bin</imageName>
+        <imageName>clickhouse-jdbc-bin-v2</imageName>
         <mainClass>com.clickhouse.jdbc.Main</mainClass>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-data</artifactId>
+            <artifactId>client-v2</artifactId>
             <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <optional>true</optional>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents.core5</groupId>
+                    <artifactId>httpcore5</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-pure-java</artifactId>
@@ -59,33 +72,6 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>io.opencensus</groupId>
-            <artifactId>opencensus-impl</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.apache.commons.compress</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <scope>provided</scope>
@@ -95,7 +81,6 @@
             <artifactId>zstd-jni</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
@@ -118,103 +103,7 @@
             <artifactId>testng</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${revision}</version>
-            <scope>compile</scope>
-        </dependency>
     </dependencies>
-
-    <profiles>
-        <!--
-        slower than pure Java due to lack of PGO
-        https://github.com/oracle/graal/issues/979#issuecomment-480786612
-        more on
-        https://blogs.oracle.com/javamagazine/post/pedal-to-the-metal-high-performance-java-with-graalvm-native-image
-        -->
-        <profile>
-            <id>native</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.graalvm.buildtools</groupId>
-                        <artifactId>native-maven-plugin</artifactId>
-                        <extensions>true</extensions>
-                        <executions>
-                            <execution>
-                                <id>build-native</id>
-                                <goals>
-                                    <goal>compile-no-fork</goal>
-                                </goals>
-                                <phase>package</phase>
-                            </execution>
-                            <execution>
-                                <id>test-native</id>
-                                <goals>
-                                    <goal>test</goal>
-                                </goals>
-                                <phase>test</phase>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <imageName>${imageName}</imageName>
-                            <mainClass>${mainClass}</mainClass>
-                            <buildArgs>
-                                <buildArg>--no-fallback</buildArg>
-                            </buildArgs>
-                            <classpath>
-                                <param>
-                                    ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
-                            </classpath>
-                            <agent>
-                                <enabled>true</enabled>
-                            </agent>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>java-agent</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>java</executable>
-                                    <workingDirectory>${project.build.directory}</workingDirectory>
-                                    <arguments>
-                                        <argument>-classpath</argument>
-                                        <classpath>
-                                            <param>
-                                                ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
-                                        </classpath>
-                                        <argument>${mainClass}</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>native</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${project.build.directory}/${imageName}</executable>
-                                    <workingDirectory>${project.build.directory}</workingDirectory>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 
     <build>
         <plugins>
@@ -225,27 +114,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>com.helger.maven</groupId>
-                <artifactId>ph-javacc-maven-plugin</artifactId>
-                <version>${javacc-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>jjc</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>javacc</goal>
-                        </goals>
-                        <configuration>
-                            <jdkVersion>${minJdk}</jdkVersion>
-                            <javadocFriendlyComments>true</javadocFriendlyComments>
-                            <packageName>com.clickhouse.jdbc.parser</packageName>
-                            <sourceDirectory>src/main/javacc</sourceDirectory>
-                            <outputDirectory>src/main/java</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -298,10 +166,11 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
+                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
@@ -326,7 +195,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -357,7 +225,6 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
                                     <include>com.google.code.gson:gson</include>
                                     <include>com.google.guava:failureaccess</include>
                                     <include>com.google.guava:guava</include>
@@ -368,7 +235,6 @@
                                     <include>io.opencensus:opencensus-impl-core</include>
                                     <include>io.perfmark:perfmark-api</include>
                                     <include>org.apache.commons:commons-compress</include>
-                                    <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
@@ -412,7 +278,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -446,7 +311,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
@@ -462,7 +327,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -478,7 +342,6 @@
                             </filters>
                         </configuration>
                     </execution>
-                    <!-- replace the default artifact -->
                     <execution>
                         <id>shade-default</id>
                         <phase>package</phase>
@@ -494,7 +357,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                 </includes>
                             </artifactSet>
@@ -505,7 +368,6 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
-                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
