@@ -52,23 +52,23 @@ public class StatementImpl implements Statement, JdbcWrapper {
             return StatementType.OTHER;
         }
 
-        return switch (tokens[0].toUpperCase()) {
-            case "SELECT" -> StatementType.SELECT;
-            case "INSERT" -> StatementType.INSERT;
-            case "DELETE" -> StatementType.DELETE;
-            case "UPDATE" -> StatementType.UPDATE;
-            case "CREATE" -> StatementType.CREATE;
-            case "DROP" -> StatementType.DROP;
-            case "ALTER" -> StatementType.ALTER;
-            case "TRUNCATE" -> StatementType.TRUNCATE;
-            case "USE" -> StatementType.USE;
-            case "SHOW" -> StatementType.SHOW;
-            case "DESCRIBE" -> StatementType.DESCRIBE;
-            case "EXPLAIN" -> StatementType.EXPLAIN;
-            case "SET" -> StatementType.SET;
-            case "KILL" -> StatementType.KILL;
-            default -> StatementType.OTHER;
-        };
+        switch (tokens[0].toUpperCase()) {
+            case "SELECT": return StatementType.SELECT;
+            case "INSERT": return StatementType.INSERT;
+            case "DELETE": return StatementType.DELETE;
+            case "UPDATE": return StatementType.UPDATE;
+            case "CREATE": return StatementType.CREATE;
+            case "DROP": return StatementType.DROP;
+            case "ALTER": return StatementType.ALTER;
+            case "TRUNCATE": return StatementType.TRUNCATE;
+            case "USE": return StatementType.USE;
+            case "SHOW": return StatementType.SHOW;
+            case "DESCRIBE": return StatementType.DESCRIBE;
+            case "EXPLAIN": return StatementType.EXPLAIN;
+            case "SET": return StatementType.SET;
+            case "KILL": return StatementType.KILL;
+            default: return StatementType.OTHER;
+        }
     }
 
     protected String parseTableName(String sql) {
