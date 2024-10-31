@@ -9,6 +9,7 @@ import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -31,6 +32,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
+import org.apache.hc.core5.http.HttpHeaders;
 
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnection.class);
@@ -231,11 +233,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             // TODO check if auth-scheme is available and supported
             map.put("authorization", credentials.getAccessToken());
         } else if (!hasAuthorizationHeader) {
-            map.put("x-clickhouse-user", credentials.getUserName());
             if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
-                map.put("x-clickhouse-ssl-certificate-auth", "on");
-            } else if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
-                map.put("x-clickhouse-key", credentials.getPassword());
+                map.put(ClickHouseHttpProto.HEADER_DB_USER, credentials.getUserName());
+                map.put(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
+            } else {
+                boolean useBasicAuthentication = config.getBoolOption(ClickHouseHttpOption.USE_BASIC_AUTHENTICATION);
+                if (useBasicAuthentication) {
+                    String password = credentials.getPassword() == null ? "" : credentials.getPassword();
+                    map.put(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
+                            .encodeToString((credentials.getUserName() + ":" + password).getBytes(StandardCharsets.UTF_8)));
+                } else {
+                    map.put(ClickHouseHttpProto.HEADER_DB_USER, credentials.getUserName());
+                    map.put(ClickHouseHttpProto.HEADER_DB_PASSWORD, credentials.getPassword());
+                }
             }
         }
 

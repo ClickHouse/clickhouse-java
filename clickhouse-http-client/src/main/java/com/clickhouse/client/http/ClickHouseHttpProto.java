@@ -44,6 +44,10 @@ public class ClickHouseHttpProto {
      */
     public static final String HEADER_DB_USER = "X-ClickHouse-User";
 
+    /**
+     * Password of user to be used to authenticate. Note: header value should be unencoded, so using
+     * special characters might cause issues. It is recommended to use the Basic Authentication instead.
+     */
     public static final String HEADER_DB_PASSWORD = "X-ClickHouse-Key";
 
     public static final String HEADER_SSL_CERT_AUTH = "x-clickhouse-ssl-certificate-auth";

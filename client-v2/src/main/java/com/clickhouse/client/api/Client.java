@@ -876,6 +876,16 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Whether to use HTTP basic authentication. Default value is true.
+         * Password that contain UTF8 characters may not be passed through http headers and BASIC authentication
+         * is the only option here.
+         */
+        public Builder useHTTPBasicAuth(boolean useBasicAuth) {
+            this.configuration.put(ClientSettings.HTTP_USE_BASIC_AUTH, String.valueOf(useBasicAuth));
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -1008,6 +1018,10 @@ public class Client implements AutoCloseable {
 
             if (columnToMethodMatchingStrategy == null) {
                 columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
+            }
+
+            if (!configuration.containsKey(ClientSettings.HTTP_USE_BASIC_AUTH)) {
+                useHTTPBasicAuth(true);
             }
         }
     }

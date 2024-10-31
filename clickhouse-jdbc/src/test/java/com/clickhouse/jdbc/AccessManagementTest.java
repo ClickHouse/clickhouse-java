@@ -176,4 +176,89 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             Assert.fail("Failed to check roles", e);
         }
     }
+
+    @Test(groups = "integration", dataProvider = "passwordAuthMethods")
+    public void testPasswordAuthentication(String identifyWith, String identifyBy) throws SQLException {
+        if (isCloud()) return; // Doesn’t allow to create users with specific passwords
+        String url = String.format("jdbc:ch:%s", getEndpointString());
+        Properties properties = new Properties();
+        properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+
+        try (Connection connection = dataSource.getConnection("access_dba", "123")) {
+            Statement st = connection.createStatement();
+            st.execute("DROP USER IF EXISTS some_user");
+            st.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'");
+        } catch (Exception e) {
+            Assert.fail("Failed on setup", e);
+        }
+
+        try (Connection connection = dataSource.getConnection("some_user", identifyBy)) {
+            Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT user() AS user_name");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "some_user");
+        } catch (Exception e) {
+            Assert.fail("Failed to authenticate", e);
+        }
+    }
+
+    @DataProvider(name = "passwordAuthMethods")
+    private static Object[][] passwordAuthMethods() {
+        return new Object[][] {
+                { "plaintext_password", "password" },
+                { "plaintext_password", "" },
+                { "plaintext_password", "S3Cr=?t"},
+                { "plaintext_password", "123§" },
+                { "sha256_password", "password" },
+                { "sha256_password", "123§" },
+                { "sha256_password", "S3Cr=?t"},
+                { "sha256_password", "S3Cr?=t"},
+        };
+    }
+
+    @Test(groups = "integration", dataProvider = "headerAuthDataProvider")
+    public void testSwitchingBasicAuthToClickHouseHeaders(String identifyWith, String identifyBy, boolean shouldFail) throws SQLException {
+        if (isCloud()) return; // Doesn't allow to create users with specific passwords
+        String url = String.format("jdbc:ch:%s", getEndpointString());
+        Properties properties = new Properties();
+        properties.put(ClickHouseHttpOption.USE_BASIC_AUTHENTICATION.getKey(), false);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+
+        try (Connection connection = dataSource.getConnection("access_dba", "123")) {
+            Statement st = connection.createStatement();
+            st.execute("DROP USER IF EXISTS some_user");
+            st.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'");
+        } catch (Exception e) {
+            Assert.fail("Failed on setup", e);
+        }
+
+        try (Connection connection = dataSource.getConnection("some_user", identifyBy)) {
+            Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT user() AS user_name");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "some_user");
+            if (shouldFail) {
+                Assert.fail("Expected authentication to fail");
+            }
+        } catch (Exception e) {
+            if (!shouldFail) {
+                Assert.fail("Failed to authenticate", e);
+            }
+        }
+    }
+
+    @DataProvider(name = "headerAuthDataProvider")
+    private static Object[][] headerAuthDataProvider() {
+        return new Object[][] {
+                { "plaintext_password", "password", false },
+                { "plaintext_password", "", false },
+                { "plaintext_password", "S3Cr=?t", true},
+                { "plaintext_password", "123§", true },
+                { "sha256_password", "password", false},
+                { "sha256_password", "123§", true },
+                { "sha256_password", "S3Cr=?t", true},
+                { "sha256_password", "S3Cr?=t", false},
+        };
+    }
 }

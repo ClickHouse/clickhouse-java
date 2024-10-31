@@ -107,7 +107,13 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     KEEP_ALIVE_TIMEOUT("alive_timeout", -1L,
             "Default keep-alive timeout in milliseconds."),
-    ;
+
+    /**
+     * Whether to use HTTP basic authentication. Default value is true.
+     * Password that contain UTF8 characters may not be passed through http headers and BASIC authentication
+     * is the only option here.
+     */
+    USE_BASIC_AUTHENTICATION("http_use_basic_auth", true, "Whether to use basic authentication.");
 
     private final String key;
     private final Serializable defaultValue;
