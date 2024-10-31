@@ -179,7 +179,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration", dataProvider = "passwordAuthMethods")
     public void testPasswordAuthentication(String identifyWith, String identifyBy) throws SQLException {
-//        if (isCloud()) return; // TODO: testPasswordAuthentication - Revisit, see:
+        if (isCloud()) return; // Doesn’t allow to create users with specific passwords
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
@@ -219,7 +219,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration", dataProvider = "headerAuthDataProvider")
     public void testSwitchingBasicAuthToClickHouseHeaders(String identifyWith, String identifyBy, boolean shouldFail) throws SQLException {
-//        if (isCloud()) return; // TODO: testPasswordAuthentication - Revisit, see:
+        if (isCloud()) return; // Doesn't allow to create users with specific passwords
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.put(ClickHouseHttpOption.USE_BASIC_AUTHENTICATION.getKey(), false);
