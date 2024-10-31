@@ -29,11 +29,11 @@ dependencies {
 
 	// -- clickhouse dependencies
 	// Main dependency
-	implementation("com.clickhouse:client-v2:0.7.0-SNAPSHOT") // nightly build
-//	implementation("com.clickhouse:client-v2:0.7.0") // stable version
+	implementation("com.clickhouse:client-v2:0.7.1-SNAPSHOT") // local or nightly build
+//	implementation("com.clickhouse:client-v2:0.7.1") // release version
 
 	// -- clickhouse-http-client dependencies if old implementation is needed
-//	implementation("com.clickhouse:clickhouse-http-client:0.7.0-SNAPSHOT")
+//	implementation("com.clickhouse:clickhouse-http-client:0.7.1-SNAPSHOT")
 
 	// -- application dependencies
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
