@@ -70,7 +70,7 @@ public class InsertSettings {
      * @return
      */
     public InsertSettings setDeduplicationToken(String token) {
-        rawSettings.put("insert_deduplication_token", token);
+        serverSetting("insert_deduplication_token", token);
         return this;
     }
 
