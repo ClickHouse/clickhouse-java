@@ -234,12 +234,18 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             map.put("authorization", credentials.getAccessToken());
         } else if (!hasAuthorizationHeader) {
             if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
-                map.put("x-clickhouse-user", credentials.getUserName());
-                map.put("x-clickhouse-ssl-certificate-auth", "on");
+                map.put(ClickHouseHttpProto.HEADER_DB_USER, credentials.getUserName());
+                map.put(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
             } else {
-                String password = credentials.getPassword() == null ? "" : credentials.getPassword();
-                map.put(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
-                        .encodeToString((credentials.getUserName() + ":" + password).getBytes(StandardCharsets.UTF_8)));
+                boolean useBasicAuthentication = config.getBoolOption(ClickHouseHttpOption.USE_BASIC_AUTHENTICATION);
+                if (useBasicAuthentication) {
+                    String password = credentials.getPassword() == null ? "" : credentials.getPassword();
+                    map.put(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
+                            .encodeToString((credentials.getUserName() + ":" + password).getBytes(StandardCharsets.UTF_8)));
+                } else {
+                    map.put(ClickHouseHttpProto.HEADER_DB_USER, credentials.getUserName());
+                    map.put(ClickHouseHttpProto.HEADER_DB_PASSWORD, credentials.getPassword());
+                }
             }
         }
 

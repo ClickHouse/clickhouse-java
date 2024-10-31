@@ -23,6 +23,7 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
 import org.eclipse.jetty.server.Server;
@@ -36,6 +37,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -493,7 +495,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" }, dataProvider = "testPasswordAuthenticationProvider", dataProviderClass = HttpTransportTests.class)
-    public void testPasswordAuthentication(String identifyWith, String identifyBy) throws Exception {
+    public void testPasswordAuthentication(String identifyWith, String identifyBy, boolean failsWithHeaders) throws Exception {
         if (isCloud()) {
             return; // Current test is working only with local server because of self-signed certificates.
         }
@@ -512,6 +514,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             Assert.fail("Failed on setup", e);
         }
 
+
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("some_user")
                 .setPassword(identifyBy)
@@ -521,20 +524,71 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } catch (Exception e) {
             Assert.fail("Failed to authenticate", e);
         }
+
+        if (failsWithHeaders) {
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                    .setUsername("some_user")
+                    .setPassword(identifyBy)
+                    .useHTTPBasicAuth(false)
+                    .build()) {
+
+                Assert.expectThrows(ClientException.class, () ->
+                        client.queryAll("SELECT user()").get(0).getString(1));
+
+            } catch (Exception e) {
+                Assert.fail("Unexpected exception", e);
+            }
+        }
     }
 
     @DataProvider(name = "testPasswordAuthenticationProvider")
     public static Object[][] testPasswordAuthenticationProvider() {
         return new Object[][] {
-                { "plaintext_password", "password" },
-                { "plaintext_password", "" },
-                { "plaintext_password", "S3Cr=?t"},
-                { "plaintext_password", "123§" },
-                { "sha256_password", "password" },
-                { "sha256_password", "123§" },
-                { "sha256_password", "S3Cr=?t"},
-                { "sha256_password", "S3Cr?=t"},
+                { "plaintext_password", "password", false},
+                { "plaintext_password", "", false },
+                { "plaintext_password", "S3Cr=?t", true},
+                { "plaintext_password", "123§", true },
+                { "sha256_password", "password", false },
+                { "sha256_password", "123§", true },
+                { "sha256_password", "S3Cr=?t", true},
+                { "sha256_password", "S3Cr?=t", false},
         };
+    }
+
+    @Test(groups = { "integration" })
+    public void testAuthHeaderIsKeptFromUser() throws Exception {
+        if (isCloud()) {
+            return; // Current test is working only with local server because of self-signed certificates.
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        String identifyWith = "sha256_password";
+        String identifyBy = "123§";
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+
+            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            }
+            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+            }
+        } catch (Exception e) {
+            Assert.fail("Failed on setup", e);
+        }
+
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .setUsername("some_user")
+                .setPassword(identifyBy)
+                .useHTTPBasicAuth(false) // disable basic auth to produce CH headers
+                .httpHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(("some_user:" +identifyBy).getBytes()))
+                .build()) {
+
+            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
+        } catch (Exception e) {
+            Assert.fail("Failed to authenticate", e);
+        }
     }
 
     @Test(groups = { "integration" })

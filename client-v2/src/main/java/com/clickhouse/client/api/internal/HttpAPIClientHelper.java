@@ -397,12 +397,17 @@ public class HttpAPIClientHelper {
                 req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
             }
         }
+
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
             req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
-        } else {
+        } else if (chConfig.getOrDefault(ClientSettings.HTTP_USE_BASIC_AUTH, "true").equalsIgnoreCase("true")) {
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
                     (chConfig.get(ClickHouseDefaults.USER.getKey()) + ":" + chConfig.get(ClickHouseDefaults.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));
+        } else {
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClickHouseDefaults.PASSWORD.getKey()));
+
         }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
@@ -430,6 +435,14 @@ public class HttpAPIClientHelper {
             if (entry.getKey().startsWith(ClientSettings.HTTP_HEADER_PREFIX)) {
                 req.addHeader(entry.getKey().substring(ClientSettings.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
+        }
+
+        // Special cases
+        if (req.containsHeader(HttpHeaders.AUTHORIZATION) && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
+                req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD))) {
+            // user has set auth header for purpose, lets remove ours
+            req.removeHeaders(ClickHouseHttpProto.HEADER_DB_USER);
+            req.removeHeaders(ClickHouseHttpProto.HEADER_DB_PASSWORD);
         }
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
