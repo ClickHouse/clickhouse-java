@@ -274,10 +274,10 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testJdbcEscapeSyntax() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT {d '2021-11-01'} AS D, {ts '2021-11-01 12:34:56'} AS TS, " +
-                        "{fn ABS(-1)} AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
+                try (ResultSet rs = stmt.executeQuery("SELECT {d '2021-11-01'} AS D, {ts '2021-08-01 12:34:56'} AS TS, " +
+                        "toInt32({fn ABS(-1)}) AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
                         "{fn LCASE('HELLO')} AS FNLOWER, {fn LTRIM('  Hello  ')} AS FNLTRIM, {fn RTRIM('  Hello  ')} AS FNRTRIM, " +
-                        "{fn LENGTH('Hello')} AS FNLENGTH, {fn LOCATE('l', 'Hello')} AS FNLOCATE, {fn MOD(10, 3)} AS FNMOD, " +
+                        "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn LOCATE('l', 'Hello')}) AS FNLOCATE, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
                         "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
@@ -300,11 +300,11 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getInt("FNLOCATE"), 3);
                     assertEquals(rs.getInt(11), 1);
                     assertEquals(rs.getInt("FNMOD"), 1);
-                    assertEquals(rs.getInt(12), 3);
-                    assertEquals(rs.getInt("FNSQRT"), 3);
-                    assertEquals(rs.getInt(13), 3);
-                    assertEquals(rs.getInt("FNSUBSTRING"), 3);
-                    assertEquals(rs.getString(14), "llo");
+                    assertEquals(rs.getDouble(12), 3);
+                    assertEquals(rs.getDouble("FNSQRT"), 3);
+                    assertEquals(rs.getString(13), "ll");
+                    assertEquals(rs.getString("FNSUBSTRING"), "ll");
+                    assertThrows(SQLException.class, () -> rs.getString(14));
                     assertFalse(rs.next());
                 }
             }

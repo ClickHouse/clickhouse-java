@@ -79,92 +79,144 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public String getString(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getString(columnIndex);
+        try {
+            return reader.getString(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getBoolean(columnIndex);
+        try {
+            return reader.getBoolean(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getByte(columnIndex);
+        try {
+            return reader.getByte(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getShort(columnIndex);
+        try {
+            return reader.getShort(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getInteger(columnIndex);
+        try {
+            return reader.getInteger(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getLong(columnIndex);
+        try {
+            return reader.getLong(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getFloat(columnIndex);
+        try {
+            return reader.getFloat(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getDouble(columnIndex);
+        try {
+            return reader.getDouble(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
         checkClosed();
-        return reader.getBigDecimal(columnIndex);
+        try {
+            return reader.getBigDecimal(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getByteArray(columnIndex);
+        try {
+            return reader.getByteArray(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         checkClosed();
-        //TODO: Add this to ClickHouseBinaryFormatReader
-        LocalDate localDate = reader.getLocalDate(columnIndex);
-        if(localDate == null) {
-            return null;
+        try {
+            //TODO: Add this to ClickHouseBinaryFormatReader
+            LocalDate localDate = reader.getLocalDate(columnIndex);
+            if (localDate == null) {
+                return null;
+            }
+            return Date.valueOf(localDate);
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Date.valueOf(localDate);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
         checkClosed();
-        LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-        if(localDateTime == null) {
-            return null;
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
+            if (localDateTime == null) {
+                return null;
+            }
+            return Time.valueOf(localDateTime.toLocalTime());
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Time.valueOf(localDateTime.toLocalTime());
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         checkClosed();
-        LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-        if(localDateTime == null) {
-            return null;
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
+            if (localDateTime == null) {
+                return null;
+            }
+            return Timestamp.valueOf(localDateTime);
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Timestamp.valueOf(localDateTime);
     }
 
     @Override
@@ -190,92 +242,144 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public String getString(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getString(columnLabel);
+        try {
+            return reader.getString(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getBoolean(columnLabel);
+        try {
+            return reader.getBoolean(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public byte getByte(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getByte(columnLabel);
+        try {
+            return reader.getByte(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public short getShort(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getShort(columnLabel);
+        try {
+            return reader.getShort(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public int getInt(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getInteger(columnLabel);
+        try {
+            return reader.getInteger(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public long getLong(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getLong(columnLabel);
+        try {
+            return reader.getLong(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public float getFloat(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getFloat(columnLabel);
+        try {
+            return reader.getFloat(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getDouble(columnLabel);
+        try {
+            return reader.getDouble(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         checkClosed();
-        return reader.getBigDecimal(columnLabel);
+        try {
+            return reader.getBigDecimal(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getByteArray(columnLabel);
+        try {
+            return reader.getByteArray(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
         checkClosed();
-        //TODO: Add this to ClickHouseBinaryFormatReader
-        LocalDate localDate = reader.getLocalDate(columnLabel);
-        if(localDate == null) {
-            return null;
+        try {
+            //TODO: Add this to ClickHouseBinaryFormatReader
+            LocalDate localDate = reader.getLocalDate(columnLabel);
+            if (localDate == null) {
+                return null;
+            }
+            return Date.valueOf(localDate);
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Date.valueOf(localDate);
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
         checkClosed();
-        LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-        if(localDateTime == null) {
-            return null;
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+            if(localDateTime == null) {
+                return null;
+            }
+            return Time.valueOf(localDateTime.toLocalTime());
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Time.valueOf(localDateTime.toLocalTime());
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
         checkClosed();
-        LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-        if(localDateTime == null) {
-            return null;
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+            if (localDateTime == null) {
+                return null;
+            }
+            return Timestamp.valueOf(localDateTime);
+        } catch (Exception e) {
+            throw new SQLException(e);
         }
-        return Timestamp.valueOf(localDateTime);
     }
 
     @Override
@@ -336,7 +440,11 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public int findColumn(String columnLabel) throws SQLException {
         checkClosed();
-        return 0;
+        try {
+            return reader.getSchema().getColumnByName(columnLabel).getColumnIndex();
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
@@ -354,13 +462,21 @@ public class ResultSetImpl implements ResultSet, JdbcWrapper {
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         checkClosed();
-        return reader.getBigDecimal(columnIndex);
+        try {
+            return reader.getBigDecimal(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
         checkClosed();
-        return reader.getBigDecimal(columnLabel);
+        try {
+            return reader.getBigDecimal(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
