@@ -152,7 +152,8 @@ public class Client implements AutoCloseable {
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
+                   Supplier<String> bearerTokenSupplier) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.endpoints.forEach(endpoint -> {
@@ -169,7 +170,7 @@ public class Client implements AutoCloseable {
         }
         this.useNewImplementation = useNewImplementation;
         if (useNewImplementation) {
-            this.httpClientHelper = new HttpAPIClientHelper(configuration);
+            this.httpClientHelper = new HttpAPIClientHelper(configuration, bearerTokenSupplier);
             LOG.info("Using new http client implementation");
         } else {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
@@ -218,6 +219,8 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
+
+        private Supplier<String> bearerTokenSupplier = null;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -886,6 +889,32 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Specifies whether to use Bearer Authentication and what token to use.
+         * The token will be sent as is, so it should be encoded before passing to this method.
+         *
+         * @param bearerToken - token to use
+         * @return same instance of the builder
+         */
+        public Builder useBearerTokenAuth(String bearerToken) {
+            this.httpHeader("Authorization", "Bearer " + bearerToken);
+            return this;
+        }
+
+        /**
+         * Specifies a supplier for a bearer tokens. It is useful when token should be refreshed.
+         * Supplier is called each time before sending a request.
+         * Supplier should return encoded token.
+         * This configuration cannot be used with {@link #useBearerTokenAuth(String)}.
+         *
+         * @param tokenSupplier - token supplier
+         * @return
+         */
+        public Builder useBearerTokenAuth(Supplier<String> tokenSupplier) {
+            this.bearerTokenSupplier = tokenSupplier;
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -896,13 +925,20 @@ public class Client implements AutoCloseable {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
-                !MapUtils.getFlag(this.configuration, "ssl_authentication")) {
-                throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
+                !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
+                !this.configuration.containsKey(ClientSettings.HTTP_HEADER_PREFIX + "Authorization") &&
+                this.bearerTokenSupplier == null) {
+                throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
                     (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
                 throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
+            }
+
+            if (this.configuration.containsKey(ClientSettings.HTTP_HEADER_PREFIX + "Authorization") &&
+                this.bearerTokenSupplier != null) {
+                throw new IllegalArgumentException("Bearer token supplier cannot be used with a predefined Authorization header");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
@@ -943,7 +979,15 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
+            // check for only new implementation configuration
+            if (!this.useNewImplementation) {
+                if (this.bearerTokenSupplier != null) {
+                    throw new IllegalArgumentException("Bearer token supplier cannot be used with old implementation");
+                }
+            }
+
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
+                this.columnToMethodMatchingStrategy, this.bearerTokenSupplier);
         }
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;

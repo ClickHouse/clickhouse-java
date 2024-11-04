@@ -63,7 +63,6 @@ import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -74,6 +73,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
@@ -90,9 +90,12 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    public HttpAPIClientHelper(Map<String, String> configuration) {
+    private final Supplier<String> bearerTokenSupplier;
+
+    public HttpAPIClientHelper(Map<String, String> configuration, Supplier<String> bearerTokenSupplier) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
+        this.bearerTokenSupplier = bearerTokenSupplier;
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -401,6 +404,8 @@ public class HttpAPIClientHelper {
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
             req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClickHouseDefaults.USER.getKey()));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
+        } else if (bearerTokenSupplier != null) {
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerTokenSupplier.get());
         } else if (chConfig.getOrDefault(ClientSettings.HTTP_USE_BASIC_AUTH, "true").equalsIgnoreCase("true")) {
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
                     (chConfig.get(ClickHouseDefaults.USER.getKey()) + ":" + chConfig.get(ClickHouseDefaults.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));

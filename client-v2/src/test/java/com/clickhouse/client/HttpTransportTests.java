@@ -35,6 +35,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
@@ -44,8 +45,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 public class HttpTransportTests extends BaseIntegrationTest {
@@ -59,7 +63,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         int proxyPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + proxyPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(proxyPort)
@@ -147,7 +150,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
     public void testConnectionRequestTimeout() {
 
         int serverPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + serverPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(serverPort)
@@ -637,5 +639,70 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertEquals(e.getCode(), 241);
             }
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBearerTokenAuth() throws Exception {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        String jwtToken1 = Arrays.stream(
+                new String[]{"header", "payload", "signature"})
+                .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                .reduce((s1, s2) -> s1 + "." + s2).get();
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .useBearerTokenAuth(jwtToken1)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            } catch (Exception e) {
+                Assert.fail("Unexpected exception", e);
+            }
+        }
+
+        String jwtToken2 = Arrays.stream(
+                        new String[]{"header2", "payload2", "signature2"})
+                .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                .reduce((s1, s2) -> s1 + "." + s2).get();
+        final AtomicInteger callCount = new AtomicInteger(0);
+        Supplier<String> tokenSupplier = () -> {
+            callCount.incrementAndGet();
+            return jwtToken2;
+        };
+
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken2))
+                .willReturn(WireMock.aResponse()
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .useBearerTokenAuth(tokenSupplier)
+                .build()) {
+
+            for (int i = 0; i < 3; i++ ) {
+
+                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 10);
+                } catch (Exception e) {
+                    Assert.fail("Unexpected exception", e);
+                }
+            }
+        }
+
+        assertEquals(callCount.get(), 3);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Client.Builder().useBearerTokenAuth("token")
+                    .useBearerTokenAuth(() -> "token2").build();
+        });
     }
 }
