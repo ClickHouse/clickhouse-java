@@ -1,7 +1,9 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
@@ -32,8 +34,10 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,7 +75,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator);
+        boolean jsonAsString = MapUtils.getFlag(querySettings.getAllSettings(), ClientSettings.SERVER_SETTING_PREFIX + "output_format_binary_write_json_as_string", false);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
         if (schema != null) {
             setSchema(schema);
         }

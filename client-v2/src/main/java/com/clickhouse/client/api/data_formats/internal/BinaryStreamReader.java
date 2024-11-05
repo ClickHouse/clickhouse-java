@@ -45,16 +45,7 @@ public class BinaryStreamReader {
 
     private final ByteBufferAllocator bufferAllocator;
 
-    /**
-     * Creates a BinaryStreamReader instance that will use {@link DefaultByteBufferAllocator} to allocate buffers.
-     *
-     * @param input - source of raw data in a suitable format
-     * @param timeZone - timezone to use for date and datetime values
-     * @param log - logger
-     */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log) {
-        this(input, timeZone, log, new DefaultByteBufferAllocator());
-    }
+    private final boolean jsonAsString;
 
     /**
      * Createa a BinaryStreamReader instance that will use the provided buffer allocator.
@@ -64,11 +55,12 @@ public class BinaryStreamReader {
      * @param log - logger
      * @param bufferAllocator - byte buffer allocator
      */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator) {
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
         this.bufferAllocator = bufferAllocator;
+        this.jsonAsString = jsonAsString;
     }
 
     /**
@@ -203,8 +195,13 @@ public class BinaryStreamReader {
                 case Ring:
                     return (T) readGeoRing();
 
-//                case JSON: // obsolete https://clickhouse.com/docs/en/sql-reference/data-types/json#displaying-json-column
-//                case Object:
+                case JSON: // experimental https://clickhouse.com/docs/en/sql-reference/data-types/newjson
+                    if (jsonAsString) {
+                        return (T) readString(input);
+                    } else {
+                        throw new RuntimeException("Reading JSON from binary is not implemented yet");
+                    }
+//                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case Array:
                     return convertArray(readArray(column), typeHint);
                 case Map:

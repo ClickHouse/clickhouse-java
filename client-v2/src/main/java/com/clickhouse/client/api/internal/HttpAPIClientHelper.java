@@ -303,12 +303,8 @@ public class HttpAPIClientHelper {
                                 }
                             }
                             if (found) {
-                                int start = i;
-                                while (i < rBytes && buffer[i] != '\n') {
-                                    i++;
-                                }
 
-                                return new ServerException(serverCode, new String(buffer, start, i -start, StandardCharsets.UTF_8));
+                                return new ServerException(serverCode, new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
                             }
                         }
                     }
