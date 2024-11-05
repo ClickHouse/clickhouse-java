@@ -16,6 +16,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.ClickHouseHttpProto;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -63,7 +64,6 @@ import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -303,12 +303,8 @@ public class HttpAPIClientHelper {
                                 }
                             }
                             if (found) {
-                                int start = i;
-                                while (i < rBytes && buffer[i] != '\n') {
-                                    i++;
-                                }
-
-                                return new ServerException(serverCode, new String(buffer, start, i -start, StandardCharsets.UTF_8));
+                                String msg = StringEscapeUtils.unescapeJson(new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
+                                return new ServerException(serverCode, msg.replaceAll("\n", " "));
                             }
                         }
                     }
@@ -316,8 +312,8 @@ public class HttpAPIClientHelper {
             }
 
             return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
-        } catch (IOException e) {
-            throw new ClientException("Failed to read response body", e);
+        } catch (Exception e) {
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
         }
     }
 

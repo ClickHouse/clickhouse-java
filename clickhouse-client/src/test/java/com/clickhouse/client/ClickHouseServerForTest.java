@@ -172,6 +172,7 @@ public class ClickHouseServerForTest {
                             ClickHouseProtocol.TCP.getDefaultSecurePort(),
                             ClickHouseProtocol.POSTGRESQL.getDefaultPort())
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
+                    .withClasspathResourceMapping("empty.csv", "/var/lib/clickhouse/user_files/empty.csv", BindMode.READ_ONLY)
                     .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
                             BindMode.READ_WRITE)
                     .withNetwork(network)
