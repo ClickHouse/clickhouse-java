@@ -45,6 +45,7 @@
         <module>client-v2</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>
+        <module>jdbc-v2</module>
         <module>clickhouse-r2dbc</module>
 
 <!-- Not working. Disabled       <module>clickhouse-benchmark</module>-->
