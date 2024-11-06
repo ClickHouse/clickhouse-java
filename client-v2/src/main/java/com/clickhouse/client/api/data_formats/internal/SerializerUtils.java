@@ -585,73 +585,140 @@ public class SerializerUtils {
 
     public static class NumberConverter {
 
-        public static byte toByte(Number value) {
-            if (value.byteValue() == value.shortValue()) {
-                return value.byteValue();
+        public static byte toByte(Object value) {
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.byteValue() == number.shortValue()) {
+                    return number.byteValue();
+                } else {
+                    throw new ArithmeticException("integer overflow: " + value + " cannot be presented as byte");
+                }
+            } else if (value instanceof Boolean) {
+                return (byte) ((Boolean) value ? 1 : 0);
+            } else if (value instanceof String) {
+                return Byte.parseByte(value.toString());
             } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as byte");
+                throw new IllegalArgumentException("Cannot convert " + value + " to byte value");
             }
         }
 
-        public static short toShort(Number value) {
-            if (value.shortValue() == value.intValue()) {
-                return value.shortValue();
+        public static short toShort(Object value) {
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.shortValue() == number.intValue()) {
+                    return number.shortValue();
+                } else {
+                    throw new ArithmeticException("integer overflow: " + value + " cannot be presented as short");
+                }
+            } else if (value instanceof Boolean) {
+                return (short) ((Boolean) value ? 1 : 0);
+            } else if ( value instanceof String) {
+                return Short.parseShort(value.toString());
             } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as short");
+                throw new IllegalArgumentException("Cannot convert " + value + " to short value");
             }
         }
 
-        public static int toInt(Number value) {
-            if (value.intValue() == value.longValue()) {
-                return value.intValue();
+        public static int toInt(Object value) {
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.intValue() == number.longValue()) {
+                    return number.intValue();
+                } else {
+                    throw new ArithmeticException("integer overflow: " + value + " cannot be presented as int");
+                }
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? 1 : 0;
+            } else if (value instanceof String) {
+                return Integer.parseInt((String) value);
             } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as int");
+                throw new IllegalArgumentException("Cannot convert " + value + " to int value");
             }
         }
 
-        public static long toLong(Number value) {
-            if (value.longValue() == value.doubleValue()) {
-                return value.longValue();
+        public static long toLong(Object value) {
+            if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.longValue() == number.doubleValue()) {
+                    return number.longValue();
+                } else {
+                    throw new ArithmeticException("integer overflow: " + value + " cannot be presented as long");
+                }
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? 1 : 0;
+            } else if (value instanceof String) {
+                return Long.parseLong((String) value);
             } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as long");
+                throw new IllegalArgumentException("Cannot convert " + value + " to long value");
             }
         }
 
-
-        public static BigInteger toBigInteger(Number value) {
-            return value instanceof BigInteger ? (BigInteger) value : BigInteger.valueOf(value.longValue());
+        public static BigInteger toBigInteger(Object value) {
+            if (value instanceof BigInteger) {
+                return (BigInteger) value;
+            } else if (value instanceof Number) {
+                return BigInteger.valueOf(((Number) value).longValue());
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? BigInteger.ONE : BigInteger.ZERO;
+            } else if (value instanceof String) {
+                return new BigInteger((String) value);
+            } else {
+                throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger value");
+            }
         }
 
-        public static BigInteger toBigInteger(String value) {
-            return new BigInteger(value);
-        }
-
-        public static float toFloat(Number value) {
+        public static float toFloat(Object value) {
             if (value instanceof Float) {
                 return (Float) value;
-            } else if (value.floatValue() == value.doubleValue()) {
-                return value.floatValue();
+            } else if (value instanceof Number) {
+                Number number = (Number) value;
+                 if (number.floatValue() == number.doubleValue()) {
+                    return number.floatValue();
+                } else {
+                    throw new ArithmeticException("float overflow: " + value + " cannot be presented as float");
+                }
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? 1.0f : 0.0f;
+            } else if (value instanceof String ) {
+                return Float.parseFloat((String) value);
             } else {
-                throw new ArithmeticException("float overflow: " + value + " cannot be presented as float");
+                throw new IllegalArgumentException("Cannot convert " + value + " to float value");
             }
         }
 
-        public static double toDouble(Number value) {
+        public static double toDouble(Object value) {
             if (value instanceof Double) {
                 return (Double) value;
-            } else if (value.doubleValue() == value.floatValue()) {
-                return value.doubleValue();
+            } else if (value instanceof Number) {
+                Number number = (Number) value;
+                if (number.doubleValue() == number.floatValue()) {
+                    return number.doubleValue();
+                } else {
+                    throw new ArithmeticException("double overflow: " + value + " cannot be presented as double");
+                }
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? 1.0 : 0.0;
+            } else if (value instanceof String) {
+                return Double.parseDouble((String) value);
             } else {
-                throw new ArithmeticException("double overflow: " + value + " cannot be presented as double");
+                throw new IllegalArgumentException("Cannot convert " + value + " to double value");
             }
         }
 
-        public static BigDecimal toBigDecimal(Number value) {
-            return value instanceof BigDecimal ? (BigDecimal) value : BigDecimal.valueOf(value.doubleValue());
-        }
-
-        public static BigDecimal toBigDecimal(String value) {
-            return new BigDecimal(value);
+        public static BigDecimal toBigDecimal(Object value) {
+            if (value instanceof BigDecimal) {
+                return (BigDecimal) value;
+            } else if (value instanceof BigInteger) {
+                return new BigDecimal((BigInteger) value);
+            } else if (value instanceof Number) {
+                return BigDecimal.valueOf(((Number) value).doubleValue());
+            } else if (value instanceof String) {
+                return new BigDecimal((String) value);
+            } else if (value instanceof Boolean) {
+                return (Boolean) value ? BigDecimal.ONE : BigDecimal.ZERO;
+            } else {
+                throw new IllegalArgumentException("Cannot convert " + value + " to BigDecimal value");
+            }
         }
     }
 }
