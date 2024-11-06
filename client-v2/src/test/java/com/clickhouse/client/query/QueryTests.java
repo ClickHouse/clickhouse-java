@@ -1271,13 +1271,13 @@ public class QueryTests extends BaseIntegrationTest {
                 .waitEndOfQuery(true)
                 .setQueryId(uuid);
 
-        QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
+        try (QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
 
-        // Stats should be available after the query is done
-        OperationMetrics metrics = response.getMetrics();
-
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+        }
 
         StringBuilder insertStmtBuilder = new StringBuilder();
         insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
@@ -1288,17 +1288,26 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
         }
-        response = client.query(insertStmtBuilder.toString(), settings).get();
+        try (QueryResponse response = client.query(insertStmtBuilder.toString(), settings).get()) {
 
-        metrics = response.getMetrics();
+            OperationMetrics metrics = response.getMetrics();
 
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
-        Assert.assertEquals(response.getReadRows(), rowsToInsert);
-        Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
-        Assert.assertEquals(metrics.getQueryId(), uuid);
-        Assert.assertEquals(response.getQueryId(), uuid);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
+            Assert.assertEquals(response.getReadRows(), rowsToInsert);
+            Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+            Assert.assertEquals(metrics.getQueryId(), uuid);
+            Assert.assertEquals(response.getQueryId(), uuid);
+        }
 
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 30", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
+
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong() > 0);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
+        }
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
