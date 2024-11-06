@@ -1,0 +1,1283 @@
+/**
+ * This ugly grammar defines a loose parser for ClickHouse. It cannot be used to validate SQL
+ * on behalf of server, but only for the following purposes:
+ * 1) split given SQL into multiple statements
+ * 2) recognize type of each statement(DDL/DML/DCL/TCL, query or mutation etc.)
+ * 3) extract cluster, database, table, format, file, compression, macros and parameters from a statement
+ * 4) check if specific keywords like "WITH TOTALS" or so exist in the statement or not
+ *
+ * The ANTLR4 grammar at https://github.com/ClickHouse/ClickHouse/blob/master/src/Parsers/New is incomplete.
+ * Also using it will introduce 300KB runtime and we'll have to deal with many parsing errors, 
+ * which is too much for a JDBC driver. On the other hand, if we write a parser from scratch, 
+ * we'll end up with one like Druid, which is more complex than the JDBC driver itself.
+ *
+ * JavaCC is something in the middle that fits our need - no runtime and easy to maintain/extend.
+ */
+options {
+    // DEBUG_LOOKAHEAD = true;
+    // DEBUG_PARSER = true;
+    // DEBUG_TOKEN_MANAGER = true;
+
+    ERROR_REPORTING = false;
+    UNICODE_INPUT = true;
+    COMMON_TOKEN_ACTION = true;
+}
+
+PARSER_BEGIN(ClickHouseSqlParser)
+
+package com.clickhouse.jdbc.parser;
+
+import java.io.StringReader;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Collection;
+
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
+
+public class ClickHouseSqlParser {
+    private static final boolean DEBUG = false;
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseSqlParser.class);
+
+    private final List<ClickHouseSqlStatement> statements = new ArrayList<>();
+
+    private ClickHouseConfig config;
+    private ParseHandler handler;
+    private int anyArgsListStart = -1;
+
+    private boolean tokenIn(int tokenIndex, int... tokens) {
+        boolean matched = false;
+
+        int t = getToken(tokenIndex).kind;
+        if (tokens != null) {
+            for (int i : tokens) {
+                if (t == i) {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+
+        return matched;
+    }
+
+    // FIXME ugly workaround but performs better than adding another lexical state for <BETWEEN>...<AND>
+    private boolean noAndWithinBetween() {
+        return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
+    }
+
+    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
+        return parse(sql, config, null);
+    }
+
+    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, ParseHandler handler) {
+        if (config == null) {
+            config = new ClickHouseConfig();
+        }
+
+        ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
+
+        if (sql == null || sql.isEmpty()) {
+            return stmts;
+        }
+
+        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, config, handler);
+        try {
+            stmts = p.sql();
+        } catch (Exception e) {
+            if (DEBUG) {
+                throw new IllegalArgumentException(e);
+            } else {
+                log.warn("%s. If you believe the SQL is valid, please feel free to open an issue on Github with this warning and the following SQL attached.\n%s", e.getMessage(), sql);
+            }
+        }
+
+        return stmts;
+    }
+
+    public ClickHouseSqlParser(String sql, ClickHouseConfig config, ParseHandler handler) {
+        this(new StringReader(sql));
+
+        this.config = config;
+        this.handler = handler;
+    }
+
+    public void addStatement() {
+        if (token_source.isValid()) {
+            ClickHouseSqlStatement sqlStmt = token_source.build(handler);
+            // FIXME remove the restriction once we can hanlde insertion with format well
+            if (statements.isEmpty() || sqlStmt.isRecognized()) {
+                statements.add(sqlStmt);
+            }
+        } else {
+            token_source.reset();
+        }
+    }
+
+
+    private void rememberSetStmtArgsStart() {
+        if (token.next != null && "ROLE".equalsIgnoreCase(token.next.image)) {
+            anyArgsListStart = token_source.input_stream.tokenBegin;
+        }
+    }
+
+    private void rememberRolesIfSetStmt() {
+        if (anyArgsListStart > 0) {
+            HashSet<String> roles = new HashSet<>();
+            token_source.attachedAttributes.put("_ROLES", roles);
+            int stmtLength = token_source.builder.length();
+
+            StringBuilder roleBuff = new StringBuilder();
+            boolean isQuoted = false;
+            for (int i = anyArgsListStart; i < stmtLength; i++) {
+                char ch = token_source.builder.charAt(i);
+                if (ch == '"' && isQuoted ) {
+                    isQuoted = false;
+                }  else if (ch == '"') {
+                    isQuoted = true;
+                } else if (ch == ',' && !isQuoted && roleBuff.length() > 0) {
+                    roles.add(roleBuff.toString());
+                    roleBuff.setLength(0);
+                } else if (!Character.isWhitespace(ch)) {
+                    roleBuff.append(ch);
+                }
+            }
+            if (roleBuff.length() > 0) {
+                roles.add(roleBuff.toString());
+            }
+        }
+        anyArgsListStart = -1;
+    }
+}
+
+PARSER_END(ClickHouseSqlParser)
+
+TOKEN_MGR_DECLS: {
+    // whitespaces and comments are invalid
+    private int validTokens = 0;
+    // see http://www.engr.mun.ca/~theo/JavaCC-FAQ/javacc-faq-moz.htm#tth_sEc3.17
+    private int commentNestingDepth = 0;
+
+    final java.util.Deque<Integer> stack = new java.util.LinkedList<>();
+    int parentToken = -1;
+
+    final StringBuilder builder = new StringBuilder(512);
+
+    StatementType stmtType = StatementType.UNKNOWN;
+    String cluster = null;
+    String database = null;
+    String table = null;
+    String input = null;
+    String compressAlgorithm = null;
+    String compressLevel = null;
+    String format = null;
+    String file = null;
+
+    final List<Integer> parameters = new ArrayList<>();
+    final Map<String, Integer> positions = new HashMap<>();
+    final Map<String, String> settings = new LinkedHashMap<>();
+    final Set<String> tempTables = new LinkedHashSet<>();
+    final Map<String, Object> attachedAttributes = new HashMap<>();
+
+    public void CommonTokenAction(Token t) {
+        if (t.kind != ClickHouseSqlParserConstants.SEMICOLON) {
+            builder.append(t.image);
+
+            if (t.kind != ClickHouseSqlParserConstants.EOF) {
+                validTokens++;
+            }
+        }
+	}
+
+    void enterToken(int tokenKind) {
+        if (tokenKind < 0) {
+            return;
+        }
+
+        stack.push(parentToken = tokenKind);
+    }
+
+    void leaveToken(int tokenKind) {
+        if (parentToken == tokenKind) {
+            stack.pop();
+        }
+
+        parentToken = stack.isEmpty() ? -1 : stack.getLast();
+    }
+
+    void processMacro(String name, List<String> params, ParseHandler handler) {
+        StringBuilder m = new StringBuilder();
+        m.append('#').append(name);
+
+        int startPos = builder.lastIndexOf(m.toString());
+        int endPos = !params.isEmpty() ? builder.indexOf(")", startPos) + 1 : startPos + m.length();
+
+        builder.delete(startPos, endPos);
+        if (handler != null) {
+            String replacement = handler.handleMacro(name, params);
+            if (replacement != null && !replacement.isEmpty()) {
+                builder.insert(startPos, replacement);
+            }
+        }
+    }
+
+    void processParameter(String str, ParseHandler handler) {
+        int pos = builder.lastIndexOf(str);
+        parameters.add(pos);
+
+        if (handler != null) {
+            String replacement = handler.handleParameter(cluster, database, table, parameters.size());
+            if (replacement != null && !replacement.isEmpty()) {
+                builder.deleteCharAt(pos);
+                builder.insert(pos, replacement);
+            }
+        }
+    }
+
+    void append(StringBuilder str) {
+        builder.append(str.toString());
+    }
+
+    void reset() {
+        stack.clear();
+        parentToken = -1;
+
+        builder.setLength(validTokens = 0);
+
+        stmtType = StatementType.UNKNOWN;
+        cluster = null;
+        database = null;
+        table = null;
+        input = null;
+        compressAlgorithm = null;
+        compressLevel = null;
+        format = null;
+        file = null;
+        parameters.clear();
+        positions.clear();
+        settings.clear();
+        tempTables.clear();
+    }
+
+    ClickHouseSqlStatement build(ParseHandler handler) {
+        String sqlStmt = builder.toString();
+        ClickHouseSqlStatement s = null;
+        if (attachedAttributes.get("_ROLES") != null && attachedAttributes.get("_ROLES") instanceof Collection<?>){
+            Collection<String> roles = (Collection<String>) attachedAttributes.get("_ROLES");
+            settings.put("_ROLES_COUNT", String.valueOf(roles.size()));
+            int i = 0;
+            for (String role : roles) {
+                settings.put("_ROLE_" + i, role);
+                i++;
+            }
+        }
+
+        if (handler != null) {
+            s = handler.handleStatement(
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+        }
+
+        if (s == null) {
+            s = new ClickHouseSqlStatement(
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+        }
+        
+        // reset variables
+        reset();
+
+        return s;
+    }
+
+    boolean isValid() {
+        return validTokens > 0;
+    }
+
+    void addPosition(Token t) {
+        String keyword = null;
+        if (t == null || (keyword = t.image) == null || keyword.isEmpty()) {
+            return;
+        }
+
+        this.positions.put(keyword.toUpperCase(Locale.ROOT), builder.lastIndexOf(keyword));
+    }
+
+    void addCustomKeywordPosition(String keyword, Token t) {
+        String search = t != null ? t.image : null;
+        if (keyword == null || keyword.isEmpty() || search == null || search.isEmpty()) {
+            return;
+        }
+
+        this.positions.put(keyword, builder.lastIndexOf(search));
+    }
+
+    void removePosition(String keyword) {
+        this.positions.remove(keyword);
+    }
+
+    void addSetting(String key, String value) {
+        if (key == null || key.isEmpty()) {
+            return;
+        }
+
+        this.settings.put(key.toLowerCase(Locale.ROOT), value);
+    }
+}
+
+SKIP: {
+    <WHITESPACE: " " | "\t" | "\n" | "\r" | "\u000b" | "\u000c" | "\u0085" | "\u00a0" | "\u180e"
+        | "\u2000" | "\u200a" | "\u200b" | "\u200c" | "\u200d" 
+        | "\u2028" | "\u2029" | "\u202f" | "\u205f" | "\u2060" | "\u3000" | "\ufeff">
+    { append(image); }
+    | <JDBC_LITERAL: ("{d" | "{t" | "{ts" | "{tt") (~["}"])* "}"> {
+        int startIndex = image.indexOf("\'");
+        int endIndex = image.lastIndexOf("\'");
+        if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
+            // skip invalid content
+        } else if (image.charAt(1) == 'd') { // date
+            builder.append("date")
+                .append(image.substring(startIndex, endIndex + 1));
+        } else {
+            char ch = image.charAt(2);
+            if (ch == 's') { // timestamp
+                int scale = image.lastIndexOf(".");
+                if (scale > 0) {
+                    scale = endIndex - scale - 1;
+                } else {
+                    scale = 0;
+                }
+
+                if (scale > 0) {
+                    // or downgrade to DateTime32 for better compatibility?
+                    builder.append("toDateTime64(")
+                        .append(image.substring(startIndex, endIndex + 1)).append(',').append(scale).append(')');
+                } else {
+                    builder.append("timestamp")
+                        .append(image.substring(startIndex, endIndex + 1));
+                }
+            } else if (ch == 't') { // temp table, either session-level temporary table or external table
+                String tableName = ClickHouseSqlUtils.unescape(image.substring(startIndex, endIndex + 1));
+                builder.append('`').append(tableName).append('`');
+                tempTables.add(tableName);
+            } else {
+                builder.append("timestamp'1970-01-01 ")
+                    .append(image.substring(startIndex + 1, endIndex + 1));
+            }
+        }
+    }
+    | <SINGLE_LINE_COMMENT: ("--" | "//") (~["\r", "\n"])*> { append(image); }
+    | "/*" { commentNestingDepth = 1; append(image); }: MULTI_LINE_COMMENT
+}
+
+<MULTI_LINE_COMMENT> SKIP: {
+    "/*" { commentNestingDepth += 1; append(image); }
+    | "*/" { SwitchTo(--commentNestingDepth == 0 ? DEFAULT : MULTI_LINE_COMMENT); append(image); }
+    | < ~[] > { append(image); }
+}
+
+/*
+<RAW_DATA> SKIP: {
+    <EORD: (";\n" | "\n\n")> { SwitchTo(DEFAULT); append(image); }
+    | < ~[] > { append(image); }
+}
+*/
+
+// top-level statements
+ClickHouseSqlStatement[] sql(): {} {
+    stmts()
+    { addStatement(); }
+    (
+        (LOOKAHEAD(2) <SEMICOLON>)+
+        (stmts())?
+        { addStatement(); }
+    )*
+    <EOF>
+    { return statements.toArray(new ClickHouseSqlStatement[statements.size()]); }
+}
+
+void stmts(): {} {
+    LOOKAHEAD(2) stmt()
+    | LOOKAHEAD(2) anyExprList() // in case there's anything new
+}
+
+void stmt(): {} {
+    alterStmt()      { if (token_source.stmtType == StatementType.UNKNOWN) token_source.stmtType = StatementType.ALTER; }
+    | attachStmt()   { token_source.stmtType = StatementType.ATTACH;   }
+    | checkStmt()    { token_source.stmtType = StatementType.CHECK;    }
+    | createStmt()   { token_source.stmtType = StatementType.CREATE;   }
+    | deleteStmt()   { token_source.stmtType = StatementType.DELETE;   }
+    | describeStmt() { token_source.stmtType = StatementType.DESCRIBE; }
+    | detachStmt()   { token_source.stmtType = StatementType.DETACH;   }
+    | dropStmt()     { token_source.stmtType = StatementType.DROP;     }
+    | existsStmt()   { token_source.stmtType = StatementType.EXISTS;   }
+    | explainStmt()  { token_source.stmtType = StatementType.EXPLAIN;  }
+    | insertStmt()   { token_source.stmtType = StatementType.INSERT;   }
+    | grantStmt()    { token_source.stmtType = StatementType.GRANT;    }
+    | killStmt()     { token_source.stmtType = StatementType.KILL;     }
+    | optimizeStmt() { token_source.stmtType = StatementType.OPTIMIZE; }
+    | renameStmt()   { token_source.stmtType = StatementType.RENAME;   }
+    | revokeStmt()   { token_source.stmtType = StatementType.REVOKE;   }
+    | selectStmt()   { token_source.stmtType = StatementType.SELECT;   }
+    | setStmt()      { token_source.stmtType = StatementType.SET;      }
+    | showStmt()     { token_source.stmtType = StatementType.SHOW;     }
+    | systemStmt()   { token_source.stmtType = StatementType.SYSTEM;   }
+    | truncateStmt() { token_source.stmtType = StatementType.TRUNCATE; }
+    | updateStmt()   { token_source.stmtType = StatementType.UPDATE;   }
+    | useStmt()      { token_source.stmtType = StatementType.USE;      }
+    | watchStmt()    { token_source.stmtType = StatementType.WATCH;    }
+    | txStmt()       { token_source.stmtType = StatementType.TRANSACTION; }
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/alter/
+void alterStmt(): {} {
+    <ALTER>
+    (
+        LOOKAHEAD(2)
+        <TABLE> tableIdentifier(true) (LOOKAHEAD(2) clusterClause())? (
+            LOOKAHEAD({ !tokenIn(1, UPDATE, DELETE) }) anyIdentifier()
+            | <UPDATE> { token_source.stmtType = StatementType.ALTER_UPDATE; }
+            | <DELETE> { token_source.stmtType = StatementType.ALTER_DELETE; }
+        )
+    )? (anyExprList())?
+}
+
+void clusterClause(): { Token t; } {
+    <ON> <CLUSTER> (LOOKAHEAD(2) t = anyIdentifier() | t = <STRING_LITERAL>)
+    { token_source.cluster = ClickHouseSqlUtils.unescape(t.image); }
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/attach/
+void attachStmt(): { Token t; } {
+    <ATTACH> (
+        LOOKAHEAD(2)
+        (
+            <DATABASE> { token_source.addPosition(token); }
+            | <DICTIONARY>
+            | (<OR> <REPLACE> { token_source.addPosition(token); }) (
+                (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
+            )
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <NOT> <EXISTS> { token_source.addPosition(token); }
+        )?
+    )?
+    anyExprList() // not interested
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/check-table/
+void checkStmt(): {} { // not interested
+    <CHECK> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/create/
+void createStmt(): {} {
+    <CREATE> (
+        LOOKAHEAD(2)
+        (
+            <DATABASE> { token_source.addPosition(token); }
+            | (<OR> <REPLACE> { token_source.addPosition(token); })? (
+                (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
+            )
+            | <DICTIONARY> | <USER> | <ROLE> | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <NOT> <EXISTS> { token_source.addPosition(token); }
+        )?
+    )?
+    anyExprList() // not interested
+}
+
+// upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
+void deleteStmt(): {} {
+    <DELETE> { token_source.addPosition(token); } <FROM> { token_source.addPosition(token); } tableIdentifier(true)
+    (LOOKAHEAD({ getToken(1).kind == WHERE })<WHERE> { token_source.addPosition(token); })? (anyExprList())?
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/describe-table/
+void describeStmt(): {} {
+    (<DESCRIBE> | <DESC>) { token_source.table = "columns"; }
+    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)? tableIdentifier(true) (anyExprList())?
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/detach/
+void detachStmt(): {} {
+    <DETACH> (
+        LOOKAHEAD(2)
+        (
+            <DATABASE> { token_source.addPosition(token); }
+            | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <EXISTS> { token_source.addPosition(token); }
+        )?
+    )?
+    anyExprList() // not interested
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/drop/
+void dropStmt(): {} {
+    <DROP> (
+        LOOKAHEAD(2)
+        (
+            <DATABASE> { token_source.addPosition(token); }
+            | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY> | <USER> | <ROLE> 
+            | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <EXISTS> { token_source.addPosition(token); }
+        )?
+    )?
+    anyExprList() // not interested
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/exists/
+void existsStmt(): {} { // not interested
+    <EXISTS> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/explain/
+void explainStmt(): {} { // not interested
+    <EXPLAIN> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/grant/
+void grantStmt(): {} { // not interested
+    <GRANT> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/insert-into/
+void insertStmt(): {} {
+    <INSERT> <INTO>
+    (
+        LOOKAHEAD({ getToken(1).kind == FUNCTION }) <FUNCTION> functionExpr() 
+        | (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true)
+    )
+    (
+        LOOKAHEAD(2) infilePart()
+        | (
+            ( settingsPart() )? dataClause()
+        )
+    )
+}
+
+void dataClause(): {} {
+    try {
+        LOOKAHEAD(2) <VALUES> { token_source.addPosition(token); }
+            <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_START, token); }
+            columnExprList()
+            <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_END, token); }
+            (
+                LOOKAHEAD(2)
+                (<COMMA>)?
+                <LPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START); }
+                columnExprList()
+                <RPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_END); }
+            )*
+        | (LOOKAHEAD(2) ((withClause())? <SELECT> { token_source.addPosition(token); } columnExprList() <FROM> 
+            <INPUT> <LPAREN> <STRING_LITERAL> { token_source.input = ClickHouseSqlUtils.unescape(token.image); } <RPAREN>)?
+            <FORMAT> <IDENTIFIER> { token_source.format = token.image; } )? (anyExprList())?
+    } catch (ParseException e) {
+        // FIXME introduce a lexical state in next release with consideration of delimiter from the context
+        Token nextToken;
+        do {
+            nextToken = getNextToken();
+        } while(nextToken.kind != SEMICOLON && nextToken.kind != EOF);
+    }
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/kill/
+void killStmt(): {} { // not interested
+    <KILL> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/optimize/
+void optimizeStmt(): {} { // not interested
+    <OPTIMIZE> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/rename/
+void renameStmt(): {} { // not interested
+    <RENAME> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/revoke/
+void revokeStmt(): {} { // not interested
+    <REVOKE> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/select/
+void selectStmt(): {} {
+    // FIXME with (select 1), (select 2), 3 select *
+    (withClause())?
+    <SELECT> (LOOKAHEAD(2) <DISTINCT>)? (LOOKAHEAD(2) topClause())? columnExprList()
+    (LOOKAHEAD(2) <FROM> tableClause(true) (<COMMA> tableClause(false))*)?
+    (LOOKAHEAD(2) anyExprList())? // everything else
+}
+
+void withClause(): {} {
+    <WITH> { token_source.enterToken(WITH); } withExpr() (<COMMA> withExpr())*
+    { token_source.leaveToken(WITH); }
+}
+
+void topClause(): {} { <TOP> <DECIMAL_LITERAL> (LOOKAHEAD(2) <WITH> <TIES>)? }
+
+void tableClause(boolean record): { Token t; } {
+    (LOOKAHEAD(2) tableIdentifier(record) | (<LPAREN> anyExprList() <RPAREN>))
+    (LOOKAHEAD(2) t = aliasExpr() { if (record && t != null && token_source.table == null) token_source.table = ClickHouseSqlUtils.unescape(t.image); } )?
+    (LOOKAHEAD(2) <FINAL>)?
+    (LOOKAHEAD(2) <SAMPLE> numberLiteral() (LOOKAHEAD(2) <SLASH> numberLiteral())?
+        (LOOKAHEAD(2) <OFFSET> numberLiteral() (LOOKAHEAD(2) <SLASH> numberLiteral())?)?
+    )?
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/set/
+// https://clickhouse.tech/docs/en/sql-reference/statements/set-role/
+void setStmt(): {} { // not interested
+
+    <SET>(LOOKAHEAD(2) settingExprList() | ( {rememberSetStmtArgsStart(); } anyExprList() {rememberRolesIfSetStmt();}))
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/show/
+void showStmt(): {} {
+    <SHOW>
+    (
+        LOOKAHEAD(2)
+        <DATABASES> { token_source.table = "databases"; }
+        | LOOKAHEAD(2) (<DICTIONARIES> { token_source.table = "dictionaries"; }
+            (LOOKAHEAD(2) <FROM> databaseIdentifier(true))?)
+        | LOOKAHEAD(2) ((<TEMPORARY>)? <TABLES> { token_source.table = "tables"; }
+            (LOOKAHEAD(2) (<FROM> | <IN>) databaseIdentifier(true))?)
+        | (
+            LOOKAHEAD(2)
+            <CREATE>
+            (<DATABASE> databaseIdentifier(true))
+            | LOOKAHEAD(2) (<DICTIONARY> tableIdentifier(true))
+            | LOOKAHEAD(2) ((LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true))
+        )
+    )
+    { token_source.database = "system"; }
+    (LOOKAHEAD(2) anyExprList())?
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/system/
+void systemStmt(): {} { // not interested
+    <SYSTEM> anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/truncate/
+void truncateStmt(): {} {
+    <TRUNCATE> (LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? (LOOKAHEAD(2) <IF> <EXISTS>)?
+    tableIdentifier(true) (clusterClause())?
+}
+
+// upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
+void updateStmt(): {} {
+    <UPDATE> { token_source.addPosition(token); } tableIdentifier(true)
+    <SET> { token_source.addPosition(token); } anyExprList()
+}
+
+// https://clickhouse.tech/docs/en/sql-reference/statements/use/
+void useStmt(): {} {
+    <USE> databaseIdentifier(true)
+}
+
+// Experimental LIVE VIEW feature
+void watchStmt(): {} { // not interested
+    <WATCH> anyExprList()
+}
+
+// TCL
+void txStmt(): {} { // not interested
+    <COMMIT> { token_source.addPosition(token); }
+    | <ROLLBACK> { token_source.addPosition(token); }
+    | (<BEGIN> { token_source.addPosition(token); } <TRANSACTION>)
+}
+
+// columns
+void columnExprList(): {} {
+    columnsExpr() (<COMMA> columnsExpr())*
+}
+
+void withExpr(): {} {
+    nestedExpr()
+    (
+        (
+            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
+        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
+        | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
+        | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
+        | LOOKAHEAD(2) <AS> columnExpr()
+    )?
+}
+
+void columnsExpr(): {} {
+    LOOKAHEAD(allColumnsExpr()) allColumnsExpr()
+    (
+        LOOKAHEAD(2) (<APPLY> | <EXCEPT> | <REPLACE>) <LPAREN> anyExprList() <RPAREN>
+    )*
+    | nestedExpr()
+    (
+        (
+            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
+        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
+        | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
+        | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
+        | LOOKAHEAD(2) aliasExpr()
+    )?
+}
+
+void allColumnsExpr(): {} {
+    <ASTERISK> | anyIdentifier() <DOT> (LOOKAHEAD(2) anyIdentifier() <DOT>)? <ASTERISK>
+}
+
+void nestedExpr(): {} {
+    LOOKAHEAD(2) (<DASH> | <NOT>) nestedExpr()
+    | LOOKAHEAD(2) <CASE> (LOOKAHEAD({ getToken(1).kind != WHEN }) nestedExpr())? 
+        (<WHEN> nestedExpr() <THEN> nestedExpr())+ (<ELSE> nestedExpr())? <END>
+    | LOOKAHEAD(2) <INTERVAL> (LOOKAHEAD(2) <STRING_LITERAL> | nestedExpr() interval())
+    | columnExpr()
+    (
+        (
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
+        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
+        | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
+        | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
+    )?
+}
+
+void calcExpr(): {} {
+    (<AND> | <OR> | operator()) nestedExpr()
+}
+
+void betweenExpr(): {} {
+    <BETWEEN> { token_source.enterToken(BETWEEN); }
+    nestedExpr() 
+    <AND>  { token_source.leaveToken(BETWEEN); }
+    nestedExpr()
+}
+
+void functionExpr(): {} {
+    anyIdentifier() <LPAREN> (anyExprList())? <RPAREN>
+    // https://clickhouse.tech/docs/en/sql-reference/aggregate-functions/parametric-functions/
+    (LOOKAHEAD(2) <LPAREN> (anyExprList())? <RPAREN>)?
+}
+
+void columnExpr(): { Token t; } {
+    t = <QUERY> { token_source.processParameter(t.image, handler); }
+    | <LBRACE> (LOOKAHEAD(2) anyExprList())? <RBRACE>
+    | <LBRACKET> (LOOKAHEAD(2) anyExprList())? <RBRACKET>
+    | <LPAREN> anyExprList() <RPAREN>
+    | (LOOKAHEAD(2) macro())+
+    | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
+    | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr()
+    | anyIdentifier() (LOOKAHEAD(2) <DOT> anyIdentifier())*
+}
+
+// interested parts
+void compressionPart(): {} {
+    <COMPRESSION> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.compressAlgorithm = token.image; })?
+    (LOOKAHEAD(2) <LEVEL> (<QUERY> | <DECIMAL_LITERAL> | <IDENTIFIER>) { token_source.compressLevel = token.image; })?
+}
+
+void formatPart(): {} {
+    <FORMAT> { token_source.addPosition(token); }
+    (LOOKAHEAD(2) <IDENTIFIER> { token_source.format = token.image; })?
+}
+
+void infilePart(): {} {
+    <FROM> { token_source.addPosition(token); }
+    <INFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })?
+    ( compressionPart() )?
+    ( settingsPart() )?
+    ( formatPart() )?
+}
+
+void outfilePart(): {} {
+    <INTO> { token_source.addPosition(token); }
+    <OUTFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })? 
+    (LOOKAHEAD(2) <AND> <STDOUT> { token_source.addPosition(token); })?
+    ( compressionPart() )?
+}
+
+void settingsPart(): {} {
+    <SETTINGS> { token_source.addPosition(token); } settingExprList()
+}
+
+void withTotalPart(): {} {
+    <WITH> (LOOKAHEAD(2) <TOTALS> { token_source.addPosition(token); })?
+}
+
+// expressions
+void anyExprList(): {} {
+    anyExpr() (LOOKAHEAD(2) <COMMA> | anyExpr())*
+}
+
+void anyExpr(): {} {
+    anyNestedExpr() (
+        LOOKAHEAD(2)
+        (
+            // TODO needs to extract parameters(and exclude ternary operator) here
+            <AT> | <AND> | <OR> | <COLON> | <QUERY> | operator()
+        )? anyNestedExpr()
+    )*
+}
+
+void anyNestedExpr(): {} {
+    LOOKAHEAD(2) formatPart()
+    | LOOKAHEAD(2) settingsPart()
+    | LOOKAHEAD(2) withTotalPart()
+    | LOOKAHEAD(2) outfilePart()
+    | (LOOKAHEAD(2) <DASH>)? anyColumnExpr() (
+        LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+        <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+    )*
+}
+
+void anyColumnExpr(): {} {
+    // <ASTERISK>
+    <QUERY> { token_source.processParameter(token.image, handler); }
+    | <LBRACE> (LOOKAHEAD(2) anyExprList())? <RBRACE>
+    | <LBRACKET> (LOOKAHEAD(2) anyExprList())? <RBRACKET>
+    | <LPAREN> (LOOKAHEAD(2) anyExprList())? <RPAREN>
+    | (LOOKAHEAD(2) macro())+
+    | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
+    // | (LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL)) }) <FLOATING_LITERAL> | literal())
+    | nestedIdentifier()
+}
+
+Token aliasExpr(): { Token t = null; } {
+    (
+        LOOKAHEAD(2) <AS> t = anyIdentifier()
+        | LOOKAHEAD(2) formatPart()
+        | LOOKAHEAD(2) settingsPart()
+        | LOOKAHEAD(2) outfilePart()
+        | t = identifier()
+    )
+    { return t; }
+}
+
+void nestedIdentifier(): {} {
+    (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
+}
+
+void tableIdentifier(boolean record): { Token t; } {
+    (
+        (LOOKAHEAD(2) databaseIdentifier(record) <DOT>)? t = anyIdentifier()
+        (LOOKAHEAD(2)
+            <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
+            anyExprList()
+            <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, token); }
+        )?
+    )
+    {
+        if (record && t != null && token_source.table == null) {
+            token_source.table = ClickHouseSqlUtils.unescape(t.image);
+        }
+    }
+}
+
+void databaseIdentifier(boolean record): { Token t; } {
+    t = anyIdentifier() { if (record) token_source.database = ClickHouseSqlUtils.unescape(t.image); }
+}
+
+void settingExprList(): {} {
+    settingExpr() (LOOKAHEAD(2) <COMMA> settingExpr())*
+}
+
+void settingExpr(): { String key; } {
+    identifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
+}
+
+// basics
+Token anyIdentifier(): { Token t; } {
+    (
+        t = <BACK_QUOTED_NAME>
+        | t = <DOUBLE_QUOTED_NAME>
+        | t = variable()
+        | t = <IDENTIFIER>
+        | t = anyKeyword()
+    )
+    { return t; }
+}
+
+Token identifier(): { Token t; } {
+    (
+        t = <BACK_QUOTED_NAME>
+        | t = <DOUBLE_QUOTED_NAME>
+        | t = variable()
+        | t = <IDENTIFIER>
+        | t = keyword()
+    )
+    { return t; }
+}
+
+void interval(): {} {
+    <SECOND> | <MINUTE> | <HOUR> | <DAY> | <WEEK> | <MONTH> | <QUARTER> | <YEAR>
+}
+
+Token literal(): { Token t = null; } {
+    (
+        t = dateLiteral()
+        | t = numberLiteral()
+        | t = <STRING_LITERAL>
+        | t = <NULL>
+    )
+    { return t; }
+}
+
+Token dateLiteral(): { Token t; StringBuilder sb = new StringBuilder(); } {
+    (t = <DATE> | t = <TIMESTAMP>) { sb.append(t.image).append(' '); }
+    t = <STRING_LITERAL>
+    { return Token.newToken(0, sb.append(t.image).toString()); }
+}
+
+Token numberLiteral(): { Token t = null; StringBuilder sb = new StringBuilder(); } {
+    (
+        (t = <PLUS> | t = <DASH>)? { if (t != null) sb.append(t.image); }
+        (
+            LOOKAHEAD(2)
+            t = <DECIMAL_LITERAL> | t = <HEXADECIMAL_LITERAL> | t = <FLOATING_LITERAL> | t = <INF> | t = <NAN>
+        ) { sb.append(t.image); }
+    )
+    { return Token.newToken(0, sb.toString()); }
+}
+
+void operator(): {} {
+    (<ARROW> | <ASTERISK> | <CONCAT> | <CONVERT> | <DASH> | <EQ_DOUBLE> | <EQ_SINGLE>
+    | <GE> | <GT> | <LE> | <LT> | <NOT_EQ> | <PERCENT> | <PLUS> | <SLASH>)
+}
+
+void macro(): { 
+    Token t; 
+    String name; 
+    List<String> params = new ArrayList<>();
+} {
+    (
+        <HASH>
+        (t = anyKeyword() | t = <IDENTIFIER>) { name = t.image; }
+        (
+            LOOKAHEAD(2) <LPAREN>
+            t = <STRING_LITERAL> { params.add(ClickHouseSqlUtils.unescape(t.image)); }
+            (<COMMA> t = <STRING_LITERAL> { params.add(ClickHouseSqlUtils.unescape(t.image)); })*
+            <RPAREN>
+        )?
+    )
+    { token_source.processMacro(name, params, handler); }
+}
+
+Token variable(): { Token t; } {
+    (<AT> <AT> (t = anyKeyword() | t = <IDENTIFIER>))
+    {
+        return Token.newToken(0, "@@" + t.image);
+    }
+}
+
+Token anyKeyword(): { Token t; } {
+    (
+        // leading keywords(except with)
+        t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
+        | t = <DETACH> | t = <DROP> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
+        | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
+        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
+        // others
+        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
+        | t = <CLUSTER> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
+        | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
+        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INFILE> | t = <INNER> 
+        | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <LEVEL> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
+        | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
+        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
+        | t = <SETTINGS> | t = <STDOUT> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
+        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
+        | t = <WHEN> | t = <WHERE> | t = <WITH>
+        // interval
+        | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
+        // values
+        | t = <INF> | t = <NAN> | t = <NULL>
+    )
+    { return t; }
+}
+
+Token keyword(): { Token t; } {
+    (
+        // leading keywords(except with)
+        t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
+        | t = <DETACH> | t = <DROP> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
+        | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
+        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
+        // others
+        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
+        | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
+        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <INFILE> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
+        | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
+        | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
+        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER>
+        // interval
+        | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
+        // values
+        | t = <INF> | t = <NAN> | t = <NULL>
+    )
+    { return t; }
+}
+
+// keywords
+TOKEN: {
+    <ALTER    : <A> <L> <T> <E> <R>>
+    | <ATTACH   : <A> <T> <T> <A> <C> <H>        >
+    | <CHECK    : <C> <H> <E> <C> <K>            >
+    | <CREATE   : <C> <R> <E> <A> <T> <E>        >
+    | <DELETE   : <D> <E> <L> <E> <T> <E>        >
+    | <DESC     : <D> <E> <S> <C>                >
+    | <DESCRIBE : <D> <E> <S> <C> <R> <I> <B> <E>>
+    | <DETACH   : <D> <E> <T> <A> <C> <H>        >
+    | <DROP     : <D> <R> <O> <P>                >
+    | <EXISTS   : <E> <X> <I> <S> <T> <S>        >
+    | <EXPLAIN  : <E> <X> <P> <L> <A> <I> <N>    >
+    | <GRANT    : <G> <R> <A> <N> <T>            >
+    | <INSERT   : <I> <N> <S> <E> <R> <T>        >
+    | <KILL     : <K> <I> <L> <L>                >
+    | <OPTIMIZE : <O> <P> <T> <I> <M> <I> <Z> <E>>
+    | <RENAME   : <R> <E> <N> <A> <M> <E>        >
+    | <REVOKE   : <R> <E> <V> <O> <K> <E>        >
+    | <SELECT   : <S> <E> <L> <E> <C> <T>        >
+    | <SET      : <S> <E> <T>                    >
+    | <SHOW     : <S> <H> <O> <W>                >
+    | <SYSTEM   : <S> <Y> <S> <T> <E> <M>        >
+    | <TRUNCATE : <T> <R> <U> <N> <C> <A> <T> <E>>
+    | <UPDATE   : <U> <P> <D> <A> <T> <E>        >
+    | <USE      : <U> <S> <E>                    >
+    | <WATCH    : <W> <A> <T> <C> <H>            >
+    | <BEGIN    : <B> <E> <G> <I> <N>            >
+    | <COMMIT   : <C> <O> <M> <M> <I> <T>        >
+    | <ROLLBACK : <R> <O> <L> <L> <B> <A> <C> <K>>
+
+    | <ALL      : <A> <L> <L>                        >
+    | <AND      : <A> <N> <D>                        >
+    | <APPLY    : <A> <P> <P> <L> <Y>                >
+    | <ARRAY    : <A> <R> <R> <A> <Y>                >
+    | <AS       : <A> <S>                            >
+    | <ASOF     : <A> <S> <O> <F>                    >
+    | <BETWEEN  : <B> <E> <T> <W> <E> <E> <N>        >
+    | <CASE     : <C> <A> <S> <E>                    >
+    | <CLUSTER  : <C> <L> <U> <S> <T> <E> <R>        >
+    | <COMPRESSION : <C> <O> <M> <P> <R> <E> <S> <S> <I> <O> <N>    >
+    | <DATE     : <D> <A> <T> <E>                    >
+    | <DATABASE : <D> <A> <T> <A> <B> <A> <S> <E>    >
+    | <DATABASES: <D> <A> <T> <A> <B> <A> <S> <E> <S>>
+    | <DICTIONARY  : <D> <I> <C> <T> <I> <O> <N> <A> <R> <Y>        >
+    | <DICTIONARIES: <D> <I> <C> <T> <I> <O> <N> <A> <R> <I> <E> <S>>
+    | <DISTINCT : <D> <I> <S> <T> <I> <N> <C> <T>    >
+    | <ELSE     : <E> <L> <S> <E>                    >
+    | <END      : <E> <N> <D>                        >
+    | <EXCEPT   : <E> <X> <C> <E> <P> <T>            >
+    | <FINAL    : <F> <I> <N> <A> <L>                >
+    | <FORMAT   : <F> <O> <R> <M> <A> <T>            >
+    | <FROM     : <F> <R> <O> <M>                    >
+    | <FULL     : <F> <U> <L> <L>                    >
+    | <FUNCTION : <F> <U> <N> <C> <T> <I> <O> <N>    >
+    | <GLOBAL   : <G> <L> <O> <B> <A> <L>            >
+    | <GROUP    : <G> <R> <O> <U> <P>                >
+    | <HAVING   : <H> <A> <V> <I> <N> <G>            >
+    | <IF       : <I> <F>                            >
+    | <ILIKE    : <I> <L> <I> <K> <E>                >
+    | <IN       : <I> <N>                            >
+    | <INFILE   : <I> <N> <F> <I> <L> <E>            >
+    | <INNER    : <I> <N> <N> <E> <R>                >
+    | <INPUT    : <I> <N> <P> <U> <T>                >
+    | <INTERVAL : <I> <N> <T> <E> <R> <V> <A> <L>    >
+    | <INTO     : <I> <N> <T> <O>                    >
+    | <IS       : <I> <S>                            >
+    | <JOIN     : <J> <O> <I> <N>                    >
+    | <LEFT     : <L> <E> <F> <T>                    >
+    | <LEVEL    : <L> <E> <V> <E> <L>                >
+    | <LIKE     : <L> <I> <K> <E>                    >
+    | <LIMIT    : <L> <I> <M> <I> <T>                >
+    | <LIVE     : <L> <I> <V> <E>                    >
+    | <MATERIALIZED: <M> <A> <T> <E> <R> <I> <A> <L> <I> <Z> <E> <D>>
+    | <NOT      : <N> <O> <T>                        >
+    | <OFFSET   : <O> <F> <F> <S> <E> <T>            >
+    | <ON       : <O> <N>                            >
+    | <OR       : <O> <R>                            >
+    | <ORDER    : <O> <R> <D> <E> <R>                >
+    | <OUTFILE  : <O> <U> <T> <F> <I> <L> <E>        >
+    | <POLICY   : <P> <O> <L> <I> <C> <Y>            >
+    | <PREWHERE : <P> <R> <E> <W> <H> <E> <R> <E>    >
+    | <PROFILE  : <P> <R> <O> <F> <I> <L> <E>        >
+    | <QUOTA    : <Q> <U> <O> <T> <A>                >
+    | <REPLACE  : <R> <E> <P> <L> <A> <C> <E>        >
+    | <ROLE     : <R> <O> <L> <E>                    >
+    | <ROW      : <R> <O> <W>                        >
+    | <RIGHT    : <R> <I> <G> <H> <T>                >
+    | <SAMPLE   : <S> <A> <M> <P> <L> <E>            >
+    | <SETTINGS : <S> <E> <T> <T> <I> <N> <G> <S>    >
+    | <STDOUT   : <S> <T> <D> <O> <U> <T>            >
+    | <TEMPORARY: <T> <E> <M> <P> <O> <R> <A> <R> <Y>>
+    | <TABLE    : <T> <A> <B> <L> <E>                >
+    | <TABLES   : <T> <A> <B> <L> <E> <S>            >
+    | <THEN     : <T> <H> <E> <N>                    >
+    | <TIES     : <T> <I> <E> <S>                    >
+    | <TIMESTAMP: <T> <I> <M> <E> <S> <T> <A> <M> <P>>
+    | <TOP      : <T> <O> <P>                        >
+    | <TOTALS   : <T> <O> <T> <A> <L> <S>            >
+    | <TRANSACTION : <T> <R> <A> <N> <S> <A> <C> <T> <I> <O> <N>>
+    | <UNION    : <U> <N> <I> <O> <N>                >
+    | <USER     : <U> <S> <E> <R>                    >
+    | <USING    : <U> <S> <I> <N> <G>                >
+    | <VALUES   : <V> <A> <L> <U> <E> <S>            >
+    | <VIEW     : <V> <I> <E> <W>                    >
+    | <WHEN     : <W> <H> <E> <N>                    >
+    | <WHERE    : <W> <H> <E> <R> <E>                >
+    | <WITH     : <W> <I> <T> <H>                    >
+
+    | <SECOND   : <S> <E> <C> <O> <N> <D>     >
+    | <MINUTE   : <M> <I> <N> <U> <T> <E>     >
+    | <HOUR     : <H> <O> <U> <R>             >
+    | <DAY      : <D> <A> <Y>                 >
+    | <WEEK     : <W> <E> <E> <K>             >
+    | <MONTH    : <M> <O> <N> <T> <H>         >
+    | <QUARTER  : <Q> <U> <A> <R> <T> <E> <R> >
+    | <YEAR     : <Y> <E> <A> <R>             >
+
+    | <INF     : <I> <N> <F>                >
+    | <NAN     : <N> <A> <N>                >
+    | <NULL    : <N> <U> <L> <L>            >
+}
+
+// letters
+TOKEN: {
+    <#A: ["a", "A"]>
+    | <#B: ["b", "B"]>
+    | <#C: ["c", "C"]>
+    | <#D: ["d", "D"]>
+    | <#E: ["e", "E"]>
+    | <#F: ["f", "F"]>
+    | <#G: ["g", "G"]>
+    | <#H: ["h", "H"]>
+    | <#I: ["i", "I"]>
+    | <#J: ["j", "J"]>
+    | <#K: ["k", "K"]>
+    | <#L: ["l", "L"]>
+    | <#M: ["m", "M"]>
+    | <#N: ["n", "N"]>
+    | <#O: ["o", "O"]>
+    | <#P: ["p", "P"]>
+    | <#Q: ["q", "Q"]>
+    | <#R: ["r", "R"]>
+    | <#S: ["s", "S"]>
+    | <#T: ["t", "T"]>
+    | <#U: ["u", "U"]>
+    | <#V: ["v", "V"]>
+    | <#W: ["w", "W"]>
+    | <#X: ["x", "X"]>
+    | <#Y: ["y", "Y"]>
+    | <#Z: ["z", "Z"]>
+
+    | <#LETTER: ["a"-"z", "A"-"Z"]>
+}
+
+// numbers
+TOKEN: {
+    <#ZERO: "0">
+    | <#DEC_DIGIT: ["0"-"9"]> // including octal digit
+    | <#HEX_DIGIT: ["0"-"9", "a"-"f", "A"-"F"]>
+}
+
+// symbols
+TOKEN: {
+    <ARROW: "->">
+    | <ASTERISK: "*">
+    | <AT: "@">
+    | <BACK_QUOTE: "`">
+    | <BACK_SLASH: "\\">
+    | <COLON: ":">
+    | <COMMA: ",">
+    | <CONCAT: "||">
+    | <CONVERT: "::">
+    | <DASH: "-">
+    | <DOLLAR: "$">
+    | <DOT: ".">
+    | <EQ_DOUBLE: "==">
+    | <EQ_SINGLE: "=">
+    | <GE: ">=">
+    | <GT: ">">
+    | <HASH: "#">
+    | <LBRACE: "{">
+    | <LBRACKET: "[">
+    | <LE: "<=">
+    | <LPAREN: "(">
+    | <LT: "<">
+    | <NOT_EQ: "!=" | "<>">
+    | <PERCENT: "%">
+    | <PLUS: "+">
+    | <QUERY: "?">
+    | <DOUBLE_QUOTE: "\"">
+    | <SINGLE_QUOTE: "'">
+    | <RBRACE: "}">
+    | <RBRACKET: "]">
+    | <RPAREN: ")">
+    | <SEMICOLON: ";">
+    | <SLASH: "/">
+    | <#UNDERSCORE: "_">
+}
+
+// string literal
+TOKEN: { 
+    <STRING_LITERAL: <SINGLE_QUOTE> (<BACK_SLASH> ~[] | ~["'", "\\"] | "''")* <SINGLE_QUOTE>>
+}
+
+TOKEN: {
+    <IDENTIFIER:
+        (<LETTER> | <UNDERSCORE> | <DOLLAR> | <COLON>) (<LETTER> | <UNDERSCORE> | <DOLLAR> | <DEC_DIGIT>)*
+        | (<DEC_DIGIT>)+ (
+            <E> (<LETTER> | <UNDERSCORE>)*
+            | (
+                <A> | <B> | <C> | <D> | <F> | <G> | <H> | <I> | <J> | <K> | <L> | <M> | <N>
+                | <O> | <P> | <Q> | <R> | <S> | <T> | <U> | <V> | <W> | <X> | <Y> | <Z>
+                | <UNDERSCORE>
+            ) (<LETTER> | <UNDERSCORE> | <DEC_DIGIT>)*
+        )>
+    | <BACK_QUOTED_NAME: <BACK_QUOTE> (<BACK_SLASH> ~[] | ~["`", "\\"] | "``")* <BACK_QUOTE>>
+    | <DOUBLE_QUOTED_NAME: <DOUBLE_QUOTE> (<BACK_SLASH> ~[] | ~["\"", "\\"] | "\"\"")* <DOUBLE_QUOTE>>
+}
+
+TOKEN: {
+    <FLOATING_LITERAL:
+        <HEXADECIMAL_LITERAL> <DOT> (<HEXADECIMAL_LITERAL>)? (<P> | <E>) (<PLUS> | <DASH>)? <DECIMAL_LITERAL>
+        | <HEXADECIMAL_LITERAL> (<P> | <E>) (<PLUS> | <DASH>)? <DECIMAL_LITERAL>
+        | <DECIMAL_LITERAL> <DOT> (<DECIMAL_LITERAL>)? (<E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>)?
+        | <DOT> <DECIMAL_LITERAL> (<E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>)?
+        | <DECIMAL_LITERAL> <E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>>
+}
+TOKEN: { <DECIMAL_LITERAL: (<DEC_DIGIT>)+> }
+TOKEN: { <HEXADECIMAL_LITERAL: <ZERO> <X> (<HEX_DIGIT>)+> }
