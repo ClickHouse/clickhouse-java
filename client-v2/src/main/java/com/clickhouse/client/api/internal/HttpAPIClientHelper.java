@@ -293,8 +293,6 @@ public class HttpAPIClientHelper {
                 int rBytes = body.read(buffer);
                 if (rBytes == -1) {
                     break;
-                } else {
-                    System.out.println(new String(buffer, 0, rBytes, StandardCharsets.UTF_8));
                 }
 
                 for (int i = 0; i < rBytes; i++) {
