@@ -75,24 +75,53 @@
         <minJdk>1.8</minJdk>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>http</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-jdbc</artifactId>
+                    <version>${clickhouse-java.version}</version>
+                    <classifier>http</classifier>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <profile>
+            <id>shaded</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-jdbc</artifactId>
+                    <version>${clickhouse-java.version}</version>
+                    <classifier>shaded</classifier>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <profile>
+            <id>fatjar</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-jdbc</artifactId>
+                    <version>${clickhouse-java.version}</version>
+                    <classifier>all</classifier>
+                </dependency>
+            </dependencies>
+        </profile>
+
+    </profiles>
+
     <dependencies>
-        <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-jdbc</artifactId>
-            <version>${clickhouse-java.version}</version>
-            <classifier>http</classifier>
-        </dependency>
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>${hikaricp.version}</version>
-        </dependency>
-
-        <!-- Recommended to communicate with ClickHouse server over http -->
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <version>${apache-httpclient.version}</version>
         </dependency>
     </dependencies>
 
