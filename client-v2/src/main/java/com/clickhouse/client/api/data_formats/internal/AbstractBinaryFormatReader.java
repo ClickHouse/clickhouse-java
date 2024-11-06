@@ -231,7 +231,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
 
-            Map<NumberType, Function<Number, ?>> converters = new HashMap<>();
+            Map<NumberType, Function<Object, ?>> converters = new HashMap<>();
             switch (column.getDataType()) {
                 case Int8:
                 case Int16:
@@ -300,9 +300,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private <T> T readNumberValue(String colName, NumberType targetType) {
         int colIndex = schema.nameToIndex(colName);
-        Function<Number, Number> converter = (Function<Number, Number>) convertions[colIndex].get(targetType);
+        Function<Object, Object> converter = (Function<Object, Object>) convertions[colIndex].get(targetType);
         if (converter != null) {
-            Number value = readValue(colName);
+            Object value = readValue(colName);
             if (value == null) {
                 throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
                         targetType.getTypeName());
@@ -466,17 +466,25 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(String colName) {
-        BinaryStreamReader.ArrayValue array = readValue(colName);
-        return array.asList();
+        try {
+            BinaryStreamReader.ArrayValue array = readValue(colName);
+            return array.asList();
+        } catch (ClassCastException e) {
+            throw new ClientException("Column is not of array type", e);
+        }
     }
 
 
     private <T> T getPrimitiveArray(String colName) {
-        BinaryStreamReader.ArrayValue array = readValue(colName);
-        if (array.itemType.isPrimitive()) {
-            return (T) array.array;
-        } else {
-            throw new ClientException("Array is not of primitive type");
+        try {
+            BinaryStreamReader.ArrayValue array = readValue(colName);
+            if (array.itemType.isPrimitive()) {
+                return (T) array.array;
+            } else {
+                throw new ClientException("Array is not of primitive type");
+            }
+        } catch (ClassCastException e) {
+            throw new ClientException("Column is not of array type", e);
         }
     }
 
