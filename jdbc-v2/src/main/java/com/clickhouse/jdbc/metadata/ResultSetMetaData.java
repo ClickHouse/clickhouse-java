@@ -4,11 +4,11 @@ import java.sql.SQLException;
 
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.jdbc.JdbcWrapper;
+import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 
-public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcWrapper {
+public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrapper {
     private final ResultSetImpl resultSet;
     public ResultSetMetaData(ResultSetImpl resultSet) {
         this.resultSet = resultSet;

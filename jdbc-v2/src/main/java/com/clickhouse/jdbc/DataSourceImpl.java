@@ -10,7 +10,7 @@ import java.sql.ShardingKeyBuilder;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class DataSourceImpl implements DataSource, JdbcWrapper {
+public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
     private String url;
     private Properties info;
 

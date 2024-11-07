@@ -69,6 +69,11 @@ public class ClickHouseDriver implements Driver {
     }
 
     static {
+        String versionString = System.getProperty("com.clickhouse.jdbc.version", "v2");
+        boolean useV2 = versionString != null && versionString.equalsIgnoreCase("v2");
+
+        System.out.println("Static block. Use V2: " + useV2);
+
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
         if (str != null && !str.isEmpty()) {
             char[] chars = str.toCharArray();
@@ -84,14 +89,6 @@ public class ClickHouseDriver implements Driver {
         }
         driverVersion = ClickHouseVersion.of(driverVersionString);
         specVersion = ClickHouseVersion.of(ClickHouseDriver.class.getPackage().getSpecificationVersion());
-
-        try {
-            DriverManager.registerDriver(new ClickHouseDriver());
-        } catch (SQLException e) {
-            throw new IllegalStateException(e);
-        }
-
-        log.debug("ClickHouse Driver %s(JDBC: %s) registered", driverVersion, specVersion);
 
         // client-specific options
         Map<Object, ClickHouseOption> m = new LinkedHashMap<>();
@@ -111,6 +108,30 @@ public class ClickHouseDriver implements Driver {
         }
 
         clientSpecificOptions = Collections.unmodifiableMap(m);
+
+        if (useV2) {
+            com.clickhouse.jdbc.Driver.load();
+        } else {
+            load();
+        }
+    }
+
+    public static void load() {
+        try {
+            DriverManager.registerDriver(new ClickHouseDriver());
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
+
+        log.debug("ClickHouse Driver %s(JDBC: %s) registered", driverVersion, specVersion);
+    }
+
+    public static void unload() {
+        try {
+            DriverManager.deregisterDriver(new ClickHouseDriver());
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public static Map<ClickHouseOption, Serializable> toClientOptions(Properties props) {

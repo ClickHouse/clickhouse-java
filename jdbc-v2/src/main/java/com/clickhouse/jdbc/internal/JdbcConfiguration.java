@@ -90,7 +90,13 @@ public class JdbcConfiguration {
         urlProperties.put("host", url.getHost());
         urlProperties.put("port", String.valueOf(url.getPort() == -1 ? 8443 : url.getPort()));
         urlProperties.put("protocol", url.getProtocol());
-        urlProperties.put("database", url.getPath().substring(1));
+
+        try {
+            urlProperties.put("database", url.getPath().substring(1));
+        } catch (StringIndexOutOfBoundsException e) {
+            urlProperties.put("database", "default");
+        }
+
         urlProperties.put("queryParams", url.getQuery());
 
         return urlProperties;

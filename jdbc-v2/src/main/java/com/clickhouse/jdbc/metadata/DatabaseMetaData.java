@@ -9,13 +9,12 @@ import java.sql.Statement;
 
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
-import com.clickhouse.jdbc.JdbcWrapper;
-import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
-public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcWrapper {
+public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
     ConnectionImpl connection;
 

@@ -8,6 +8,8 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
@@ -43,7 +45,12 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
 
     @Override
     public ClickHouseConnection getConnection() throws SQLException {
-        return new ClickHouseConnectionImpl(connInfo);
+        return (ClickHouseConnection) DriverManager.getConnection(url, props);
+        //return new ClickHouseConnectionImpl(connInfo);
+    }
+
+    public Connection getGenericConnection() throws SQLException {
+        return DriverManager.getConnection(url, props);
     }
 
     @Override

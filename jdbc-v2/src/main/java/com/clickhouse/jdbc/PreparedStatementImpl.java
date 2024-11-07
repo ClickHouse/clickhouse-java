@@ -15,7 +15,7 @@ import java.time.temporal.ChronoField;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
-public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcWrapper {
+public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");

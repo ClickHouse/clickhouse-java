@@ -17,10 +17,10 @@ import java.util.Map;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ResultSetImpl implements ResultSet, JdbcWrapper {
+public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
     private QueryResponse response;
     protected ClickHouseBinaryFormatReader reader;

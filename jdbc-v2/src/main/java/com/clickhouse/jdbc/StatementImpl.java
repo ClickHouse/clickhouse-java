@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class StatementImpl implements Statement, JdbcWrapper {
+public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
     ConnectionImpl connection;
