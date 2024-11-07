@@ -72,8 +72,6 @@ public class ClickHouseDriver implements Driver {
         String versionString = System.getProperty("com.clickhouse.jdbc.version", "v2");
         boolean useV2 = versionString != null && versionString.equalsIgnoreCase("v2");
 
-        System.out.println("Static block. Use V2: " + useV2);
-
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
         if (str != null && !str.isEmpty()) {
             char[] chars = str.toCharArray();
