@@ -45,7 +45,7 @@
         <module>client-v2</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>
-        <module>jdbc-v2</module>
+<!-- excluded from patch        <module>jdbc-v2</module>-->
         <module>clickhouse-r2dbc</module>
 
 <!-- Not working. Disabled       <module>clickhouse-benchmark</module>-->
@@ -80,7 +80,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.7.1-SNAPSHOT</revision>
+        <revision>0.7.1-patch1-SNAPSHOT</revision>
         <project.current.year>2024</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

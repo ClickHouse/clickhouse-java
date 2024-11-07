@@ -153,7 +153,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["23.8", "24.3", "24.6", "latest"]
+        clickhouse: ["23.8", "24.3", "24.8", "latest"]
       fail-fast: false
     timeout-minutes: 15
     name: Java client + CH ${{ matrix.clickhouse }}
@@ -335,7 +335,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest"]
+        clickhouse: ["23.8", "24.3", "24.8", "latest"]
         # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
@@ -452,7 +452,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["24.6", "latest"]
+        clickhouse: ["23.8", "24.3", "24.8", "latest"]
       fail-fast: false
     timeout-minutes: 15
     name: Client V2 + CH ${{ matrix.clickhouse }}
