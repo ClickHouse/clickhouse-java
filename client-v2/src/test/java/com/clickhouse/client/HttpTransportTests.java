@@ -341,6 +341,16 @@ public class HttpTransportTests extends BaseIntegrationTest {
                         "Unexpected error message: " + e.getMessage());
             }
 
+            querySettings.serverSetting("unknown_setting", "1");
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+                    .get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), 115);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 115. DB::Exception: Setting unknown_setting is neither a builtin setting nor started with the prefix 'custom_' registered for user-defined settings. (UNKNOWN_SETTING)"),
+                        "Unexpected error message: " + e.getMessage());
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
