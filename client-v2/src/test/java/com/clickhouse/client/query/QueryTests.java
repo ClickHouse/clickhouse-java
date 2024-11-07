@@ -1796,7 +1796,11 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingJSONValues() throws Exception {
-
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
+            System.out.println("Test is skipped: feature is supported since 24.8");
+            return;
+        }
         CommandSettings commandSettings = new CommandSettings();
         commandSettings.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
