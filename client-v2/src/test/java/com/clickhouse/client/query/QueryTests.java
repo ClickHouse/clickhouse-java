@@ -190,12 +190,10 @@ public class QueryTests extends BaseIntegrationTest {
         final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
 
         String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
-        System.out.println(sqlQuery);
         Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
 
         GenericRecord firstRecord = records.iterator().next();
 
-        System.out.println(firstRecord.getBigInteger("i128"));
         Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
         Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
     }

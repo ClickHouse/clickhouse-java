@@ -140,4 +140,52 @@ public class ClickHouseBinaryFormatReaderTest {
         Arrays.stream("h,i,j,k,l,n,p,q,r".split(",")).forEach(floatConsumer);
         Arrays.stream("h,i,j,k,l,p,q,r".split(",")).forEach(doubleConsumer);
     }
+
+    @Test
+    public void testReadingAsBoolean() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        String[] names = new String[]{ "a", "b"};
+        String[] types = new String[]{"Bool", "Bool"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+
+        BinaryStreamUtils.writeBoolean(out, true);
+        BinaryStreamUtils.writeBoolean(out, false);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        Assert.assertEquals(reader.getBoolean("a"), Boolean.TRUE);
+        Assert.assertEquals(reader.getBoolean("b"), Boolean.FALSE);
+        Assert.assertEquals(reader.getByte("a"), (byte) 1);
+        Assert.assertEquals(reader.getByte("b"), (byte) 0);
+        Assert.assertEquals(reader.getShort("a"), (short) 1);
+        Assert.assertEquals(reader.getShort("b"), (short) 0);
+        Assert.assertEquals(reader.getInteger("a"),  1);
+        Assert.assertEquals(reader.getInteger("b"),  0);
+        Assert.assertEquals(reader.getLong("a"),  1);
+        Assert.assertEquals(reader.getLong("b"),  0);
+        Assert.assertEquals(reader.getFloat("a"),  1.0f);
+        Assert.assertEquals(reader.getFloat("b"),  0.0f);
+        Assert.assertEquals(reader.getDouble("a"),  1.0d);
+        Assert.assertEquals(reader.getDouble("b"),  0.0d);
+        Assert.assertEquals(reader.getBigInteger("a"),  BigInteger.ONE);
+        Assert.assertEquals(reader.getBigInteger("b"),  BigInteger.ZERO);
+        Assert.assertEquals(reader.getBigDecimal("a"),  BigDecimal.ONE);
+        Assert.assertEquals(reader.getBigDecimal("b"),  BigDecimal.ZERO);
+        Assert.assertEquals(reader.getString("a"),  "true");
+        Assert.assertEquals(reader.getString("b"),  "false");
+    }
 }
