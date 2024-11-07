@@ -531,6 +531,7 @@ public class HttpAPIClientHelper {
                 case HttpStatus.SC_NOT_MODIFIED:
                 case HttpStatus.SC_BAD_REQUEST:
                 case HttpStatus.SC_INTERNAL_SERVER_ERROR:
+                case HttpStatus.SC_NOT_FOUND:
                     boolean useHttpCompression = MapUtils.getFlag(chConfiguration, "client.use_http_compression", false);
                     return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
                             MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
