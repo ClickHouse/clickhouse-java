@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,10 +103,15 @@ public class StatementImpl implements Statement, JdbcWrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
+        return executeQuery(sql, new QuerySettings());
+    }
+
+    public ResultSet executeQuery(String sql, QuerySettings settings) throws SQLException {
+        checkClosed();
 
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response = connection.client.query(sql, settings).get(queryTimeout, TimeUnit.SECONDS);
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(response, reader);
             metrics = response.getMetrics();
@@ -119,16 +125,22 @@ public class StatementImpl implements Statement, JdbcWrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        
+        return executeUpdate(sql, new QuerySettings());
+    }
+
+    public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
+        checkClosed();
+
         if (parseStatementType(sql) == StatementType.SELECT) {
             throw new SQLException("executeUpdate() cannot be called with a SELECT statement");
         }
 
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response = connection.client.query(sql, settings).get(queryTimeout, TimeUnit.SECONDS);
             currentResultSet = null;
             metrics = response.getMetrics();
+            response.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -210,13 +222,18 @@ public class StatementImpl implements Statement, JdbcWrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
+        return execute(sql, new QuerySettings());
+    }
+
+    public boolean execute(String sql, QuerySettings settings) throws SQLException {
+        checkClosed();
         StatementType type = parseStatementType(sql);
 
         if (type == StatementType.SELECT) {
-            executeQuery(sql);
+            executeQuery(sql, settings);
             return true;
         } else {
-            executeUpdate(sql);
+            executeUpdate(sql, settings);
             return false;
         }
     }
