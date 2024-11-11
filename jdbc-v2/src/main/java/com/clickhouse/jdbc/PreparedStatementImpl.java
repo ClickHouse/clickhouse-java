@@ -7,14 +7,11 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
-import java.time.temporal.TemporalField;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
@@ -78,13 +75,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = Boolean.toString(x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = Byte.toString(x);
     }
 
     @Override
@@ -132,7 +129,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = new String(x, StandardCharsets.UTF_8);
+        throw new SQLFeatureNotSupportedException("Bytes is not yet supported.");
     }
 
     @Override
@@ -265,7 +262,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ZoneId tz = cal.getTimeZone().toZoneId();
         Calendar c = (Calendar) cal.clone();
         c.setTime(x);
-        System.out.println(String.format("'%s'", TIME_FORMATTER.format(c.toInstant().atZone(tz).toLocalTime())));
         parameters[parameterIndex - 1] = String.format("'%s'", TIME_FORMATTER.format(c.toInstant().atZone(tz).toLocalTime()));
     }
 

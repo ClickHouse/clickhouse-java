@@ -1,3 +1,10 @@
+## 0.7.1-patch1
+
+### Bug Fixes
+- [JDBC] Fixed `java.lang.NoClassDefFoundError: com/clickhouse/client/internal/apache/hc/core5/http2/HttpVersionPolicy` (https://github.com/ClickHouse/clickhouse-java/issues/1912) 
+- [client-v2] Fixed multiple issues with error message handling. (https://github.com/ClickHouse/clickhouse-java/issues/1906)
+- [client-v2] Fixed primitive types conversion. Now client correctly handles numbers to boolean and vice-versa. (https://github.com/ClickHouse/clickhouse-java/issues/1908)
+
 ## 0.7.1 
 
 ### New Features
