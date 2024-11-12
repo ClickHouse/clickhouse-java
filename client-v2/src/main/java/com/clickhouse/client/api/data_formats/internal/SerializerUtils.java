@@ -205,8 +205,19 @@ public class SerializerUtils {
             case IPv6:
                 BinaryStreamUtils.writeInet6Address(stream, (Inet6Address) value);
                 break;
+            case JSON:
+                serializeJSON(stream, value);
+                break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
+        }
+    }
+
+    private static void serializeJSON(OutputStream stream, Object value) throws IOException {
+        if (value instanceof String) {
+            BinaryStreamUtils.writeString(stream, (String)value);
+        } else {
+            throw new UnsupportedOperationException("Serialization of Java object to JSON is not supported yet.");
         }
     }
 

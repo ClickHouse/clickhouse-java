@@ -9,7 +9,9 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -19,7 +21,10 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -27,11 +32,14 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -119,6 +127,44 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
         assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
+    }
+
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertPOJOWithJSON() throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
+            System.out.println("Test is skipped: feature is supported since 24.8");
+            return;
+        }
+
+        final String tableName = "pojo_with_json_table";
+        final String createSQL = PojoWithJSON.createTable(tableName);
+        final String originalJsonStr = "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}";
+
+
+        CommandSettings commandSettings = new CommandSettings();
+        commandSettings.serverSetting("allow_experimental_json_type", "1");
+        client.execute("DROP TABLE IF EXISTS " + tableName, commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute(createSQL, commandSettings).get(1, TimeUnit.SECONDS);
+
+        client.register(PojoWithJSON.class, client.getTableSchema(tableName, "default"));
+        PojoWithJSON pojo = new PojoWithJSON();
+        pojo.setEventPayload(originalJsonStr);
+        List<Object> data = Arrays.asList(pojo);
+
+        InsertSettings insertSettings = new InsertSettings()
+                .serverSetting(ClientSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
+        InsertResponse response = client.insert(tableName, data, insertSettings).get(30, TimeUnit.SECONDS);
+        assertEquals(response.getWrittenRows(), 1);
+
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.CSV);
+        try (QueryResponse resp = client.query("SELECT * FROM " + tableName, settings).get(1, TimeUnit.SECONDS)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
+            String jsonStr = StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get());
+            Assert.assertEquals(jsonStr, originalJsonStr);
+        }
     }
 
     @Test(groups = { "integration" }, enabled = true)

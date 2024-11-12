@@ -59,6 +59,11 @@ public class Main {
 
         pojoWriter.printLastEvents();
 
+        // Insert data using POJO with JSON
+        ExperimentalJSONExample jsonExample = new ExperimentalJSONExample(endpoint, user, password, database);
+        jsonExample.writeData();
+        jsonExample.readData();
+
         log.info("Done");
         Runtime.getRuntime().exit(0);
     }

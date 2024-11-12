@@ -16,8 +16,8 @@ import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -30,14 +30,13 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
-import com.clickhouse.client.http.config.HttpConnectionProvider;
-import com.clickhouse.client.insert.SamplePOJO;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -57,7 +56,6 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -65,7 +63,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -74,7 +71,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -123,7 +119,6 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
-                .useNewImplementation(true)
                 .build();
 
         delayForProfiler(0);
@@ -340,7 +335,7 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testQueryJSON() throws ExecutionException, InterruptedException {
+    public void testQueryJSONEachRow() throws ExecutionException, InterruptedException {
         Map<String, Object> datasetRecord = prepareSimpleDataSet();
         QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
@@ -1790,6 +1785,35 @@ public class QueryTests extends BaseIntegrationTest {
 
             Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint32"), pojo.getGroupBitmapUint32());
             Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint64"), pojo.getGroupBitmapUint64());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingJSONValues() throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
+            System.out.println("Test is skipped: feature is supported since 24.8");
+            return;
+        }
+        CommandSettings commandSettings = new CommandSettings();
+        commandSettings.serverSetting("allow_experimental_json_type", "1");
+        client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE test_json_values (json JSON) ENGINE = MergeTree ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
+
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV);
+        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
+            Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+        }
+
+        settings = new QuerySettings()
+                .serverSetting(ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
+        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
         }
     }
 
