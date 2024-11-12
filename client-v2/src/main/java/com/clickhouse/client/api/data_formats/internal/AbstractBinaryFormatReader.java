@@ -75,7 +75,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
-        boolean jsonAsString = MapUtils.getFlag(querySettings.getAllSettings(), ClientSettings.SERVER_SETTING_PREFIX + "output_format_binary_write_json_as_string", false);
+        boolean jsonAsString = MapUtils.getFlag(this.settings,
+                ClientSettings.SERVER_SETTING_PREFIX + ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, false);
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
         if (schema != null) {
             setSchema(schema);
