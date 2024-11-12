@@ -68,10 +68,12 @@ public class ClickHouseDriver implements Driver {
 
     }
 
-    static {
+    public static boolean isV2() {
         String versionString = System.getProperty("com.clickhouse.jdbc.version", "v2");
-        boolean useV2 = versionString != null && versionString.equalsIgnoreCase("v2");
+        return versionString != null && versionString.equalsIgnoreCase("v2");
+    }
 
+    static {
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
         if (str != null && !str.isEmpty()) {
             char[] chars = str.toCharArray();
@@ -107,7 +109,7 @@ public class ClickHouseDriver implements Driver {
 
         clientSpecificOptions = Collections.unmodifiableMap(m);
 
-        if (useV2) {
+        if (isV2()) {
             com.clickhouse.jdbc.Driver.load();
         } else {
             load();
