@@ -69,7 +69,7 @@ public class ClickHouseDriver implements Driver {
     }
 
     public static boolean isV2() {
-        String versionString = System.getProperty("com.clickhouse.jdbc.version", "v2");
+        String versionString = System.getProperty("com.clickhouse.jdbc.version", "v1");
         return versionString != null && versionString.equalsIgnoreCase("v2");
     }
 
