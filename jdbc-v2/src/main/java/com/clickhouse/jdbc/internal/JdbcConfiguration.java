@@ -13,6 +13,7 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);
     public static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
     public static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
 
@@ -82,17 +83,26 @@ public class JdbcConfiguration {
     }
 
     private Map<String, String> parseUrl(String urlString) {
+        log.debug("Parsing URL: {}", urlString);
         URL url;
         try {
-            url = new URL(stripUrlPrefix(urlString));
+            String urlStripped = stripUrlPrefix(urlString);
+            int index = urlStripped.indexOf("//");
+            if (index == 0) {//Add in the HTTP protocol if it is missing
+                urlStripped = "http:" + urlStripped;
+            }
+
+            url = new URL(urlStripped);
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException("URL is malformed.");
         }
 
         Map<String, String> urlProperties = new HashMap<>();
         urlProperties.put("host", url.getHost());
-        urlProperties.put("port", String.valueOf(url.getPort() == -1 ? 8443 : url.getPort()));
         urlProperties.put("protocol", url.getProtocol());
+        urlProperties.put("port", String.valueOf(url.getPort() == -1 ?
+                url.getProtocol().equalsIgnoreCase("HTTP") ? 8123 : 8443
+                : url.getPort()));
 
         try {
             urlProperties.put("database", url.getPath().substring(1));

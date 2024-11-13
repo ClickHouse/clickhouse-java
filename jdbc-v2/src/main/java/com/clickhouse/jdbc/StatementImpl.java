@@ -210,15 +210,26 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        StatementType type = parseStatementType(sql);
+        List<String> statements = List.of(sql.split(";"));
+        boolean firstIsResult = false;
 
-        if (type == StatementType.SELECT) {
-            executeQuery(sql);
-            return true;
-        } else {
-            executeUpdate(sql);
-            return false;
+        int index = 0;
+        for (String statement : statements) {
+            StatementType type = parseStatementType(statement);
+
+            if (type == StatementType.SELECT) {
+                executeQuery(statement);
+                if (index == 0) {
+                    firstIsResult = true;
+                }
+            } else {
+                executeUpdate(statement);
+            }
+
+            index++;
         }
+
+        return firstIsResult;
     }
 
     @Override
