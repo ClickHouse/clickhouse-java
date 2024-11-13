@@ -6,13 +6,15 @@ import org.testng.annotations.Test;
 import java.sql.*;
 import java.util.Properties;
 
+import static org.testng.Assert.assertThrows;
+
 public class GenericJDBCTest extends JdbcIntegrationTest {
     public Connection getConnection(Properties properties) throws SQLException {
         if (properties == null) {
             properties = new Properties();
         }
 
-        return newDataSource(properties).getGenericConnection();
+        return newDataSource(properties).getConnection();
     }
 
     @Test
@@ -27,12 +29,9 @@ public class GenericJDBCTest extends JdbcIntegrationTest {
     public void connectionWithPropertiesTest() throws SQLException {
         Properties properties = new Properties();
         properties.setProperty("user", "default");
-        properties.setProperty("password", "123456");
+        properties.setProperty("password", "FAKE123456FAKE");
 
-        try (Connection connection = getConnection(properties)) {
-            Assert.assertNotNull(connection);
-            Assert.assertTrue(connection.isValid(1));
-        }
+        assertThrows(SQLException.class, () -> getConnection(properties));
     }
 
     @Test

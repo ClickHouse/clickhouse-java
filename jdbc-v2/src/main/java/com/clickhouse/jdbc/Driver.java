@@ -15,6 +15,7 @@ public class Driver implements java.sql.Driver {
     public static final String driverVersion;
 
     static {
+        log.debug("Initializing ClickHouse JDBC driver V2");
         String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
         //If the version is not available, set it to 1.0
         if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {

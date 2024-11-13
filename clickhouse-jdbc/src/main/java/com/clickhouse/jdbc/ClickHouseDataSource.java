@@ -48,10 +48,6 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
         return new ClickHouseConnectionImpl(connInfo);
     }
 
-    public Connection getGenericConnection() throws SQLException {
-        return DriverManager.getConnection(url, props);
-    }
-
     @Override
     public ClickHouseConnection getConnection(String username, String password) throws SQLException {
         if (username == null || username.isEmpty()) {

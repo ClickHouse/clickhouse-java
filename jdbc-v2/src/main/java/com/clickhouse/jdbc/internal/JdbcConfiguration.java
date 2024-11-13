@@ -13,6 +13,9 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
+    public static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
+    public static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
+
     final String host;
     final int port;
     final String protocol;
@@ -63,7 +66,7 @@ public class JdbcConfiguration {
     }
 
     public static boolean acceptsURL(String url) {
-        return url.startsWith("jdbc:clickhouse:") || url.startsWith("jdbc:ch:");
+        return url.startsWith(PREFIX_CLICKHOUSE) || url.startsWith(PREFIX_CLICKHOUSE_SHORT);
     }
 
     public DriverPropertyInfo[] getPropertyInfo() {
@@ -102,10 +105,10 @@ public class JdbcConfiguration {
         return urlProperties;
     }
     private String stripUrlPrefix(String url) {
-        if (url.startsWith("jdbc:clickhouse:")) {
-            return url.substring("jdbc:clickhouse:".length());
-        } else if (url.startsWith("jdbc:ch:")) {
-            return url.substring("jdbc:ch:".length());
+        if (url.startsWith(PREFIX_CLICKHOUSE)) {
+            return url.substring(PREFIX_CLICKHOUSE.length());
+        } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {
+            return url.substring(PREFIX_CLICKHOUSE_SHORT.length());
         } else {
             throw new IllegalArgumentException("URL is not supported.");
         }

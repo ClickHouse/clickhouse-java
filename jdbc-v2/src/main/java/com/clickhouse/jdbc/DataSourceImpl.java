@@ -13,6 +13,7 @@ import java.util.logging.Logger;
 public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
     private String url;
     private Properties info;
+    private Driver driver;
 
     public void setUrl(String url) {
         this.url = url;
@@ -27,9 +28,23 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
         this.info = info;
     }
 
+    public DataSourceImpl() {
+        this(null, new Properties());
+    }
+
+    public DataSourceImpl(String url) {
+        this(url, new Properties());
+    }
+
+    public DataSourceImpl(String url, Properties info) {
+        this.url = url;
+        this.info = info;
+        this.driver = new Driver();
+    }
+
     @Override
     public Connection getConnection() throws SQLException {
-        return new ConnectionImpl(this.url, this.info);
+        return driver.connect(this.url, this.info);
     }
 
     @Override
@@ -38,7 +53,7 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
         info.setProperty("user", username);
         info.setProperty("password", password);
 
-        return new ConnectionImpl(this.url, info);
+        return driver.connect(this.url, info);
     }
 
     @Override
