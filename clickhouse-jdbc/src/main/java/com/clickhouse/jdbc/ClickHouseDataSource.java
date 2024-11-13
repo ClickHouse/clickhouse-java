@@ -40,6 +40,7 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
         }
 
         this.driver = new ClickHouseDriver();
+        new VersionSelectingDriver();//This is a workaround to make sure the driver is loaded
         this.connInfo = ClickHouseJdbcUrlParser.parse(url, properties);
     }
 
