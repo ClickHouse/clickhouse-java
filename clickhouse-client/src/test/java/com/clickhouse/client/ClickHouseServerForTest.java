@@ -339,8 +339,9 @@ public class ClickHouseServerForTest {
 
             try {
                 clickhouseContainer.start();
-                if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
-                    throw new IllegalStateException("Failed to create database for testing.");
+
+                if (clickhouseContainer.isRunning()) {
+                    runQuery("CREATE DATABASE IF NOT EXISTS " + database);
                 }
             } catch (RuntimeException e) {
                 throw new IllegalStateException(new StringBuilder()
