@@ -57,6 +57,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public void close() throws SQLException {
         closed = true;
         if (reader != null) {
+            try {
+                reader.close();
+            } catch (Exception e) {
+                throw new SQLException(e);
+            }
+
             reader = null;
         }
 

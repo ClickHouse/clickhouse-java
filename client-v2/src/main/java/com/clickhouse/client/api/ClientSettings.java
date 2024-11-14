@@ -39,4 +39,16 @@ public class ClientSettings {
     public static final String SETTING_LOG_COMMENT = SERVER_SETTING_PREFIX + "log_comment";
 
     public static final String HTTP_USE_BASIC_AUTH = "http_use_basic_auth";
+
+    // -- Experimental features --
+
+    /**
+     * Server will expect a string in JSON format and parse it into a JSON object.
+     */
+    public static final String INPUT_FORMAT_BINARY_READ_JSON_AS_STRING = "input_format_binary_read_json_as_string";
+
+    /**
+     * Server will return a JSON object as a string.
+     */
+    public static final String OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING = "output_format_binary_write_json_as_string";
 }

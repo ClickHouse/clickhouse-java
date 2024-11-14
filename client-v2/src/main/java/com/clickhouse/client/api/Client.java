@@ -1903,7 +1903,7 @@ public class Client implements AutoCloseable {
                         byteBufferPool);
                 break;
             default:
-                throw new IllegalArgumentException("Unsupported format: " + response.getFormat());
+                throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());
         }
         return reader;
     }

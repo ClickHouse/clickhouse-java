@@ -68,20 +68,23 @@ public class MapUtils {
         throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
     }
 
-    public static boolean getFlag(Map<String, String> map, String key, boolean defaultValue) {
-        String val = map.get(key);
+    public static boolean getFlag(Map<String, ?> map, String key, boolean defaultValue) {
+        Object val = map.get(key);
         if (val == null) {
             return defaultValue;
         }
-        if (val.equalsIgnoreCase("true")) {
-            return true;
-        } else if (val.equalsIgnoreCase("false")) {
-            return false;
+        if (val instanceof Boolean) {
+            return (Boolean) val;
+        } else if (val instanceof String) {
+            String str = (String) val;
+            if (str.equalsIgnoreCase("true") || str.equalsIgnoreCase("1")) {
+                return true;
+            } else if (str.equalsIgnoreCase("false") || str.equalsIgnoreCase("0")) {
+                return false;
+            }
         }
-
         throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
     }
-
 
     public static boolean getFlag(Map<String, ?> p1, Map<String, ?> p2, String key) {
         Object val = p1.get(key);
