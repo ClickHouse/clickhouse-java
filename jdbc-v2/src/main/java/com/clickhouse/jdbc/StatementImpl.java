@@ -151,7 +151,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void close() throws SQLException {
         closed = true;
-        connection.close();
         if (currentResultSet != null) {
             currentResultSet.close();
             currentResultSet = null;
