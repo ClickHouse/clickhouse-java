@@ -433,7 +433,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testDateTimeWithoutTimezone() throws SQLException {
-        final String sql =  "select now(), toDateTime(now(), 'America/Los_Angeles') as tzTime SETTINGS session_timezone = 'America/Los_Angeles'";
+        final String sql =  "select now(), toDateTime(now(), 'America/New_York') as tzTime SETTINGS session_timezone = 'America/New_York'";
         // Default behavior
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
@@ -445,8 +445,8 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             ZonedDateTime serverNowZoned = rs.getObject(1, ZonedDateTime.class);
             Assert.assertTrue(serverNow.isEqual(tzTime.toLocalDateTime()));
             Assert.assertTrue(serverNow.isEqual(serverNowOffseted.toLocalDateTime()));
-            Assert.assertEquals(tzTime.getOffset(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId().getRules().getOffset(tzTime.toInstant()));
-            Assert.assertEquals(serverNowZoned.getZone(), TimeZone.getTimeZone("America/Los_Angeles").toZoneId());
+            Assert.assertEquals(tzTime.getOffset(), TimeZone.getTimeZone("America/New_York").toZoneId().getRules().getOffset(tzTime.toInstant()));
+            Assert.assertEquals(serverNowZoned.getZone(), TimeZone.getTimeZone("America/New_York").toZoneId());
             Assert.assertEquals(serverNowZoned.toLocalDateTime(), serverNow);
 
             Time serverNowTime = rs.getTime(1);

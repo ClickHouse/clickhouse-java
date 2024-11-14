@@ -3,7 +3,7 @@ package com.clickhouse.jdbc;
 import java.sql.SQLException;
 import java.sql.Wrapper;
 
-public interface JdbcWrapper extends Wrapper {
+public interface JdbcV2Wrapper extends Wrapper {
     default boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface != null && iface.isAssignableFrom(getClass());
     }

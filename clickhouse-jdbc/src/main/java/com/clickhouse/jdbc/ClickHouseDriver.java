@@ -9,12 +9,13 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
 import java.util.Map.Entry;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseVersion;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 
@@ -65,10 +66,10 @@ public class ClickHouseDriver implements Driver {
             }
             return frameworksDetected;
         }
-
     }
 
     static {
+        log.debug("Initializing ClickHouse JDBC driver V1");
         String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
         if (str != null && !str.isEmpty()) {
             char[] chars = str.toCharArray();
@@ -84,14 +85,6 @@ public class ClickHouseDriver implements Driver {
         }
         driverVersion = ClickHouseVersion.of(driverVersionString);
         specVersion = ClickHouseVersion.of(ClickHouseDriver.class.getPackage().getSpecificationVersion());
-
-        try {
-            DriverManager.registerDriver(new ClickHouseDriver());
-        } catch (SQLException e) {
-            throw new IllegalStateException(e);
-        }
-
-        log.debug("ClickHouse Driver %s(JDBC: %s) registered", driverVersion, specVersion);
 
         // client-specific options
         Map<Object, ClickHouseOption> m = new LinkedHashMap<>();
@@ -111,6 +104,26 @@ public class ClickHouseDriver implements Driver {
         }
 
         clientSpecificOptions = Collections.unmodifiableMap(m);
+    }
+
+    public static void load() {
+        try {
+            log.info("Registering ClickHouse JDBC driver v1 ({})", driverVersion);
+            DriverManager.registerDriver(new ClickHouseDriver());
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
+
+        log.debug("ClickHouse Driver {}(JDBC: {}) registered", driverVersion, specVersion);
+    }
+
+    public static void unload() {
+        try {
+            log.info("Unregistering ClickHouse JDBC driver v1 ({})", driverVersion);
+            DriverManager.deregisterDriver(new ClickHouseDriver());
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public static Map<ClickHouseOption, Serializable> toClientOptions(Properties props) {
@@ -180,7 +193,7 @@ public class ClickHouseDriver implements Driver {
         try {
             info = ClickHouseJdbcUrlParser.parse(url, info).getProperties();
         } catch (Exception e) {
-            log.error("Could not parse url %s", url, e);
+            log.error("Could not parse url {}", url, e);
         }
 
         List<DriverPropertyInfo> result = new ArrayList<>(ClickHouseClientOption.values().length * 2);

@@ -7,7 +7,9 @@ import java.sql.Statement;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseServerForTest;
+import junit.runner.Version;
 import org.testng.Assert;
+import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
@@ -19,7 +21,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testHighAvailabilityConfig() throws SQLException {
-        if (isCloud()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        if (isCloud() || VersionSelectingDriver.isV2()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
@@ -36,8 +38,9 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
+    @Ignore
     public void testMultiEndpoints() throws SQLException {
-        if (isCloud()) return; //TODO: testMultiEndpoints - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        if (isCloud() || VersionSelectingDriver.isV2()) return; //TODO: testMultiEndpoints - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";

@@ -4,8 +4,8 @@ import java.sql.*;
 import java.util.*;
 
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JDBC driver for ClickHouse.
@@ -15,6 +15,7 @@ public class Driver implements java.sql.Driver {
     public static final String driverVersion;
 
     static {
+        log.debug("Initializing ClickHouse JDBC driver V2");
         String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
         //If the version is not available, set it to 1.0
         if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
@@ -25,12 +26,26 @@ public class Driver implements java.sql.Driver {
         driverVersion = tempDriverVersion;
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
 
+        //Load the driver
+        //load(); //Commented out to avoid loading the driver multiple times, because we're referenced in V1
+    }
+
+    public static void load() {
         try {
             DriverManager.registerDriver(new Driver());
         } catch (SQLException e) {
             log.error("Failed to register ClickHouse JDBC driver", e);
         }
     }
+
+    public static void unload() {
+        try {
+            DriverManager.deregisterDriver(new Driver());
+        } catch (SQLException e) {
+            log.error("Failed to deregister ClickHouse JDBC driver", e);
+        }
+    }
+
 
 
     @Override
