@@ -217,7 +217,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .build()) {
 
             List<GenericRecord> records = client.queryAll("SELECT timezone()");
@@ -729,7 +729,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(false)
+                .useNewImplementation(true)
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {

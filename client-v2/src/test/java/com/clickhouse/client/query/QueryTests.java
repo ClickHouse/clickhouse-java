@@ -1180,13 +1180,9 @@ public class QueryTests extends BaseIntegrationTest {
     public void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
         final String table = "data_types_test_table";
 
-        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build()) {
+        try {
             // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1196,9 +1192,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
 
             // Insert data
@@ -1211,13 +1205,8 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-            System.out.println("Insert statement: " + insertStmtBuilder);
 
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {
-                Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
-            }
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("Failed at prepare stage", e);
         }
@@ -1319,15 +1308,10 @@ public class QueryTests extends BaseIntegrationTest {
     private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
                                                      int rows) {
         List<Map<String, Object>> data = new ArrayList<>(rows);
-        try (
-                ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                        .build()) {
-            // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
 
+        try {
+            // Drop table
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1337,9 +1321,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1351,9 +1333,8 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("failed to prepare data set", e);
         }

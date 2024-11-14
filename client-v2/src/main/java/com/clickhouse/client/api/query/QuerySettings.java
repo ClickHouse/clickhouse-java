@@ -6,6 +6,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
@@ -130,7 +131,7 @@ public class QuerySettings {
      * Requests the server to wait for the and of the query before sending response. Useful for getting accurate summary.
      */
     public QuerySettings waitEndOfQuery(Boolean waitEndOfQuery) {
-        rawSettings.put("wait_end_of_query", waitEndOfQuery);
+        serverSetting(ServerSettings.WAIT_END_OF_QUERY,  waitEndOfQuery ? "1" : "0");
         return this;
     }
 

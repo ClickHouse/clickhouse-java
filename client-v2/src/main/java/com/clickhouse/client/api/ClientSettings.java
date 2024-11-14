@@ -51,4 +51,14 @@ public class ClientSettings {
      * Server will return a JSON object as a string.
      */
     public static final String OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING = "output_format_binary_write_json_as_string";
+
+    /**
+     * Maximum number of active connection in internal connection pool.
+     */
+    public static final String HTTP_MAX_OPEN_CONNECTIONS = "max_open_connections";
+
+    /**
+     * HTTP keep-alive timeout override.
+     */
+    public static final String HTTP_KEEP_ALIVE_TIMEOUT = "http_keep_alive_timeout";
 }

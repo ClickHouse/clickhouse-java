@@ -12,10 +12,9 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.http.ClickHouseHttpProto;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -198,7 +197,7 @@ public class HttpAPIClientHelper {
 
         connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
-        MapUtils.applyInt(chConfiguration, ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(),
+        MapUtils.applyInt(chConfiguration, ClientSettings.HTTP_MAX_OPEN_CONNECTIONS,
                 connMgrBuilder::setMaxConnPerRoute);
 
 
@@ -266,7 +265,7 @@ public class HttpAPIClientHelper {
         } else {
             clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
         }
-        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey());
+        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientSettings.HTTP_KEEP_ALIVE_TIMEOUT);
         if (keepAliveTimeout > 0) {
             clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
         }
@@ -468,10 +467,6 @@ public class HttpAPIClientHelper {
             }
         }
 
-        if (requestConfig.containsKey(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey())) {
-            req.addParameter(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey(),
-                    requestConfig.get(ClickHouseHttpOption.WAIT_END_OF_QUERY.getKey()).toString());
-        }
         if (requestConfig.containsKey(ClickHouseClientOption.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClickHouseClientOption.QUERY_ID.getKey()).toString());
         }

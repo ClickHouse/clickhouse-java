@@ -18,6 +18,7 @@ import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -42,8 +43,6 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.http.ClickHouseHttpProto;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -389,7 +388,7 @@ public class Client implements AutoCloseable {
          * @param maxConnections - maximum number of connections
          */
         public Builder setMaxConnections(int maxConnections) {
-            this.configuration.put(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxConnections));
+            this.configuration.put(ClientSettings.HTTP_MAX_OPEN_CONNECTIONS, String.valueOf(maxConnections));
             return this;
         }
 
@@ -416,7 +415,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setKeepAliveTimeout(long timeout, ChronoUnit unit) {
-            this.configuration.put(ClickHouseHttpOption.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
+            this.configuration.put(ClientSettings.HTTP_KEEP_ALIVE_TIMEOUT, String.valueOf(Duration.of(timeout, unit).toMillis()));
             return this;
         }
 
@@ -980,7 +979,7 @@ public class Client implements AutoCloseable {
                 useAsyncRequests(false);
             }
 
-            if (!configuration.containsKey(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS.getKey())) {
+            if (!configuration.containsKey(ClientSettings.HTTP_MAX_OPEN_CONNECTIONS)) {
                 setMaxConnections(10);
             }
 
