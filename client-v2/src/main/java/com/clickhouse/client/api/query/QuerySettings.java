@@ -1,17 +1,12 @@
 package com.clickhouse.client.api.query;
 
 
-import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientSettings;
-import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 
-import javax.management.Query;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -136,31 +131,30 @@ public class QuerySettings {
     }
 
     public QuerySettings setUseServerTimeZone(Boolean useServerTimeZone) {
-        if (rawSettings.containsKey(ClickHouseClientOption.USE_TIME_ZONE.getKey())) {
-            throw new ValidationUtils.SettingsValidationException("use_server_timezone",
+        if (rawSettings.containsKey(ClientSettings.USE_TIMEZONE)) {
+            throw new ValidationUtils.SettingsValidationException(ClientSettings.USE_SERVER_TIMEZONE,
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put("use_server_time_zone", useServerTimeZone);
+        rawSettings.put(ClientSettings.USE_SERVER_TIMEZONE, useServerTimeZone);
         return this;
     }
 
     public Boolean getUseServerTimeZone() {
-        return (Boolean) rawSettings.get("use_server_time_zone");
+        return (Boolean) rawSettings.get(ClientSettings.USE_SERVER_TIMEZONE);
     }
 
     public QuerySettings setUseTimeZone(String timeZone) {
-        if (rawSettings.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
-            throw new ValidationUtils.SettingsValidationException("use_time_zone",
+        if (rawSettings.containsKey(ClientSettings.USE_SERVER_TIMEZONE)) {
+            throw new ValidationUtils.SettingsValidationException(ClientSettings.USE_TIMEZONE,
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put("use_time_zone", TimeZone.getTimeZone(timeZone));
+        rawSettings.put(ClientSettings.USE_TIMEZONE, TimeZone.getTimeZone(timeZone));
         return this;
     }
 
     public TimeZone getServerTimeZone() {
-        return (TimeZone) rawSettings.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+        return (TimeZone) rawSettings.get(ClientSettings.SERVER_TIMEZONE);
     }
-
 
     /**
      * Defines list of headers that should be sent with current request. The Client will use a header value

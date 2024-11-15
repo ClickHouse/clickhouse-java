@@ -2,9 +2,7 @@ package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientSettings;
-import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
-import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 
 import java.util.Collection;

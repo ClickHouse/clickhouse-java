@@ -42,7 +42,6 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -160,7 +159,7 @@ public class Client implements AutoCloseable {
         this.serializers = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
 
-        boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClickHouseClientOption.ASYNC.getKey());
+        boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientSettings.ASYNC_OPERATIONS, false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
         } else {
@@ -273,7 +272,8 @@ public class Client implements AutoCloseable {
             if (secure) {
                 // For some reason com.clickhouse.client.http.ApacheHttpConnectionImpl.newConnection checks only client config
                 // for SSL, so we need to set it here. But it actually should be set for each node separately.
-                this.configuration.put(ClickHouseClientOption.SSL.getKey(), "true");
+                // TODO: remove when v1 is deprecated
+                this.configuration.put(SettingsConverter.OldClientOptions.SSL.getKey(), "true");
             }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
             this.endpoints.add(endpoint);
@@ -401,7 +401,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setConnectionTTL(long timeout, ChronoUnit unit) {
-            this.configuration.put(ClickHouseClientOption.CONNECTION_TTL.getKey(), String.valueOf(Duration.of(timeout, unit).toMillis()));
+            this.configuration.put(ClientSettings.CONNECTION_TTL, String.valueOf(Duration.of(timeout, unit).toMillis()));
             return this;
         }
 
@@ -427,7 +427,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setConnectionReuseStrategy(ConnectionReuseStrategy strategy) {
-            this.configuration.put("connection_reuse_strategy", strategy.name());
+            this.configuration.put(ClientSettings.CONNECTION_REUSE_STRATEGY, strategy.name());
             return this;
         }
 
@@ -439,7 +439,7 @@ public class Client implements AutoCloseable {
          * @param timeout - socket timeout in milliseconds
          */
         public Builder setSocketTimeout(long timeout) {
-            this.configuration.put("socket_timeout", String.valueOf(timeout));
+            this.configuration.put(ClientSettings.SOCKET_OPERATION_TIMEOUT, String.valueOf(timeout));
             return this;
         }
 
@@ -459,7 +459,7 @@ public class Client implements AutoCloseable {
          * @param size - socket receive buffer size in bytes
          */
         public Builder setSocketRcvbuf(long size) {
-            this.configuration.put("socket_rcvbuf", String.valueOf(size));
+            this.configuration.put(ClientSettings.SOCKET_RCVBUF_OPT, String.valueOf(size));
             return this;
         }
 
@@ -469,7 +469,7 @@ public class Client implements AutoCloseable {
          * @param size - socket send buffer size in bytes
          */
         public Builder setSocketSndbuf(long size) {
-            this.configuration.put("socket_sndbuf", String.valueOf(size));
+            this.configuration.put(ClientSettings.SOCKET_RCVBUF_OPT, String.valueOf(size));
             return this;
         }
 
@@ -479,7 +479,7 @@ public class Client implements AutoCloseable {
          * @param value - socket reuse address option
          */
         public Builder setSocketReuseAddress(boolean value) {
-            this.configuration.put("socket_reuseaddr", String.valueOf(value));
+            this.configuration.put(ClientSettings.SOCKET_REUSEADDR_OPT, String.valueOf(value));
             return this;
         }
 
@@ -490,7 +490,7 @@ public class Client implements AutoCloseable {
          * @param value - socket keep alive option
          */
         public Builder setSocketKeepAlive(boolean value) {
-            this.configuration.put("socket_keepalive", String.valueOf(value));
+            this.configuration.put(ClientSettings.SOCKET_KEEPALIVE_OPT, String.valueOf(value));
             return this;
         }
 
@@ -500,7 +500,7 @@ public class Client implements AutoCloseable {
          * @param value - socket tcp no delay option
          */
         public Builder setSocketTcpNodelay(boolean value) {
-            this.configuration.put("socket_tcp_nodelay", String.valueOf(value));
+            this.configuration.put(ClientSettings.SOCKET_TCP_NO_DELAY_OPT, String.valueOf(value));
             return this;
         }
 
@@ -510,7 +510,7 @@ public class Client implements AutoCloseable {
          * @param secondsToWait - socket linger time in seconds
          */
         public Builder setSocketLinger(int secondsToWait) {
-            this.configuration.put("socket_linger", String.valueOf(secondsToWait));
+            this.configuration.put(ClientSettings.SOCKET_LINGER_OPT, String.valueOf(secondsToWait));
             return this;
         }
 
@@ -521,7 +521,7 @@ public class Client implements AutoCloseable {
          * @param enabled - indicates if server response compression is enabled
          */
         public Builder compressServerResponse(boolean enabled) {
-            this.configuration.put(ClickHouseClientOption.COMPRESS.getKey(), String.valueOf(enabled));
+            this.configuration.put(ClientSettings.COMPRESS_SERVER_RESPONSE, String.valueOf(enabled));
             return this;
         }
 
@@ -532,7 +532,7 @@ public class Client implements AutoCloseable {
          * @param enabled - indicates if client request compression is enabled
          */
         public Builder compressClientRequest(boolean enabled) {
-            this.configuration.put(ClickHouseClientOption.DECOMPRESS.getKey(), String.valueOf(enabled));
+            this.configuration.put(ClientSettings.COMPRESS_CLIENT_REQUEST, String.valueOf(enabled));
             return this;
         }
 
@@ -545,7 +545,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder useHttpCompression(boolean enabled) {
-            this.configuration.put("client.use_http_compression", String.valueOf(enabled));
+            this.configuration.put(ClientSettings.USE_HTTP_COMPRESSION, String.valueOf(enabled));
             return this;
         }
 
@@ -558,7 +558,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setLZ4UncompressedBufferSize(int size) {
-            this.configuration.put("compression.lz4.uncompressed_buffer_size", String.valueOf(size));
+            this.configuration.put(ClientSettings.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE, String.valueOf(size));
             return this;
         }
 
@@ -567,7 +567,7 @@ public class Client implements AutoCloseable {
          * @param database - actual default database name.
          */
         public Builder setDefaultDatabase(String database) {
-            this.configuration.put("database", database);
+            this.configuration.put(ClientSettings.DATABASE, database);
             return this;
         }
 
@@ -576,9 +576,9 @@ public class Client implements AutoCloseable {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
 
-            this.configuration.put(ClickHouseClientOption.PROXY_TYPE.getKey(), type.name());
-            this.configuration.put(ClickHouseClientOption.PROXY_HOST.getKey(), host);
-            this.configuration.put(ClickHouseClientOption.PROXY_PORT.getKey(), String.valueOf(port));
+            this.configuration.put(ClientSettings.PROXY_TYPE, type.name());
+            this.configuration.put(ClientSettings.PROXY_HOST, host);
+            this.configuration.put(ClientSettings.PROXY_PORT, String.valueOf(port));
             return this;
         }
 
@@ -595,7 +595,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setExecutionTimeout(long timeout, ChronoUnit timeUnit) {
-            this.configuration.put(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
+            this.configuration.put(ClientSettings.MAX_EXECUTION_TIME, String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
             return this;
         }
 
@@ -623,7 +623,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setSSLTrustStore(String path) {
-            this.configuration.put(ClickHouseClientOption.TRUST_STORE.getKey(), path);
+            this.configuration.put(ClientSettings.SSL_TRUST_STORE, path);
             return this;
         }
 
@@ -634,7 +634,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setSSLTrustStorePassword(String password) {
-            this.configuration.put(ClickHouseClientOption.KEY_STORE_PASSWORD.getKey(), password);
+            this.configuration.put(ClientSettings.SSL_KEY_STORE_PASSWORD, password);
             return this;
         }
 
@@ -645,7 +645,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setSSLTrustStoreType(String type) {
-            this.configuration.put(ClickHouseClientOption.KEY_STORE_TYPE.getKey(), type);
+            this.configuration.put(ClientSettings.SSL_KEYSTORE_TYPE, type);
             return this;
         }
 
@@ -658,7 +658,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setRootCertificate(String path) {
-            this.configuration.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE.getKey(), path);
+            this.configuration.put(ClientSettings.CA_CERTIFICATE, path);
             return this;
         }
 
@@ -668,7 +668,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setClientCertificate(String path) {
-            this.configuration.put(ClickHouseClientOption.SSL_CERTIFICATE.getKey(), path);
+            this.configuration.put(ClientSettings.SSL_CERTIFICATE, path);
             return this;
         }
 
@@ -678,7 +678,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setClientKey(String path) {
-            this.configuration.put(ClickHouseClientOption.SSL_KEY.getKey(), path);
+            this.configuration.put(ClientSettings.SSL_KEY, path);
             return this;
         }
 
@@ -690,7 +690,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder useServerTimeZone(boolean useServerTimeZone) {
-            this.configuration.put(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
+            this.configuration.put(ClientSettings.USE_SERVER_TIMEZONE, String.valueOf(useServerTimeZone));
             return this;
         }
 
@@ -702,7 +702,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder useTimeZone(String timeZone) {
-            this.configuration.put(ClickHouseClientOption.USE_TIME_ZONE.getKey(), timeZone);
+            this.configuration.put(ClientSettings.USE_TIMEZONE, timeZone);
             return this;
         }
 
@@ -713,7 +713,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setServerTimeZone(String timeZone) {
-            this.configuration.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), timeZone);
+            this.configuration.put(ClientSettings.SERVER_TIMEZONE, timeZone);
             return this;
         }
 
@@ -729,7 +729,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder useAsyncRequests(boolean async) {
-            this.configuration.put(ClickHouseClientOption.ASYNC.getKey(), String.valueOf(async));
+            this.configuration.put(ClientSettings.ASYNC_OPERATIONS, String.valueOf(async));
             return this;
         }
 
@@ -754,7 +754,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder setClientNetworkBufferSize(int size) {
-            this.configuration.put("client_network_buffer_size", String.valueOf(size));
+            this.configuration.put(ClientSettings.CLIENT_NETWORK_BUFFER_SIZE, String.valueOf(size));
             return this;
         }
 
@@ -777,7 +777,7 @@ public class Client implements AutoCloseable {
         }
 
         public Builder setMaxRetries(int maxRetries) {
-            this.configuration.put(ClickHouseClientOption.RETRY.getKey(), String.valueOf(maxRetries));
+            this.configuration.put(ClientSettings.RETRY_ON_FAILURE, String.valueOf(maxRetries));
             return this;
         }
 
@@ -905,19 +905,19 @@ public class Client implements AutoCloseable {
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
-                !this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
+                !this.configuration.containsKey(ClientSettings.SSL_CERTIFICATE)) {
                 throw new IllegalArgumentException("SSL authentication requires a client certificate");
             }
 
-            if (this.configuration.containsKey(ClickHouseClientOption.TRUST_STORE.getKey()) &&
-                this.configuration.containsKey(ClickHouseClientOption.SSL_CERTIFICATE.getKey())) {
+            if (this.configuration.containsKey(ClientSettings.SSL_TRUST_STORE) &&
+                this.configuration.containsKey(ClientSettings.SSL_CERTIFICATE)) {
                 throw new IllegalArgumentException("Trust store and certificates cannot be used together");
             }
 
             // Check timezone settings
-            String useTimeZoneValue = this.configuration.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
-            String serverTimeZoneValue = this.configuration.get(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
-            boolean useServerTimeZone = MapUtils.getFlag(this.configuration, ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+            String useTimeZoneValue = this.configuration.get(ClientSettings.USE_TIMEZONE);
+            String serverTimeZoneValue = this.configuration.get(ClientSettings.SERVER_TIMEZONE);
+            boolean useServerTimeZone = MapUtils.getFlag(this.configuration, ClientSettings.USE_SERVER_TIMEZONE);
             if (useTimeZoneValue != null) {
                 if (useServerTimeZone) {
                     throw new IllegalArgumentException("USE_TIME_ZONE option cannot be used when using server timezone");
@@ -950,32 +950,32 @@ public class Client implements AutoCloseable {
         private void setDefaults() {
 
             // set default database name if not specified
-            if (!configuration.containsKey("database")) {
-                setDefaultDatabase((String) ClickHouseDefaults.DATABASE.getDefaultValue());
+            if (!configuration.containsKey(ClientSettings.DATABASE)) {
+                setDefaultDatabase((String) "default");
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey())) {
+            if (!configuration.containsKey(ClientSettings.MAX_EXECUTION_TIME)) {
                 setExecutionTimeout(0, MILLIS);
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey())) {
-                configuration.put(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(),
-                        String.valueOf(ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getDefaultValue()));
+            if (!configuration.containsKey(ClientSettings.MAX_THREADS_PER_CLIENT)) {
+                configuration.put(ClientSettings.MAX_THREADS_PER_CLIENT,
+                        String.valueOf(0));
             }
 
             if (!configuration.containsKey("compression.lz4.uncompressed_buffer_size")) {
                 setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey())) {
+            if (!configuration.containsKey(ClientSettings.USE_SERVER_TIMEZONE)) {
                 useServerTimeZone(true);
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.SERVER_TIME_ZONE.getKey())) {
+            if (!configuration.containsKey(ClientSettings.SERVER_TIMEZONE)) {
                 setServerTimeZone("UTC");
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.ASYNC.getKey())) {
+            if (!configuration.containsKey(ClientSettings.ASYNC_OPERATIONS)) {
                 useAsyncRequests(false);
             }
 
@@ -1007,7 +1007,7 @@ public class Client implements AutoCloseable {
                 setClientNetworkBufferSize(DEFAULT_NETWORK_BUFFER_SIZE);
             }
 
-            if (!configuration.containsKey(ClickHouseClientOption.RETRY.getKey())) {
+            if (!configuration.containsKey(ClientSettings.RETRY_ON_FAILURE)) {
                 setMaxRetries(3);
             }
 
@@ -1243,10 +1243,10 @@ public class Client implements AutoCloseable {
 
 
         if (useNewImplementation) {
-            String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
-            final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
+            String retry = configuration.get(ClientSettings.RETRY_ON_FAILURE);
+            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
 
-            settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
+            settings.setOption(ClientSettings.INPUT_OUTPUT_FORMAT, format.name());
             final InsertSettings finalSettings = settings;
             Supplier<InsertResponse> supplier = () -> {
                 // Selecting some node
@@ -1369,17 +1369,17 @@ public class Client implements AutoCloseable {
         Supplier<InsertResponse> responseSupplier;
         if (useNewImplementation) {
 
-            String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
-            final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
+            String retry = configuration.get(ClientSettings.RETRY_ON_FAILURE);
+            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
             final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
-                    Integer.parseInt(configuration.getOrDefault(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "8192")) :
+                    Integer.parseInt(configuration.getOrDefault(ClientSettings.CLIENT_NETWORK_BUFFER_SIZE, "8192")) :
                     settings.getInputStreamCopyBufferSize();
 
             if (writeBufferSize <= 0) {
                 throw new IllegalArgumentException("Buffer size must be greater than 0");
             }
 
-            settings.setOption(ClickHouseClientOption.FORMAT.getKey(), format.name());
+            settings.setOption(ClientSettings.INPUT_OUTPUT_FORMAT, format.name());
             final InsertSettings finalSettings = settings;
             responseSupplier = () -> {
                 // Selecting some node
@@ -1550,8 +1550,8 @@ public class Client implements AutoCloseable {
         Supplier<QueryResponse> responseSupplier;
 
         if (useNewImplementation) {
-            String retry = configuration.get(ClickHouseClientOption.RETRY.getKey());
-            final int maxRetries = retry == null ? (int) ClickHouseClientOption.RETRY.getDefaultValue() : Integer.parseInt(retry);
+            String retry = configuration.get(ClientSettings.RETRY_ON_FAILURE);
+            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
 
             if (queryParams != null) {
                 settings.setOption("statement_params", queryParams);
@@ -1819,7 +1819,7 @@ public class Client implements AutoCloseable {
 
         try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
                 query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
-            return new TableSchemaParser().readTSKV(response.getInputStream(), name, originalQuery, database);
+            return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
         } catch (ExecutionException e) {
@@ -1920,24 +1920,24 @@ public class Client implements AutoCloseable {
     private void applyDefaults(QuerySettings settings) {
         Map<String, Object> settingsMap = settings.getAllSettings();
 
-        String key = ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey();
+        String key = ClientSettings.USE_SERVER_TIMEZONE;
         if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
             settings.setOption(key, MapUtils.getFlag(configuration, key));
         }
 
-        key = ClickHouseClientOption.USE_TIME_ZONE.getKey();
+        key = ClientSettings.USE_TIMEZONE;
         if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
             settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
         }
 
-        key = ClickHouseClientOption.SERVER_TIME_ZONE.getKey();
+        key = ClientSettings.SERVER_TIMEZONE;
         if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
             settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
         }
     }
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
-        boolean isAsync = MapUtils.getFlag(configuration, requestSettings, ClickHouseClientOption.ASYNC.getKey());
+        boolean isAsync = MapUtils.getFlag(configuration, requestSettings, ClientSettings.ASYNC_OPERATIONS);
         return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
     }
 
@@ -1957,7 +1957,7 @@ public class Client implements AutoCloseable {
 
     /** Returns operation timeout in seconds */
     protected int getOperationTimeout() {
-        return Integer.parseInt(configuration.get(ClickHouseClientOption.MAX_EXECUTION_TIME.getKey()));
+        return Integer.parseInt(configuration.get(ClientSettings.MAX_EXECUTION_TIME));
     }
 
     /**

@@ -8,7 +8,6 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -34,10 +33,8 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,9 +66,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        Boolean useServerTimeZone = (Boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+        Boolean useServerTimeZone = (Boolean) this.settings.get(ClientSettings.USE_SERVER_TIMEZONE);
         TimeZone timeZone = useServerTimeZone == Boolean.TRUE && querySettings != null ? querySettings.getServerTimeZone() :
-                (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+                (TimeZone) this.settings.get(ClientSettings.USE_TIMEZONE);
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
