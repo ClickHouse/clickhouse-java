@@ -1493,4 +1493,30 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.fail("Failed to create connection", e);
         }
     }
+
+    @Test(groups = "integration")
+    public void testMaxResultsRows() throws SQLException {
+        Properties props = new Properties();
+        int maxRows = 3;
+        props.setProperty(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), String.valueOf(maxRows));
+        props.setProperty(ClickHouseClientOption.RESULT_OVERFLOW_MODE.getKey(), "break");
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement s = conn.createStatement()) {
+            ResultSet rs = s.executeQuery("SELECT number FROM system.numbers");
+            for (int i = 0; i < maxRows; i++) {
+                Assert.assertTrue(rs.next(), "Should have more rows, but have only " + i);
+            }
+        }
+
+        props.setProperty(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), "1");
+        props.remove(ClickHouseClientOption.RESULT_OVERFLOW_MODE.getKey());
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement s = conn.createStatement()) {
+            s.executeQuery("SELECT number FROM system.numbers");
+            Assert.fail("Should throw exception");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getMessage().startsWith("Code: 396. DB::Exception: Limit for result exceeded, max rows"),
+                    "Unexpected exception: " + e.getMessage());
+        }
+    }
 }
