@@ -834,7 +834,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testQuerySystemLog() throws SQLException {
-        try (ClickHouseConnection conn = newConnection(new Properties())) {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.RESULT_OVERFLOW_MODE.getKey(), "break");
+        try (ClickHouseConnection conn = newConnection(props)) {
             ClickHouseStatement stmt = conn.createStatement();
             stmt.setMaxRows(10);
             stmt.setLargeMaxRows(11L);
