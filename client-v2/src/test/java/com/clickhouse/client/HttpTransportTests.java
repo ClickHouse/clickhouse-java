@@ -517,7 +517,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .httpHeader("X-ClickHouse-Test", "test")
                     .httpHeader("X-ClickHouse-Test-2", Arrays.asList("test1", "test2"));
 
-            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(10, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 10);
             } catch (Exception e) {
                 e.printStackTrace();

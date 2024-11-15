@@ -84,6 +84,7 @@ public class BinaryStreamReader {
      * @param <T> - target type of the value
      * @throws IOException when IO error occurs
      */
+    @SuppressWarnings("unchecked")
     public <T> T readValue(ClickHouseColumn column, Class<?> typeHint) throws IOException {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
