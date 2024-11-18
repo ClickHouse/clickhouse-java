@@ -124,9 +124,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxResultRows()));
         } else if (hasRequestSetting) {
             // set on request level
-            Number value = (Number) settings.get(settingKey);
-            if (value.longValue() > 0L) {
-                appendQueryParameter(builder, settingKey, String.valueOf(value.longValue()));
+            Object value = settings.get(settingKey);
+            if (value instanceof Number && ((Number) value).longValue() > 0L) {
+                appendQueryParameter(builder, settingKey, String.valueOf(value));
+            } else if (value instanceof String && !(((String) value).isEmpty() || "0".equals(value))) {
+                appendQueryParameter(builder, settingKey, (String) value);
             }
         }
 
