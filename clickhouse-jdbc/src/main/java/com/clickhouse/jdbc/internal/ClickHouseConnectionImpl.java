@@ -51,17 +51,9 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.jdbc.*;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
-import com.clickhouse.jdbc.ClickHouseConnection;
-import com.clickhouse.jdbc.ClickHouseDatabaseMetaData;
-import com.clickhouse.jdbc.ClickHouseDriver;
-import com.clickhouse.jdbc.ClickHouseStatement;
-import com.clickhouse.jdbc.JdbcConfig;
-import com.clickhouse.jdbc.JdbcParameterizedQuery;
-import com.clickhouse.jdbc.JdbcParseHandler;
-import com.clickhouse.jdbc.SqlExceptionUtils;
-import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
@@ -292,12 +284,12 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         Properties props = connInfo.getProperties();
         jvmTimeZone = TimeZone.getDefault();
         if (props.get("disable_frameworks_detection") == null || !props.get("disable_frameworks_detection").toString().equalsIgnoreCase("true")) {
-            ClickHouseDriver.frameworksDetected = ClickHouseDriver.FrameworksDetection.getFrameworksDetected();
-            if (ClickHouseDriver.frameworksDetected != null)
-                props.setProperty(ClickHouseClientOption.PRODUCT_NAME.getKey(), props.getProperty(ClickHouseClientOption.PRODUCT_NAME.getKey()) + ClickHouseDriver.frameworksDetected);
+            DriverV1.frameworksDetected = DriverV1.FrameworksDetection.getFrameworksDetected();
+            if (DriverV1.frameworksDetected != null)
+                props.setProperty(ClickHouseClientOption.PRODUCT_NAME.getKey(), props.getProperty(ClickHouseClientOption.PRODUCT_NAME.getKey()) + DriverV1.frameworksDetected);
         }
         ClickHouseClientBuilder clientBuilder = ClickHouseClient.builder()
-                .options(ClickHouseDriver.toClientOptions(props))
+                .options(DriverV1.toClientOptions(props))
                 .defaultCredentials(connInfo.getDefaultCredentials());
         ClickHouseNodes nodes = connInfo.getNodes();
 

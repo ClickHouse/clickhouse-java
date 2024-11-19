@@ -149,17 +149,17 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return ClickHouseDriver.driverVersionString;
+        return DriverV1.driverVersionString;
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return ClickHouseDriver.driverVersion.getMajorVersion();
+        return DriverV1.driverVersion.getMajorVersion();
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return ClickHouseDriver.driverVersion.getMinorVersion();
+        return DriverV1.driverVersion.getMinorVersion();
     }
 
     @Override
@@ -1217,12 +1217,12 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return ClickHouseDriver.specVersion.getMajorVersion();
+        return DriverV1.specVersion.getMajorVersion();
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return ClickHouseDriver.specVersion.getMinorVersion();
+        return DriverV1.specVersion.getMinorVersion();
     }
 
     @Override
