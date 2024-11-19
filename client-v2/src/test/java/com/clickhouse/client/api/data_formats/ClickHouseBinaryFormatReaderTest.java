@@ -86,10 +86,10 @@ public class ClickHouseBinaryFormatReaderTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         String[] names = new String[]{ "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
-                "q", "r"};
+                "q", "r", "s"};
         String[] types = new String[]{"Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64",
                 "Int128", "Int256", "UInt128", "UInt256", "Float32", "Float64",
-                "Decimal32(3)", "Decimal64(3)", "Decimal128(4)", "Decimal256(4)"};
+                "Decimal32(3)", "Decimal64(3)", "Decimal128(4)", "Decimal256(4)", "Float64"};
 
         BinaryStreamUtils.writeVarInt(out, names.length);
         for (String name : names) {
@@ -117,7 +117,7 @@ public class ClickHouseBinaryFormatReaderTest {
         BinaryStreamUtils.writeDecimal64(out, BigDecimal.valueOf(10000000.10000), 3); // p
         BinaryStreamUtils.writeDecimal128(out, BigDecimal.valueOf(1000000000.1000000), 4); // q
         BinaryStreamUtils.writeDecimal256(out, BigDecimal.valueOf(1000000000.1000000), 4); // r
-
+        BinaryStreamUtils.writeFloat64(out, 123.456); // s
 
         InputStream in = new ByteArrayInputStream(out.toByteArray());
         QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
@@ -130,15 +130,23 @@ public class ClickHouseBinaryFormatReaderTest {
         Consumer<String> shortConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getShort(name));
         Consumer<String> integerConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getInteger(name));
         Consumer<String> longConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getLong(name));
-        Consumer<String> floatConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getFloat(name));
-        Consumer<String> doubleConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getDouble(name));
+//        Consumer<String> floatConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getFloat(name));
+//        Consumer<String> doubleConsumer = name -> Assert.expectThrows(ArithmeticException.class, () -> reader.getDouble(name));
 
         Arrays.stream("b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r".split(",")).forEach(byteConsumer);
         Arrays.stream("c,d,f,g,h,i,j,k,l,m,n,o,p,q,r".split(",")).forEach(shortConsumer);
         Arrays.stream("d,g,h,i,j,k,l".split(",")).forEach(integerConsumer);
         Arrays.stream("h,i,j,k,l".split(",")).forEach(longConsumer);
-        Arrays.stream("h,i,j,k,l,n,p,q,r".split(",")).forEach(floatConsumer);
-        Arrays.stream("h,i,j,k,l,p,q,r".split(",")).forEach(doubleConsumer);
+//        Arrays.stream("h,i,j,k,l,n,p,q,r".split(",")).forEach(floatConsumer);
+//        Arrays.stream("h,i,j,k,l,p,q,r".split(",")).forEach(doubleConsumer);
+
+        Assert.assertEquals(reader.getFloat("m"), 900000.123f);
+        Assert.assertEquals(reader.getDouble("m"), 900000.123f);
+
+        Assert.assertEquals(reader.getBigDecimal("n"), BigDecimal.valueOf(1000000.333));
+        Assert.assertEquals(reader.getBigDecimal("n"), BigDecimal.valueOf(1000000.333));
+
+        Assert.assertEquals(reader.getFloat("s"), 123.456f);
     }
 
     @Test

@@ -682,12 +682,7 @@ public class SerializerUtils {
             if (value instanceof Float) {
                 return (Float) value;
             } else if (value instanceof Number) {
-                Number number = (Number) value;
-                 if (number.floatValue() == number.doubleValue()) {
-                    return number.floatValue();
-                } else {
-                    throw new ArithmeticException("float overflow: " + value + " cannot be presented as float");
-                }
+                return ((Number) value).floatValue();
             } else if (value instanceof Boolean) {
                 return (Boolean) value ? 1.0f : 0.0f;
             } else if (value instanceof String ) {
@@ -701,12 +696,7 @@ public class SerializerUtils {
             if (value instanceof Double) {
                 return (Double) value;
             } else if (value instanceof Number) {
-                Number number = (Number) value;
-                if (number.doubleValue() == number.floatValue()) {
-                    return number.doubleValue();
-                } else {
-                    throw new ArithmeticException("double overflow: " + value + " cannot be presented as double");
-                }
+                return ((Number) value).doubleValue();
             } else if (value instanceof Boolean) {
                 return (Boolean) value ? 1.0 : 0.0;
             } else if (value instanceof String) {
