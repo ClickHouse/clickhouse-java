@@ -51,6 +51,7 @@ import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
@@ -74,6 +75,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -811,7 +813,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, String value) {
-            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key, value);
+            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), value);
             return this;
         }
 
@@ -822,7 +824,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, Collection<String> values) {
-            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key, ClientSettings.commaSeparated(values));
+            this.configuration.put(ClientSettings.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), ClientSettings.commaSeparated(values));
             return this;
         }
 
@@ -880,9 +882,27 @@ public class Client implements AutoCloseable {
          * Whether to use HTTP basic authentication. Default value is true.
          * Password that contain UTF8 characters may not be passed through http headers and BASIC authentication
          * is the only option here.
+         * @param useBasicAuth - indicates if basic authentication should be used
+         * @return same instance of the builder
          */
         public Builder useHTTPBasicAuth(boolean useBasicAuth) {
             this.configuration.put(ClientSettings.HTTP_USE_BASIC_AUTH, String.valueOf(useBasicAuth));
+            return this;
+        }
+
+        /**
+         * Sets additional information about calling application. This string will be passed to server as a client name.
+         * In case of HTTP protocol it will be passed as a {@code User-Agent} header.
+         * Warn: If custom value of User-Agent header is set it will override this value for HTTP transport
+         * </br>
+         * Client name is used by server to identify client application when investigating {@code system.query_log}. In case of HTTP
+         * transport this value will be in the {@code system.query_log.http_user_agent} column. Currently only HTTP transport is used.
+         *
+         * @param clientName - client application display name.
+         * @return same instance of the builder
+         */
+        public Builder setClientName(String clientName) {
+            this.configuration.put(ClientSettings.CLIENT_NAME, clientName);
             return this;
         }
 
@@ -1023,7 +1043,41 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey(ClientSettings.HTTP_USE_BASIC_AUTH)) {
                 useHTTPBasicAuth(true);
             }
+
+            String userAgent = configuration.getOrDefault(ClientSettings.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
+            String clientName = configuration.getOrDefault(ClientSettings.CLIENT_NAME, "");
+            httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
         }
+
+        private static String buildUserAgent(String customUserAgent) {
+
+            StringBuilder userAgent = new StringBuilder();
+            if (customUserAgent != null && !customUserAgent.isEmpty()) {
+                userAgent.append(customUserAgent).append(" ");
+            }
+
+            userAgent.append(CLIENT_USER_AGENT);
+
+            String clientVersion = Client.class.getPackage().getImplementationVersion();
+            if (clientVersion == null) {
+                clientVersion = LATEST_ARTIFACT_VERSION;
+            }
+            userAgent.append(clientVersion);
+
+            userAgent.append(" (");
+            userAgent.append(System.getProperty("os.name"));
+            userAgent.append("; ");
+            userAgent.append("jvm:").append(System.getProperty("java.version"));
+            userAgent.append("; ");
+
+            userAgent.setLength(userAgent.length() - 2);
+            userAgent.append(')');
+
+            return userAgent.toString();
+        }
+
+        public static final String LATEST_ARTIFACT_VERSION = "0.7.1-patch1";
+        public static final String CLIENT_USER_AGENT = "ch-j-v2/";
     }
 
     private ClickHouseNode getServerNode() {

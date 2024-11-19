@@ -7,13 +7,16 @@ import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.insert.SamplePOJO;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
@@ -38,13 +41,16 @@ import java.nio.ByteBuffer;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.Assert.fail;
@@ -747,5 +753,45 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertEquals(e.getCode(), 241);
             }
         }
+    }
+
+
+    @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
+    public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword("")
+                .setClientName(clientName)
+                .build()) {
+
+            String q1Id = UUID.randomUUID().toString();
+
+            client.execute("SELECT 1", (CommandSettings) new CommandSettings().setQueryId(q1Id)).get().close();
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
+                    " forwarded_for  FROM system.query_log WHERE query_id = '" + q1Id + "'");
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
+
+            for (GenericRecord record : logRecords) {
+
+                Assert.assertTrue(userAgentPattern.matcher(record.getString("http_user_agent")).matches(),
+                        record.getString("http_user_agent") + " doesn't match \"" +
+                                  userAgentPattern.pattern() + "\"");
+
+            }
+        }
+    }
+
+
+    @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
+    public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
+        return new Object[][] {
+                { "", Pattern.compile("ch-j-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 ch-j-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")},
+                { "test-client/", Pattern.compile("test-client/ ch-j-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")}};
     }
 }

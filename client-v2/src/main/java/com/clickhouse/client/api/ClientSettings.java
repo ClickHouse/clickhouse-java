@@ -40,6 +40,9 @@ public class ClientSettings {
 
     public static final String HTTP_USE_BASIC_AUTH = "http_use_basic_auth";
 
+    public static final String CLIENT_NAME = "client_name";
+
+
     // -- Experimental features --
 
     /**
