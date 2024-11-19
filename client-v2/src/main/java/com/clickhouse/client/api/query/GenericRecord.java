@@ -288,6 +288,7 @@ public interface GenericRecord {
 
     /**
      * Reads column with name `colName` as a float.
+     * Warning: there is no overflow check for float.
      *
      * @param index
      * @return
@@ -296,6 +297,7 @@ public interface GenericRecord {
 
     /**
      * Reads column with name `colName` as a double.
+     * Warning: there is no overflow check for double.
      *
      * @param index
      * @return
