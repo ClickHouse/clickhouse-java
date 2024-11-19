@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseProtocol;
@@ -24,7 +25,7 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
         if (isCloud()) return; //TODO: testConnect - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
         ClickHouseDriver driver = new ClickHouseDriver();
-        ClickHouseConnection conn = driver.connect("jdbc:clickhouse://" + address, null);
+        Connection conn = driver.connect("jdbc:clickhouse://" + address, null);
         conn.close();
     }
 }

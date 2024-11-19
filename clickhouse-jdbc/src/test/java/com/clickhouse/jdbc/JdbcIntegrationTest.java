@@ -109,9 +109,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             properties.put("password", getPassword());
             properties.put("user", "default");
             url = String.format("jdbc:clickhouse:https://%s/%s", getServerAddress(ClickHouseProtocol.HTTP), ClickHouseServerForTest.getDatabase());
-            return new VersionSelectingDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
+            return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
         }
-        return new VersionSelectingDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
+        return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
     }
 
     public ClickHouseConnection newConnection() throws SQLException {

@@ -434,13 +434,21 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Object getObject(int columnIndex) throws SQLException {
         checkClosed();
-        return null;
+        try {
+            return reader.readValue(columnIndex);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
         checkClosed();
-        return null;
+        try {
+            return reader.readValue(columnLabel);
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
