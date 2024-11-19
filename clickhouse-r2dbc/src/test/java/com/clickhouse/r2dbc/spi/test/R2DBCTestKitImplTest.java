@@ -3,7 +3,6 @@ package com.clickhouse.r2dbc.spi.test;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.jdbc.ClickHouseDriver;
 import com.zaxxer.hikari.HikariDataSource;
 import io.r2dbc.spi.Blob;
 import io.r2dbc.spi.Clob;
@@ -82,7 +81,7 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
     private static JdbcTemplate jdbcTemplate(String database) throws SQLException {
         HikariDataSource source = new HikariDataSource();
 
-        Driver driver = new ClickHouseDriver();
+        Driver driver = new com.clickhouse.jdbc.Driver();
         DriverManager.registerDriver(driver);
         if (database == null) {
             source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?%s", DEFAULT_PROTOCOL,
