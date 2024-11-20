@@ -218,6 +218,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     MAX_RESULT_ROWS("max_result_rows", 0L,
             "Limit on the number of rows in the result. "
                     + "Also checked for subqueries, and on remote servers when running parts of a distributed query."),
+
+    RESULT_OVERFLOW_MODE("result_overflow_mode", "throw","What to do if the result is overflowed."),
     /**
      * Maximum size of thread pool for each client.
      */
