@@ -1,14 +1,13 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.jdbc.JdbcWrapper;
+import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 
 import java.sql.SQLException;
 import java.util.List;
 
-public class ParameterMetaData implements java.sql.ParameterMetaData, JdbcWrapper {
+public class ParameterMetaData implements java.sql.ParameterMetaData, JdbcV2Wrapper {
     private final List<ClickHouseColumn> params;
 
     protected ParameterMetaData(List<ClickHouseColumn> params) {

@@ -4,8 +4,8 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.Map;
@@ -13,7 +13,7 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-public class ConnectionImpl implements Connection, JdbcWrapper {
+public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
 
     protected final String url;
@@ -25,6 +25,8 @@ public class ConnectionImpl implements Connection, JdbcWrapper {
     private String schema;
 
     public ConnectionImpl(String url, Properties info) {
+        log.debug("Creating connection to {}", url);
+
         this.url = url;
         this.config = new JdbcConfiguration(url, info);
         this.client = new Client.Builder()

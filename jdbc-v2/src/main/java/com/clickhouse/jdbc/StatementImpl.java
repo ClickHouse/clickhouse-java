@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class StatementImpl implements Statement, JdbcWrapper {
+public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
     ConnectionImpl connection;
@@ -151,7 +151,6 @@ public class StatementImpl implements Statement, JdbcWrapper {
     @Override
     public void close() throws SQLException {
         closed = true;
-        connection.close();
         if (currentResultSet != null) {
             currentResultSet.close();
             currentResultSet = null;
@@ -227,15 +226,25 @@ public class StatementImpl implements Statement, JdbcWrapper {
 
     public boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementType type = parseStatementType(sql);
+        List<String> statements = List.of(sql.split(";"));
+        boolean firstIsResult = false;
 
-        if (type == StatementType.SELECT) {
-            executeQuery(sql, settings);
-            return true;
-        } else {
-            executeUpdate(sql, settings);
-            return false;
+        int index = 0;
+        for (String statement : statements) {
+            StatementType type = parseStatementType(statement);
+
+            if (type == StatementType.SELECT) {
+                executeQuery(statement, settings);
+                if (index == 0) {
+                    firstIsResult = true;
+                }
+            } else {
+                executeUpdate(statement, settings);
+            }
+
+            index++;
         }
+        return firstIsResult;
     }
 
     @Override

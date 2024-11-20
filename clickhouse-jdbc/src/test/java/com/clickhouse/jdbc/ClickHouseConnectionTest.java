@@ -23,7 +23,7 @@ import org.testng.annotations.Test;
 public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     @Override
     public ClickHouseConnection newConnection(Properties properties) throws SQLException {
-        return newDataSource(properties).getConnection();
+        return (ClickHouseConnection) newDataSource(properties).getConnection();
     }
 
     @Test(groups = "integration")

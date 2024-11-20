@@ -8,14 +8,18 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.Map;
 
-public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcWrapper {
+public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -69,67 +73,67 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = null;
+        setNull(parameterIndex, sqlType, null);
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = Boolean.toString(x);
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = Byte.toString(x);
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = "'" + x + "'";
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Bytes is not yet supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -153,19 +157,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("AsciiStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("UnicodeStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("BinaryStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -187,7 +191,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Object is not supported.");
+        setObject(parameterIndex, x, Types.OTHER);
     }
 
     @Override
@@ -203,9 +207,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     @Override
-    public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
+    public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("CharacterStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -217,18 +221,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -248,7 +253,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ZoneId tz = cal.getTimeZone().toZoneId();
         Calendar c = (Calendar) cal.clone();
         c.setTime(x);
-        parameters[parameterIndex - 1] = String.format("'%s'", DATE_FORMATTER.format(c.toInstant().atZone(tz).toLocalDate()));
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).toLocalDate());
     }
 
     @Override
@@ -262,7 +267,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ZoneId tz = cal.getTimeZone().toZoneId();
         Calendar c = (Calendar) cal.clone();
         c.setTime(x);
-        parameters[parameterIndex - 1] = String.format("'%s'", TIME_FORMATTER.format(c.toInstant().atZone(tz).toLocalTime()));
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).toLocalTime());
     }
 
     @Override
@@ -276,19 +281,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ZoneId tz = cal.getTimeZone().toZoneId();
         Calendar c = (Calendar) cal.clone();
         c.setTime(x);
-        parameters[parameterIndex - 1] = String.format("'%s'", DATETIME_FORMATTER.format(c.toInstant().atZone(tz).withNano(x.getNanos()).toLocalDateTime()));
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).withNano(x.getNanos()).toLocalDateTime());
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = null;
+        parameters[parameterIndex - 1] = encodeObject(null);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = x;
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -300,132 +305,190 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("RowId is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNString(int parameterIndex, String value) throws SQLException {
+    public void setNString(int parameterIndex, String x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NString is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
+    public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NCharacterStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNClob(int parameterIndex, NClob value) throws SQLException {
+    public void setNClob(int parameterIndex, NClob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NClob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
+    public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
+    public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
+    public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NClob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
+    public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("SQLXML is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Object is not supported.");
+        setObject(parameterIndex, x, JDBCType.valueOf(targetSqlType), scaleOrLength);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("AsciiStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("BinaryStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
+    public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("CharacterStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("AsciiStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("BinaryStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
+    public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("CharacterStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
+    public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NCharacterStream is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setClob(int parameterIndex, Reader reader) throws SQLException {
+    public void setClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
+    public void setBlob(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
-    public void setNClob(int parameterIndex, Reader reader) throws SQLException {
+    public void setNClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NClob is not supported.");
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         checkClosed();
-        PreparedStatement.super.setObject(parameterIndex, x, targetSqlType, scaleOrLength);
+        parameters[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
         checkClosed();
-        PreparedStatement.super.setObject(parameterIndex, x, targetSqlType);
+        setObject(parameterIndex, x, targetSqlType, 0);
     }
 
     @Override
     public long executeLargeUpdate() throws SQLException {
         checkClosed();
         return PreparedStatement.super.executeLargeUpdate();
+    }
+
+    private static String encodeObject(Object x) throws SQLException {
+        try {
+            if (x == null) {
+                return "NULL";
+            } else if (x instanceof String) {
+                return "'" + x + "'";
+            } else if (x instanceof Boolean) {
+                return (Boolean) x ? "1" : "0";
+            } else if (x instanceof Date) {
+                return "'" + DATE_FORMATTER.format(((Date) x).toLocalDate()) + "'";
+            } else if (x instanceof LocalDate) {
+                return "'" + DATE_FORMATTER.format((LocalDate) x) + "'";
+            } else if (x instanceof Time) {
+                return "'" + TIME_FORMATTER.format(((Time) x).toLocalTime()) + "'";
+            } else if (x instanceof LocalTime) {
+                return "'" + TIME_FORMATTER.format((LocalTime) x) + "'";
+            } else if (x instanceof Timestamp) {
+                return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
+            } else if (x instanceof LocalDateTime) {
+                return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+            } else if (x instanceof Map) {
+                Map tmpMap = (Map) x;
+                StringBuilder mapString = new StringBuilder();
+                mapString.append("{");
+                for (Object key : tmpMap.keySet()) {
+                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
+                }
+                mapString.delete(mapString.length() - 2, mapString.length());
+                mapString.append("}");
+
+                return mapString.toString();
+            } else if (x instanceof Reader) {
+                StringBuilder sb = new StringBuilder();
+                Reader reader = (Reader) x;
+                char[] buffer = new char[1024];
+                int len;
+                while ((len = reader.read(buffer)) != -1) {
+                    sb.append(buffer, 0, len);
+                }
+                return "'" + sb + "'";
+            } else if (x instanceof InputStream) {
+                StringBuilder sb = new StringBuilder();
+                InputStream is = (InputStream) x;
+                byte[] buffer = new byte[1024];
+                int len;
+                while ((len = is.read(buffer)) != -1) {
+                    sb.append(new String(buffer, 0, len));
+                }
+                return "'" + sb + "'";
+            }
+
+            return x.toString();
+        } catch (Exception e) {
+            LOG.error("Error encoding object", e);
+            throw new SQLException("Error encoding object", e);
+        }
     }
 }
