@@ -1,11 +1,11 @@
 package com.clickhouse.examples.client_v2;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.examples.client_v2.data.PojoWithJSON;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +29,8 @@ public class ExperimentalJSONExample {
                 // allow experimental JSON type
                 .serverSetting("allow_experimental_json_type", "1")
                 // allow JSON transcoding as a string
-                .serverSetting(ClientSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1")
-                .serverSetting(ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1")
+                .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1")
+                .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1")
                 .setDefaultDatabase(database);
 
         this.client = clientBuilder.build();
@@ -58,7 +58,7 @@ public class ExperimentalJSONExample {
         List<Object> data = Arrays.asList(pojo);
 
         InsertSettings insertSettings = new InsertSettings()
-                .serverSetting(ClientSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
+                .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
         try (InsertResponse response = client.insert(tableName, data, insertSettings).get(30, TimeUnit.SECONDS)) {
             log.info("Data write metrics: {}", response.getMetrics());
         } catch (Exception e) {
