@@ -131,29 +131,29 @@ public class QuerySettings {
     }
 
     public QuerySettings setUseServerTimeZone(Boolean useServerTimeZone) {
-        if (rawSettings.containsKey(ClientConfigProperties.USE_TIMEZONE)) {
-            throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_SERVER_TIMEZONE,
+        if (rawSettings.containsKey(ClientConfigProperties.USE_TIMEZONE.getKey())) {
+            throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(),
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put(ClientConfigProperties.USE_SERVER_TIMEZONE, useServerTimeZone);
+        rawSettings.put(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(), useServerTimeZone);
         return this;
     }
 
     public Boolean getUseServerTimeZone() {
-        return (Boolean) rawSettings.get(ClientConfigProperties.USE_SERVER_TIMEZONE);
+        return (Boolean) rawSettings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
     }
 
     public QuerySettings setUseTimeZone(String timeZone) {
-        if (rawSettings.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE)) {
-            throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_TIMEZONE,
+        if (rawSettings.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
+            throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_TIMEZONE.getKey(),
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put(ClientConfigProperties.USE_TIMEZONE, TimeZone.getTimeZone(timeZone));
+        rawSettings.put(ClientConfigProperties.USE_TIMEZONE.getKey(), TimeZone.getTimeZone(timeZone));
         return this;
     }
 
     public TimeZone getServerTimeZone() {
-        return (TimeZone) rawSettings.get(ClientConfigProperties.SERVER_TIMEZONE);
+        return (TimeZone) rawSettings.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
     }
 
     /**
@@ -202,7 +202,7 @@ public class QuerySettings {
      * @return same instance of the builder
      */
     public QuerySettings serverSetting(String name, String value) {
-        rawSettings.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, value);
+        rawSettings.put(ClientConfigProperties.serverSetting(name), value);
         return this;
     }
 
@@ -213,7 +213,7 @@ public class QuerySettings {
      * @return same instance of the builder
      */
     public QuerySettings serverSetting(String name, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, ClientConfigProperties.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.serverSetting(name), ClientConfigProperties.commaSeparated(values));
         return this;
     }
 
@@ -223,7 +223,7 @@ public class QuerySettings {
      * @param dbRoles
      */
     public QuerySettings setDBRoles(Collection<String> dbRoles) {
-        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES, dbRoles);
+        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), dbRoles);
         return this;
     }
 
@@ -233,7 +233,7 @@ public class QuerySettings {
      * @return list of DB roles
      */
     public Collection<String> getDBRoles() {
-        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES);
+        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES.getKey());
     }
 
     /**
@@ -244,7 +244,7 @@ public class QuerySettings {
     public QuerySettings logComment(String logComment) {
         this.logComment = logComment;
         if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT, logComment);
+            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT.getKey(), logComment);
         }
         return this;
     }

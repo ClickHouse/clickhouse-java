@@ -5,13 +5,13 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
@@ -135,7 +135,7 @@ public class InsertTests extends BaseIntegrationTest {
         List<Object> data = Arrays.asList(pojo);
 
         InsertSettings insertSettings = new InsertSettings()
-                .serverSetting(ClientConfigProperties.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
+                .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
         InsertResponse response = client.insert(tableName, data, insertSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(response.getWrittenRows(), 1);
 

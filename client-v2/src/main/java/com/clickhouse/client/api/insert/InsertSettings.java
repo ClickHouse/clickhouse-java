@@ -189,7 +189,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings serverSetting(String name, String value) {
-        rawSettings.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, value);
+        rawSettings.put(ClientConfigProperties.serverSetting(name), value);
         return this;
     }
 
@@ -200,7 +200,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings serverSetting(String name, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, ClientConfigProperties.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.serverSetting(name), ClientConfigProperties.commaSeparated(values));
         return this;
     }
 
@@ -210,7 +210,7 @@ public class InsertSettings {
      * @param dbRoles
      */
     public InsertSettings setDBRoles(Collection<String> dbRoles) {
-        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES, dbRoles);
+        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), dbRoles);
         return this;
     }
 
@@ -220,7 +220,7 @@ public class InsertSettings {
      * @return list of DB roles
      */
     public Collection<String> getDBRoles() {
-        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES);
+        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES.getKey());
     }
 
     /**
@@ -231,7 +231,7 @@ public class InsertSettings {
     public InsertSettings logComment(String logComment) {
         this.logComment = logComment;
         if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT, logComment);
+            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT.getKey(), logComment);
         }
         return this;
     }
