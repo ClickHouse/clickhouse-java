@@ -6,7 +6,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -97,8 +97,8 @@ public class HttpAPIClientHelper {
 
         this.baseRequestConfig = reqConfBuilder.build();
 
-        boolean usingClientCompression=  chConfiguration.getOrDefault(ClientSettings.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
-        boolean usingServerCompression=  chConfiguration.getOrDefault(ClientSettings.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
+        boolean usingClientCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
+        boolean usingServerCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
 
@@ -120,26 +120,26 @@ public class HttpAPIClientHelper {
             throw new ClientException("Failed to create default SSL context", e);
         }
         ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
-        String trustStorePath = chConfiguration.get(ClientSettings.SSL_TRUST_STORE);
+        String trustStorePath = chConfiguration.get(ClientConfigProperties.SSL_TRUST_STORE);
         if (trustStorePath != null ) {
             try {
                 sslContext = sslContextProvider.getSslContextFromKeyStore(
                         trustStorePath,
-                        chConfiguration.get(ClientSettings.SSL_KEY_STORE_PASSWORD),
-                        chConfiguration.get(ClientSettings.SSL_KEYSTORE_TYPE)
+                        chConfiguration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD),
+                        chConfiguration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE)
                 );
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
             }
-        } else if (chConfiguration.get(ClientSettings.CA_CERTIFICATE) != null ||
-                chConfiguration.get(ClientSettings.SSL_CERTIFICATE) != null ||
-                chConfiguration.get(ClientSettings.SSL_KEY) != null) {
+        } else if (chConfiguration.get(ClientConfigProperties.CA_CERTIFICATE) != null ||
+                chConfiguration.get(ClientConfigProperties.SSL_CERTIFICATE) != null ||
+                chConfiguration.get(ClientConfigProperties.SSL_KEY) != null) {
 
             try {
                 sslContext = sslContextProvider.getSslContextFromCerts(
-                        chConfiguration.get(ClientSettings.SSL_CERTIFICATE),
-                        chConfiguration.get(ClientSettings.SSL_KEY),
-                        chConfiguration.get(ClientSettings.CA_CERTIFICATE)
+                        chConfiguration.get(ClientConfigProperties.SSL_CERTIFICATE),
+                        chConfiguration.get(ClientConfigProperties.SSL_KEY),
+                        chConfiguration.get(ClientConfigProperties.CA_CERTIFICATE)
                 );
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
@@ -152,9 +152,9 @@ public class HttpAPIClientHelper {
 
     private ConnectionConfig createConnectionConfig() {
         ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
-        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, ClientSettings.CONNECTION_TTL),
+        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, ClientConfigProperties.CONNECTION_TTL),
                 TimeUnit.MILLISECONDS);
-        connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClientSettings.CONNECTION_TIMEOUT),
+        connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClientConfigProperties.CONNECTION_TIMEOUT),
                 TimeUnit.MILLISECONDS);
         connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
 
@@ -195,7 +195,7 @@ public class HttpAPIClientHelper {
 
         connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
-        MapUtils.applyInt(chConfiguration, ClientSettings.HTTP_MAX_OPEN_CONNECTIONS,
+        MapUtils.applyInt(chConfiguration, ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS,
                 connMgrBuilder::setMaxConnPerRoute);
 
 
@@ -221,24 +221,24 @@ public class HttpAPIClientHelper {
 
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
-        MapUtils.applyInt(chConfiguration, ClientSettings.SOCKET_OPERATION_TIMEOUT,
+        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_OPERATION_TIMEOUT,
                 (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
-        MapUtils.applyInt(chConfiguration, ClientSettings.SOCKET_RCVBUF_OPT,
+        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_RCVBUF_OPT,
                 soCfgBuilder::setRcvBufSize);
-        MapUtils.applyInt(chConfiguration, ClientSettings.SOCKET_SNDBUF_OPT,
+        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_SNDBUF_OPT,
                 soCfgBuilder::setSndBufSize);
-        MapUtils.applyInt(chConfiguration, ClientSettings.SOCKET_LINGER_OPT,
+        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_LINGER_OPT,
                     (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
 
         // Proxy
-        String proxyHost = chConfiguration.get(ClientSettings.PROXY_HOST);
-        String proxyPort = chConfiguration.get(ClientSettings.PROXY_PORT);
+        String proxyHost = chConfiguration.get(ClientConfigProperties.PROXY_HOST);
+        String proxyPort = chConfiguration.get(ClientConfigProperties.PROXY_PORT);
         HttpHost proxy = null;
         if (proxyHost != null && proxyPort != null) {
             proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
         }
 
-        String proxyTypeVal = chConfiguration.get(ClientSettings.PROXY_TYPE);
+        String proxyTypeVal = chConfiguration.get(ClientConfigProperties.PROXY_TYPE);
         ProxyType proxyType = proxyTypeVal == null ? null : ProxyType.valueOf(proxyTypeVal);
         if (proxyType == ProxyType.HTTP) {
             clientBuilder.setProxy(proxy);
@@ -263,7 +263,7 @@ public class HttpAPIClientHelper {
         } else {
             clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
         }
-        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientSettings.HTTP_KEEP_ALIVE_TIMEOUT);
+        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientConfigProperties.HTTP_KEEP_ALIVE_TIMEOUT);
         if (keepAliveTimeout > 0) {
             clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
         }
@@ -388,42 +388,42 @@ public class HttpAPIClientHelper {
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig != null) {
-            if (requestConfig.containsKey(ClientSettings.INPUT_OUTPUT_FORMAT)) {
-                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientSettings.INPUT_OUTPUT_FORMAT));
+            if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT)) {
+                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT));
             }
-            if (requestConfig.containsKey(ClientSettings.QUERY_ID)) {
-                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientSettings.QUERY_ID).toString());
+            if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID)) {
+                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID).toString());
             }
-            if(requestConfig.containsKey(ClientSettings.DATABASE)) {
-                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, requestConfig.get(ClientSettings.DATABASE));
+            if(requestConfig.containsKey(ClientConfigProperties.DATABASE)) {
+                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, requestConfig.get(ClientConfigProperties.DATABASE));
             }else {
-                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClientSettings.DATABASE));
+                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClientConfigProperties.DATABASE));
             }
-            if (requestConfig.containsKey(ClientSettings.INPUT_OUTPUT_FORMAT)) {
-                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientSettings.DATABASE));
+            if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT)) {
+                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.DATABASE));
             }
-            if (requestConfig.containsKey(ClientSettings.QUERY_ID)) {
-                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientSettings.QUERY_ID).toString());
+            if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID)) {
+                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID).toString());
             }
         }
 
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientSettings.USER));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
-        } else if (chConfig.getOrDefault(ClientSettings.HTTP_USE_BASIC_AUTH, "true").equalsIgnoreCase("true")) {
+        } else if (chConfig.getOrDefault(ClientConfigProperties.HTTP_USE_BASIC_AUTH, "true").equalsIgnoreCase("true")) {
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
-                    (chConfig.get(ClientSettings.USER) + ":" + chConfig.get(ClientSettings.PASSWORD)).getBytes(StandardCharsets.UTF_8)));
+                    (chConfig.get(ClientConfigProperties.USER) + ":" + chConfig.get(ClientConfigProperties.PASSWORD)).getBytes(StandardCharsets.UTF_8)));
         } else {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientSettings.USER));
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClientSettings.PASSWORD));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClientConfigProperties.PASSWORD));
 
         }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }
 
-        boolean serverCompression = chConfiguration.getOrDefault(ClientSettings.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
-        boolean clientCompression = chConfiguration.getOrDefault(ClientSettings.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
+        boolean serverCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
 
         if (useHttpCompression) {
@@ -436,13 +436,13 @@ public class HttpAPIClientHelper {
         }
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientSettings.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientSettings.HTTP_HEADER_PREFIX.length()), entry.getValue());
+            if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
+                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
             }
         }
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientSettings.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientSettings.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+            if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
+                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
         }
 
@@ -460,13 +460,13 @@ public class HttpAPIClientHelper {
         }
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
-                req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue());
+            if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                req.addParameter(entry.getKey().substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), entry.getValue());
             }
         }
 
-        if (requestConfig.containsKey(ClientSettings.QUERY_ID)) {
-            req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientSettings.QUERY_ID).toString());
+        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID)) {
+            req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID).toString());
         }
         if (requestConfig.containsKey("statement_params")) {
             Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
@@ -475,8 +475,8 @@ public class HttpAPIClientHelper {
             }
         }
 
-        boolean serverCompression = chConfiguration.getOrDefault(ClientSettings.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
-        boolean clientCompression = chConfiguration.getOrDefault(ClientSettings.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
+        boolean serverCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE, "false").equalsIgnoreCase("true");
+        boolean clientCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST, "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
 
 
@@ -494,23 +494,23 @@ public class HttpAPIClientHelper {
             }
         }
 
-        Collection<String> sessionRoles = (Collection<String>) requestConfig.getOrDefault(ClientSettings.SESSION_DB_ROLES,
-                ClientSettings.valuesFromCommaSeparated(chConfiguration.getOrDefault(ClientSettings.SESSION_DB_ROLES, "")));
+        Collection<String> sessionRoles = (Collection<String>) requestConfig.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES,
+                ClientConfigProperties.valuesFromCommaSeparated(chConfiguration.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES, "")));
         if (!sessionRoles.isEmpty()) {
 
             sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
         }
 
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientSettings.SERVER_SETTING_PREFIX)) {
-                req.addParameter(entry.getKey().substring(ClientSettings.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
+            if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                req.addParameter(entry.getKey().substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
             }
         }
     }
 
     private HttpEntity wrapEntity(HttpEntity httpEntity, int httpStatus, boolean isResponse) {
-        boolean serverCompression = MapUtils.getFlag(chConfiguration, ClientSettings.COMPRESS_SERVER_RESPONSE, false);
-        boolean clientCompression = MapUtils.getFlag(chConfiguration, ClientSettings.COMPRESS_CLIENT_REQUEST,  false);
+        boolean serverCompression = MapUtils.getFlag(chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE, false);
+        boolean clientCompression = MapUtils.getFlag(chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST,  false);
 
         if (serverCompression || clientCompression) {
             // Server doesn't compress certain errors like 403

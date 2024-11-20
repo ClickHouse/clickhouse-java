@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -66,14 +66,14 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        Boolean useServerTimeZone = (Boolean) this.settings.get(ClientSettings.USE_SERVER_TIMEZONE);
+        Boolean useServerTimeZone = (Boolean) this.settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE);
         TimeZone timeZone = useServerTimeZone == Boolean.TRUE && querySettings != null ? querySettings.getServerTimeZone() :
-                (TimeZone) this.settings.get(ClientSettings.USE_TIMEZONE);
+                (TimeZone) this.settings.get(ClientConfigProperties.USE_TIMEZONE);
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
         boolean jsonAsString = MapUtils.getFlag(this.settings,
-                ClientSettings.SERVER_SETTING_PREFIX + ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, false);
+                ClientConfigProperties.SERVER_SETTING_PREFIX + ClientConfigProperties.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, false);
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
         if (schema != null) {
             setSchema(schema);

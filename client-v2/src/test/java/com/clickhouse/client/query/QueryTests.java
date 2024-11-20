@@ -2,17 +2,12 @@ package com.clickhouse.client.query;
 
 
 import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -1790,7 +1785,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         settings = new QuerySettings()
-                .serverSetting(ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
+                .serverSetting(ClientConfigProperties.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
         try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
             Assert.assertNotNull(reader.next());

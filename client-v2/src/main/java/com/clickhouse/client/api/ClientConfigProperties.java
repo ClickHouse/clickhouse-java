@@ -1,8 +1,5 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.api.internal.SettingsConverter;
-import com.clickhouse.client.api.metrics.ClientMetrics;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,7 +10,7 @@ import java.util.stream.Collectors;
  * All known client settings at current version.
  *
  */
-public class ClientSettings {
+public class ClientConfigProperties {
 
     public static final String HTTP_HEADER_PREFIX = "http_header_";
 
