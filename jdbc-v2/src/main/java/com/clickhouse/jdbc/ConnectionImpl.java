@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
@@ -67,16 +68,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     }
 
     private String getServerVersion() throws SQLException {
-        try (QueryResponse response = client.query("SELECT version()").get(30, TimeUnit.SECONDS)) {
-            // Create a reader to access the data in a convenient way
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            // Read the next record from stream and parse it as a string
-            reader.next();
-            return reader.getString(0);
-        } catch (Exception e) {
-            log.error("Failed to retrieve server version.", e);
-            throw new SQLException("Failed to retrieve server version.", e);
-        }
+        GenericRecord result = client.queryAll("SELECT version() as server_version").stream()
+                .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version."));
+
+        return result.getString("server_version");
     }
 
     public int getMajorVersion() throws SQLException {
