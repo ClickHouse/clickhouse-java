@@ -604,7 +604,7 @@ public class HttpAPIClientHelper {
             String path = url.getPath();
             path = path.substring(path.indexOf('/') + 1);
             LOG.debug("path: {}", path);
-            if (!path.isBlank()) {
+            if (!path.trim().isEmpty()) {
                 params.put("database", path);
             } else {
                 params.put("database", "default");
