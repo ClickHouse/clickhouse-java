@@ -88,9 +88,13 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
+    private String httpClientUserAgentPart;
+
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
+
+        this.httpClientUserAgentPart = this.httpClient.getClass().getPackage().getImplementationTitle() + "/" + this.httpClient.getClass().getPackage().getImplementationVersion();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -451,6 +455,10 @@ public class HttpAPIClientHelper {
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_USER);
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_PASSWORD);
         }
+
+        // -- keep last
+        Header userAgent = req.getFirstHeader(HttpHeaders.USER_AGENT);
+        req.setHeader(HttpHeaders.USER_AGENT, userAgent == null ? httpClientUserAgentPart : userAgent.getValue() + " " + httpClientUserAgentPart);
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         if (requestConfig == null) {
