@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,16 +24,30 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private boolean closed = false;
     private String catalog;
     private String schema;
+    private QuerySettings defaultQuerySettings;
 
     public ConnectionImpl(String url, Properties info) {
         log.debug("Creating connection to {}", url);
-
         this.url = url;//Raw URL
         this.config = new JdbcConfiguration(url, info);
+        String clientName = "ClickHouse JDBC Driver/" + Driver.driverVersion;
+
+        if (this.config.isDisableFrameworkDetection()) {
+            log.debug("Framework detection is disabled.");
+        } else {
+            String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
+            log.debug("Detected frameworks: {}", detectedFrameworks);
+            clientName += " (" + detectedFrameworks + ")";
+        }
+
         this.client =  new Client.Builder()
                 .fromUrl(this.config.getUrl())//URL without prefix
                 .setUsername(config.getUser())
-                .setPassword(config.getPassword()).build();
+                .setPassword(config.getPassword())
+                .setClientName(clientName)
+                .build();
+
+        this.defaultQuerySettings = new QuerySettings();
     }
 
     public String getUser() {
@@ -41,6 +56,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public String getURL() {
         return url;
+    }
+
+    public QuerySettings getDefaultQuerySettings() {
+        return defaultQuerySettings;
+    }
+
+    public void setDefaultQuerySettings(QuerySettings settings) {
+        this.defaultQuerySettings = settings;
     }
 
     private String getServerVersion() throws SQLException {

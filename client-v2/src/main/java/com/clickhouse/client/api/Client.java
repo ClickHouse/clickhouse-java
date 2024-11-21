@@ -29,6 +29,7 @@ import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -242,7 +243,16 @@ public class Client implements AutoCloseable {
             try {
                 Map<String, String> urlProperties = HttpAPIClientHelper.parseUrlParameters(new java.net.URL(url));
                 this.addEndpoint(url);
-                this.configuration.putAll(urlProperties);//TODO: Mostly just a placeholder for now
+
+                for (ClientConfigProperties properties: ClientConfigProperties.values()) {
+                    String key = properties.getKey().replace(ClientConfigProperties.SERVER_SETTING_PREFIX, "");//People wouldn't pass with prefix
+                    String value = urlProperties.get(key);
+                    if (value != null) {
+                        this.configuration.put(properties.getKey(), value);//We need to keep the original key
+                    }
+                }
+
+                // Set the database
             } catch (java.net.MalformedURLException e) {
                 throw new IllegalArgumentException("Configuration via URL should be done with a valid URL string", e);
             }

@@ -103,15 +103,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
-        return executeQuery(sql, new QuerySettings());
+        return executeQuery(sql, connection.getDefaultQuerySettings());
     }
 
     public ResultSet executeQuery(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
+        QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql, settings).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(response, reader);
             metrics = response.getMetrics();
@@ -125,7 +126,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdate(sql, new QuerySettings());
+        return executeUpdate(sql, connection.getDefaultQuerySettings());
     }
 
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
@@ -135,9 +136,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             throw new SQLException("executeUpdate() cannot be called with a SELECT statement");
         }
 
+        QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
+
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql, settings).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             currentResultSet = null;
             metrics = response.getMetrics();
             response.close();
