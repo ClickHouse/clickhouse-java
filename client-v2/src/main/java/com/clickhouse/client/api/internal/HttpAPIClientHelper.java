@@ -60,12 +60,14 @@ import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -579,5 +581,31 @@ public class HttpAPIClientHelper {
         }
 
         return new ClientException(message, cause);
+    }
+
+
+    /**
+     * Parses URL parameters.
+     * @param url
+     * @return Map of parameters
+     */
+    public static Map<String, String> parseUrlParameters(URL url) {
+        Map<String, String> params = new HashMap<>();
+
+        try {
+            String query = url.getQuery();
+            if (query != null) {
+                for (String pair : query.split("&")) {
+                    int idx = pair.indexOf("=");
+                    if (idx > 0) {
+                        params.put(pair.substring(0, idx), pair.substring(idx + 1));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to parse URL parameters", e);
+        }
+
+        return params;
     }
 }

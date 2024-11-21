@@ -17,6 +17,7 @@ import java.util.Map;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.jdbc.internal.SimpleArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -913,7 +914,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Array getArray(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Array is not supported.");
+        try {
+            return new SimpleArray(reader.getList(columnIndex));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
@@ -943,7 +948,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Array getArray(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Array is not supported.");
+        try {
+            return new SimpleArray(reader.getList(columnLabel));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override

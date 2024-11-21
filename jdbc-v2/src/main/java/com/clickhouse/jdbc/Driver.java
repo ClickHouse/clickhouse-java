@@ -60,10 +60,10 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        if (!JdbcConfiguration.acceptsURL(url)) {
-            return new DriverPropertyInfo[0];
-        }
-        return new JdbcConfiguration(url, info).getPropertyInfo();
+//        if (!JdbcConfiguration.acceptsURL(url)) {
+//            return new DriverPropertyInfo[0];
+//        }
+        return new DriverPropertyInfo[0];
     }
 
     public static int getDriverMajorVersion() {
