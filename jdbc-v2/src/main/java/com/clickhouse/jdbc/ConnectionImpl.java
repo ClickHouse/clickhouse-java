@@ -120,7 +120,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
-        throw new SQLFeatureNotSupportedException("setAutoCommit not supported");
+        checkOpen();
+        if (!autoCommit) {
+            throw new SQLFeatureNotSupportedException("setAutoCommit = false not supported");
+        }
     }
 
     @Override
