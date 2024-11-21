@@ -894,7 +894,6 @@ public class Client implements AutoCloseable {
          * Sets additional information about calling application. This string will be passed to server as a client name.
          * In case of HTTP protocol it will be passed as a {@code User-Agent} header.
          * Warn: If custom value of User-Agent header is set it will override this value for HTTP transport
-         * </br>
          * Client name is used by server to identify client application when investigating {@code system.query_log}. In case of HTTP
          * transport this value will be in the {@code system.query_log.http_user_agent} column. Currently only HTTP transport is used.
          *
