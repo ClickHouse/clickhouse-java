@@ -670,6 +670,46 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testTupleTypeSimpleStatement() throws SQLException {
+        runQuery("CREATE TABLE test_tuple (order Int8, "
+                + "tuple Tuple(int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        int int8 = rand.nextInt(256) - 128;
+        int int16 = rand.nextInt(65536) - 32768;
+        int int32 = rand.nextInt();
+        long int64 = rand.nextLong();
+        BigInteger int128 = new BigInteger(127, rand);
+        BigInteger int256 = new BigInteger(255, rand);
+
+        String sql = String.format("INSERT INTO test_tuple VALUES ( 1, (%s, %s, %s, %s, %s, %s))",
+                int8, int16, int32, int64, int128, int256);
+        insertData(sql);
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_tuple ORDER BY order")) {
+                    assertTrue(rs.next());
+                    Object[] tuple = (Object[]) rs.getObject(2);
+                    assertEquals(String.valueOf(tuple[0]), String.valueOf(int8));
+                    assertEquals(String.valueOf(tuple[1]), String.valueOf(int16));
+                    assertEquals(String.valueOf(tuple[2]), String.valueOf(int32));
+                    assertEquals(String.valueOf(tuple[3]), String.valueOf(int64));
+                    assertEquals(String.valueOf(tuple[4]), String.valueOf(int128));
+                    assertEquals(String.valueOf(tuple[5]), String.valueOf(int256));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
 
 
     @Test (enabled = false)//TODO: This type is experimental right now
