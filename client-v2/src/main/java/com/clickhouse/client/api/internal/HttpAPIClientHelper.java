@@ -601,6 +601,15 @@ public class HttpAPIClientHelper {
         Map<String, String> params = new HashMap<>();
 
         try {
+            String path = url.getPath();
+            path = path.substring(path.indexOf('/') + 1);
+            LOG.debug("path: {}", path);
+            if (!path.isBlank()) {
+                params.put("database", path);
+            } else {
+                params.put("database", "default");
+            }
+
             String query = url.getQuery();
             if (query != null) {
                 for (String pair : query.split("&")) {
