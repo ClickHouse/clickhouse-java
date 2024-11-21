@@ -572,6 +572,48 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test (enabled = false)//TODO: The client doesn't support all of these yet
+    public void testGeometricTypesSimpleStatement() throws SQLException {
+        runQuery("CREATE TABLE test_geometric (order Int8, "
+                + "point Point, ring Ring, linestring LineString, multilinestring MultiLineString, polygon Polygon, multipolygon MultiPolygon"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        String point = "(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")";
+        String ring = "[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]";
+        String linestring = "[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]";
+        String multilinestring = "[[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")],[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]]";
+        String polygon = "[[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")],[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]]";
+        String multipolygon = "[[[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")],[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]]]";
+
+
+        String sql = String.format("INSERT INTO test_geometric VALUES ( 1, %s, %s, %s, %s, %s, %s )",
+                point, ring, linestring, multilinestring, polygon, multipolygon);
+        insertData(sql);
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_geometric ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("point"), point);
+                    assertEquals(rs.getString("linestring"), linestring);
+                    assertEquals(rs.getString("polygon"), polygon);
+                    assertEquals(rs.getString("multilinestring"), multilinestring);
+                    assertEquals(rs.getString("multipolygon"), multipolygon);
+                    assertEquals(rs.getString("ring"), ring);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
     @Test (enabled = false)//TODO: This type is experimental right now
     public void testDynamicTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_dynamic (order Int8, "
