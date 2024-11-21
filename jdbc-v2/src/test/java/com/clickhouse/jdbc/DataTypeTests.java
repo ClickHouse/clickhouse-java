@@ -572,6 +572,135 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testLowCardinalityTypeSimpleStatement() throws SQLException {
+        runQuery("CREATE TABLE test_low_cardinality (order Int8, "
+                + "lowcardinality LowCardinality(String)"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        String lowcardinality = "string" + rand.nextInt(1000);
+
+        insertData(String.format("INSERT INTO test_low_cardinality VALUES ( 1, '%s' )",
+                lowcardinality));
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_low_cardinality ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("lowcardinality"), lowcardinality);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testSimpleAggregateFunction() throws SQLException {
+        runQuery("CREATE TABLE test_aggregate (order Int8, "
+                + "int8 Int8"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        int int8 = rand.nextInt(256) - 128;
+
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 1, %d )", int8));
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 2, %d )", int8));
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 3, %d )", int8));
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT sum(int8) FROM test_aggregate")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), int8 * 3);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testNestedTypeSimpleStatement() throws SQLException {
+        runQuery("CREATE TABLE test_nested (order Int8, "
+                + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        int int8 = rand.nextInt(256) - 128;
+        int int16 = rand.nextInt(65536) - 32768;
+        int int32 = rand.nextInt();
+        long int64 = rand.nextLong();
+        BigInteger int128 = new BigInteger(127, rand);
+        BigInteger int256 = new BigInteger(255, rand);
+
+        String sql = String.format("INSERT INTO test_nested VALUES ( 1, [%s], [%s], [%s], [%s], [%s], [%s])",
+                int8, int16, int32, int64, int128, int256);
+        log.info("SQL: {}", sql);
+        insertData(sql);
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_nested ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int8").getArray())[0]), String.valueOf(int8));
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int16").getArray())[0]), String.valueOf(int16));
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int32").getArray())[0]), String.valueOf(int32));
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int64").getArray())[0]), String.valueOf(int64));
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int128").getArray())[0]), String.valueOf(int128));
+                    assertEquals(String.valueOf(((Object[])rs.getArray("nested.int256").getArray())[0]), String.valueOf(int256));
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
+
+    @Test (enabled = false)//TODO: This type is experimental right now
+    public void testJSONTypeSimpleStatement() throws SQLException {
+        runQuery("CREATE TABLE test_json (order Int8, "
+                + "json JSON"
+                + ") ENGINE = Memory");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        String json = "{\"key1\": \"" + rand.nextDouble() + "\", \"key2\": " + rand.nextInt() + ", \"key3\": [\"value3\", 4]}";
+        insertData(String.format("INSERT INTO test_json VALUES ( 1, '%s' )", json));
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_json ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("json"), json);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
+
     @Test (enabled = false)//TODO: The client doesn't support all of these yet
     public void testGeometricTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_geometric (order Int8, "
@@ -590,10 +719,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
         String polygon = "[[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")],[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]]";
         String multipolygon = "[[[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")],[(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + "),(" + rand.nextInt(1000) + "," + rand.nextInt(1000) + ")]]]";
 
-
-        String sql = String.format("INSERT INTO test_geometric VALUES ( 1, %s, %s, %s, %s, %s, %s )",
-                point, ring, linestring, multilinestring, polygon, multipolygon);
-        insertData(sql);
+        insertData(String.format("INSERT INTO test_geometric VALUES ( 1, %s, %s, %s, %s, %s, %s )",
+                point, ring, linestring, multilinestring, polygon, multipolygon));
 
         // Check the results
         try (Connection conn = getConnection()) {
