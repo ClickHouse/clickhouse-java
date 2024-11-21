@@ -10,6 +10,7 @@ import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -46,7 +47,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testIntegerTypesSimpleStatement() throws SQLException {
+    public void testIntegerTypes() throws SQLException {
         runQuery("CREATE TABLE test_integers (order Int8, "
                 + "int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256, "
                 + "uint8 UInt8, uint16 UInt16, uint32 UInt32, uint64 UInt64, uint128 UInt128, uint256 UInt256"
@@ -82,9 +83,23 @@ public class DataTypeTests extends JdbcIntegrationTest {
         BigInteger uint128 = new BigInteger(128, rand);
         BigInteger uint256 = new BigInteger(256, rand);
 
-        String sql = String.format("INSERT INTO test_integers VALUES ( 3, %d, %d, %d, %d, %s, %s, %d, %d, %d, %d, %s, %s)",
-                int8, int16, int32, int64, int128, int256, uint8, uint16, uint32, uint64, uint128, uint256);
-        insertData(sql);
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_integers VALUES ( 3, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                stmt.setInt(1, int8);
+                stmt.setInt(2, int16);
+                stmt.setInt(3, int32);
+                stmt.setLong(4, int64);
+                stmt.setBigDecimal(5, new BigDecimal(int128));
+                stmt.setBigDecimal(6, new BigDecimal(int256));
+                stmt.setInt(7, uint8);
+                stmt.setInt(8, uint16);
+                stmt.setLong(9, uint32);
+                stmt.setBigDecimal(10, new BigDecimal(uint64));
+                stmt.setBigDecimal(11, new BigDecimal(uint128));
+                stmt.setBigDecimal(12, new BigDecimal(uint256));
+                stmt.executeUpdate();
+            }
+        }
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -139,7 +154,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testDecimalTypesSimpleStatement() throws SQLException {
+    public void testDecimalTypes() throws SQLException {
         runQuery("CREATE TABLE test_decimals (order Int8, "
                 + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
                 + ") ENGINE = Memory");
@@ -163,9 +178,17 @@ public class DataTypeTests extends JdbcIntegrationTest {
         BigDecimal dec128 = new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(100000000000000000L, 1000000000000000000L));
         BigDecimal dec256 = new BigDecimal(new BigInteger(58, rand) + "." + rand.nextLong(100000000000000000L, 1000000000000000000L));
 
-        String sql = String.format("INSERT INTO test_decimals VALUES ( 3, %s, %s, %s, %s, %s)",
-                dec, dec32, dec64, dec128, dec256);
-        insertData(sql);
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_decimals VALUES ( 3, ?, ?, ?, ?, ?)")) {
+                stmt.setBigDecimal(1, dec);
+                stmt.setBigDecimal(2, dec32);
+                stmt.setBigDecimal(3, dec64);
+                stmt.setBigDecimal(4, dec128);
+                stmt.setBigDecimal(5, dec256);
+                stmt.executeUpdate();
+            }
+        }
+
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -199,7 +222,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testDateTypesSimpleStatement() throws SQLException {
+    public void testDateTypes() throws SQLException {
         runQuery("CREATE TABLE test_dates (order Int8, "
                 + "date Date, date32 Date32, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
@@ -230,9 +253,18 @@ public class DataTypeTests extends JdbcIntegrationTest {
         java.sql.Timestamp dateTime646 = new java.sql.Timestamp(now);
         java.sql.Timestamp dateTime649 = new java.sql.Timestamp(now);
 
-        String sql = String.format("INSERT INTO test_dates VALUES ( 3, '%s', '%s', '%s', '%s', '%s', '%s', '%s' )",
-                date, date32, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(dateTime), new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(dateTime32), dateTime643, dateTime646, dateTime649);
-        insertData(sql);
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_dates VALUES ( 4, ?, ?, ?, ?, ?, ?, ?)")) {
+                stmt.setDate(1, date);
+                stmt.setDate(2, date32);
+                stmt.setTimestamp(3, dateTime);
+                stmt.setTimestamp(4, dateTime32);
+                stmt.setTimestamp(5, dateTime643);
+                stmt.setTimestamp(6, dateTime646);
+                stmt.setTimestamp(7, dateTime649);
+                stmt.executeUpdate();
+            }
+        }
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -272,7 +304,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testStringTypesSimpleStatement() throws SQLException {
+    public void testStringTypes() throws SQLException {
         runQuery("CREATE TABLE test_strings (order Int8, "
                 + "str String, fixed FixedString(6), "
                 + "enum Enum8('a' = 6, 'b' = 7, 'c' = 8), enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3), "
@@ -292,9 +324,20 @@ public class DataTypeTests extends JdbcIntegrationTest {
         String ipv4 = rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256);
         String ipv6 = "2001:adb8:85a3:1:2:8a2e:370:7334";
 
-        String sql = String.format("INSERT INTO test_strings VALUES ( 1, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )",
-                str, fixed, enum8, enum8, enum16, uuid, ipv4, ipv6);
-        insertData(sql);
+
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ?, ? )")) {
+                stmt.setString(1, str);
+                stmt.setString(2, fixed);
+                stmt.setString(3, enum8);
+                stmt.setString(4, enum8);
+                stmt.setString(5, enum16);
+                stmt.setString(6, uuid);
+                stmt.setString(7, ipv4);
+                stmt.setString(8, ipv6);
+                stmt.executeUpdate();
+            }
+        }
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -317,7 +360,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testFloatTypesSimpleStatement() throws SQLException {
+    public void testFloatTypes() throws SQLException {
         runQuery("CREATE TABLE test_floats (order Int8, "
                 + "float32 Float32, float64 Float64"
                 + ") ENGINE = Memory");
@@ -336,9 +379,13 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Float float32 = rand.nextFloat();
         Double float64 = rand.nextDouble();
 
-        String sql = String.format("INSERT INTO test_floats VALUES ( 3, %s, %s )",
-                float32, float64);
-        insertData(sql);
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_floats VALUES ( 3, ?, ? )")) {
+                stmt.setFloat(1, float32);
+                stmt.setDouble(2, float64);
+                stmt.executeUpdate();
+            }
+        }
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -363,7 +410,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testBooleanTypesSimpleStatement() throws SQLException {
+    public void testBooleanTypes() throws SQLException {
         runQuery("CREATE TABLE test_booleans (order Int8, "
                 + "bool Boolean"
                 + ") ENGINE = Memory");
@@ -375,9 +422,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         boolean bool = rand.nextBoolean();
 
-        String sql = String.format("INSERT INTO test_booleans VALUES ( 1, %s )",
-                bool);
-        insertData(sql);
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_booleans VALUES ( 1, ? )")) {
+                stmt.setBoolean(1, bool);
+                stmt.executeUpdate();
+            }
+        }
 
         // Check the results
         try (Connection conn = getConnection()) {
