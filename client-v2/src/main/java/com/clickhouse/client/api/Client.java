@@ -26,6 +26,7 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
+import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
@@ -901,7 +902,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder setClientName(String clientName) {
-            this.configuration.put(ClientSettings.CLIENT_NAME, clientName);
+            this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), clientName);
             return this;
         }
 
@@ -1044,8 +1045,8 @@ public class Client implements AutoCloseable {
                 useHTTPBasicAuth(true);
             }
 
-            String userAgent = configuration.getOrDefault(ClientSettings.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
-            String clientName = configuration.getOrDefault(ClientSettings.CLIENT_NAME, "");
+            String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
+            String clientName = configuration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
             httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
         }
 
@@ -1077,7 +1078,7 @@ public class Client implements AutoCloseable {
         }
 
         public static final String LATEST_ARTIFACT_VERSION = "0.7.1-patch1";
-        public static final String CLIENT_USER_AGENT = "ch-j-v2/";
+        public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
     }
 
     private ClickHouseNode getServerNode() {

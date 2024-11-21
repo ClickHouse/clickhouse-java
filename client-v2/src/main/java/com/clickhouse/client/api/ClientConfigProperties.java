@@ -112,7 +112,9 @@ public enum ClientConfigProperties {
 
     CONNECTION_REQUEST_TIMEOUT("connection_request_timeout"),
 
-    CLIENT_RETRY_ON_FAILURE("client_retry_on_failures");
+    CLIENT_RETRY_ON_FAILURE("client_retry_on_failures"),
+
+    CLIENT_NAME("client_name");
 
     private String key;
 
