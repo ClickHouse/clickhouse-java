@@ -610,11 +610,9 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
         if (this.maxRows != max) {
             if (max == 0L || !connection.allowCustomSetting()) {
-                request.removeSetting(ClickHouseClientOption.MAX_RESULT_ROWS.getKey());
-                request.removeSetting("result_overflow_mode");
+                request.set(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), 0);
             } else {
                 request.set(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), max);
-                request.set("result_overflow_mode", "break");
             }
             this.maxRows = max;
         }

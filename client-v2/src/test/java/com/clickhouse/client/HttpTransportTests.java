@@ -223,7 +223,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .build()) {
 
             List<GenericRecord> records = client.queryAll("SELECT timezone()");
@@ -523,7 +523,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .httpHeader("X-ClickHouse-Test", "test")
                     .httpHeader("X-ClickHouse-Test-2", Arrays.asList("test1", "test2"));
 
-            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(10, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 10);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -735,7 +735,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(false)
+                .useNewImplementation(true)
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {

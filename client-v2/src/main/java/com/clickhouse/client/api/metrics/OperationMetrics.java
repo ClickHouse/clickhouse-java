@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.metrics;
 
-import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.Gauge;
 import com.clickhouse.client.api.internal.StopWatch;

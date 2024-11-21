@@ -1,6 +1,6 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.ClientSettings;
+import com.clickhouse.client.api.ClientConfigProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -12,8 +12,8 @@ public class SettingsTests {
     @Test
     void testClientSettings() {
         List<String> source = Arrays.asList("ROL1", "ROL2,☺", "Rol,3,3");
-        String listA = ClientSettings.commaSeparated(source);
-        List<String> listB = ClientSettings.valuesFromCommaSeparated(listA);
+        String listA = ClientConfigProperties.commaSeparated(source);
+        List<String> listB = ClientConfigProperties.valuesFromCommaSeparated(listA);
         Assert.assertEquals(listB, source);
     }
 }

@@ -99,7 +99,8 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
 
     /**
      * Reads column with name `colName` as a float.
-     *
+     * Warning: this method may lose precision for float values.
+     * 
      * @param colName
      * @return
      */
@@ -107,6 +108,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
 
     /**
      * Reads column with name `colName` as a double.
+     * Warning: this method may lose precision for double values.
      *
      * @param colName
      * @return
@@ -321,6 +323,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
 
     /**
      * Reads column with name `colName` as a float.
+     * Warning: this method may lose precision for float values.
      *
      * @param index
      * @return
@@ -329,6 +332,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
 
     /**
      * Reads column with name `colName` as a double.
+     * Warning: this method may lose precision for double values.
      *
      * @param index
      * @return
