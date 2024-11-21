@@ -27,15 +27,12 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public ConnectionImpl(String url, Properties info) {
         log.debug("Creating connection to {}", url);
 
-        this.url = url;
+        this.url = url;//Raw URL
         this.config = new JdbcConfiguration(url, info);
-        this.client = new Client.Builder()
-                .addEndpoint(config.getProtocol() + "://" + config.getHost() + ":" + config.getPort())
+        this.client =  new Client.Builder()
+                .fromUrl(this.config.getUrl())//URL without prefix
                 .setUsername(config.getUser())
-                .setPassword(config.getPassword())
-                .compressServerResponse(true)
-                .setDefaultDatabase(config.getDatabase())
-                .build();
+                .setPassword(config.getPassword()).build();
     }
 
     public String getUser() {

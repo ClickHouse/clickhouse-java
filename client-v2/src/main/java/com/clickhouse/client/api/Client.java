@@ -230,6 +230,24 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Builds a client object with the provided configuration through URL parameters.
+         *
+         * @param url - URL formatted string with protocol, host, port, and client configuration settings.
+         * @return Client - a client object
+         */
+        public Builder fromUrl(String url) {
+            try {
+                Map<String, String> urlProperties = HttpAPIClientHelper.parseUrlParameters(new java.net.URL(url));
+                this.addEndpoint(url);
+                this.configuration.putAll(urlProperties);//TODO: Mostly just a placeholder for now
+            } catch (java.net.MalformedURLException e) {
+                throw new IllegalArgumentException("Configuration via URL should be done with a valid URL string", e);
+            }
+
+            return this;
+        }
+
+        /**
          * Server address to which client may connect. If there are multiple endpoints then client will
          * connect to one of them.
          * Acceptable formats are:
