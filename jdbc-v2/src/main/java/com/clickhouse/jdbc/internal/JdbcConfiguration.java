@@ -20,6 +20,8 @@ public class JdbcConfiguration {
     final String user;
     final String password;
     final String url;
+    final String jdbcUrl;
+    final boolean disableFrameworkDetection;
 
     public String getPassword() {
         return password;
@@ -33,17 +35,27 @@ public class JdbcConfiguration {
         return url;
     }
 
+    public String getJdbcUrl() {
+        return jdbcUrl;
+    }
+
+    public boolean isDisableFrameworkDetection() {
+        return disableFrameworkDetection;
+    }
+
     public JdbcConfiguration(String url, Properties info) {
+        this.jdbcUrl = url;
         this.url = stripUrlPrefix(url);
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
+        this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
     }
 
     public static boolean acceptsURL(String url) {
         return url.startsWith(PREFIX_CLICKHOUSE) || url.startsWith(PREFIX_CLICKHOUSE_SHORT);
     }
 
-    public String stripUrlPrefix(String url) {
+    private String stripUrlPrefix(String url) {
         if (url.startsWith(PREFIX_CLICKHOUSE)) {
             return url.substring(PREFIX_CLICKHOUSE.length());
         } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {

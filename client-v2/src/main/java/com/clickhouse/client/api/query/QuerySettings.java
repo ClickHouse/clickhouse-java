@@ -254,4 +254,15 @@ public class QuerySettings {
     public String getLogComment() {
         return logComment;
     }
+
+    public static QuerySettings merge(QuerySettings source, QuerySettings override) {
+        QuerySettings merged = new QuerySettings();
+        if (source != null) {
+            merged.rawSettings.putAll(source.rawSettings);
+        }
+        if (override != null && override != source) {// avoid copying the literally same object
+            merged.rawSettings.putAll(override.rawSettings);
+        }
+        return merged;
+    }
 }

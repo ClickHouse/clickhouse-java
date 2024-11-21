@@ -14,6 +14,30 @@ public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
     public static final String driverVersion;
 
+    public static String frameworksDetected = null;
+    public static class FrameworksDetection {
+        private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark");
+        static volatile String frameworksDetected = null;
+
+        private FrameworksDetection() {}
+        public static String getFrameworksDetected() {
+            if (frameworksDetected == null) {//Only detect frameworks once
+                Set<String> inferredFrameworks = new LinkedHashSet<>();
+                for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+                    for (String framework : FRAMEWORKS_TO_DETECT) {
+                        if (ste.toString().contains(framework)) {
+                            inferredFrameworks.add(String.format("(%s)", framework));
+                        }
+                    }
+                }
+
+                frameworksDetected = String.join("; ", inferredFrameworks);
+            }
+
+            return frameworksDetected;
+        }
+    }
+
     static {
         log.debug("Initializing ClickHouse JDBC driver V2");
         String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
