@@ -53,33 +53,12 @@ public class MetadataTests extends BaseIntegrationTest {
 
     private void prepareDataSet(String tableName) {
 
-        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build()) {
+        try {
+            String sql = "CREATE TABLE IF NOT EXISTS default." + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory";
+            client.execute(sql).get();
 
-            ClickHouseRequest request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("CREATE TABLE IF NOT EXISTS default." + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory");
-            request.executeAndWait();
-
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query("INSERT INTO default." + tableName + " VALUES (1, 2), (3, 4), (5, 6)");
-            request.executeAndWait();
-
-
-            if (false) {
-                // debug check
-                ClickHouseResponse response = client.read(getServer(ClickHouseProtocol.HTTP))
-                        .query("SELECT * FROM default." + tableName + " ORDER BY param1 ASC")
-                        .executeAndWait();
-
-                Iterator<ClickHouseRecord> iter = response.records().iterator();
-                while (iter.hasNext()) {
-                    ClickHouseRecord r = iter.next();
-                    if (r.size() > 0) {
-                        System.out.println(r.getValue(0).asString());
-                    }
-                }
-            }
+            sql = "INSERT INTO default." + tableName + " VALUES (1, 2), (3, 4), (5, 6)";
+            client.execute(sql).get();
         } catch (Exception e) {
             Assert.fail("Failed to prepare data set", e);
         }

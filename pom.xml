@@ -39,9 +39,10 @@
     <modules>
         <!-- shared -->
         <module>clickhouse-data</module>
-        <!-- client -->
+        <!-- client v1 -->
         <module>clickhouse-client</module>
         <module>clickhouse-http-client</module>
+        <!-- client v2 -->
         <module>client-v2</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>

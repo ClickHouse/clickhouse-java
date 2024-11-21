@@ -2,17 +2,11 @@ package com.clickhouse.client.query;
 
 
 import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -21,6 +15,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -1180,13 +1175,9 @@ public class QueryTests extends BaseIntegrationTest {
     public void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
         final String table = "data_types_test_table";
 
-        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build()) {
+        try {
             // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1196,9 +1187,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
 
             // Insert data
@@ -1211,13 +1200,8 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-            System.out.println("Insert statement: " + insertStmtBuilder);
 
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {
-                Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
-            }
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("Failed at prepare stage", e);
         }
@@ -1319,15 +1303,10 @@ public class QueryTests extends BaseIntegrationTest {
     private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
                                                      int rows) {
         List<Map<String, Object>> data = new ArrayList<>(rows);
-        try (
-                ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                        .build()) {
-            // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
 
+        try {
+            // Drop table
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1337,9 +1316,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1351,9 +1328,8 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("failed to prepare data set", e);
         }
@@ -1809,7 +1785,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         settings = new QuerySettings()
-                .serverSetting(ClientSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
+                .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
         try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
             Assert.assertNotNull(reader.next());
