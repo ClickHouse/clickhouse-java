@@ -58,4 +58,8 @@ public class ClickHouseHttpProto {
     public static final String QPARAM_QUERY_ID = "query_id";
 
     public static final String QPARAM_ROLE = "role";
+
+    public static final int DEFAULT_HTTP_PORT = 8123;
+
+    public static final int DEFAULT_HTTPS_PORT = 8443;
 }

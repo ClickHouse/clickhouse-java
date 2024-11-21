@@ -44,8 +44,8 @@ public class JdbcConfiguration {
     }
 
     public JdbcConfiguration(String url, Properties info) {
-        this.jdbcUrl = url;
-        this.url = stripUrlPrefix(url);
+        this.jdbcUrl = url;//Raw URL
+        this.url = cleanUrl(url);
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
@@ -55,6 +55,14 @@ public class JdbcConfiguration {
         return url.startsWith(PREFIX_CLICKHOUSE) || url.startsWith(PREFIX_CLICKHOUSE_SHORT);
     }
 
+    private String cleanUrl(String url) {
+        url = stripUrlPrefix(url);
+        if (url.startsWith("//")) {
+            url = "http:" + url;
+        }
+
+        return url;
+    }
     private String stripUrlPrefix(String url) {
         if (url.startsWith(PREFIX_CLICKHOUSE)) {
             return url.substring(PREFIX_CLICKHOUSE.length());
