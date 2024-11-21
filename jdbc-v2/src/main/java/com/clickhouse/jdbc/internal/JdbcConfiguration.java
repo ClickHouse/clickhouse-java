@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.DriverPropertyInfo;
@@ -58,7 +60,15 @@ public class JdbcConfiguration {
     private String cleanUrl(String url) {
         url = stripUrlPrefix(url);
         if (url.startsWith("//")) {
-            url = "http:" + url;
+            url = "http:" + url;//Default to HTTP
+            try {
+                URL parsedUrl = new URL(url);
+                if (parsedUrl.getPort() == ClickHouseHttpProto.DEFAULT_HTTPS_PORT) {//If port is 8443, switch to HTTPS
+                        url = "https:" + url;
+                }
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("URL is not valid.", e);
+            }
         }
 
         return url;
