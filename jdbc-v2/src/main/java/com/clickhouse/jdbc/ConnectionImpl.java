@@ -393,7 +393,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
-        return String.valueOf(this.defaultQuerySettings.getAllSettings().get(name));
+        Object value = this.defaultQuerySettings.getAllSettings().get(name);
+        return value == null ? null : String.valueOf(value);
     }
 
     @Override
