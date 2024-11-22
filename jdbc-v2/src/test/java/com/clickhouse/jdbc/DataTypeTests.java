@@ -453,7 +453,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        int[] array = new int[rand.nextInt(10)];
+        Integer[] array = new Integer[rand.nextInt(10)];
         for (int i = 0; i < array.length; i++) {
             array[i] = rand.nextInt(256) - 128;
         }
@@ -464,26 +464,13 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert random (valid) values
-        StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO test_arrays VALUES ( 1, [");
-        for (int i = 0; i < array.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ? )")) {
+                stmt.setArray(1, conn.createArrayOf("Int8", array));
+                stmt.setArray(2, conn.createArrayOf("String", arraystr));
+                stmt.executeUpdate();
             }
-            sb.append(array[i]);
         }
-        sb.append("], [");
-        for (int i = 0; i < arraystr.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("'");
-            sb.append(arraystr[i]);
-            sb.append("'");
-        }
-        sb.append("])");
-        String sql = sb.toString();
-        insertData(sql);
 
         // Check the results
         try (Connection conn = getConnection()) {

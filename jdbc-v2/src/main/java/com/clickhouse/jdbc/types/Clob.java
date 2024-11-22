@@ -9,6 +9,10 @@ import java.sql.SQLException;
 public class Clob implements java.sql.Clob {
     String data;
 
+    public Clob() {
+        this.data = "";
+    }
+
     public Clob(String data) {
         this.data = data;
     }
@@ -120,6 +124,17 @@ public class Clob implements java.sql.Clob {
             return new java.io.StringReader(data.substring((int) pos - 1, (int) pos - 1 + (int) length));
         } catch (Exception e) {
             throw new SQLException(e);
+        }
+    }
+
+
+    public static class NClob extends Clob implements java.sql.NClob {
+        public NClob() {
+            super();
+        }
+
+        public NClob(String data) {
+            super(data);
         }
     }
 }

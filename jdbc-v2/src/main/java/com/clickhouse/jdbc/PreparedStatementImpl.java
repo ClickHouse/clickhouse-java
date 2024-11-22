@@ -7,7 +7,25 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.JDBCType;
+import java.sql.NClob;
+import java.sql.ParameterMetaData;
+import java.sql.PreparedStatement;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
+import java.sql.SQLXML;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -18,7 +36,6 @@ import java.time.temporal.ChronoField;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
-import java.util.List;
 import java.util.Map;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
@@ -456,6 +473,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
             } else if (x instanceof LocalDateTime) {
                 return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+            } else if (x instanceof Array) {
+                StringBuilder listString = new StringBuilder();
+                listString.append("[");
+                for (Object item : (Object[])((Array) x).getArray()) {
+                    listString.append(encodeObject(item)).append(", ");
+                }
+                listString.delete(listString.length() - 2, listString.length());
+                listString.append("]");
+
+                return listString.toString();
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");

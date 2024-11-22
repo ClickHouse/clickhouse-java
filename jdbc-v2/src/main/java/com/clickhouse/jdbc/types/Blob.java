@@ -7,6 +7,10 @@ import java.sql.SQLException;
 public class Blob implements java.sql.Blob {
     String data;
 
+    public Blob() {
+        this.data = "";
+    }
+
     public Blob(String data) {
         this.data = data;
     }
