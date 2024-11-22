@@ -235,20 +235,27 @@ public class Client implements AutoCloseable {
 
         /**
          * Builds a client object with the provided configuration through URL parameters.
-         *
-         * @param url - URL formatted string with protocol, host, port, and client configuration settings.
+         *  (e.g. http://localhost:8123/someDatabase?user=default)
+         * @param urlString - URL formatted string with protocol, host, port, and client configuration settings.
          * @return Client - a client object
          */
-        public Builder fromUrl(String url) {
+        public Builder fromUrl(String urlString) {
             try {
-                Map<String, String> urlProperties = HttpAPIClientHelper.parseUrlParameters(new java.net.URL(url));
-                this.addEndpoint(url);
+                URL url = new URL(urlString);
+                Map<String, String> urlProperties = HttpAPIClientHelper.parseUrlParameters(url);
+
+                // Add the endpoint
+                boolean secure = url.getProtocol().equalsIgnoreCase("https");
+                int port = url.getPort();
+                if (port == -1) {
+                    port = secure ? ClickHouseHttpProto.DEFAULT_HTTPS_PORT : ClickHouseHttpProto.DEFAULT_HTTP_PORT;
+                }
+                this.addEndpoint(Protocol.HTTP, url.getHost(), port, secure);
 
                 for (ClientConfigProperties properties: ClientConfigProperties.values()) {
-                    String key = properties.getKey().replace(ClientConfigProperties.SERVER_SETTING_PREFIX, "");//People wouldn't pass with prefix
-                    String value = urlProperties.get(key);
+                    String value = urlProperties.get(properties.getKey());
                     if (value != null) {
-                        this.configuration.put(properties.getKey(), value);//We need to keep the original key
+                        this.configuration.put(properties.getKey(), value);
                     }
                 }
 
