@@ -443,7 +443,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testArrayTypesSimpleStatement () throws SQLException {
+    public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
                 + "array Array(Int8), arraystr Array(String)"
                 + ") ENGINE = Memory");
@@ -496,7 +496,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testMapTypesSimpleStatement() throws SQLException {
+    public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
                 + ") ENGINE = Memory");
