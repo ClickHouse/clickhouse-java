@@ -506,50 +506,25 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        int mapSize = rand.nextInt(10);
-        String[] keys = new String[mapSize];
-        int[] values = new int[mapSize];
+        int mapSize = rand.nextInt(100);
+        Map<String, Integer> integerMap = new java.util.HashMap<>(mapSize);
         for (int i = 0; i < mapSize; i++) {
-            keys[i] = "key" + i;
-            values[i] = rand.nextInt(256) - 128;
+            integerMap.put("key" + i, rand.nextInt(256) - 128);
         }
 
-        String[] keysstr = new String[mapSize];
-        String[] valuesstr = new String[mapSize];
+        Map<String, String> stringMap = new java.util.HashMap<>(mapSize);
         for (int i = 0; i < mapSize; i++) {
-            keysstr[i] = "key" + i;
-            valuesstr[i] = "string" + rand.nextInt(1000);
+            stringMap.put("key" + i, "string" + rand.nextInt(1000));
         }
 
         // Insert random (valid) values
-        StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO test_maps VALUES ( 1, ");
-        sb.append("{");
-        for (int i = 0; i < mapSize; i++) {
-            if (i > 0) {
-                sb.append(", ");
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_maps VALUES ( 1, ?, ? )")) {
+                stmt.setObject(1, integerMap);
+                stmt.setObject(2, stringMap);
+                stmt.executeUpdate();
             }
-            sb.append("'");
-            sb.append(keys[i]);
-            sb.append("': ");
-            sb.append(values[i]);
         }
-        sb.append("}, ");
-        sb.append("{");
-        for (int i = 0; i < mapSize; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("'");
-            sb.append(keysstr[i]);
-            sb.append("': '");
-            sb.append(valuesstr[i]);
-            sb.append("'");
-        }
-        sb.append("}");
-        sb.append(")");
-        String sql = sb.toString();
-        insertData(sql);
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -558,14 +533,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     Map<Object, Object> mapResult = (Map<Object, Object>) rs.getObject("map");
                     assertEquals(mapResult.size(), mapSize);
-                    for (int i = 0; i < mapSize; i++) {
-                        assertEquals(String.valueOf(mapResult.get(keys[i])), String.valueOf(values[i]));
+                    for (String key: integerMap.keySet()) {
+                        assertEquals(String.valueOf(mapResult.get(key)), String.valueOf(integerMap.get(key)));
                     }
 
                     Map<Object, Object> mapstrResult = (Map<Object, Object>) rs.getObject("mapstr");
                     assertEquals(mapstrResult.size(), mapSize);
-                    for (int i = 0; i < mapSize; i++) {
-                        assertEquals(mapstrResult.get(keysstr[i]), valuesstr[i]);
+                    for (String key: stringMap.keySet()) {
+                        assertEquals(String.valueOf(mapstrResult.get(key)), String.valueOf(stringMap.get(key)));
                     }
                 }
             }
