@@ -114,7 +114,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             sql = parseJdbcEscapeSyntax(sql);
             QueryResponse response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
-            currentResultSet = new ResultSetImpl(response, reader);
+            currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
         } catch (Exception e) {
             throw new SQLException(e);

@@ -49,7 +49,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     public void setAutoCommitTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setAutoCommit(false));
-        Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setAutoCommit(true));
+        localConnection.setAutoCommit(true);
     }
 
     @Test

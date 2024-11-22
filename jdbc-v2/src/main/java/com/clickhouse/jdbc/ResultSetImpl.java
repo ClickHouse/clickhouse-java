@@ -17,7 +17,7 @@ import java.util.Map;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.jdbc.internal.SimpleArray;
+import com.clickhouse.jdbc.types.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +27,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     protected ClickHouseBinaryFormatReader reader;
     private final ResultSetMetaData metaData;
     private boolean closed;
+    private Statement parentStatement;
 
-    public ResultSetImpl(QueryResponse response, ClickHouseBinaryFormatReader reader) {
+    public ResultSetImpl(Statement parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
+        this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
@@ -883,7 +885,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Statement getStatement() throws SQLException {
         checkClosed();
-        return null;
+        return this.parentStatement;
     }
 
     @Override
@@ -902,20 +904,28 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.");
+        try {
+            return new com.clickhouse.jdbc.types.Blob(reader.getString(columnIndex));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
-    public Clob getClob(int columnIndex) throws SQLException {
-        checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.");
-    }
-
-    @Override
-    public Array getArray(int columnIndex) throws SQLException {
+    public java.sql.Clob getClob(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return new SimpleArray(reader.getList(columnIndex));
+            return new com.clickhouse.jdbc.types.Clob(reader.getString(columnIndex));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
+    }
+
+    @Override
+    public java.sql.Array getArray(int columnIndex) throws SQLException {
+        checkClosed();
+        try {
+            return new Array(reader.getList(columnIndex));
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -936,20 +946,28 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.");
+        try {
+            return new com.clickhouse.jdbc.types.Blob(reader.getString(columnLabel));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.");
+        try {
+            return new com.clickhouse.jdbc.types.Clob(reader.getString(columnLabel));
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
-    public Array getArray(String columnLabel) throws SQLException {
+    public java.sql.Array getArray(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return new SimpleArray(reader.getList(columnLabel));
+            return new Array(reader.getList(columnLabel));
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -1048,13 +1066,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     }
 
     @Override
-    public void updateArray(int columnIndex, Array x) throws SQLException {
+    public void updateArray(int columnIndex, java.sql.Array x) throws SQLException {
         checkClosed();
         throw new SQLFeatureNotSupportedException("Writes are not supported.");
     }
 
     @Override
-    public void updateArray(String columnLabel, Array x) throws SQLException {
+    public void updateArray(String columnLabel, java.sql.Array x) throws SQLException {
         checkClosed();
         throw new SQLFeatureNotSupportedException("Writes are not supported.");
     }

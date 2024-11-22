@@ -1,11 +1,20 @@
 package com.clickhouse.jdbc;
 
-import java.sql.*;
-import java.util.*;
 
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * JDBC driver for ClickHouse.
@@ -13,6 +22,7 @@ import org.slf4j.LoggerFactory;
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
     public static final String driverVersion;
+    private final DataSourceImpl dataSource;
 
     public static String frameworksDetected = null;
     public static class FrameworksDetection {
@@ -54,6 +64,14 @@ public class Driver implements java.sql.Driver {
         //load(); //Commented out to avoid loading the driver multiple times, because we're referenced in V1
     }
 
+    public Driver() {
+        this.dataSource = null;
+    }
+
+    public Driver(DataSourceImpl dataSourceImpl) {
+        this.dataSource = dataSourceImpl;
+    }
+
     public static void load() {
         try {
             DriverManager.registerDriver(new Driver());
@@ -74,6 +92,9 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
+        if (!acceptsURL(url)) {
+            return null;
+        }
         return new ConnectionImpl(url, info);
     }
 
@@ -84,9 +105,6 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-//        if (!JdbcConfiguration.acceptsURL(url)) {
-//            return new DriverPropertyInfo[0];
-//        }
         return new DriverPropertyInfo[0];
     }
 
