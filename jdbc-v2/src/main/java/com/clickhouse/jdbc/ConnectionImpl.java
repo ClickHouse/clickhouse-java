@@ -323,31 +323,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Clob createClob() throws SQLException {
         checkOpen();
-        try {
-            return new com.clickhouse.jdbc.types.Clob();
-        } catch (Exception e) {
-            throw new SQLException("Failed to create Clob", e);
-        }
+        throw new SQLFeatureNotSupportedException("Clob not supported");
     }
 
     @Override
     public Blob createBlob() throws SQLException {
         checkOpen();
-        try {
-            return new com.clickhouse.jdbc.types.Blob();
-        } catch (Exception e) {
-            throw new SQLException("Failed to create Blob", e);
-        }
+        throw new SQLFeatureNotSupportedException("Blob not supported");
     }
 
     @Override
     public NClob createNClob() throws SQLException {
         checkOpen();
-        try {
-            return new com.clickhouse.jdbc.types.Clob.NClob();
-        } catch (Exception e) {
-            throw new SQLException("Failed to create NClob", e);
-        }
+        throw new SQLFeatureNotSupportedException("NClob not supported");
     }
 
     @Override
@@ -369,40 +357,44 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
-        try {
-            checkOpen();
-            this.defaultQuerySettings.setOption(name, value);
-        } catch (Exception e) {
-            throw new SQLClientInfoException("Failed to set client info.", Collections.singletonMap(name, ClientInfoStatus.REASON_UNKNOWN), e);
-        }
+//        try {
+//            checkOpen();
+//            this.defaultQuerySettings.setOption(name, value);
+//        } catch (Exception e) {
+//            throw new SQLClientInfoException("Failed to set client info.", Collections.singletonMap(name, ClientInfoStatus.REASON_UNKNOWN), e);
+//        }
+        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
-        try {
-            checkOpen();
-        } catch (SQLException e) {
-            throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), e);
-        }
-
-        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
-            setClientInfo(entry.getKey().toString(), entry.getValue().toString());
-        }
+//        try {
+//            checkOpen();
+//        } catch (SQLException e) {
+//            throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), e);
+//        }
+//
+//        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
+//            setClientInfo(entry.getKey().toString(), entry.getValue().toString());
+//        }
+        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
     }
 
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
-        Object value = this.defaultQuerySettings.getAllSettings().get(name);
-        return value == null ? null : String.valueOf(value);
+//        Object value = this.defaultQuerySettings.getAllSettings().get(name);
+//        return value == null ? null : String.valueOf(value);
+        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
         checkOpen();
-        Properties clientInfo = new Properties();
-        clientInfo.putAll(this.defaultQuerySettings.getAllSettings());
-        return clientInfo;
+//        Properties clientInfo = new Properties();
+//        clientInfo.putAll(this.defaultQuerySettings.getAllSettings());
+//        return clientInfo;
+        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
     }
 
     @Override

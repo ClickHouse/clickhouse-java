@@ -177,19 +177,19 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test
     public void createClobTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertNotNull(localConnection.createClob());
+        Assert.assertThrows(SQLFeatureNotSupportedException.class, localConnection::createClob);
     }
 
     @Test
     public void createBlobTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertNotNull(localConnection.createBlob());
+        Assert.assertThrows(SQLFeatureNotSupportedException.class, localConnection::createBlob);
     }
 
     @Test
     public void createNClobTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertNotNull(localConnection.createNClob());
+        Assert.assertThrows(SQLFeatureNotSupportedException.class, localConnection::createNClob);
     }
 
     @Test
@@ -208,9 +208,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test
     public void setAndGetClientInfoTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertNull(localConnection.getClientInfo("key"));
-        localConnection.setClientInfo("key", "value");
-        Assert.assertNotNull(localConnection.getClientInfo("key"));
+        Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getClientInfo("name"));
+        Assert.assertThrows(SQLFeatureNotSupportedException.class, localConnection::getClientInfo);
+        Assert.assertThrows(SQLClientInfoException.class, () -> localConnection.setClientInfo("name", "value"));
+        Assert.assertThrows(SQLClientInfoException.class, () -> localConnection.setClientInfo(new Properties()));
     }
 
 

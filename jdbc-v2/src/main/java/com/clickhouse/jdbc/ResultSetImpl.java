@@ -891,8 +891,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
         checkClosed();
-        //TODO: Should we implement?
-        return null;
+        return getObject(columnIndex);
     }
 
     @Override
@@ -904,21 +903,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
         checkClosed();
-        try {
-            return new com.clickhouse.jdbc.types.Blob(reader.getString(columnIndex));
-        } catch (Exception e) {
-            throw new SQLException(e);
-        }
+        throw new SQLFeatureNotSupportedException("Blob is not supported.");
     }
 
     @Override
     public java.sql.Clob getClob(int columnIndex) throws SQLException {
         checkClosed();
-        try {
-            return new com.clickhouse.jdbc.types.Clob(reader.getString(columnIndex));
-        } catch (Exception e) {
-            throw new SQLException(e);
-        }
+        throw new SQLFeatureNotSupportedException("Clob is not supported.");
     }
 
     @Override
@@ -946,21 +937,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            return new com.clickhouse.jdbc.types.Blob(reader.getString(columnLabel));
-        } catch (Exception e) {
-            throw new SQLException(e);
-        }
+        throw new SQLFeatureNotSupportedException("Blob is not supported.");
     }
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            return new com.clickhouse.jdbc.types.Clob(reader.getString(columnLabel));
-        } catch (Exception e) {
-            throw new SQLException(e);
-        }
+        throw new SQLFeatureNotSupportedException("Clob is not supported.");
     }
 
     @Override

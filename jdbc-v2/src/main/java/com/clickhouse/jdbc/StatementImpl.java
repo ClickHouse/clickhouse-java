@@ -112,7 +112,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response;
+            if (queryTimeout == 0) {
+                response = connection.client.query(sql, mergedSettings).get();
+            } else {
+                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+            }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
@@ -140,7 +145,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+            QueryResponse response;
+            if (queryTimeout == 0) {
+                response = connection.client.query(sql, mergedSettings).get();
+            } else {
+                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+            }
             currentResultSet = null;
             metrics = response.getMetrics();
             response.close();
