@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertNotNull;
 
@@ -46,13 +47,13 @@ public class DataSourceTest extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testGetLogWriter() {
-        assertThrows(SQLFeatureNotSupportedException.class, () -> dataSource.getLogWriter());
+    public void testGetLogWriter() throws SQLException {
+        assertNull(dataSource.getLogWriter());
     }
 
     @Test
-    public void testSetLogWriter() {
-        assertThrows(SQLFeatureNotSupportedException.class, () -> dataSource.setLogWriter(null));
+    public void testSetLogWriter() throws SQLException {
+        dataSource.setLogWriter(null);
     }
 
     @Test

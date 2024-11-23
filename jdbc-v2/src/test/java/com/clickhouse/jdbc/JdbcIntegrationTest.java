@@ -9,6 +9,7 @@ import com.clickhouse.logging.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
@@ -34,5 +35,16 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     protected static String getDatabase() {
         return ClickHouseServerForTest.isCloud() ? ClickHouseServerForTest.getDatabase() : "default";
+    }
+
+    protected boolean runQuery(String query) {
+        try (Connection connection = getJdbcConnection()) {
+            try (Statement stmt = connection.createStatement()) {
+                return stmt.execute(query);
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Failed to run query: {}", query, e);
+            return false;
+        }
     }
 }

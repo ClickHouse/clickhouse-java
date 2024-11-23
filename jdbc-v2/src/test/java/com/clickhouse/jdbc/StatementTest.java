@@ -324,5 +324,4 @@ public class StatementTest extends JdbcIntegrationTest {
             }
         }
     }
-
 }

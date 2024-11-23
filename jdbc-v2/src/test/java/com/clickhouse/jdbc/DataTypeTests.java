@@ -2,11 +2,12 @@ package com.clickhouse.jdbc;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -14,10 +15,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Time;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -29,7 +26,7 @@ import static org.testng.Assert.assertTrue;
 public class DataTypeTests extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(DataTypeTests.class);
 
-    @BeforeTest
+    @BeforeClass
     public void setUp() throws SQLException {
         DriverManager.registerDriver(new Driver());
     }
@@ -443,7 +440,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testArrayTypesSimpleStatement () throws SQLException {
+    public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
                 + "array Array(Int8), arraystr Array(String)"
                 + ") ENGINE = Memory");
@@ -453,7 +450,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        int[] array = new int[rand.nextInt(10)];
+        Integer[] array = new Integer[rand.nextInt(10)];
         for (int i = 0; i < array.length; i++) {
             array[i] = rand.nextInt(256) - 128;
         }
@@ -464,26 +461,13 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert random (valid) values
-        StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO test_arrays VALUES ( 1, [");
-        for (int i = 0; i < array.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ? )")) {
+                stmt.setArray(1, conn.createArrayOf("Int8", array));
+                stmt.setArray(2, conn.createArrayOf("String", arraystr));
+                stmt.executeUpdate();
             }
-            sb.append(array[i]);
         }
-        sb.append("], [");
-        for (int i = 0; i < arraystr.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("'");
-            sb.append(arraystr[i]);
-            sb.append("'");
-        }
-        sb.append("])");
-        String sql = sb.toString();
-        insertData(sql);
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -509,7 +493,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test
-    public void testMapTypesSimpleStatement() throws SQLException {
+    public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
                 + ") ENGINE = Memory");
@@ -519,50 +503,25 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        int mapSize = rand.nextInt(10);
-        String[] keys = new String[mapSize];
-        int[] values = new int[mapSize];
+        int mapSize = rand.nextInt(100);
+        Map<String, Integer> integerMap = new java.util.HashMap<>(mapSize);
         for (int i = 0; i < mapSize; i++) {
-            keys[i] = "key" + i;
-            values[i] = rand.nextInt(256) - 128;
+            integerMap.put("key" + i, rand.nextInt(256) - 128);
         }
 
-        String[] keysstr = new String[mapSize];
-        String[] valuesstr = new String[mapSize];
+        Map<String, String> stringMap = new java.util.HashMap<>(mapSize);
         for (int i = 0; i < mapSize; i++) {
-            keysstr[i] = "key" + i;
-            valuesstr[i] = "string" + rand.nextInt(1000);
+            stringMap.put("key" + i, "string" + rand.nextInt(1000));
         }
 
         // Insert random (valid) values
-        StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO test_maps VALUES ( 1, ");
-        sb.append("{");
-        for (int i = 0; i < mapSize; i++) {
-            if (i > 0) {
-                sb.append(", ");
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_maps VALUES ( 1, ?, ? )")) {
+                stmt.setObject(1, integerMap);
+                stmt.setObject(2, stringMap);
+                stmt.executeUpdate();
             }
-            sb.append("'");
-            sb.append(keys[i]);
-            sb.append("': ");
-            sb.append(values[i]);
         }
-        sb.append("}, ");
-        sb.append("{");
-        for (int i = 0; i < mapSize; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("'");
-            sb.append(keysstr[i]);
-            sb.append("': '");
-            sb.append(valuesstr[i]);
-            sb.append("'");
-        }
-        sb.append("}");
-        sb.append(")");
-        String sql = sb.toString();
-        insertData(sql);
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -571,14 +530,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     Map<Object, Object> mapResult = (Map<Object, Object>) rs.getObject("map");
                     assertEquals(mapResult.size(), mapSize);
-                    for (int i = 0; i < mapSize; i++) {
-                        assertEquals(String.valueOf(mapResult.get(keys[i])), String.valueOf(values[i]));
+                    for (String key: integerMap.keySet()) {
+                        assertEquals(String.valueOf(mapResult.get(key)), String.valueOf(integerMap.get(key)));
                     }
 
                     Map<Object, Object> mapstrResult = (Map<Object, Object>) rs.getObject("mapstr");
                     assertEquals(mapstrResult.size(), mapSize);
-                    for (int i = 0; i < mapSize; i++) {
-                        assertEquals(mapstrResult.get(keysstr[i]), valuesstr[i]);
+                    for (String key: stringMap.keySet()) {
+                        assertEquals(String.valueOf(mapstrResult.get(key)), String.valueOf(stringMap.get(key)));
                     }
                 }
             }
