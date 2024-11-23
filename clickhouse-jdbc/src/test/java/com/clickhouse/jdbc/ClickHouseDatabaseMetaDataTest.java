@@ -192,6 +192,21 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testGetCatalogs() throws SQLException {
+        Properties props = new Properties();
+//        props.setProperty("databaseTerm", "schema");
+        props.setProperty("externalDatabase", "false");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            try (ResultSet rs = conn.getMetaData().getCatalogs()) {
+                while (rs.next()) {
+                    log.debug("Catalog: %s", rs.getString("TABLE_CAT"));
+                }
+
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testGetTables() throws SQLException {
         if (isCloud()) return; //TODO: testGetTables - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String db1 = "a" + UUID.randomUUID().toString().replace('-', 'X');

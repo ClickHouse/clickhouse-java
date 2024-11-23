@@ -847,14 +847,30 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         params.put("defaultNonNull", String.valueOf(DatabaseMetaData.typeNoNulls));
         params.put("defaultType", String.valueOf(Types.OTHER));
         String sql = ClickHouseParameterizedQuery
-                .apply("select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, table as TABLE_NAME, "
-                        + "name as COLUMN_NAME, toInt32(:defaultType) as DATA_TYPE, type as TYPE_NAME, toInt32(0) as COLUMN_SIZE, "
-                        + "0 as BUFFER_LENGTH, cast(null as Nullable(Int32)) as DECIMAL_DIGITS, 10 as NUM_PREC_RADIX, "
-                        + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, :comment as REMARKS, default_expression as COLUMN_DEF, "
-                        + "0 as SQL_DATA_TYPE, 0 as SQL_DATETIME_SUB, cast(null as Nullable(Int32)) as CHAR_OCTET_LENGTH, position as ORDINAL_POSITION, "
-                        + "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' as IS_NULLABLE, null as SCOPE_CATALOG, null as SCOPE_SCHEMA, null as SCOPE_TABLE, "
-                        + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns "
-                        + "where database like :database and table like :table and name like :column", params);
+                .apply("select :catalog as TABLE_CAT, " +
+                        ":schema as TABLE_SCHEM, " +
+                        "table as TABLE_NAME, " +
+                        "name as COLUMN_NAME, " +
+                        "toInt32(:defaultType) as DATA_TYPE, " +
+                        "type as TYPE_NAME, " +
+                        "toInt32(0) as COLUMN_SIZE, "
+                        + "0 as BUFFER_LENGTH, " +
+                        "cast(null as Nullable(Int32)) as DECIMAL_DIGITS, " +
+                        "10 as NUM_PREC_RADIX, "
+                        + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, " +
+                        ":comment as REMARKS, " +
+                        "default_expression as COLUMN_DEF, "
+                        + "0 as SQL_DATA_TYPE, " +
+                        "0 as SQL_DATETIME_SUB, " +
+                        "cast(null as Nullable(Int32)) as CHAR_OCTET_LENGTH, " +
+                        "position as ORDINAL_POSITION, "
+                        + "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' as IS_NULLABLE, " +
+                        "null as SCOPE_CATALOG, null as SCOPE_SCHEMA, " +
+                        "null as SCOPE_TABLE, " +
+                        "null as SOURCE_DATA_TYPE, " +
+                        "'NO' as IS_AUTOINCREMENT, " +
+                        "'NO' as IS_GENERATEDCOLUMN " +
+                        " FROM system.columns WHERE database LIKE :database and table LIKE :table AND name LIKE :column", params);
         return query(sql, (i, r) -> {
             String typeName = r.getValue("TYPE_NAME").asString();
             try {

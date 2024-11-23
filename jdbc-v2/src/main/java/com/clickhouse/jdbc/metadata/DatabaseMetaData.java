@@ -47,18 +47,21 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         return connection.isReadOnly();
     }
 
-    @Override
-    public boolean nullsAreSortedHigh() throws SQLException {
-        return true;
-    }
 
     @Override
-    public boolean nullsAreSortedLow() throws SQLException {
+    public boolean nullsAreSortedHigh() throws SQLException {
+        // null sorted low by default - https://clickhouse.com/docs/en/sql-reference/statements/select/order-by#sorting-of-special-values
         return false;
     }
 
     @Override
+    public boolean nullsAreSortedLow() throws SQLException {
+        return !nullsAreSortedHigh(); // opposite of nullsAreSortedHigh
+    }
+
+    @Override
     public boolean nullsAreSortedAtStart() throws SQLException {
+        // null are sorted  https://clickhouse.com/docs/en/sql-reference/statements/select/order-by#sorting-of-special-values
         return false;
     }
 
@@ -74,7 +77,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return "";
+        return connection.getServerVersion();
     }
 
     @Override
@@ -629,17 +632,19 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
         //TODO: Drill into this
-        return null;
+        throw new RuntimeException("Not implemented");
     }
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        return null;
+        //TODO: Drill into this
+        throw new RuntimeException("Not implemented");
     }
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        String sql = "SELECT database AS TABLE_CAT, database AS TABLE_SCHEM, name AS TABLE_NAME, engine AS TABLE_TYPE," +
+        // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
+        String sql = "SELECT database AS TABLE_CAT, '' AS TABLE_SCHEM, name AS TABLE_NAME, engine AS TABLE_TYPE," +
                 " '' AS REMARKS, '' AS TYPE_CAT, '' AS TYPE_SCHEM, '' AS TYPE_NAME, '' AS SELF_REFERENCING_COL_NAME, '' AS REF_GENERATION" +
                 " FROM system.tables" +
                 " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
@@ -657,7 +662,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, null AS TABLE_CATALOG FROM system.databases ORDER BY name");
+        // TODO: currently we support only catalogs and this method returns empty RS. When we implement switch - then getCatalogs() should return empty RS when schemas are selected
+        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, null AS TABLE_CATALOG FROM system.databases ORDER BY name LIMIT 0");
     }
 
     @Override
@@ -667,6 +673,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
+        // TODO: create inmemory result set to avoid query database
         //https://clickhouse.com/docs/en/engines/table-engines/
         return connection.createStatement().executeQuery("SELECT c1 AS TABLE_TYPE " +
                 "FROM VALUES ('MergeTree','ReplacingMergeTree','SummingMergeTree','AggregatingMergeTree','CollapsingMergeTree','VersionedCollapsingMergeTree','GraphiteMergeTree'," +
@@ -678,19 +685,42 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
-        String sql = "SELECT system.columns.database AS TABLE_CAT, system.columns.database AS TABLE_SCHEM, system.columns.table AS TABLE_NAME, system.columns.name AS COLUMN_NAME, " +
-                JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, system.columns.type AS TYPE_NAME, toInt32(system.columns.numeric_precision) AS COLUMN_SIZE, toInt32(0) AS BUFFER_LENGTH, toInt32(system.columns.numeric_precision) AS DECIMAL_DIGITS," +
-                " toInt32(system.columns.numeric_precision_radix) AS NUM_PREC_RADIX, toInt32(2) AS NULLABLE, system.columns.comment AS REMARKS, system.columns.default_expression AS COLUMN_DEF, toInt32(0) AS SQL_DATA_TYPE," +
-                " 0 AS SQL_DATETIME_SUB, 0 AS CHAR_OCTET_LENGTH, toInt32(system.columns.position) AS ORDINAL_POSITION, '' AS IS_NULLABLE," +
-                " NULL AS SCOPE_CATALOG, NULL AS SCOPE_SCHEMA, NULL AS SCOPE_TABLE, NULL AS SOURCE_DATA_TYPE" +
+        // TODO: table schema should be null by default. This comes from catalog vs schema confusion.
+        String sql = "SELECT " +
+                "system.columns.database AS TABLE_CAT, " +
+                "'' AS TABLE_SCHEM, " +
+                "system.columns.table AS TABLE_NAME, " +
+                "system.columns.name AS COLUMN_NAME, " +
+                JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
+                "system.columns.type AS TYPE_NAME, " +
+                 JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
+
+                "toInt32(0) AS BUFFER_LENGTH, " +
+                "if(numeric_scale IS NOT NULL, numeric_scale, 0) as DECIMAL_DIGITS,  " +
+                "toInt32(system.columns.numeric_precision_radix) AS NUM_PREC_RADIX, " +
+                "toInt32(position(type, 'Nullable(') >= 1 ?" + java.sql.DatabaseMetaData.typeNullable + " : " + java.sql.DatabaseMetaData.typeNoNulls + ") as NULLABLE, " +
+                "system.columns.comment AS REMARKS, " +
+                "system.columns.default_expression AS COLUMN_DEF, " +
+                "toInt32(0) AS SQL_DATA_TYPE, " +
+                "toInt32(0) AS SQL_DATETIME_SUB, " +
+                "character_octet_length AS CHAR_OCTET_LENGTH, " +
+                "toInt32(system.columns.position) AS ORDINAL_POSITION, " +
+                "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' AS IS_NULLABLE," +
+                "NULL AS SCOPE_CATALOG, " +
+                "NULL AS SCOPE_SCHEMA, " +
+                "NULL AS SCOPE_TABLE, " +
+                "NULL AS SOURCE_DATA_TYPE, " +
+                "'NO' as IS_AUTOINCREMENT, " +
+                "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
                 " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
                 " AND database LIKE '" + (catalog == null ? "%" : catalog) + "'" +
                 " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
                 " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'";
+        log.info("getColumns: {}", sql);
+
         return connection.createStatement().executeQuery(sql);
     }
-
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
         //Return an empty result set with the required columns
@@ -872,7 +902,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean supportsResultSetHoldability(int holdability) throws SQLException {
-        return false;
+        return holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     @Override
@@ -882,12 +912,24 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        return connection.getMajorVersion();
+        String version = connection.getServerVersion();
+        try {
+            return Integer.parseInt(version.split("\\.")[0]);
+        } catch (NumberFormatException e) {
+            log.error("Failed to parse major version from server version: " + version, e);
+            throw new SQLException("Failed to parse major version from server version: " + version);
+        }
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return connection.getMinorVersion();
+        String version = connection.getServerVersion();
+        try {
+            return Integer.parseInt(version.split("\\.")[1]);
+        } catch (NumberFormatException e) {
+            log.error("Failed to parse minor version from server version: " + version, e);
+            throw new SQLException("Failed to parse minor version from server version: " + version);
+        }
     }
 
     @Override

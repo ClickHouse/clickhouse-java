@@ -84,7 +84,9 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test
     public void getMetaDataTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertNotNull(localConnection.getMetaData());
+        DatabaseMetaData metaData = localConnection.getMetaData();
+        Assert.assertNotNull(metaData);
+        Assert.assertEquals(metaData.getConnection(), localConnection);
     }
 
     @Test

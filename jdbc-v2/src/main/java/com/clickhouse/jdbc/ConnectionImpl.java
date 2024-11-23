@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -67,31 +68,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.defaultQuerySettings = settings;
     }
 
-    private String getServerVersion() throws SQLException {
+    public String getServerVersion() throws SQLException {
         GenericRecord result = client.queryAll("SELECT version() as server_version").stream()
                 .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version."));
 
         return result.getString("server_version");
-    }
-
-    public int getMajorVersion() throws SQLException {
-        String version = getServerVersion();
-        try {
-            return Integer.parseInt(version.split("\\.")[0]);
-        } catch (NumberFormatException e) {
-            log.error("Failed to parse major version from server version: " + version, e);
-            throw new SQLException("Failed to parse major version from server version: " + version);
-        }
-    }
-
-    public int getMinorVersion() throws SQLException {
-        String version = getServerVersion();
-        try {
-            return Integer.parseInt(version.split("\\.")[1]);
-        } catch (NumberFormatException e) {
-            log.error("Failed to parse minor version from server version: " + version, e);
-            throw new SQLException("Failed to parse minor version from server version: " + version);
-        }
     }
 
     @Override
@@ -115,7 +96,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public String nativeSQL(String sql) throws SQLException {
         checkOpen();
-        return sql;
+        /// TODO: this is not implemented according to JDBC spec and may not be used.
+        throw new RuntimeException("Not implemented");
     }
 
     @Override
