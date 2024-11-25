@@ -1731,17 +1731,8 @@ public class Client implements AutoCloseable {
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
     }
-
-    /**
-     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
-     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
-     * statement then it may cause incompatibility error.</p>
-     *
-     * @param sqlQuery
-     * @return
-     */
-    public CompletableFuture<Records> queryRecords(String sqlQuery) {
-        return queryRecords(sqlQuery, null);
+    public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
+        return query(sqlQuery, queryParams, null);
     }
 
     /**
@@ -1749,18 +1740,44 @@ public class Client implements AutoCloseable {
      * <p>Format is selected internally so is ignored when passed in settings. If query contains format
      * statement then it may cause incompatibility error.</p>
      *
-     * @param sqlQuery
-     * @param settings
-     * @return
+     * @param sqlQuery - SQL statement
+     * @return - a promise to a result
+     */
+    public CompletableFuture<Records> queryRecords(String sqlQuery) {
+        return queryRecords(sqlQuery, null, null);
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
+     *
+     * @param sqlQuery - SQL statement
+     * @param settings - operation settings
+     * @return - a promise to a result
      */
     public CompletableFuture<Records> queryRecords(String sqlQuery, QuerySettings settings) {
+        return queryRecords(sqlQuery, null, settings);
+    }
+
+    /**
+     * <p>Queries data in one of descriptive format and creates a reader out of the response stream.</p>
+     * <p>Format is selected internally so is ignored when passed in settings. If query contains format
+     * statement then it may cause incompatibility error.</p>
+     * See {@link #query(String, Map, QuerySettings)} for parametrized queries.
+     * @param sqlQuery - SQL statement
+     * @param params - sql parameters
+     * @param settings - operation settings
+     * @return - a promise to a result
+     */
+    public CompletableFuture<Records> queryRecords(String sqlQuery, Map<String, Object> params, QuerySettings settings) {
         if (settings == null) {
             settings = new QuerySettings();
         }
         settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         settings.waitEndOfQuery(true); // we rely on the summery
 
-        return query(sqlQuery, settings).thenApply(response -> {
+        return query(sqlQuery, params, settings).thenApply(response -> {
             try {
 
                 return new Records(response, newBinaryFormatReader(response));
@@ -1770,19 +1787,30 @@ public class Client implements AutoCloseable {
         });
     }
 
+    public CompletableFuture<Records> queryRecords(String sqlQuery, Map<String, Object> params) {
+        return queryRecords(sqlQuery, params, null);
+    }
+
     /**
      * <p>Queries data in descriptive format and reads result to a collection.</p>
      * <p>Use this method for queries that would return only a few records only because client
      * will read whole dataset and convert it into a list of GenericRecord</p>
-     * @param sqlQuery - SQL query
+     *
+     * See {@link #query(String, Map, QuerySettings)} for parametrized queries.
+     * @param sqlQuery - SQL statement
+     * @param params - query parameters
+     * @param settings  - operation settings
      * @return - complete list of records
      */
-    public List<GenericRecord> queryAll(String sqlQuery, QuerySettings settings) {
+    public List<GenericRecord> queryAll(String sqlQuery, Map<String, Object> params, QuerySettings settings) {
+        if (settings == null) {
+            settings = new QuerySettings();
+        }
         try {
             int operationTimeout = getOperationTimeout();
             settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .waitEndOfQuery(true);
-            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
+            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, params, settings).get() :
                     query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
@@ -1791,7 +1819,7 @@ public class Client implements AutoCloseable {
 
                     Map<String, Object> record;
                     while (reader.readRecord((record = new LinkedHashMap<>()))) {
-                        records.add(new MapBackedRecord(record, reader.getSchema()));
+                        records.add(new MapBackedRecord(record, reader.getConvertions(), reader.getSchema()));
                     }
                 }
                 return records;
@@ -1803,8 +1831,16 @@ public class Client implements AutoCloseable {
         }
     }
 
+    public List<GenericRecord> queryAll(String sqlQuery, QuerySettings settings) {
+        return queryAll(sqlQuery, null, settings);
+    }
+
+    public List<GenericRecord> queryAll(String sqlQuery, Map<String, Object> params) {
+        return queryAll(sqlQuery, params, null);
+    }
+
     public List<GenericRecord> queryAll(String sqlQuery) {
-        return queryAll(sqlQuery, new QuerySettings());
+        return queryAll(sqlQuery, null, (QuerySettings) null);
     }
 
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema) {
