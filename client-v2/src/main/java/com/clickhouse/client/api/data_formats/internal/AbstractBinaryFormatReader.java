@@ -519,7 +519,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().indexToName(colIndex));
+        return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
     }
 
     @Override
