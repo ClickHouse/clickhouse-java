@@ -23,11 +23,12 @@ import org.slf4j.LoggerFactory;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
-    private QueryResponse response;
-    protected ClickHouseBinaryFormatReader reader;
     private final ResultSetMetaData metaData;
+    protected ClickHouseBinaryFormatReader reader;
+    private QueryResponse response;
     private boolean closed;
-    private Statement parentStatement;
+    private final Statement parentStatement;
+    private boolean wasNull;
 
     public ResultSetImpl(Statement parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.parentStatement = parentStatement;
@@ -35,6 +36,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.reader = reader;
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
+        this.wasNull = false;
     }
 
     private void checkClosed() throws SQLException {
@@ -82,14 +84,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean wasNull() throws SQLException {
         checkClosed();
-        return false;
+        return wasNull;
     }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getString(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getString(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -99,7 +107,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public boolean getBoolean(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getBoolean(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBoolean(columnIndex);
+            } else {
+                wasNull = true;
+                return false;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -109,7 +123,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public byte getByte(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getByte(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getByte(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -119,7 +139,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public short getShort(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getShort(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getShort(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -129,7 +155,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public int getInt(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getInteger(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getInteger(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -139,7 +171,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public long getLong(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getLong(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getLong(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -149,7 +187,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public float getFloat(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getFloat(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getFloat(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -159,7 +203,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public double getDouble(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getDouble(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getDouble(columnIndex);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -169,7 +219,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
         checkClosed();
         try {
-            return reader.getBigDecimal(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -179,7 +235,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getByteArray(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getByteArray(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -192,8 +254,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             //TODO: Add this to ClickHouseBinaryFormatReader
             LocalDate localDate = reader.getLocalDate(columnIndex);
             if (localDate == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
             throw new SQLException(e);
@@ -206,8 +271,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
             if (localDateTime == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
             throw new SQLException(e);
@@ -220,8 +288,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
             if (localDateTime == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
             throw new SQLException(e);
@@ -245,14 +316,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
         checkClosed();
         //TODO: implement
-        return null;
+        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.");
     }
 
     @Override
     public String getString(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getString(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getString(columnLabel);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -262,7 +339,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public boolean getBoolean(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getBoolean(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getBoolean(columnLabel);
+            } else {
+                wasNull = true;
+                return false;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -272,7 +355,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public byte getByte(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getByte(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getByte(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -282,7 +371,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public short getShort(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getShort(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getShort(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -292,7 +387,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public int getInt(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getInteger(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getInteger(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -302,7 +403,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public long getLong(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getLong(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getLong(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -312,7 +419,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public float getFloat(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getFloat(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getFloat(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -322,7 +435,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public double getDouble(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getDouble(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getDouble(columnLabel);
+            } else {
+                wasNull = true;
+                return 0;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -332,7 +451,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         checkClosed();
         try {
-            return reader.getBigDecimal(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnLabel);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -342,7 +467,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public byte[] getBytes(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getByteArray(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getByteArray(columnLabel);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -355,8 +486,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             //TODO: Add this to ClickHouseBinaryFormatReader
             LocalDate localDate = reader.getLocalDate(columnLabel);
             if (localDate == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
             throw new SQLException(e);
@@ -369,8 +503,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
             if(localDateTime == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
             throw new SQLException(e);
@@ -383,8 +520,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
             if (localDateTime == null) {
+                wasNull = true;
                 return null;
             }
+
+            wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
             throw new SQLException(e);
@@ -408,7 +548,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
         checkClosed();
         //TODO: implement
-        return null;
+        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.");
     }
 
     @Override
@@ -438,7 +578,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Object getObject(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.readValue(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.readValue(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -448,7 +594,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Object getObject(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.readValue(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.readValue(columnLabel);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -467,20 +619,26 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
         checkClosed();
-        return null;
+        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.");
     }
 
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
         checkClosed();
-        return null;
+        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.");
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         checkClosed();
         try {
-            return reader.getBigDecimal(columnIndex);
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -490,7 +648,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getBigDecimal(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnLabel);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -499,25 +663,25 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean isBeforeFirst() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("isBeforeFirst is not supported.");
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("isAfterLast is not supported.");
     }
 
     @Override
     public boolean isFirst() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("isFirst is not supported.");
     }
 
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("isLast is not supported.");
     }
 
     @Override
@@ -533,43 +697,37 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean first() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("first is not supported.");
     }
 
     @Override
     public boolean last() throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("last is not supported.");
     }
 
     @Override
     public int getRow() throws SQLException {
         checkClosed();
-        return 0;
+        throw new SQLFeatureNotSupportedException("getRow is not supported.");
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("absolute is not supported.");
     }
 
     @Override
     public boolean relative(int rows) throws SQLException {
         checkClosed();
-        return false;
+        throw new SQLFeatureNotSupportedException("relative is not supported.");
     }
 
     @Override
     public boolean previous() throws SQLException {
         checkClosed();
-        return false;
-    }
-
-    @Override
-    public void setFetchDirection(int direction) throws SQLException {
-        checkClosed();
-        throw new SQLFeatureNotSupportedException("setFetchDirection is not supported.");
+        throw new SQLFeatureNotSupportedException("previous is not supported.");
     }
 
     @Override
@@ -579,14 +737,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     }
 
     @Override
-    public void setFetchSize(int rows) throws SQLException {
+    public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
+        throw new SQLFeatureNotSupportedException("setFetchDirection is not supported.");
     }
 
     @Override
     public int getFetchSize() throws SQLException {
         checkClosed();
         return 0;
+    }
+
+    @Override
+    public void setFetchSize(int rows) throws SQLException {
+        checkClosed();
     }
 
     @Override
