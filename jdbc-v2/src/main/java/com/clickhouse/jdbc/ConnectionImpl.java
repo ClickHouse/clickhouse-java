@@ -31,7 +31,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         log.debug("Creating connection to {}", url);
         this.url = url;//Raw URL
         this.config = new JdbcConfiguration(url, info);
-        String clientName = "ClickHouse JDBC Driver/" + Driver.driverVersion;
+        String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
 
         if (this.config.isDisableFrameworkDetection()) {
             log.debug("Framework detection is disabled.");
