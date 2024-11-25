@@ -54,6 +54,15 @@ public class MapUtils {
         return 0;
     }
 
+    /**
+     * Get a boolean value from a map.
+     *
+     * @param map map to get value from
+     * @param key key to get value for
+     * @return boolean value
+     * @throws NullPointerException if the key is missing
+     * @throws IllegalArgumentException if the value is not a boolean
+     */
     public static boolean getFlag(Map<String, String> map, String key) {
         String val = map.get(key);
         if (val == null) {
@@ -68,6 +77,13 @@ public class MapUtils {
         throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
     }
 
+    /**
+     * Get a boolean value from a map.
+     * @param map - configuration map
+     * @param key - key of the property
+     * @param defaultValue - value if not found
+     * @return boolean value
+     */
     public static boolean getFlag(Map<String, ?> map, String key, boolean defaultValue) {
         Object val = map.get(key);
         if (val == null) {
@@ -86,6 +102,15 @@ public class MapUtils {
         throw new IllegalArgumentException("Invalid non-boolean value for the key '" + key + "': '" + val + "'");
     }
 
+    /**
+     * Get a boolean value from a p1, if not found, get from p2.
+     *
+     * @param p1 - first map
+     * @param p2 - second map
+     * @param key - key of the property
+     * @return boolean value
+     * @throws NullPointerException if the key is missing in both maps
+     */
     public static boolean getFlag(Map<String, ?> p1, Map<String, ?> p2, String key) {
         Object val = p1.get(key);
         if (val == null) {

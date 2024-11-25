@@ -338,6 +338,9 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
+        if (requestConfig == null) {
+            requestConfig = Collections.emptyMap();
+        }
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
@@ -350,17 +353,21 @@ public class HttpAPIClientHelper {
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, chConfiguration, requestConfig);
 
-        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig)
-                .build();
+        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+
+        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig).build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback), HttpStatus.SC_OK, false));
+        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
+                clientCompression, useHttpCompression));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
-            httpResponse.setEntity(wrapEntity(httpResponse.getEntity(), httpResponse.getCode(), true));
+            boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
+            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
@@ -393,20 +400,18 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
-        if (requestConfig != null) {
-            if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
-                req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
-            }
+        if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
+            req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
 
-            if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-                req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
-            }
+        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
+            req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
+        }
 
-            if(requestConfig.containsKey(ClientConfigProperties.DATABASE.getKey())) {
-                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, requestConfig.get(ClientConfigProperties.DATABASE.getKey()));
-            } else {
-                req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClientConfigProperties.DATABASE.getKey()));
-            }
+        if(requestConfig.containsKey(ClientConfigProperties.DATABASE.getKey())) {
+            req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, requestConfig.get(ClientConfigProperties.DATABASE.getKey()));
+        } else {
+            req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClientConfigProperties.DATABASE.getKey()));
         }
 
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
@@ -424,9 +429,9 @@ public class HttpAPIClientHelper {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }
 
-        boolean serverCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "false").equalsIgnoreCase("true");
-        boolean clientCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), "false").equalsIgnoreCase("true");
-        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
+        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
 
         if (useHttpCompression) {
             if (serverCompression) {
@@ -461,10 +466,6 @@ public class HttpAPIClientHelper {
         req.setHeader(HttpHeaders.USER_AGENT, userAgent == null ? httpClientUserAgentPart : userAgent.getValue() + " " + httpClientUserAgentPart);
     }
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
-        if (requestConfig == null) {
-            requestConfig = Collections.emptyMap();
-        }
-
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
                 req.addParameter(entry.getKey().substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), entry.getValue());
@@ -481,10 +482,9 @@ public class HttpAPIClientHelper {
             }
         }
 
-        boolean serverCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "false").equalsIgnoreCase("true");
-        boolean clientCompression = chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), "false").equalsIgnoreCase("true");
-        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
-
+        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
+        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
 
         if (useHttpCompression) {
             // enable_http_compression make server react on http header
@@ -514,11 +514,21 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapEntity(HttpEntity httpEntity, int httpStatus, boolean isResponse) {
-        boolean serverCompression = MapUtils.getFlag(chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false);
-        boolean clientCompression = MapUtils.getFlag(chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(),  false);
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression) {
+        LOG.debug("client compression: {}, http compression: {}", clientCompression, useHttpCompression);
 
-        if (serverCompression || clientCompression) {
+        if (clientCompression) {
+            return new LZ4Entity(httpEntity, useHttpCompression, false, true,
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false);
+        } else  {
+            return httpEntity;
+        }
+    }
+
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression) {
+        LOG.debug("server compression: {}, http compression: {}", serverCompression, useHttpCompression);
+
+        if (serverCompression) {
             // Server doesn't compress certain errors like 403
             switch (httpStatus) {
                 case HttpStatus.SC_OK:
@@ -531,9 +541,8 @@ public class HttpAPIClientHelper {
                 case HttpStatus.SC_BAD_REQUEST:
                 case HttpStatus.SC_INTERNAL_SERVER_ERROR:
                 case HttpStatus.SC_NOT_FOUND:
-                    boolean useHttpCompression = MapUtils.getFlag(chConfiguration, "client.use_http_compression", false);
-                    return new LZ4Entity(httpEntity, useHttpCompression, serverCompression, clientCompression,
-                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), isResponse);
+                    return new LZ4Entity(httpEntity, useHttpCompression, true, false,
+                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true);
             }
         }
 
