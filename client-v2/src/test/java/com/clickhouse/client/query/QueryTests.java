@@ -1397,8 +1397,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryParams() throws Exception {
         final String table = "query_params_test_table";
 
-        client.query("DROP TABLE IF EXISTS default." + table, null).get();
-        client.query("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("DROP TABLE IF EXISTS default." + table).get();
+        client.execute("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1409,15 +1409,34 @@ public class QueryTests extends BaseIntegrationTest {
         InsertSettings insertSettings = new InsertSettings();
         client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
 
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
         Map<String, Object> queryParams = new HashMap<>();
         queryParams.put("param1", 2);
         QueryResponse queryResponse =
-                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams, querySettings).get();
+                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get();
 
-        try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
-            responseBody.lines().forEach(System.out::println);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+        int count = 0;
+        while (reader.hasNext()) {
+            reader.next();
+            count++;
+            Assert.assertTrue(reader.getInteger("col1") >=2 );
         }
+        Assert.assertEquals(count, 2);
+
+        try (Records records = client.queryRecords("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get()) {
+            count = 0;
+            for (GenericRecord record : records) {
+                Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+                count++;
+            }
+            Assert.assertEquals(count, 2);
+        }
+
+        List<GenericRecord> allRecords = client.queryAll("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams);
+        for (GenericRecord record : allRecords) {
+            Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+        }
+        Assert.assertEquals(allRecords.size(), 2);
     }
 
     @Test(groups = {"integration"})
