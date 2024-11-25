@@ -625,13 +625,13 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertTrue(record.containsKey(columnName));
                 Assert.assertEquals(record.get(columnName), 1L);
                 Assert.assertTrue(reader.hasValue("id"));
-                Assert.assertTrue(reader.hasValue(i), "No value for column " + i);
+                Assert.assertTrue(reader.hasValue(i+1), "No value for column " + i);
 
             } else {
                 Assert.assertFalse(record.containsKey(columnName));
                 Assert.assertNull(record.get(columnName));
                 Assert.assertFalse(reader.hasValue(columnName));
-                Assert.assertFalse(reader.hasValue(i));
+                Assert.assertFalse(reader.hasValue(i+1));
 
                 if (columnName.equals("col1") || columnName.equals("col2")) {
                     Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
