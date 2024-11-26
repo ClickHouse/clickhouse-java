@@ -65,6 +65,7 @@ public enum ClientConfigProperties {
 
     COMPRESS_CLIENT_REQUEST("decompress"), // actually a server setting, but has client effect too
 
+
     USE_HTTP_COMPRESSION("client.use_http_compression"),
 
     COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size"),

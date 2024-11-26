@@ -554,7 +554,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Server response compression. If set to true server will compress the response.
-         * Has most effect for read operations.
+         * Has most effect for read operations. Default is true.
          *
          * @param enabled - indicates if server response compression is enabled
          */
@@ -565,7 +565,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Client request compression. If set to true client will compress the request.
-         * Has most effect for write operations.
+         * Has most effect for write operations. Default is false.
          *
          * @param enabled - indicates if client request compression is enabled
          */
@@ -577,7 +577,7 @@ public class Client implements AutoCloseable {
         /**
          * Configures the client to use HTTP compression. In this case compression is controlled by
          * http headers. Client compression will set {@code Content-Encoding: lz4} header and server
-         * compression will set {@code Accept-Encoding: lz4} header.
+         * compression will set {@code Accept-Encoding: lz4} header. Default is false.
          *
          * @param enabled - indicates if http compression is enabled
          * @return
@@ -1077,6 +1077,18 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey())) {
                 useHTTPBasicAuth(true);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey())) {
+                compressClientRequest(false);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey())) {
+                compressServerResponse(true);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey())) {
+                useHttpCompression(false);
             }
 
             String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
@@ -2062,7 +2074,7 @@ public class Client implements AutoCloseable {
     }
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
-        boolean isAsync = MapUtils.getFlag(configuration, requestSettings, ClientConfigProperties.ASYNC_OPERATIONS.getKey());
+        boolean isAsync = MapUtils.getFlag(requestSettings, configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey());
         return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
     }
 
