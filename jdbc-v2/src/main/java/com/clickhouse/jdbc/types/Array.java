@@ -1,4 +1,4 @@
-package com.clickhouse.jdbc.internal;
+package com.clickhouse.jdbc.types;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,12 +10,12 @@ import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
-public class SimpleArray implements java.sql.Array {
-    private static final Logger log = LoggerFactory.getLogger(SimpleArray.class);
+public class Array implements java.sql.Array {
+    private static final Logger log = LoggerFactory.getLogger(Array.class);
     Object[] array;
     int type; //java.sql.Types
 
-    public SimpleArray(List<Object> list) {
+    public Array(List<Object> list) {
         if (list == null) {
             throw new IllegalArgumentException("List cannot be null");
         }

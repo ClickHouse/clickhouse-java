@@ -1,20 +1,20 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
@@ -32,7 +32,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         log.debug("Creating connection to {}", url);
         this.url = url;//Raw URL
         this.config = new JdbcConfiguration(url, info);
-        String clientName = "ClickHouse JDBC Driver/" + Driver.driverVersion;
+        String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
 
         if (this.config.isDisableFrameworkDetection()) {
             log.debug("Framework detection is disabled.");
@@ -48,7 +48,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setPassword(config.getPassword())
                 .setClientName(clientName)
                 .build();
-
         this.defaultQuerySettings = new QuerySettings();
     }
 
@@ -148,8 +147,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
         checkOpen();
-        if (!readOnly) {
-            throw new SQLFeatureNotSupportedException("read-only=false unsupported");
+        if (readOnly) {
+            throw new SQLFeatureNotSupportedException("read-only=true unsupported");
         }
     }
 
@@ -340,30 +339,53 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
-        throw new SQLClientInfoException("ClientInfo not supported", null);
+//        try {
+//            checkOpen();
+//            this.defaultQuerySettings.setOption(name, value);
+//        } catch (Exception e) {
+//            throw new SQLClientInfoException("Failed to set client info.", Collections.singletonMap(name, ClientInfoStatus.REASON_UNKNOWN), e);
+//        }
+        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
-        throw new SQLClientInfoException("ClientInfo not supported", null);
+//        try {
+//            checkOpen();
+//        } catch (SQLException e) {
+//            throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), e);
+//        }
+//
+//        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
+//            setClientInfo(entry.getKey().toString(), entry.getValue().toString());
+//        }
+        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
     }
 
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
-        return null;
+//        Object value = this.defaultQuerySettings.getAllSettings().get(name);
+//        return value == null ? null : String.valueOf(value);
+        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
         checkOpen();
-        return new Properties();
+//        Properties clientInfo = new Properties();
+//        clientInfo.putAll(this.defaultQuerySettings.getAllSettings());
+//        return clientInfo;
+        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
     }
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        //TODO: Should this be supported?
-        return null;
+        try {
+            return new com.clickhouse.jdbc.types.Array(List.of(elements));
+        } catch (Exception e) {
+            throw new SQLException("Failed to create array", e);
+        }
     }
 
     @Override

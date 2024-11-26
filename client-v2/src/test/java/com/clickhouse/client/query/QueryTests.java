@@ -625,13 +625,13 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertTrue(record.containsKey(columnName));
                 Assert.assertEquals(record.get(columnName), 1L);
                 Assert.assertTrue(reader.hasValue("id"));
-                Assert.assertTrue(reader.hasValue(i), "No value for column " + i);
+                Assert.assertTrue(reader.hasValue(i+1), "No value for column " + i);
 
             } else {
                 Assert.assertFalse(record.containsKey(columnName));
                 Assert.assertNull(record.get(columnName));
                 Assert.assertFalse(reader.hasValue(columnName));
-                Assert.assertFalse(reader.hasValue(i));
+                Assert.assertFalse(reader.hasValue(i+1));
 
                 if (columnName.equals("col1") || columnName.equals("col2")) {
                     Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
@@ -1248,13 +1248,13 @@ public class QueryTests extends BaseIntegrationTest {
                 .waitEndOfQuery(true)
                 .setQueryId(uuid);
 
-        QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
+        try (QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
 
-        // Stats should be available after the query is done
-        OperationMetrics metrics = response.getMetrics();
-
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+        }
 
         StringBuilder insertStmtBuilder = new StringBuilder();
         insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
@@ -1265,17 +1265,26 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
         }
-        response = client.query(insertStmtBuilder.toString(), settings).get();
+        try (QueryResponse response = client.query(insertStmtBuilder.toString(), settings).get()) {
 
-        metrics = response.getMetrics();
+            OperationMetrics metrics = response.getMetrics();
 
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
-        Assert.assertEquals(response.getReadRows(), rowsToInsert);
-        Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
-        Assert.assertEquals(metrics.getQueryId(), uuid);
-        Assert.assertEquals(response.getQueryId(), uuid);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
+            Assert.assertEquals(response.getReadRows(), rowsToInsert);
+            Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+            Assert.assertEquals(metrics.getQueryId(), uuid);
+            Assert.assertEquals(response.getQueryId(), uuid);
+        }
 
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 30", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
+
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong() > 0);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
+        }
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
@@ -1397,8 +1406,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryParams() throws Exception {
         final String table = "query_params_test_table";
 
-        client.query("DROP TABLE IF EXISTS default." + table, null).get();
-        client.query("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("DROP TABLE IF EXISTS default." + table).get();
+        client.execute("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1409,15 +1418,34 @@ public class QueryTests extends BaseIntegrationTest {
         InsertSettings insertSettings = new InsertSettings();
         client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
 
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
         Map<String, Object> queryParams = new HashMap<>();
         queryParams.put("param1", 2);
         QueryResponse queryResponse =
-                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams, querySettings).get();
+                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get();
 
-        try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
-            responseBody.lines().forEach(System.out::println);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+        int count = 0;
+        while (reader.hasNext()) {
+            reader.next();
+            count++;
+            Assert.assertTrue(reader.getInteger("col1") >=2 );
         }
+        Assert.assertEquals(count, 2);
+
+        try (Records records = client.queryRecords("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get()) {
+            count = 0;
+            for (GenericRecord record : records) {
+                Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+                count++;
+            }
+            Assert.assertEquals(count, 2);
+        }
+
+        List<GenericRecord> allRecords = client.queryAll("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams);
+        for (GenericRecord record : allRecords) {
+            Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+        }
+        Assert.assertEquals(allRecords.size(), 2);
     }
 
     @Test(groups = {"integration"})

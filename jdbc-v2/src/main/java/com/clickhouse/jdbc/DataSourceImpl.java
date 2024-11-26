@@ -11,9 +11,11 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
+    private static final Logger log = Logger.getLogger(DataSourceImpl.class.getName());
     private String url;
     private Properties info;
-    private Driver driver;
+    private final Driver driver;
+    private PrintWriter logWriter;
 
     public void setUrl(String url) {
         this.url = url;
@@ -24,22 +26,20 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
         copy.putAll(info);
         return copy;
     }
+
     public void setProperties(Properties info) {
         this.info = info;
     }
 
-    public DataSourceImpl() {
+    
+    public DataSourceImpl() {//No-arg constructor required by the standard
         this(null, new Properties());
-    }
-
-    public DataSourceImpl(String url) {
-        this(url, new Properties());
     }
 
     public DataSourceImpl(String url, Properties info) {
         this.url = url;
         this.info = info;
-        this.driver = new Driver();
+        this.driver = new Driver(this);
     }
 
     @Override
@@ -58,12 +58,12 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
 
     @Override
     public PrintWriter getLogWriter() throws SQLException {
-        throw new SQLFeatureNotSupportedException("Method not supported");
+        return logWriter;
     }
 
     @Override
     public void setLogWriter(PrintWriter out) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Method not supported");
+        logWriter = out;
     }
 
     @Override

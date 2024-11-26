@@ -7,7 +7,25 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.JDBCType;
+import java.sql.NClob;
+import java.sql.ParameterMetaData;
+import java.sql.PreparedStatement;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
+import java.sql.SQLXML;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -16,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.Map;
 
@@ -439,7 +458,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                return "'" + x + "'";
+                return "'" + escapeString((String) x) + "'";
             } else if (x instanceof Boolean) {
                 return (Boolean) x ? "1" : "0";
             } else if (x instanceof Date) {
@@ -454,8 +473,28 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
             } else if (x instanceof LocalDateTime) {
                 return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+            } else if (x instanceof Array) {
+                StringBuilder listString = new StringBuilder();
+                listString.append("[");
+                for (Object item : (Object[])((Array) x).getArray()) {
+                    listString.append(encodeObject(item)).append(", ");
+                }
+                listString.delete(listString.length() - 2, listString.length());
+                listString.append("]");
+
+                return listString.toString();
+            } else if (x instanceof Collection) {
+                StringBuilder listString = new StringBuilder();
+                listString.append("[");
+                for (Object item : (Collection<?>) x) {
+                    listString.append(encodeObject(item)).append(", ");
+                }
+                listString.delete(listString.length() - 2, listString.length());
+                listString.append("]");
+
+                return listString.toString();
             } else if (x instanceof Map) {
-                Map tmpMap = (Map) x;
+                Map<?, ?> tmpMap = (Map<?, ?>) x;
                 StringBuilder mapString = new StringBuilder();
                 mapString.append("{");
                 for (Object key : tmpMap.keySet()) {
@@ -473,7 +512,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 while ((len = reader.read(buffer)) != -1) {
                     sb.append(buffer, 0, len);
                 }
-                return "'" + sb + "'";
+                return "'" + escapeString(sb.toString()) + "'";
             } else if (x instanceof InputStream) {
                 StringBuilder sb = new StringBuilder();
                 InputStream is = (InputStream) x;
@@ -482,13 +521,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 while ((len = is.read(buffer)) != -1) {
                     sb.append(new String(buffer, 0, len));
                 }
-                return "'" + sb + "'";
+                return "'" + escapeString(sb.toString()) + "'";
             }
 
-            return x.toString();
+            return escapeString(x.toString());//Escape single quotes
         } catch (Exception e) {
             LOG.error("Error encoding object", e);
             throw new SQLException("Error encoding object", e);
         }
+    }
+
+    private static String escapeString(String x) {
+        return x.replace("'", "''");//Escape single quotes
     }
 }
