@@ -773,15 +773,22 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     : ClickHouseValues.convertToQuotedString(tableNamePattern));
             params.put("types", builder.toString());
             String sql = ClickHouseParameterizedQuery
-                    .apply("select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, t.name as TABLE_NAME, "
+                    .apply("select " +
+                            ":catalog as TABLE_CAT, " +
+                            ":schema as TABLE_SCHEM, " +
+                            "t.name as TABLE_NAME, "
                             + "case when t.engine like '%Log' then 'LOG TABLE' "
                             + "when t.engine in ('Buffer', 'Memory', 'Set') then 'MEMORY TABLE' "
                             + "when t.is_temporary != 0 then 'TEMPORARY TABLE' "
                             + "when t.engine like '%View' then 'VIEW' when t.engine = 'Dictionary' then 'DICTIONARY' "
                             + "when t.engine like 'Async%' or t.engine like 'System%' then 'SYSTEM TABLE' "
                             + "when empty(t.data_paths) then 'REMOTE TABLE' else 'TABLE' end as TABLE_TYPE, "
-                            + ":comment as REMARKS, null as TYPE_CAT, d.engine as TYPE_SCHEM, "
-                            + "t.engine as TYPE_NAME, null as SELF_REFERENCING_COL_NAME, null as REF_GENERATION\n"
+                            + ":comment as REMARKS, " +
+                            "null as TYPE_CAT, " +
+                            "d.engine as TYPE_SCHEM, "
+                            + "t.engine as TYPE_NAME, " +
+                            "null as SELF_REFERENCING_COL_NAME, " +
+                            "null as REF_GENERATION\n"
                             + "from system.tables t inner join system.databases d on t.database = d.name\n"
                             + "where t.database like :database and t.name like :table and TABLE_TYPE in (:types) "
                             + "order by t.database, t.name", params);

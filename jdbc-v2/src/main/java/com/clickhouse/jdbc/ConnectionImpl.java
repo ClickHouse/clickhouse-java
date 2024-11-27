@@ -28,6 +28,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private String schema;
     private QuerySettings defaultQuerySettings;
 
+    private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
+
     public ConnectionImpl(String url, Properties info) {
         log.debug("Creating connection to {}", url);
         this.url = url;//Raw URL
@@ -49,6 +51,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setClientName(clientName)
                 .build();
         this.defaultQuerySettings = new QuerySettings();
+
+        this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false);
     }
 
     public String getUser() {
@@ -141,7 +145,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
         checkOpen();
-        return new com.clickhouse.jdbc.metadata.DatabaseMetaData(this);
+        return this.metadata;
     }
 
     @Override

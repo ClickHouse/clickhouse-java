@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 
 import java.net.MalformedURLException;
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
@@ -24,6 +26,8 @@ public class JdbcConfiguration {
     final String url;
     final String jdbcUrl;
     final boolean disableFrameworkDetection;
+
+    private final Map<String, String> allProperties;
 
     public String getPassword() {
         return password;
@@ -51,6 +55,8 @@ public class JdbcConfiguration {
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
+        this.allProperties = new ConcurrentHashMap<>();
+        info.forEach((k, v) -> allProperties.put(k.toString(), v.toString()));
     }
 
     public static boolean acceptsURL(String url) {
@@ -81,5 +87,21 @@ public class JdbcConfiguration {
         } else {
             throw new IllegalArgumentException("URL is not supported.");
         }
+    }
+
+    /**
+     * Returns a list of driver property information.
+     * @return a list of driver property information for the driver
+     */
+    public static List<DriverPropertyInfo> getDriverPropertyInfo(Properties userProvidedValues) {
+
+        List<DriverPropertyInfo> listOfProperties = new ArrayList<>(ClientConfigProperties.values().length);
+        for (ClientConfigProperties clientProp : ClientConfigProperties.values()) {
+            Object value = userProvidedValues.getOrDefault(clientProp.getKey(), "");
+            DriverPropertyInfo info = new DriverPropertyInfo(clientProp.getKey(), String.valueOf(value));
+            listOfProperties.add(info);
+        }
+
+        return listOfProperties;
     }
 }

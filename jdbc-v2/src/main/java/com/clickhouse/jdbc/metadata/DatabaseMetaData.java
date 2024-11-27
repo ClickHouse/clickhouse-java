@@ -1,12 +1,5 @@
 package com.clickhouse.jdbc.metadata;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.RowIdLifetime;
-import java.sql.SQLException;
-import java.sql.Statement;
-
-
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
@@ -14,12 +7,30 @@ import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
+import java.sql.SQLException;
+
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
     ConnectionImpl connection;
 
-    public DatabaseMetaData(ConnectionImpl connection) {
+    private boolean useCatalogs = false;
+
+    /**
+     * Creates an instance of DatabaseMetaData for the given connection.
+     *
+     *
+     * @param connection - connection for which metadata is created
+     * @param useCatalogs - if true then getCatalogs() will return non-empty list (not implemented yet)
+     */
+    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs) {
+        if (useCatalogs) {
+            throw new UnsupportedOperationException("Catalogs are not supported yet");
+        }
         this.connection = connection;
+        this.useCatalogs = useCatalogs;
     }
 
     @Override
@@ -339,19 +350,29 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         return true;
     }
 
+    /**
+     * Schema terms relates to a collection of data definitions, rules, stored procedures, etc.
+     * ClickHouse has "database" as the closest term to schema.
+     * @return - string "database"
+     */
     @Override
-    public String getSchemaTerm() throws SQLException {
+    public String getSchemaTerm() {
         return "database";
     }
 
     @Override
     public String getProcedureTerm() throws SQLException {
-        return "procedure";
+        return "function";
     }
 
+    /**
+     * Catalog term relates to the top level scale like clusters, something that joins multiple databases
+     * Returns most close term to catalog in ClickHouse which is "cluster".
+     * @return - string "cluster"
+     */
     @Override
-    public String getCatalogTerm() throws SQLException {
-        return "database";
+    public String getCatalogTerm() {
+        return "cluster";
     }
 
     @Override
@@ -391,27 +412,27 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean supportsCatalogsInDataManipulation() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsCatalogsInProcedureCalls() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsCatalogsInTableDefinitions() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsCatalogsInIndexDefinitions() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsCatalogsInPrivilegeDefinitions() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -641,17 +662,37 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         throw new RuntimeException("Not implemented");
     }
 
+    /**
+     * Returns tables defined for a schema. Parameter {@code catalog} is ignored
+     *
+     * @return - ResultSet with information about tables
+     * @throws SQLException
+     */
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
+        log.info("getTables: catalog={}, schemaPattern={}, tableNamePattern={}, types={}", catalog, schemaPattern, tableNamePattern, types);
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
-        String sql = "SELECT database AS TABLE_CAT, '' AS TABLE_SCHEM, name AS TABLE_NAME, engine AS TABLE_TYPE," +
-                " '' AS REMARKS, '' AS TYPE_CAT, '' AS TYPE_SCHEM, '' AS TYPE_NAME, '' AS SELF_REFERENCING_COL_NAME, '' AS REF_GENERATION" +
-                " FROM system.tables" +
-                " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND database LIKE '" + (catalog == null ? "%" : catalog) + "'" +
-                " AND name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'";
+//        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
+        // TODO: handle useCatalogs == true and return schema catalog name
+        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+
+        String sql = "SELECT " +
+                 catalogPlaceholder + " AS TABLE_CAT, " +
+                "t.database AS TABLE_SCHEM, " +
+                "t.name AS TABLE_NAME, " +
+                "t.engine AS TABLE_TYPE, " +
+                "t.comment AS REMARKS, " +
+                "null AS TYPE_CAT, " + // no types catalog
+                "d.engine AS TYPE_SCHEM, " + // no types schema
+                "null AS TYPE_NAME, " + // vendor type name ?
+                "null AS SELF_REFERENCING_COL_NAME, " +
+                "null AS REF_GENERATION" +
+                " FROM system.tables t" +
+                " JOIN system.databases d ON system.tables.database = system.databases.name" +
+                " WHERE t.database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
+                " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'";
         if (types != null && types.length > 0) {
-            sql += "AND engine IN (";
+            sql += "AND t.engine IN (";
             for (String type : types) {
                 sql += "'" + type + "',";
             }
@@ -660,39 +701,55 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         return connection.createStatement().executeQuery(sql);
     }
 
+    /**
+     * Returns a ResultSet with the following columns:
+     * TABLE_CAT - String - catalog name
+     * TABLE_SCHEM - String - schema name
+     * TABLE_NAME - String - table name
+     * @return - ResultSet with the above columns
+     * @throws SQLException - if an error occurs
+     */
     @Override
     public ResultSet getSchemas() throws SQLException {
-        // TODO: currently we support only catalogs and this method returns empty RS. When we implement switch - then getCatalogs() should return empty RS when schemas are selected
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, null AS TABLE_CATALOG FROM system.databases ORDER BY name LIMIT 0");
+        // TODO: handle useCatalogs == true and return schema catalog name
+        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
     }
 
+    /**
+     * The closes term to catalog in ClickHouse is "cluster".
+     * Current implementation version doesn't support work with cluster and will always return
+     * @return - ResultSet with one column TABLE_CAT and one row with value "local"
+     * @throws SQLException - if an error occurs
+     */
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_CAT FROM system.databases ORDER BY name");
+        return connection.createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
     }
 
+    /**
+     * Returns name of the ClickHouse table types as they are used in create table statements.
+     * @return - ResultSet with one column TABLE_TYPE
+     * @throws SQLException - if an error occurs
+     */
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        // TODO: create inmemory result set to avoid query database
-        //https://clickhouse.com/docs/en/engines/table-engines/
-        return connection.createStatement().executeQuery("SELECT c1 AS TABLE_TYPE " +
-                "FROM VALUES ('MergeTree','ReplacingMergeTree','SummingMergeTree','AggregatingMergeTree','CollapsingMergeTree','VersionedCollapsingMergeTree','GraphiteMergeTree'," +
-                "'TinyLog','StripeLog','Log'," +
-                "'ODBC','JDBC','MySQL','MongoDB','Redis','HDFS','S3','Kafka','EmbeddedRocksDB','RabbitMQ','PostgreSQL','S3Queue','TimeSeries'," +
-                "'Distributed','Dictionary','Merge','File','Null','Set','Join','URL','View','Memory','Buffer','KeeperMap')");
+        return connection.createStatement().executeQuery("SELECT name AS TABLE_TYPE FROM system.table_engines");
     }
 
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
-        // TODO: table schema should be null by default. This comes from catalog vs schema confusion.
+        // TODO: handle useCatalogs == true and return schema catalog name
+        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+
         String sql = "SELECT " +
-                "system.columns.database AS TABLE_CAT, " +
-                "'' AS TABLE_SCHEM, " +
-                "system.columns.table AS TABLE_NAME, " +
-                "system.columns.name AS COLUMN_NAME, " +
+                catalogPlaceholder + " AS TABLE_CAT, " +
+                "database AS TABLE_SCHEM, " +
+                "table AS TABLE_NAME, " +
+                "name AS COLUMN_NAME, " +
                 JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
-                "system.columns.type AS TYPE_NAME, " +
+                "type AS TYPE_NAME, " +
                  JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
 
                 "toInt32(0) AS BUFFER_LENGTH, " +
@@ -799,51 +856,61 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean ownUpdatesAreVisible(int type) throws SQLException {
+        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean ownDeletesAreVisible(int type) throws SQLException {
+        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean ownInsertsAreVisible(int type) throws SQLException {
+        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean othersUpdatesAreVisible(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean othersDeletesAreVisible(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean othersInsertsAreVisible(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean updatesAreDetected(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean deletesAreDetected(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean insertsAreDetected(int type) throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean supportsBatchUpdates() throws SQLException {
+        // TODO: should be checked
         return false;
     }
 
@@ -866,16 +933,19 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean supportsNamedParameters() throws SQLException {
+        // TODO: it should be true
         return false;
     }
 
     @Override
     public boolean supportsMultipleOpenResults() throws SQLException {
+        // TODO: should be explained
         return false;
     }
 
     @Override
     public boolean supportsGetGeneratedKeys() throws SQLException {
+        // TODO: update when implemented in ClickHouse
         return false;
     }
 
@@ -944,7 +1014,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public int getSQLStateType() throws SQLException {
-        return sqlStateSQL;
+        return sqlStateSQL; // SQL:2003 standard
     }
 
     @Override
@@ -964,7 +1034,10 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, null AS TABLE_CATALOG FROM system.databases WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
+        // TODO: handle useCatalogs == true and return schema catalog name
+        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
+                "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
     }
 
     @Override
@@ -1012,16 +1085,16 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public long getMaxLogicalLobSize() throws SQLException {
-        return java.sql.DatabaseMetaData.super.getMaxLogicalLobSize();
+        return 0;
     }
 
     @Override
     public boolean supportsRefCursors() throws SQLException {
-        return java.sql.DatabaseMetaData.super.supportsRefCursors();
+        return false;
     }
 
     @Override
     public boolean supportsSharding() throws SQLException {
-        return java.sql.DatabaseMetaData.super.supportsSharding();
+        return false;
     }
 }
