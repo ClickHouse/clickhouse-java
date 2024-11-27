@@ -1,11 +1,15 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.jdbc.helper.SamplePOJO;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
@@ -217,6 +221,44 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(java.math.BigDecimal.valueOf(1.0), rs.getBigDecimal(1));
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
+    @Test
+    public void testUsingRowBinary() throws Exception {
+        String tableName = "test_table";
+        runQuery(SamplePOJO.generateTableCreateSQL(tableName));
+        SamplePOJO pojo = new SamplePOJO();
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName)) {
+                stmt.setObject(1, pojo);
+                stmt.addBatch();
+                int result = stmt.executeUpdate();
+                assertEquals(result, 1);
+            }
+        }
+
+
+        //Check the data
+        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
+            GenericRecord record = conn.client.queryAll("SELECT * FROM " + tableName).get(0);
+            assertEquals(record.getString("int8"), String.valueOf(pojo.getInt8()));
+            assertEquals(record.getString("int16"), String.valueOf(pojo.getInt16()));
+            assertEquals(record.getString("int32"), String.valueOf(pojo.getInt32()));
+            assertEquals(record.getString("int64"), String.valueOf(pojo.getInt64()));
+
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                    assertTrue(rs.next());
+
+                    assertEquals(rs.getString(1), String.valueOf(pojo.getInt8()));
+                    assertEquals(rs.getString(2), String.valueOf(pojo.getInt16()));
+                    assertEquals(rs.getString(3), String.valueOf(pojo.getInt32()));
+                    assertEquals(rs.getString(4), String.valueOf(pojo.getInt64()));
                 }
             }
         }
