@@ -5,12 +5,13 @@ import com.clickhouse.data.ClickHouseDataType;
 import java.sql.Types;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
     private static final Map<ClickHouseDataType, Integer> CLICKHOUSE_TO_SQL_TYPE_MAP = generateTypeMap();
     private static Map<ClickHouseDataType, Integer> generateTypeMap() {
-        Map<ClickHouseDataType, Integer> map = new HashMap<>();
+        Map<ClickHouseDataType, Integer> map = new TreeMap<>(); // TreeMap is used to sort the keys in natural order so FixedString will be before String :-) (type match should be more accurate)
         map.put(ClickHouseDataType.Int8, Types.TINYINT);
         map.put(ClickHouseDataType.UInt8, Types.TINYINT);
         map.put(ClickHouseDataType.Int16, Types.SMALLINT);

@@ -14,8 +14,9 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
+
 public class ParameterMetaDataTest extends JdbcIntegrationTest {
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParameterCount() throws SQLException {
         ParameterMetaData metaData = new ParameterMetaData(Collections.emptyList());
         assertEquals(metaData.getParameterCount(), 0);
@@ -24,14 +25,14 @@ public class ParameterMetaDataTest extends JdbcIntegrationTest {
         assertEquals(metaData.getParameterCount(), 1);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testIsNullable() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, true);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
         assertEquals(metaData.isNullable(1), ParameterMetaData.parameterNullable);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testIsSigned() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
@@ -42,7 +43,7 @@ public class ParameterMetaDataTest extends JdbcIntegrationTest {
         assertFalse(metaData.isSigned(1));
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetPrecisionAndScale() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false, 10, 5);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
@@ -50,28 +51,28 @@ public class ParameterMetaDataTest extends JdbcIntegrationTest {
         assertEquals(metaData.getScale(1), 5);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParameterType() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
         assertEquals(metaData.getParameterType(1), java.sql.Types.INTEGER);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParameterTypeName() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
         assertEquals(metaData.getParameterTypeName(1), "Int32");
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParameterClassName() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));
         assertEquals(metaData.getParameterClassName(1), "java.lang.Integer");
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParameterMode() throws SQLException {
         ClickHouseColumn column = ClickHouseColumn.of("param1", ClickHouseDataType.Int32, false);
         ParameterMetaData metaData = new ParameterMetaData(Collections.singletonList(column));

@@ -15,9 +15,10 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
+
 public class PreparedStatementTest extends JdbcIntegrationTest {
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetNull() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -31,7 +32,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetBoolean() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -45,7 +46,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetByte() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -59,7 +60,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetShort() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -73,7 +74,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetInt() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -87,7 +88,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetLong() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -101,7 +102,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetFloat() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -115,7 +116,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetDouble() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -129,7 +130,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetString() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -144,7 +145,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Ignore("Not supported yet")
-    @Test
+    @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
@@ -158,7 +159,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetDate() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
@@ -172,7 +173,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetTime() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT parseDateTime(?, '%H:%i:%s')")) {
@@ -186,7 +187,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetTimestamp() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3), toDateTime64(?, 3), toDateTime64(?, 3)")) {
@@ -208,7 +209,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testBigDecimal() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {

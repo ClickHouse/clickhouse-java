@@ -18,8 +18,10 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
+
+
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumns() throws Exception {
 
         try (Connection conn = getJdbcConnection()) {
@@ -31,6 +33,10 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
             List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5);
             List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.CHAR, Types.DECIMAL, Types.DECIMAL);
+            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Decimal(5, 4)");
+            List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true);
+            List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4);
+            List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10);
 
             for (int i = 0; i < columnNames.size(); i++) {
                 createTableStmt.append(columnNames.get(i)).append(" ").append(columnTypes.get(i)).append(',');
@@ -39,112 +45,134 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             createTableStmt.append(") ENGINE = MergeTree ORDER BY ()");
             conn.createStatement().execute(createTableStmt.toString());
 
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getColumns("default", null, tableName, null);
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getColumns("default", null, tableName, null);
 
-             int count = 0;
-             while (rs.next()) {
-                 String columnName = rs.getString("COLUMN_NAME");
-                 assertTrue(columnNames.contains(columnName));
+            int count = 0;
+            while (rs.next()) {
+                String columnName = rs.getString("COLUMN_NAME");
+                int colIndex = columnNames.indexOf(columnName);
+                System.out.println("Column name: " + columnName + " colIndex: " + colIndex);
+                assertTrue(columnNames.contains(columnName));
+                assertEquals(rs.getString("TABLE_CAT"), "");
+                assertEquals(rs.getString("TABLE_SCHEM"), "default");
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("TYPE_NAME"), columnTypeNames.get(colIndex));
+                assertEquals(rs.getInt("DATA_TYPE"), columnJDBCDataTypes.get(colIndex));
+                assertEquals(rs.getInt("COLUMN_SIZE"), columnSizes.get(colIndex));
+                assertEquals(rs.getInt("ORDINAL_POSITION"), colIndex + 1);
+                assertEquals(rs.getInt("NULLABLE"), columnNullable.get(colIndex) ? DatabaseMetaData.attributeNullable : DatabaseMetaData.attributeNoNulls);
+                assertEquals(rs.getString("IS_NULLABLE"), columnNullable.get(colIndex) ? "YES" : "NO");
 
-                 assertEquals(rs.getString("TABLE_CAT"), "default");
-                 assertEquals(rs.getString("TABLE_SCHEM"), "");
-                 assertEquals(rs.getString("TABLE_NAME"), tableName);
-
-                 System.out.println(rs.getString("TYPE_NAME") + " DATA_TYPE: " + rs.getString("DATA_TYPE") + " decimal " + rs.getInt("DECIMAL_DIGITS"));
-
-                 assertEquals(rs.getString("TYPE_NAME"), columnTypes.get(columnNames.indexOf(columnName)));
-                 assertEquals(rs.getInt("DATA_TYPE"), columnJDBCDataTypes.get(columnNames.indexOf(columnName)));
-
-
-                 assertEquals(rs.getInt("COLUMN_SIZE"), columnSizes.get(columnNames.indexOf(columnName)) );
-                 assertEquals(rs.getInt("ORDINAL_POSITION"), columnNames.indexOf(columnName) + 1);
-
-//                 assertEquals(rs.getInt("DECIMAL_DIGITS"), 64);
-//                 assertEquals(rs.getInt("NUM_PREC_RADIX"), 2);
-//                 assertEquals(rs.getInt("NULLABLE"), DatabaseMetaData.attributeNullableUnknown);
-//                 assertEquals(rs.getString("IS_NULLABLE"), "");
+                Integer decimalDigits = columnDecimalDigits.get(colIndex);
+                if (decimalDigits != null) {
+                    assertEquals(rs.getInt("DECIMAL_DIGITS"), decimalDigits.intValue());
+                } else {
+                    assertEquals(0, rs.getInt("DECIMAL_DIGITS")); // should not throw exception
+                    assertTrue(rs.wasNull());
+                }
+                Integer precisionRadix = columnRadix.get(colIndex);
+                if (precisionRadix != null) {
+                    assertEquals(rs.getInt("NUM_PREC_RADIX"), precisionRadix.intValue());
+                } else {
+                    rs.getInt("NUM_PREC_RADIX"); // should not throw exception
+                    assertTrue(rs.wasNull());
+                }
                 count++;
-             }
-             Assert.assertEquals(count, columnNames.size());
+            }
+            Assert.assertEquals(count, columnNames.size());
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetTables() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getTables("system", null, "numbers", null);
-             assertTrue(rs.next());
-             assertEquals(rs.getString("TABLE_NAME"), "numbers");
-             assertEquals(rs.getString("TABLE_TYPE"), "SystemNumbers");
-             assertFalse(rs.next());
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getTables("system", null, "numbers", null);
+            assertTrue(rs.next());
+            assertEquals(rs.getString("TABLE_NAME"), "numbers");
+            assertEquals(rs.getString("TABLE_TYPE"), "SystemNumbers");
+            assertFalse(rs.next());
         }
     }
 
     @Ignore("ClickHouse does not support primary keys")
-    @Test
+    @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getPrimaryKeys("system", null, "numbers");
-             assertTrue(rs.next());
-             assertEquals(rs.getString("TABLE_NAME"), "numbers");
-             assertEquals(rs.getString("COLUMN_NAME"), "number");
-             assertEquals(rs.getShort("KEY_SEQ"), 1);
-             assertFalse(rs.next());
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getPrimaryKeys("system", null, "numbers");
+            assertTrue(rs.next());
+            assertEquals(rs.getString("TABLE_NAME"), "numbers");
+            assertEquals(rs.getString("COLUMN_NAME"), "number");
+            assertEquals(rs.getShort("KEY_SEQ"), 1);
+            assertFalse(rs.next());
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetSchemas() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getSchemas();
-             assertTrue(rs.next());
-             assertEquals(rs.getString("TABLE_SCHEM"), "INFORMATION_SCHEMA");
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getSchemas();
+            boolean defaultSchemaFound = false;
+            while (rs.next()) {
+                if (rs.getString("TABLE_SCHEM").equals("default")) {
+                    defaultSchemaFound = true;
+                    break;
+                }
+            }
+
+            assertTrue(defaultSchemaFound);
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetCatalogs() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getCatalogs();
-             assertTrue(rs.next());
-             assertEquals(rs.getString("TABLE_CAT"), "INFORMATION_SCHEMA");
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getCatalogs();
+            assertFalse(rs.next());
+            ResultSetMetaDataTest.assertColumnNames(rs, "TABLE_CAT");
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetTableTypes() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getTableTypes();
-             assertTrue(rs.next());
-             assertEquals(rs.getString("TABLE_TYPE"), "MergeTree");
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getTableTypes();
+            int count = 0;
+            Set<String> tableTypes = new HashSet<>(Arrays.asList("MergeTree", "Log", "Memory"));
+            while (rs.next()) {
+                tableTypes.remove(rs.getString("TABLE_TYPE"));
+                count++;
+            }
+
+            assertTrue(count > 10);
+            assertTrue(tableTypes.isEmpty(), "Not all table types are found: " + tableTypes);
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnsWithEmptyCatalog() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getColumns("", null, "numbers", null);
-             assertFalse(rs.next());
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getColumns("", null, "numbers", null);
+            assertFalse(rs.next());
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnsWithEmptySchema() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-             DatabaseMetaData dbmd = conn.getMetaData();
-             ResultSet rs = dbmd.getColumns("system", "", "numbers", null);
-             assertFalse(rs.next());
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getColumns("system", "", "numbers", null);
+            assertFalse(rs.next());
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetServerVersions() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -155,17 +183,17 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetTypeInfo() throws Exception {
         Assert.fail("Not implemented");
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetProcedures() throws Exception {
         Assert.fail("Not implemented");
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetClientInfoProperties() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -174,14 +202,5 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             }
         }
         Assert.fail("Not implemented");
-    }
-
-    @Test
-    public void testGetCatalogTerm() throws Exception {
-        // TODO: test support for catalog and schema terms
-        try (Connection conn = getJdbcConnection()) {
-            DatabaseMetaData dbmd = conn.getMetaData();
-            Assert.assertEquals(dbmd.getCatalogTerm(), "catalog");
-        }
     }
 }

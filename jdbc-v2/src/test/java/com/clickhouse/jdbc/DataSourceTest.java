@@ -14,6 +14,7 @@ import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+
 public class DataSourceTest extends JdbcIntegrationTest {
     private DataSourceImpl dataSource;
 
@@ -32,36 +33,36 @@ public class DataSourceTest extends JdbcIntegrationTest {
         dataSource = null;
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetConnection() throws SQLException {
         Connection connection = dataSource.getConnection();
         assertNotNull(connection);
         connection.close();
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetConnectionWithUserAndPassword() throws SQLException {
         Connection connection = dataSource.getConnection("default", ClickHouseServerForTest.getPassword());
         assertNotNull(connection);
         connection.close();
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetLogWriter() throws SQLException {
         assertNull(dataSource.getLogWriter());
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetLogWriter() throws SQLException {
         dataSource.setLogWriter(null);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSetLoginTimeout() {
         assertThrows(SQLFeatureNotSupportedException.class, () -> dataSource.setLoginTimeout(0));
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetLoginTimeout() {
         assertThrows(SQLFeatureNotSupportedException.class, () -> dataSource.getLoginTimeout());
     }

@@ -674,7 +674,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
 //        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
 
         String sql = "SELECT " +
                  catalogPlaceholder + " AS TABLE_CAT, " +
@@ -712,7 +712,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas() throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
         return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
     }
 
@@ -741,7 +741,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
 
         String sql = "SELECT " +
                 catalogPlaceholder + " AS TABLE_CAT, " +
@@ -749,12 +749,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
                 JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
-                "type AS TYPE_NAME, " +
-                 JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
-
+                "replaceRegexpOne(type, '^Nullable\\(([\\\\w ,\\\\)\\\\(]+)\\)$', '\\\\1') AS TYPE_NAME, " +
+                JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
-                "if(numeric_scale IS NOT NULL, numeric_scale, 0) as DECIMAL_DIGITS,  " +
-                "toInt32(system.columns.numeric_precision_radix) AS NUM_PREC_RADIX, " +
+                "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
+                "toInt32(numeric_precision_radix) AS NUM_PREC_RADIX, " +
                 "toInt32(position(type, 'Nullable(') >= 1 ?" + java.sql.DatabaseMetaData.typeNullable + " : " + java.sql.DatabaseMetaData.typeNoNulls + ") as NULLABLE, " +
                 "system.columns.comment AS REMARKS, " +
                 "system.columns.default_expression AS COLUMN_DEF, " +
@@ -762,7 +761,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "toInt32(0) AS SQL_DATETIME_SUB, " +
                 "character_octet_length AS CHAR_OCTET_LENGTH, " +
                 "toInt32(system.columns.position) AS ORDINAL_POSITION, " +
-                "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' AS IS_NULLABLE," +
+                "position(upper(type), 'NULLABLE') >= 1 ? 'YES' : 'NO' AS IS_NULLABLE," +
                 "NULL AS SCOPE_CATALOG, " +
                 "NULL AS SCOPE_SCHEMA, " +
                 "NULL AS SCOPE_TABLE, " +
@@ -773,7 +772,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
                 " AND database LIKE '" + (catalog == null ? "%" : catalog) + "'" +
                 " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'";
+                " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
+                " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         log.info("getColumns: {}", sql);
 
         return connection.createStatement().executeQuery(sql);
@@ -1035,7 +1035,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "";
+        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
         return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
                 "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
     }
