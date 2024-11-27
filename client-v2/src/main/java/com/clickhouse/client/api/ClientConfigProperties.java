@@ -140,7 +140,10 @@ public enum ClientConfigProperties {
         for (Object value : values) {
             sb.append(value.toString().replaceAll(",", "\\\\,")).append(",");
         }
-        sb.setLength(sb.length() - 1);
+
+        if (!sb.isEmpty()) {
+            sb.setLength(sb.length() - 1);
+        }
         return sb.toString();
     }
 

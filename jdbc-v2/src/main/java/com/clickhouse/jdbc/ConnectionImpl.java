@@ -23,6 +23,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     protected final JdbcConfiguration config;
 
     private boolean closed = false;
+    protected boolean onCluster = false;//TODO: Placeholder for cluster support
     private String catalog;
     private String schema;
     private QuerySettings defaultQuerySettings;

@@ -3,8 +3,12 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -51,5 +55,26 @@ public class JdbcUtils {
         }
         sql.append(Types.OTHER + ")");
         return sql.toString();
+    }
+
+    public static List<String> tokenizeSQL(String sql) {
+        List<String> tokens = new ArrayList<>();
+        Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(sql);
+        while (m.find()) {
+            String token = m.group(1).replace("\"", "").trim();
+            if (!token.isEmpty() && token.charAt(token.length() - 1) == ',') {
+                token = token.substring(0, token.length() - 1);
+            }
+
+            if (!isBlank(token)) {
+                tokens.add(token);
+            }
+        }
+
+        return tokens;
+    }
+
+    public static boolean isBlank(String str) {
+        return str == null || str.isEmpty() || str.trim().isEmpty();
     }
 }
