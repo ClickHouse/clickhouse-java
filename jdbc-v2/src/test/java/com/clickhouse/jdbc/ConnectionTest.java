@@ -21,7 +21,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test
     public void prepareStatementTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        PreparedStatement statement = localConnection.prepareStatement("SELECT 1");
+        PreparedStatement statement = localConnection.prepareStatement("SELECT ?");
+        statement.setInt(1, 1);
         Assert.assertNotNull(statement);
         Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", Statement.RETURN_GENERATED_KEYS));
         Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", new int[] { 1 }));

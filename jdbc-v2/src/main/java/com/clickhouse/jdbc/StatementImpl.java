@@ -1,13 +1,17 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -47,11 +51,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
     }
 
-    protected StatementType parseStatementType(String sql) {
-        String[] tokens = sql.trim().split("\\s+");
-        if (tokens.length == 0) {
+    protected static StatementType parseStatementType(String sql) {
+        if (sql == null || sql.isEmpty() || sql.trim().isEmpty()) {
             return StatementType.OTHER;
         }
+        String[] tokens = sql.trim().split("\\s+");
 
         switch (tokens[0].toUpperCase()) {
             case "SELECT": return StatementType.SELECT;
@@ -72,13 +76,35 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    protected String parseTableName(String sql) {
-        String[] tokens = sql.trim().split("\\s+");
-        if (tokens.length < 3) {
-            return null;
+    protected static String parseTableName(String sql) throws SQLException {
+        if (sql == null || sql.isEmpty() || sql.trim().isEmpty()) {
+            throw new SQLException("Cannot parse table name - SQL statement is empty");
         }
 
-        return tokens[2];
+        StatementType type = parseStatementType(sql);
+
+        if (type == StatementType.INSERT) {
+            int valuesIndex = sql.toUpperCase().indexOf("VALUES");
+            int intoIndex = sql.toUpperCase().indexOf("INTO");
+            if (valuesIndex > 0) {
+                // INSERT INTO table_name VALUES(...)
+                if (intoIndex > 0) {
+                    int tableNameStart = intoIndex + 4;
+                    return sql.substring(tableNameStart, valuesIndex).split("\\(")[0].trim();
+                }
+            } else {
+                // INSERT INTO table_name SELECT ...
+                if (intoIndex > 0) {
+                    int tableNameStart = intoIndex + 4;
+                    int tableNameEnd = sql.length();
+                    return sql.substring(tableNameStart, tableNameEnd).split("\\(")[0].trim();
+                }
+            }
+        } else {
+            throw new SQLException("Cannot parse table name - SQL statement is not an INSERT statement");
+        }
+
+        return null;
     }
 
     protected static String parseJdbcEscapeSyntax(String sql) {
@@ -159,6 +185,27 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+    }
+
+    protected long executeInsert(String tableName, List<Object> data, InsertSettings settings) throws SQLException {
+        checkClosed();
+
+        try {
+            InsertResponse response;
+            if (queryTimeout == 0) {
+                response = connection.client.insert(tableName, data, settings).get();
+            } else {
+                response = connection.client.insert(tableName, data, settings).get(queryTimeout, TimeUnit.SECONDS);
+            }
+
+            currentResultSet = null;
+            metrics = response.getMetrics();
+            response.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
     }
 
     @Override
@@ -259,6 +306,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
         return firstIsResult;
     }
+
+
 
     @Override
     public ResultSet getResultSet() throws SQLException {

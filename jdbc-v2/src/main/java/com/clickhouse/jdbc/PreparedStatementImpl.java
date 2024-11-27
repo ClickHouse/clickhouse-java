@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,9 +35,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Map;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
@@ -48,20 +52,50 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
 
     String originalSql;
-    String [] sqlSegments;
-    Object [] parameters;
-    public PreparedStatementImpl(ConnectionImpl connection, String sql) {
-        super(connection);
-        this.originalSql = sql;
-        //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = sql.split("\\?");
+    String[] sqlSegments;
+    Object[] parameters;
+    int setCalls;//The number of times set* methods have been called
 
-        //Create an array of objects to store the parameters
-        if (originalSql.contains("?")) {
-            int count = originalSql.length() - originalSql.replace("?", "").length();
-            this.parameters = new Object[count];
-        } else {
-            this.parameters = new Object[0];
+    //For insertRowBinary fanciness
+    StatementType statementType;
+    boolean insertRowBinary;
+    List<Object> insertRowBinaryData;
+    String tableName;
+    TableSchema tableSchema;
+
+
+    public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
+        super(connection);
+
+        try {
+            this.originalSql = sql;
+            this.setCalls = 0;
+            this.statementType = parseStatementType(sql);
+            this.insertRowBinary = false;
+            this.insertRowBinaryData = new ArrayList<>();
+            this.tableName = null;
+            this.tableSchema = null;
+
+            //Split the sql string into an array of strings around question mark tokens
+            this.sqlSegments = sql.split("\\?");
+
+            //Create an array of objects to store the parameters
+            if (originalSql.contains("?")) {
+                int count = originalSql.length() - originalSql.replace("?", "").length();
+                this.parameters = new Object[count];
+            } else {
+                if (statementType != StatementType.INSERT) {
+                    throw new SQLException("SQL prepared statement does not contain any placeholders.");
+                }
+
+                this.parameters = new Object[0];
+                this.insertRowBinary = true;//We only use this when no parameters are present and the statement is an insert
+                this.tableName = parseTableName(sql);
+                this.tableSchema = connection.client.getTableSchema(tableName);
+            }
+        } catch (Exception e) {
+            LOG.error("Error creating prepared statement", e);
+            throw new SQLException("Error creating prepared statement", e);
         }
     }
 
@@ -77,16 +111,91 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         return sb.toString();
     }
 
+    private boolean enoughParameters() {
+        return this.parameters.length == setCalls || insertRowBinary;
+    }
+
     @Override
     public ResultSet executeQuery() throws SQLException {
         checkClosed();
-        return executeQuery(compileSql());
+
+        if (!enoughParameters()) {
+            throw new SQLException("The number of parameters does not match the number of placeholders in the SQL string.");
+        }
+
+        return super.executeQuery(compileSql());
+    }
+
+    @Override
+    public ResultSet executeQuery(String sql) throws SQLException {
+        checkClosed();
+        throw new SQLException("executeQuery(String) is not supported in PreparedStatements.");
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         checkClosed();
-        return executeUpdate(compileSql());
+        if (insertRowBinary) {
+            return (int) super.executeInsert(tableName, insertRowBinaryData, new InsertSettings());
+        }
+
+        if (!enoughParameters()) {
+            throw new SQLException("The number of parameters does not match the number of placeholders in the SQL string.");
+        }
+
+        return super.executeUpdate(compileSql());
+    }
+
+    @Override
+    public int executeUpdate(String sql) throws SQLException {
+        checkClosed();
+        throw new SQLException("executeUpdate(String) is not supported in PreparedStatements.");
+    }
+
+    @Override
+    public boolean execute() throws SQLException {
+        checkClosed();
+        if (insertRowBinary) {
+            super.executeInsert(tableName, insertRowBinaryData, new InsertSettings());
+            return false;
+        }
+
+        if (!enoughParameters()) {
+            throw new SQLException("The number of parameters does not match the number of placeholders in the SQL string.");
+        }
+        return super.execute(compileSql());
+    }
+
+    @Override
+    public boolean execute(String sql) throws SQLException {
+        checkClosed();
+        throw new SQLException("execute(String) is not supported in PreparedStatements.");
+    }
+
+    @Override
+    public void addBatch() throws SQLException {
+        checkClosed();
+        if (!insertRowBinary) {//We ignore this for insertRowBinary
+            if (!enoughParameters()) {
+                throw new SQLException("The number of parameters does not match the number of placeholders in the SQL string.");
+            }
+            super.addBatch(compileSql());
+        }
+    }
+
+    @Override
+    public void addBatch(String sql) throws SQLException {
+        checkClosed();
+        throw new SQLException("addBatch(String) is not supported in PreparedStatements.");
+    }
+
+    @Override
+    public int[] executeBatch() throws SQLException {
+        checkClosed();
+        if (insertRowBinary) {
+            return new int[] { (int) super.executeInsert(tableName, insertRowBinaryData, new InsertSettings()) };
+        }
+        return super.executeBatch();
     }
 
     @Override
@@ -152,6 +261,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         checkClosed();
+
         parameters[parameterIndex - 1] = encodeObject(x);
     }
 
@@ -194,11 +304,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        if (originalSql.contains("?")) {
-            this.parameters = new Object[sqlSegments.length];
-        } else {
-            this.parameters = new Object[0];
-        }
+        int paramCount = parameters.length;
+        this.parameters = new Object[paramCount];
+        this.setCalls = 0;
     }
 
     @Override
@@ -211,18 +319,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void setObject(int parameterIndex, Object x) throws SQLException {
         checkClosed();
         setObject(parameterIndex, x, Types.OTHER);
-    }
-
-    @Override
-    public boolean execute() throws SQLException {
-        checkClosed();
-        return execute(compileSql());
-    }
-
-    @Override
-    public void addBatch() throws SQLException {
-        checkClosed();
-        addBatch(compileSql());
     }
 
     @Override
@@ -240,13 +336,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Blob is not supported.");
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Clob is not supported.");
     }
 
     @Override
@@ -342,31 +438,31 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNClob(int parameterIndex, NClob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("NClob is not supported.");
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Clob is not supported.");
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Blob is not supported.");
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("NClob is not supported.");
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("SQLXML is not supported.");
     }
 
     @Override
@@ -420,25 +516,40 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Clob is not supported.");
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("Blob is not supported.");
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        throw new SQLFeatureNotSupportedException("NClob is not supported.");
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+
+        try {
+            if (!insertRowBinary) {
+                parameters[parameterIndex - 1] = encodeObject(x);
+            } else {
+                if (insertRowBinaryData.isEmpty()) {//Register the first object
+                    Class<?> clazz = x.getClass();
+                    connection.client.register(clazz, tableSchema);
+                }
+
+                insertRowBinaryData.add(x);
+            }
+        } catch (Exception e) {
+            LOG.error("Error setting object", e);
+            throw new SQLException("Error setting object", e);
+        }
     }
 
     @Override
@@ -453,7 +564,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         return PreparedStatement.super.executeLargeUpdate();
     }
 
-    private static String encodeObject(Object x) throws SQLException {
+    private String encodeObject(Object x) throws SQLException {
+        return encodeObject(x, true);
+    }
+    private String encodeObject(Object x, boolean shouldIncrementCount) throws SQLException {
+        if (shouldIncrementCount) {
+            setCalls++;
+        }
+
         try {
             if (x == null) {
                 return "NULL";
@@ -476,8 +594,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Array) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");
-                for (Object item : (Object[])((Array) x).getArray()) {
-                    listString.append(encodeObject(item)).append(", ");
+                for (Object item : (Object[]) ((Array) x).getArray()) {
+                    listString.append(encodeObject(item, false)).append(", ");
                 }
                 listString.delete(listString.length() - 2, listString.length());
                 listString.append("]");
@@ -487,7 +605,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");
                 for (Object item : (Collection<?>) x) {
-                    listString.append(encodeObject(item)).append(", ");
+                    listString.append(encodeObject(item, false)).append(", ");
                 }
                 listString.delete(listString.length() - 2, listString.length());
                 listString.append("]");
@@ -498,7 +616,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 StringBuilder mapString = new StringBuilder();
                 mapString.append("{");
                 for (Object key : tmpMap.keySet()) {
-                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
+                    mapString.append(encodeObject(key, false)).append(": ").append(encodeObject(tmpMap.get(key), false)).append(", ");
                 }
                 mapString.delete(mapString.length() - 2, mapString.length());
                 mapString.append("}");
