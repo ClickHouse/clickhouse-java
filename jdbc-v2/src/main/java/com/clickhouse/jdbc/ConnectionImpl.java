@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,10 +11,12 @@ import org.slf4j.LoggerFactory;
 import java.sql.*;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
@@ -169,7 +172,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setCatalog(String catalog) throws SQLException {
         checkOpen();
-        this.catalog = catalog;
+//        this.catalog = catalog; currently not supported
     }
 
     @Override
@@ -347,27 +350,34 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
-//        try {
-//            checkOpen();
-//            this.defaultQuerySettings.setOption(name, value);
-//        } catch (Exception e) {
-//            throw new SQLClientInfoException("Failed to set client info.", Collections.singletonMap(name, ClientInfoStatus.REASON_UNKNOWN), e);
-//        }
-        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
+        if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
+            client.updateClientName(value);
+        }
+        // TODO: generate warning for unknown properties
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
-//        try {
-//            checkOpen();
-//        } catch (SQLException e) {
-//            throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), e);
-//        }
-//
-//        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
-//            setClientInfo(entry.getKey().toString(), entry.getValue().toString());
-//        }
-        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
+        Set<String> toSet = new HashSet<>();
+        Set<String> toReset = new HashSet<>();
+        for (ClientInfoProperties p : ClientInfoProperties .values()) {
+            String key = p.getKey();
+            if (properties.containsKey(key)) {
+                toSet.add(key);
+            } else {
+                toReset.add(key);
+            }
+        }
+
+        // first we reset value
+        for (String key : toReset) {
+            setClientInfo(key, null);
+        }
+
+        // then we set value, so aliases will not clean values accidentally
+        for (String key : toSet) {
+            setClientInfo(key, properties.getProperty(key));
+        }
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.jdbc.JdbcIntegrationTest;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import org.testng.Assert;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
@@ -198,9 +199,14 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getClientInfoProperties()) {
-                Assert.assertTrue(rs.next());
+                for (ClientInfoProperties p : ClientInfoProperties.values()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString("NAME"), p.getKey());
+                    Assert.assertEquals(rs.getInt("MAX_LEN"), p.getMaxValue());
+                    Assert.assertEquals(rs.getString("DEFAULT_VALUE"), p.getDefaultValue());
+                    Assert.assertEquals(rs.getString("DESCRIPTION"), p.getDescription());
+                }
             }
         }
-        Assert.fail("Not implemented");
     }
 }

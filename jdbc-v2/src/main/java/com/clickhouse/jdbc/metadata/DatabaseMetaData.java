@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -11,6 +12,9 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
@@ -1050,11 +1054,26 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         return false;
     }
 
+    private static final String CLIENT_INFO_PROPERTIES_SQL = getClientInfoPropertiesSql();
+
+    private static String getClientInfoPropertiesSql() {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT c1 as NAME, c2 as MAX_LEN, c3 as DEFAULT_VALUE, c4 as DESCRIPTION FROM VALUES (");
+        Arrays.stream(ClientInfoProperties.values()).forEach(p -> {
+            sql.append("('").append(p.getKey()).append("', ");
+            sql.append(p.getMaxValue()).append(", ");
+            sql.append("'").append(p.getDefaultValue()).append("', ");
+            sql.append("'").append(p.getDescription()).append("'), ");
+        });
+        sql.setLength(sql.length() - 2);
+        sql.append(")");
+        return sql.toString();
+    }
+
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getClientInfoProperties is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS NAME, NULL AS MAX_LEN, NULL AS DEFAULT_VALUE, NULL AS DESCRIPTION");
+
+        return connection.createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
     }
 
     @Override
