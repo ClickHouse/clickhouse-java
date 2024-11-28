@@ -113,7 +113,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return executeQuery(sql, new QuerySettings().setDatabase(schema));
     }
 
-    public ResultSet executeQuery(String sql, QuerySettings settings) throws SQLException {
+    public ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
@@ -143,6 +143,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
+        // TODO: close current result set?
         checkClosed();
 
         if (parseStatementType(sql) == StatementType.SELECT) {
@@ -255,9 +256,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         StatementType type = parseStatementType(sql);
 
         if (type == StatementType.SELECT) {
-            try (ResultSet rs = executeQuery(sql, settings)) {
-                return true;
-            }
+            executeQuery(sql, settings); // keep open to allow getResultSet()
+            return true;
         } else if(type == StatementType.SET) {
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);

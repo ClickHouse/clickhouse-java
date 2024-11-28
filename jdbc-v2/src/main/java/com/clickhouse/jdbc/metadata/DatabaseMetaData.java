@@ -398,7 +398,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean supportsSchemasInProcedureCalls() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -658,14 +658,43 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        //TODO: Drill into this
-        throw new RuntimeException("Not implemented");
+        String sql = "SELECT " +
+                "'' AS FUNCTION_CAT, " +
+                "'' AS FUNCTION_SCHEM, " +
+                "'' AS FUNCTION_NAME, " +
+                "'' AS REMARKS, " +
+                "0 AS FUNCTION_TYPE, " +
+                "'' AS SPECIFIC_NAME " +
+                "LIMIT 0";
+        log.info("getProcedures: {}", sql);
+        return connection.createStatement().executeQuery(sql);
     }
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        //TODO: Drill into this
-        throw new RuntimeException("Not implemented");
+        String sql = "SELECT " +
+                "'' AS PROCEDURE_CAT, " +
+                "'' AS PROCEDURE_SCHEM, " +
+                "'' AS PROCEDURE_NAME, " +
+                "'' AS COLUMN_NAME, " +
+                "0 AS COLUMN_TYPE, " +
+                "0 AS DATA_TYPE, " +
+                "'' AS TYPE_NAME, " +
+                "0 AS PRECISION, " +
+                "0 AS LENGTH, " +
+                "0 AS SCALE, " +
+                "0 AS RADIX, " +
+                "0 AS NULLABLE, " +
+                "'' AS REMARKS, " +
+                "'' AS COLUMN_DEF, " +
+                "0 AS SQL_DATA_TYPE, " +
+                "0 AS SQL_DATETIME_SUB, " +
+                "0 AS CHAR_OCTET_LENGTH, " +
+                "0 AS ORDINAL_POSITION, " +
+                "'' AS IS_NULLABLE, " +
+                "'' AS SPECIFIC_NAME " +
+                "LIMIT 0";
+        return connection.createStatement().executeQuery(sql);
     }
 
     /**
@@ -1079,27 +1108,58 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "NULL AS FUNCTION_CAT, " +
                 "NULL AS FUNCTION_SCHEM, " +
                 "name AS FUNCTION_NAME, " +
-                "description AS REMARKS, " +
+                "concat(description, '(', origin, ')') AS REMARKS, " +
                 java.sql.DatabaseMetaData.functionResultUnknown + " AS FUNCTION_TYPE, " +
                 "name AS SPECIFIC_NAME " +
                 "FROM system.functions " +
                 "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
-        System.out.println("getFunctions: " + sql);
+        log.info("getFunctions: " + sql);
         return connection.createStatement().executeQuery(sql);
     }
 
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getFunctionColumns is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS FUNCTION_CAT, NULL AS FUNCTION_SCHEM, NULL AS FUNCTION_NAME, NULL AS COLUMN_NAME, NULL AS COLUMN_TYPE, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS PRECISION, NULL AS LENGTH, NULL AS SCALE, NULL AS RADIX, NULL AS NULLABLE, NULL AS REMARKS, NULL AS CHAR_OCTET_LENGTH, NULL AS ORDINAL_POSITION, NULL AS IS_NULLABLE, NULL AS SPECIFIC_NAME");
+        String sql = "SELECT " +
+                "'' AS FUNCTION_CAT, " +
+                "'' AS FUNCTION_SCHEM, " +
+                "'' AS FUNCTION_NAME, " +
+                "'' AS COLUMN_NAME, " +
+                "0 AS COLUMN_TYPE, " +
+                "0 AS DATA_TYPE, " +
+                "'' AS TYPE_NAME, " +
+                "0 AS PRECISION, " +
+                "0 AS LENGTH, " +
+                "0 AS SCALE, " +
+                "0 AS RADIX, " +
+                "0 AS NULLABLE, " +
+                "'' AS REMARKS, " +
+                "0 AS CHAR_OCTET_LENGTH, " +
+                "0 AS ORDINAL_POSITION, " +
+                "0 AS IS_NULLABLE, " +
+                "'' AS SPECIFIC_NAME " +
+                "LIMIT 0";
+
+        return connection.createStatement().executeQuery(sql);
     }
 
     @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getPseudoColumns is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS COLUMN_SIZE, NULL AS DECIMAL_DIGITS, NULL AS NUM_PREC_RADIX, NULL AS COLUMN_USAGE, NULL AS REMARKS, NULL AS CHAR_OCTET_LENGTH, NULL AS IS_NULLABLE");
+        String sql = "SELECT " +
+                "'' AS TABLE_CAT, " +
+                "'' AS TABLE_SCHEM, " +
+                "'' AS TABLE_NAME, " +
+                "'' AS COLUMN_NAME, " +
+                "0 AS DATA_TYPE, " +
+                "0 AS COLUMN_SIZE, " +
+                "0 AS DECIMAL_DIGITS, " +
+                "0 AS NUM_PREC_RADIX, " +
+                "'' AS COLUMN_USAGE, " +
+                "'' AS REMARKS, " +
+                "0 AS CHAR_OCTET_LENGTH, " +
+                "'' AS IS_NULLABLE " +
+                " LIMIT 0";
+
+        return connection.createStatement().executeQuery(sql);
     }
 
     @Override
