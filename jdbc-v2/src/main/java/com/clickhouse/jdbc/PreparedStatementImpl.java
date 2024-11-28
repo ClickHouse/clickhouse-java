@@ -476,10 +476,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Array) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");
+                int i = 0;
                 for (Object item : (Object[])((Array) x).getArray()) {
-                    listString.append(encodeObject(item)).append(", ");
+                    if (i > 0) {
+                        listString.append(", ");
+                    }
+                    listString.append(encodeObject(item));
+                    i++;
                 }
-                listString.delete(listString.length() - 2, listString.length());
                 listString.append("]");
 
                 return listString.toString();

@@ -135,7 +135,7 @@ public class InsertSettings {
      * @param enabled - indicates if client request compression is enabled
      */
     public InsertSettings compressClientRequest(boolean enabled) {
-        this.rawSettings.put("decompress", enabled);
+        this.rawSettings.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), enabled);
         return this;
     }
 
