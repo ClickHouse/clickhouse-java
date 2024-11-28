@@ -224,7 +224,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
-                    connection.onCluster ? " ON CLUSTER " : " ",
+                    connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
                     lastQueryId), connection.getDefaultQuerySettings()).get();
         } catch (Exception e) {
             throw new SQLException(e);
@@ -262,15 +262,15 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         } else if(type == StatementType.SET) {
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
-            if (tokens.contains("ROLE")) {
+            if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
                 List<String> roles = new ArrayList<>();
-                int roleIndex = tokens.indexOf("ROLE");
+                int roleIndex = JdbcUtils.indexOfIgnoresCase(tokens, "ROLE");
                 if (roleIndex == 1) {
                     for (int i = 2; i < tokens.size(); i++) {
                         roles.add(tokens.get(i));
                     }
 
-                    if (roles.contains("NONE")) {
+                    if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {
                         connection.client.setDBRoles(Collections.emptyList());
                     } else {
                         connection.client.setDBRoles(roles);

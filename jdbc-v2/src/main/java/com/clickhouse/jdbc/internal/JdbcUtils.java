@@ -77,4 +77,32 @@ public class JdbcUtils {
     public static boolean isBlank(String str) {
         return str == null || str.isEmpty() || str.trim().isEmpty();
     }
+
+    public static boolean containsIgnoresCase(List<String> list, String str) {
+        if (list == null || list.isEmpty() || isBlank(str)) {
+            return false;
+        }
+
+        for (String s : list) {
+            if (s.equalsIgnoreCase(str)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static int indexOfIgnoresCase(List<String> list, String str) {
+        if (list == null || list.isEmpty() || isBlank(str)) {
+            return -1;
+        }
+
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).equalsIgnoreCase(str)) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }
