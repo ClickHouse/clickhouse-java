@@ -17,6 +17,7 @@ import java.util.Set;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 
@@ -188,10 +189,23 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     public void testGetTypeInfo() throws Exception {
         Assert.fail("Not implemented");
     }
-
-    @Test(groups = { "integration" }, enabled = false)
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
+    @Test(groups = { "integration" })
     public void testGetFunctions() throws Exception {
-        Assert.fail("Not implemented");
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getFunctions(null, null, "mapContains")) {
+                assertTrue(rs.next());
+                assertNull(rs.getString("FUNCTION_CAT"));
+                assertNull(rs.getString("FUNCTION_SCHEM"));
+                assertEquals(rs.getString("FUNCTION_NAME"), "mapContains");
+                assertTrue(rs.getString("REMARKS").startsWith("Checks whether the map has the specified key"));
+                assertEquals(rs.getShort("FUNCTION_TYPE"), DatabaseMetaData.functionResultUnknown);
+                assertEquals(rs.getString("SPECIFIC_NAME"), "mapContains");
+            }
+        }
     }
 
     @Test(groups = { "integration" })

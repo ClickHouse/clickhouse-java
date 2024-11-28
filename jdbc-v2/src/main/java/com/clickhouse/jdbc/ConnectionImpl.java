@@ -57,6 +57,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setPassword(config.getPassword())
                 .setClientName(clientName)
                 .build();
+        this.schema = client.getDefaultDatabase(); // TODO: fix in properties handling?
         this.defaultQuerySettings = new QuerySettings();
 
         this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false);

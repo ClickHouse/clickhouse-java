@@ -21,6 +21,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     ConnectionImpl connection;
 
     private boolean useCatalogs = false;
+    private String catalogPlaceholder;
 
     /**
      * Creates an instance of DatabaseMetaData for the given connection.
@@ -35,6 +36,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
         this.connection = connection;
         this.useCatalogs = useCatalogs;
+        this.catalogPlaceholder = useCatalogs ? "'local' " : "''";
     }
 
     @Override
@@ -678,7 +680,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
 //        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
 
         String sql = "SELECT " +
                  catalogPlaceholder + " AS TABLE_CAT, " +
@@ -716,7 +717,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas() throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
         return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
     }
 
@@ -745,8 +745,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
-
         String sql = "SELECT " +
                 catalogPlaceholder + " AS TABLE_CAT, " +
                 "database AS TABLE_SCHEM, " +
@@ -1039,7 +1037,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        String catalogPlaceholder = useCatalogs ? "'local' " : "''";
         return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
                 "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
     }
@@ -1078,9 +1075,17 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getFunctions is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS FUNCTION_CAT, NULL AS FUNCTION_SCHEM, NULL AS FUNCTION_NAME, NULL AS REMARKS, NULL AS FUNCTION_TYPE, NULL AS SPECIFIC_NAME");
+        String sql = "SELECT " +
+                "NULL AS FUNCTION_CAT, " +
+                "NULL AS FUNCTION_SCHEM, " +
+                "name AS FUNCTION_NAME, " +
+                "description AS REMARKS, " +
+                java.sql.DatabaseMetaData.functionResultUnknown + " AS FUNCTION_TYPE, " +
+                "name AS SPECIFIC_NAME " +
+                "FROM system.functions " +
+                "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
+        System.out.println("getFunctions: " + sql);
+        return connection.createStatement().executeQuery(sql);
     }
 
     @Override

@@ -50,7 +50,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String originalSql;
     String [] sqlSegments;
     Object [] parameters;
-    public PreparedStatementImpl(ConnectionImpl connection, String sql) {
+    public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
         this.originalSql = sql;
         //Split the sql string into an array of strings around question mark tokens
