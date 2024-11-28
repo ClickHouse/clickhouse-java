@@ -322,7 +322,7 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.setQueryTimeout(1);
                 assertThrows(SQLException.class, () -> {
-                    try (ResultSet rs = stmt.executeQuery("SELECT sleep(2)")) {
+                    try (ResultSet rs = stmt.executeQuery("SELECT sleep(5)")) {
                         assertFalse(rs.next());
                     }
                 });
