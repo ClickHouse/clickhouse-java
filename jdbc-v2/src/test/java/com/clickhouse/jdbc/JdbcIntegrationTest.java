@@ -4,6 +4,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -45,6 +46,37 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         } catch (SQLException e) {
             LOGGER.error("Failed to run query: {}", query, e);
             return false;
+        }
+    }
+
+
+    protected boolean earlierThan(int major, int minor) {
+        String serverVersion = getServerVersion();
+        if (serverVersion == null) {
+            return false;
+        }
+
+        String[] parts = serverVersion.split("\\.");
+        if (parts.length < 2) {
+            return false;
+        }
+
+        try {
+            int serverMajor = Integer.parseInt(parts[0]);
+            int serverMinor = Integer.parseInt(parts[1]);
+            return serverMajor < major || (serverMajor == major && serverMinor < minor);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    protected String getServerVersion() {
+        try (ConnectionImpl connection = (ConnectionImpl) getJdbcConnection()) {
+            GenericRecord result = connection.client.queryAll("SELECT version() as server_version").stream()
+                    .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version."));
+            return result.getString("server_version");
+        } catch (SQLException e) {
+            return null;
         }
     }
 }

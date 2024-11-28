@@ -23,6 +23,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     protected final JdbcConfiguration config;
 
     private boolean closed = false;
+    protected boolean onCluster;//TODO: Placeholder for cluster support
+    protected String cluster;
     private String catalog;
     private String schema;
     private QuerySettings defaultQuerySettings;
@@ -31,6 +33,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         log.debug("Creating connection to {}", url);
         this.url = url;//Raw URL
         this.config = new JdbcConfiguration(url, info);
+        this.onCluster = false;
+        this.cluster = null;
         String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
 
         if (this.config.isDisableFrameworkDetection()) {

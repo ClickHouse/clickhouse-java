@@ -5,6 +5,7 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +16,9 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -27,6 +30,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     private List<String> batch;
+    private String lastQueryId;
 
     public StatementImpl(ConnectionImpl connection) {
         this.connection = connection;
@@ -121,6 +125,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
+            lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -153,6 +158,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             currentResultSet = null;
             metrics = response.getMetrics();
+            lastQueryId = response.getQueryId();
             response.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -212,8 +218,17 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void cancel() throws SQLException {
-        checkClosed();
-        throw new UnsupportedOperationException("Cancel is not supported.");
+        if (closed) {
+            return;
+        }
+
+        try {
+            connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
+                    connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
+                    lastQueryId), connection.getDefaultQuerySettings()).get();
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
@@ -239,25 +254,34 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     public boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
-        List<String> statements = List.of(sql.split(";"));
-        boolean firstIsResult = false;
+        StatementType type = parseStatementType(sql);
 
-        int index = 0;
-        for (String statement : statements) {
-            StatementType type = parseStatementType(statement);
+        if (type == StatementType.SELECT) {
+            executeQuery(sql, settings);
+            return true;
+        } else if(type == StatementType.SET) {
+            //SET ROLE
+            List<String> tokens = JdbcUtils.tokenizeSQL(sql);
+            if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
+                List<String> roles = new ArrayList<>();
+                int roleIndex = JdbcUtils.indexOfIgnoresCase(tokens, "ROLE");
+                if (roleIndex == 1) {
+                    for (int i = 2; i < tokens.size(); i++) {
+                        roles.add(tokens.get(i));
+                    }
 
-            if (type == StatementType.SELECT) {
-                executeQuery(statement, settings);
-                if (index == 0) {
-                    firstIsResult = true;
+                    if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {
+                        connection.client.setDBRoles(Collections.emptyList());
+                    } else {
+                        connection.client.setDBRoles(roles);
+                    }
                 }
-            } else {
-                executeUpdate(statement, settings);
             }
-
-            index++;
+            return false;
+        } else {
+            executeUpdate(sql, settings);
+            return false;
         }
-        return firstIsResult;
     }
 
     @Override

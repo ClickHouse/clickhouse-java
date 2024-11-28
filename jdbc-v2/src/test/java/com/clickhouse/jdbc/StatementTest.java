@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.query.GenericRecord;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -8,6 +10,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -16,7 +21,7 @@ import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 public class StatementTest extends JdbcIntegrationTest {
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQuerySimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -36,7 +41,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQuerySimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -52,7 +57,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQueryBooleans() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -66,7 +71,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQueryStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -80,7 +85,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQueryNulls() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -96,7 +101,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQueryDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -124,7 +129,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateSimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -143,7 +148,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateSimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -162,7 +167,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateBooleans() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -181,7 +186,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -200,7 +205,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateNulls() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -219,7 +224,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -242,7 +247,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteUpdateBatch() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -270,7 +275,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testJdbcEscapeSyntax() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -311,17 +316,68 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testExecuteQueryTimeout() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.setQueryTimeout(1);
                 assertThrows(SQLException.class, () -> {
-                    try (ResultSet rs = stmt.executeQuery("SELECT sleep(2)")) {
+                    try (ResultSet rs = stmt.executeQuery("SELECT sleep(5)")) {
                         assertFalse(rs.next());
                     }
                 });
             }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    private void testSettingRole() throws SQLException {
+        if (earlierThan(24, 4)) {//Min version is 24.4
+            return;
+        }
+
+        List<String> roles = Arrays.asList("role1", "role2");
+
+        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
+                stmt.execute("DROP USER IF EXISTS some_user");
+                stmt.execute("CREATE ROLE " + String.join(", ", roles));
+                stmt.execute("CREATE USER some_user IDENTIFIED WITH no_password");
+                stmt.execute("GRANT " + String.join(", ", roles) + " TO some_user");
+                stmt.execute("SET DEFAULT ROLE NONE TO some_user");
+            }
+        }
+
+        Properties info = new Properties();
+        info.setProperty("user", "some_user");
+        info.setProperty("password", "");
+
+        try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
+            GenericRecord record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 2);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE role1");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 1);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE role2");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 1);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE NONE");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 2);
         }
     }
 }
