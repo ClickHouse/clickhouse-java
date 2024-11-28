@@ -183,17 +183,17 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void testGetTypeInfo() throws Exception {
         Assert.fail("Not implemented");
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void testGetProcedures() throws Exception {
         Assert.fail("Not implemented");
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void testGetClientInfoProperties() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();

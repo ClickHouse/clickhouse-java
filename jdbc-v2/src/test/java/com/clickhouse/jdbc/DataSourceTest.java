@@ -11,7 +11,7 @@ import static org.testng.Assert.assertNotNull;
 
 import com.clickhouse.client.ClickHouseServerForTest;
 import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 
