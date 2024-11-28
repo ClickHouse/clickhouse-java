@@ -1,18 +1,18 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseServerForTest;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.assertNotNull;
-
-import com.clickhouse.client.ClickHouseServerForTest;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
 
 
 public class DataSourceTest extends JdbcIntegrationTest {
