@@ -333,6 +333,10 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     private void testSettingRole() throws SQLException {
+        if (earlierThan(24, 4)) {//Min version is 24.4
+            return;
+        }
+
         List<String> roles = Arrays.asList("role1", "role2");
 
         try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
