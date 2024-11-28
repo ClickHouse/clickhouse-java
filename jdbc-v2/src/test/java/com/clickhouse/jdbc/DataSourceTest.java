@@ -18,7 +18,7 @@ import org.testng.annotations.Test;
 public class DataSourceTest extends JdbcIntegrationTest {
     private DataSourceImpl dataSource;
 
-    @BeforeTest
+    @BeforeTest(groups = { "integration" })
     public void setUp() {
         dataSource = new DataSourceImpl();
         dataSource.setUrl(getEndpointString());

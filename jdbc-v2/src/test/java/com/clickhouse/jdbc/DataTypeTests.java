@@ -27,9 +27,9 @@ import static org.testng.Assert.assertTrue;
 public class DataTypeTests extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(DataTypeTests.class);
 
-    @BeforeClass
-    public void setUp() throws SQLException {
-        DriverManager.registerDriver(new Driver());
+    @BeforeClass(groups = { "integration" })
+    public static void setUp() throws SQLException {
+        Driver.load();
     }
 
     private Connection getConnection() throws SQLException {
