@@ -33,7 +33,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(getEndpointString(isCloud()));
+        try {
+            return DriverManager.getConnection(getEndpointString(isCloud()));
+        } catch (SQLException e) {
+            Driver.load();
+            return DriverManager.getConnection(getEndpointString(isCloud()));
+        }
     }
 
     private int insertData(String sql) throws SQLException {
