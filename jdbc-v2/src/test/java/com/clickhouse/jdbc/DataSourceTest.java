@@ -11,14 +11,14 @@ import static org.testng.Assert.assertNotNull;
 
 import com.clickhouse.client.ClickHouseServerForTest;
 import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 
 public class DataSourceTest extends JdbcIntegrationTest {
     private DataSourceImpl dataSource;
 
-    @BeforeTest
+    @BeforeClass
     public void setUp() {
         dataSource = new DataSourceImpl();
         dataSource.setUrl(getEndpointString());
