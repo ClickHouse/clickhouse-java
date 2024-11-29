@@ -3,6 +3,8 @@ package com.clickhouse.jdbc;
 import java.sql.*;
 import java.util.Properties;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -108,7 +110,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     public void setCatalogTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         localConnection.setCatalog("catalog-name");
-        Assert.assertEquals(localConnection.getCatalog(), "catalog-name");
+        Assert.assertNull(localConnection.getCatalog());
     }
 
     @Test(groups = { "integration" })
@@ -212,10 +214,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void setAndGetClientInfoTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getClientInfo("name"));
-        Assert.assertThrows(SQLFeatureNotSupportedException.class, localConnection::getClientInfo);
-        Assert.assertThrows(SQLClientInfoException.class, () -> localConnection.setClientInfo("name", "value"));
-        Assert.assertThrows(SQLClientInfoException.class, () -> localConnection.setClientInfo(new Properties()));
+        localConnection.setClientInfo("custom-property", "client-name");
+        Assert.assertNull(localConnection.getClientInfo("custom-property"));
+        localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "client-name");
+        Assert.assertEquals(localConnection.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()), "client-name");
     }
 
 

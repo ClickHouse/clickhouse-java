@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
@@ -384,18 +385,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
-//        Object value = this.defaultQuerySettings.getAllSettings().get(name);
-//        return value == null ? null : String.valueOf(value);
-        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
+        if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
+            return client.getConfiguration().get(ClientConfigProperties.CLIENT_NAME.getKey());
+        } else {
+            return null;
+        }
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
         checkOpen();
-//        Properties clientInfo = new Properties();
-//        clientInfo.putAll(this.defaultQuerySettings.getAllSettings());
-//        return clientInfo;
-        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
+        Properties clientInfo = new Properties();
+        clientInfo.put(ClientInfoProperties.APPLICATION_NAME.getKey(), getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()));
+        return clientInfo;
     }
 
     @Override
