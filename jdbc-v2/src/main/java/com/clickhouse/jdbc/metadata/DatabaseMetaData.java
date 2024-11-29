@@ -909,7 +909,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
         sql.append(") as attrs ON (dt.name = attrs.c1)")
                 .append(" WHERE alias_to == ''");
-        System.out.println(sql.toString());
         return sql.toString();
     }
 
