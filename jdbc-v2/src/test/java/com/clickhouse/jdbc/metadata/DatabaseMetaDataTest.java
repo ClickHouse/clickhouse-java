@@ -185,13 +185,22 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" })
     public void testGetTypeInfo() throws Exception {
-        Assert.fail("Not implemented");
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getTypeInfo()) {
+                int count = 0;
+                while (rs.next()) {
+                    count++;
+                    Assert.assertTrue(rs.getString("TYPE_NAME").length() > 0);
+                }
+
+                assertTrue(count > 10, "At least 10 types should be returned but was " + count);
+            }
+        }
     }
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+
     @Test(groups = { "integration" })
     public void testGetFunctions() throws Exception {
         try (Connection conn = getJdbcConnection()) {

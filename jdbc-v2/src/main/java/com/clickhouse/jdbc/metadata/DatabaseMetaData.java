@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
@@ -867,7 +868,49 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return null;
+        return connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
+    }
+
+    private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
+
+    private static String getDataTypeInfoSql() {
+        StringBuilder sql = new StringBuilder("SELECT " +
+                "name AS TYPE_NAME, " +
+                JdbcUtils.generateSqlTypeEnum("name") +" AS DATA_TYPE, " +
+                "attrs.c2 AS PRECISION, " +
+                "NULL AS LITERAL_PREFIX, " +
+                "NULL AS LITERAL_SUFFIX, " +
+                "NULL AS CREATE_PARAMS, " +
+                java.sql.DatabaseMetaData.typeNullable + " AS NULLABLE, " +
+                "not(dt.case_insensitive) AS CASE_SENSITIVE, " +
+                java.sql.DatabaseMetaData.typeSearchable + " AS SEARCHABLE, " +
+                "attrs.c3 AS UNSIGNED_ATTRIBUTE, " +
+                "false AS FIXED_PREC_SCALE, " +
+                "false AS AUTO_INCREMENT, " +
+                "name AS LOCAL_TYPE_NAME, " +
+                "attrs.c4 AS MINIMUM_SCALE, " +
+                "attrs.c5 AS MAXIMUM_SCALE, " +
+                "0 AS SQL_DATA_TYPE, " +
+                "0 AS SQL_DATETIME_SUB, " +
+                "0 AS NUM_PREC_RADIX " +
+                "FROM system.data_type_families dt " +
+                " LEFT JOIN (SELECT * FROM VALUES ( ");
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            sql.append("(")
+                    .append('\'').append(type.name()).append("',") // c1
+                    .append(type.getMaxPrecision()).append(',') // c2
+                    .append(type.isSigned()).append(',') // c3
+                    .append(type.getMinScale()).append(',') // c4
+                    .append(type.getMaxScale()) // c5
+                    .append("),");
+        }
+        sql.setLength(sql.length() - 1);
+        sql.append(") ");
+
+        sql.append(") as attrs ON (dt.name = attrs.c1)")
+                .append(" WHERE alias_to == ''");
+        System.out.println(sql.toString());
+        return sql.toString();
     }
 
     @Override
