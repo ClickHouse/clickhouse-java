@@ -16,11 +16,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public interface ClickHouseBinaryFormatReader extends AutoCloseable {
+public interface ClickHouseBinaryFormatReader extends AutoCloseable, Iterator<Map<String, Object>> {
 
     /**
      * Reads a single value from the stream.
@@ -48,6 +49,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      *
      * @return
      */
+    @Override
     boolean hasNext();
 
     /**
@@ -55,6 +57,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      *
      * @return map filled with column values or null if no more records are available
      */
+    @Override
     Map<String, Object> next();
 
     /**
