@@ -172,6 +172,7 @@ public class ClickHouseServerForTest {
                             ClickHouseProtocol.TCP.getDefaultSecurePort(),
                             ClickHouseProtocol.POSTGRESQL.getDefaultPort())
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
+                    .withClasspathResourceMapping("empty.csv", "/var/lib/clickhouse/user_files/empty.csv", BindMode.READ_ONLY)
                     .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
                             BindMode.READ_WRITE)
                     .withNetwork(network)
@@ -323,10 +324,12 @@ public class ClickHouseServerForTest {
 
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
-        if (isCloud()) {
+        if (isCloud) {
             if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
                 throw new IllegalStateException("Failed to create database for testing.");
             }
+
+            return;
         }
 
         if (clickhouseContainer != null) {
@@ -336,6 +339,10 @@ public class ClickHouseServerForTest {
 
             try {
                 clickhouseContainer.start();
+
+                if (clickhouseContainer.isRunning()) {
+                    runQuery("CREATE DATABASE IF NOT EXISTS " + database);
+                }
             } catch (RuntimeException e) {
                 throw new IllegalStateException(new StringBuilder()
                         .append("Failed to start docker container for integration test.\r\n")
@@ -352,7 +359,7 @@ public class ClickHouseServerForTest {
             clickhouseContainer.stop();
         }
 
-        if (isCloud()) {
+        if (isCloud) {
             if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
                 LOGGER.warn("Failed to drop database for testing.");
             }

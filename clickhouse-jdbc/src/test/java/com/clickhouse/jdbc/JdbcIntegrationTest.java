@@ -16,6 +16,8 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
+import javax.sql.DataSource;
+
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     private static final String CLASS_PREFIX = "ClickHouse";
     private static final String CLASS_SUFFIX = "Test";
@@ -87,19 +89,19 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
                 .append(':').append(server.getPort()).toString();
     }
 
-    public ClickHouseDataSource newDataSource() throws SQLException {
+    public DataSource newDataSource() throws SQLException {
         return newDataSource(null, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(Properties properties) throws SQLException {
+    public DataSource newDataSource(Properties properties) throws SQLException {
         return newDataSource(null, properties);
     }
 
-    public ClickHouseDataSource newDataSource(String url) throws SQLException {
+    public DataSource newDataSource(String url) throws SQLException {
         return newDataSource(url, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(String url, Properties properties) throws SQLException {
+    public DataSource newDataSource(String url, Properties properties) throws SQLException {
         if (isCloud()) {
             if (properties == null) {
                 properties = new Properties();
@@ -117,12 +119,12 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     public ClickHouseConnection newConnection(Properties properties) throws SQLException {
-        try (ClickHouseConnection conn = newDataSource(properties).getConnection();
-                ClickHouseStatement stmt = conn.createStatement();) {
+        try (Connection conn = newDataSource(properties).getConnection();
+                Statement stmt = conn.createStatement();) {
             stmt.execute("CREATE DATABASE IF NOT EXISTS " + ClickHouseServerForTest.getDatabase());
         }
 
-        return newDataSource(ClickHouseServerForTest.getDatabase(), properties == null ? new Properties() : properties).getConnection();
+        return (ClickHouseConnection) newDataSource(ClickHouseServerForTest.getDatabase(), properties == null ? new Properties() : properties).getConnection();
     }
 
     public Connection newMySqlConnection(Properties properties) throws SQLException {

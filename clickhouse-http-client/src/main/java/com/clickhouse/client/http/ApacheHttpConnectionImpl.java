@@ -19,9 +19,12 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -121,6 +124,14 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
         if (c.getProxyType() == ClickHouseProxyType.HTTP) {
             builder.setProxy(new HttpHost(c.getProxyHost(), c.getProxyPort()));
+
+            if (c.getProxyUserName() != null && c.getProxyUserName() != "") {
+                AuthScope authScope = new AuthScope(c.getProxyHost(), c.getProxyPort());
+                UsernamePasswordCredentials credentials = new UsernamePasswordCredentials(c.getProxyUserName(), c.getProxyPassword());
+                BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
+                credsProvider.setCredentials(authScope, credentials);
+                builder.setDefaultCredentialsProvider(credsProvider);
+            }
         }
         return builder.build();
     }

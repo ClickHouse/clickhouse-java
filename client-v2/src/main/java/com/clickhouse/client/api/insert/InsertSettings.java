@@ -1,10 +1,8 @@
 package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientSettings;
-import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ValidationUtils;
-import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 
 import java.util.Collection;
@@ -137,7 +135,7 @@ public class InsertSettings {
      * @param enabled - indicates if client request compression is enabled
      */
     public InsertSettings compressClientRequest(boolean enabled) {
-        this.rawSettings.put("decompress", enabled);
+        this.rawSettings.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), enabled);
         return this;
     }
 
@@ -155,7 +153,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings httpHeader(String key, String value) {
-        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, value);
+        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, value);
         return this;
     }
 
@@ -166,7 +164,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings httpHeader(String key, Collection<String> values) {
-        rawSettings.put(ClientSettings.HTTP_HEADER_PREFIX + key, ClientSettings.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, ClientConfigProperties.commaSeparated(values));
         return this;
     }
 
@@ -191,7 +189,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings serverSetting(String name, String value) {
-        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, value);
+        rawSettings.put(ClientConfigProperties.serverSetting(name), value);
         return this;
     }
 
@@ -202,7 +200,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings serverSetting(String name, Collection<String> values) {
-        rawSettings.put(ClientSettings.SERVER_SETTING_PREFIX + name, ClientSettings.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.serverSetting(name), ClientConfigProperties.commaSeparated(values));
         return this;
     }
 
@@ -212,7 +210,7 @@ public class InsertSettings {
      * @param dbRoles
      */
     public InsertSettings setDBRoles(Collection<String> dbRoles) {
-        rawSettings.put(ClientSettings.SESSION_DB_ROLES, dbRoles);
+        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), dbRoles);
         return this;
     }
 
@@ -222,7 +220,7 @@ public class InsertSettings {
      * @return list of DB roles
      */
     public Collection<String> getDBRoles() {
-        return (Collection<String>) rawSettings.get(ClientSettings.SESSION_DB_ROLES);
+        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES.getKey());
     }
 
     /**
@@ -233,7 +231,7 @@ public class InsertSettings {
     public InsertSettings logComment(String logComment) {
         this.logComment = logComment;
         if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientSettings.SETTING_LOG_COMMENT, logComment);
+            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT.getKey(), logComment);
         }
         return this;
     }

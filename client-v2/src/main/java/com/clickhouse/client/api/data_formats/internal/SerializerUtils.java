@@ -25,6 +25,7 @@ import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -43,6 +45,7 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
 public class SerializerUtils {
+
     private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
 
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
@@ -205,8 +208,19 @@ public class SerializerUtils {
             case IPv6:
                 BinaryStreamUtils.writeInet6Address(stream, (Inet6Address) value);
                 break;
+            case JSON:
+                serializeJSON(stream, value);
+                break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
+        }
+    }
+
+    private static void serializeJSON(OutputStream stream, Object value) throws IOException {
+        if (value instanceof String) {
+            BinaryStreamUtils.writeString(stream, (String)value);
+        } else {
+            throw new UnsupportedOperationException("Serialization of Java object to JSON is not supported yet.");
         }
     }
 
@@ -583,75 +597,4 @@ public class SerializerUtils {
         output.write(value ? 1 : 0);
     }
 
-    public static class NumberConverter {
-
-        public static byte toByte(Number value) {
-            if (value.byteValue() == value.shortValue()) {
-                return value.byteValue();
-            } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as byte");
-            }
-        }
-
-        public static short toShort(Number value) {
-            if (value.shortValue() == value.intValue()) {
-                return value.shortValue();
-            } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as short");
-            }
-        }
-
-        public static int toInt(Number value) {
-            if (value.intValue() == value.longValue()) {
-                return value.intValue();
-            } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as int");
-            }
-        }
-
-        public static long toLong(Number value) {
-            if (value.longValue() == value.doubleValue()) {
-                return value.longValue();
-            } else {
-                throw new ArithmeticException("integer overflow: " + value + " cannot be presented as long");
-            }
-        }
-
-
-        public static BigInteger toBigInteger(Number value) {
-            return value instanceof BigInteger ? (BigInteger) value : BigInteger.valueOf(value.longValue());
-        }
-
-        public static BigInteger toBigInteger(String value) {
-            return new BigInteger(value);
-        }
-
-        public static float toFloat(Number value) {
-            if (value instanceof Float) {
-                return (Float) value;
-            } else if (value.floatValue() == value.doubleValue()) {
-                return value.floatValue();
-            } else {
-                throw new ArithmeticException("float overflow: " + value + " cannot be presented as float");
-            }
-        }
-
-        public static double toDouble(Number value) {
-            if (value instanceof Double) {
-                return (Double) value;
-            } else if (value.doubleValue() == value.floatValue()) {
-                return value.doubleValue();
-            } else {
-                throw new ArithmeticException("double overflow: " + value + " cannot be presented as double");
-            }
-        }
-
-        public static BigDecimal toBigDecimal(Number value) {
-            return value instanceof BigDecimal ? (BigDecimal) value : BigDecimal.valueOf(value.doubleValue());
-        }
-
-        public static BigDecimal toBigDecimal(String value) {
-            return new BigDecimal(value);
-        }
-    }
 }

@@ -1,20 +1,13 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseDefaults;
 import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
 import java.util.Properties;
 
 public class JdbcIssuesTest extends JdbcIntegrationTest {

@@ -234,6 +234,7 @@ public class Basic {
         // jdbc:ch:https://explorer@play.clickhouse.com:443
         // jdbc:ch:https://demo:demo@github.demo.trial.altinity.cloud
         String url = System.getProperty("chUrl", "jdbc:ch://localhost");
+        System.setProperty("clickhouse.jdbc.v2", "true");
 
         try {
             usedPooledConnection(url);
@@ -241,6 +242,7 @@ public class Basic {
             e.printStackTrace();
         }
 
+        System.out.println(url);
         try (Connection conn = getConnection(url)) {
             connectWithCustomSettings(url);
             insertByteArray(conn);

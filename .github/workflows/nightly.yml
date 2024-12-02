@@ -13,6 +13,7 @@ on:
 env:
   CHC_BRANCH: "main"
   CHC_VERSION: "0.7.1"
+  CH_VERSION: "24.8"
 
 jobs:
   nightly:
@@ -66,7 +67,7 @@ jobs:
         uses: samuelmeuli/action-maven-publish@v1
         with:
           maven_profiles: release
-          maven_args: -q --batch-mode
+          maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }}
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
@@ -76,7 +77,7 @@ jobs:
         with:
           directory: clickhouse-r2dbc
           maven_profiles: release
-          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
+          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }}
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}

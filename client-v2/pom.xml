@@ -23,14 +23,22 @@
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-data</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+            <version>${roaring-bitmap.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
         </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -41,32 +49,38 @@
             <artifactId>httpclient5</artifactId>
             <version>${apache.httpclient.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <optional>true</optional>
-        </dependency>
+
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-pure-java</artifactId>
             <version>${lz4.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <version>${compress.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
             <version>9.7</version>
         </dependency>
+
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.17.2</version>
         </dependency>
+
         <!-- Test Dependencies -->
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>${revision}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -79,12 +93,6 @@
             <artifactId>jackson-databind</artifactId>
             <scope>test</scope>
             <version>2.17.2</version>
-        </dependency>
-        <!-- necessary for Java 9+ -->
-        <dependency>
-            <groupId>org.apache.tomcat</groupId>
-            <artifactId>annotations-api</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Test dependencies -->
@@ -118,18 +126,14 @@
             <version>${testng.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- Replace with newer version as soon java 11 is minimal version -->
+
         <dependency>
             <groupId>com.github.tomakehurst</groupId>
             <artifactId>wiremock-jre8</artifactId>
             <version>2.35.2</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.roaringbitmap</groupId>
-            <artifactId>RoaringBitmap</artifactId>
-            <scope>test</scope>
-        </dependency>
+
     </dependencies>
 
     <build>

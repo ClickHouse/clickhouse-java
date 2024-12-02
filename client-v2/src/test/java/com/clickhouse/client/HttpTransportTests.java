@@ -7,13 +7,16 @@ import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.insert.SamplePOJO;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
@@ -39,12 +42,16 @@ import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
@@ -218,7 +225,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .build()) {
 
             List<GenericRecord> records = client.queryAll("SELECT timezone()");
@@ -310,15 +317,14 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
-    public void testServerErrorHandling(ClickHouseFormat format) {
+    public void testServerErrorHandling(ClickHouseFormat format, boolean serverCompression, boolean useHttpCompression) {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(true)
-                // TODO: fix in old client
-//                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                .compressServerResponse(serverCompression)
+                .useHttpCompression(useHttpCompression)
                 .build()) {
 
             QuerySettings querySettings = new QuerySettings().setFormat(format);
@@ -331,17 +337,72 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertTrue(e.getMessage().startsWith("Code: 62. DB::Exception: Syntax error (Multi-statements are not allowed): failed at position 15 (end of query)"),
                         "Unexpected error message: " + e.getMessage());
             }
+
+
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+                    .get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), 636);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 636. DB::Exception: The table structure cannot be extracted from a CSV format file. Error: The table structure cannot be extracted from a CSV format file: the file is empty. You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
+                        "Unexpected error message: " + e.getMessage());
+            }
+
+            querySettings.serverSetting("unknown_setting", "1");
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+                    .get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), 115);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 115. DB::Exception: Setting unknown_setting is neither a builtin setting nor started with the prefix 'custom_' registered for user-defined settings. (UNKNOWN_SETTING)"),
+                        "Unexpected error message: " + e.getMessage());
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail(e.getMessage(), e);
         }
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("non-existing-user")
+                .setPassword("nothing")
+                .compressServerResponse(serverCompression)
+                .useHttpCompression(useHttpCompression)
+                .build()) {
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), 516);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 516. DB::Exception: non-existing-user: Authentication failed: password is incorrect, or there is no user with such name. (AUTHENTICATION_FAILED)"),
+                        e.getMessage());
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        }
     }
 
     @DataProvider(name = "testServerErrorHandlingDataProvider")
-    public static Object[] testServerErrorHandlingDataProvider() {
-        return new Object[] { ClickHouseFormat.JSON, ClickHouseFormat.TabSeparated, ClickHouseFormat.RowBinary };
-    }
+    public static Object[][] testServerErrorHandlingDataProvider() {
+        EnumSet<ClickHouseFormat> formats = EnumSet.of(ClickHouseFormat.CSV, ClickHouseFormat.TSV,
+                                            ClickHouseFormat.JSON, ClickHouseFormat.JSONCompact);
 
+        Object[][] result = new Object[formats.size() * 3][];
+
+        int i = 0;
+        for (ClickHouseFormat format : formats) {
+            result[i++] = new Object[]{format, false, false};
+            result[i++] = new Object[]{format, true, false};
+            result[i++] = new Object[]{format, true, true};
+        }
+
+        return result;
+    }
 
     @Test(groups = { "integration" })
     public void testErrorWithSuccessfulResponse() {
@@ -379,6 +440,61 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "testServerErrorsUncompressedDataProvider")
+    public void testServerErrorsUncompressed(int code, String message, String expectedMessage) {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withChunkedDribbleDelay(2, 200)
+                        .withHeader("X-ClickHouse-Exception-Code", String.valueOf(code))
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                        .withBody(message))
+                .build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .compressServerResponse(false)
+                .build()) {
+
+            try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), code);
+                Assert.assertEquals(e.getMessage(), expectedMessage);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Assert.fail("Unexpected exception", e);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "testServerErrorsUncompressedDataProvider")
+    public static Object[][] testServerErrorsUncompressedDataProvider() {
+        return new Object[][] {
+                { 241, "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB",
+                        "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"},
+                {900, "Code: 900. DB::Exception: \uD83D\uDCBE Floppy disk is full",
+                        "Code: 900. DB::Exception: \uD83D\uDCBE Floppy disk is full"},
+                {901, "Code: 901. DB::Exception: I write, erase, rewrite\n" +
+                        "Erase again, and then\n" +
+                        "A poppy blooms\n" +
+                        " (by Katsushika Hokusai)",
+                        "Code: 901. DB::Exception: I write, erase, rewrite " +
+                                "Erase again, and then " +
+                                "A poppy blooms" +
+                                " (by Katsushika Hokusai)"}
+        };
+    }
+
     @Test(groups = { "integration" })
     public void testAdditionalHeaders() {
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
@@ -409,7 +525,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .httpHeader("X-ClickHouse-Test", "test")
                     .httpHeader("X-ClickHouse-Test-2", Arrays.asList("test1", "test2"));
 
-            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(10, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 10);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -621,7 +737,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(false)
+                .useNewImplementation(true)
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
@@ -639,6 +755,46 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertEquals(e.getCode(), 241);
             }
         }
+    }
+
+
+    @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
+    public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder()
+                .addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword("")
+                .setClientName(clientName)
+                .build()) {
+
+            String q1Id = UUID.randomUUID().toString();
+
+            client.execute("SELECT 1", (CommandSettings) new CommandSettings().setQueryId(q1Id)).get().close();
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
+                    " forwarded_for  FROM system.query_log WHERE query_id = '" + q1Id + "'");
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
+
+            for (GenericRecord record : logRecords) {
+
+                Assert.assertTrue(userAgentPattern.matcher(record.getString("http_user_agent")).matches(),
+                        record.getString("http_user_agent") + " doesn't match \"" +
+                                  userAgentPattern.pattern() + "\"");
+
+            }
+        }
+    }
+
+
+    @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
+    public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
+        return new Object[][] {
+                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")},
+                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")}};
     }
 
     @Test(groups = { "integration" })

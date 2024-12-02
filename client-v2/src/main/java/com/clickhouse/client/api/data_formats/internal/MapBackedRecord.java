@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 public class MapBackedRecord implements GenericRecord {
 
@@ -34,9 +35,12 @@ public class MapBackedRecord implements GenericRecord {
 
     private TableSchema schema;
 
-    public MapBackedRecord(Map<String, Object> record, TableSchema schema) {
+    private Map[] columnConverters;
+
+    public MapBackedRecord(Map<String, Object> record, Map[] columnConverters, TableSchema schema) {
         this.record = new HashMap<>(record);
         this.schema = schema;
+        this.columnConverters = columnConverters;
     }
 
     public <T> T readValue(int colIndex) {
@@ -74,65 +78,67 @@ public class MapBackedRecord implements GenericRecord {
         return value.toString();
     }
 
-    private <T> T readPrimitiveValue(String colName, String typeName) {
-        Object value = readValue(colName);
-        if (value == null) {
-            throw new NullValueException("Column '" + colName + "' has null value and it cannot be cast to " + typeName);
-        }
-        return (T) value;
-    }
+    private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
+        int colIndex = schema.nameToIndex(colName);
 
-    private <T> T readPrimitiveValue(int colIndex, String typeName) {
-        Object value = readValue(colIndex);
-        if (value == null) {
-            throw new NullValueException("Column at index = " + colIndex + " has null value and it cannot be cast to " + typeName);
+        Function<Object, Object> converter = (Function<Object, Object>) columnConverters[colIndex].get(targetType);
+        if (converter != null) {
+            Object value = readValue(colName);
+            if (value == null) {
+                throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
+                        targetType.getTypeName());
+            }
+            return (T) converter.apply(value);
+        } else {
+            String columnTypeName = schema.getColumnByName(colName).getDataType().name();
+            throw new ClientException("Column " + colName + " " + columnTypeName +
+                    " cannot be converted to " + targetType.getTypeName());
         }
-        return (T) value;
     }
 
     @Override
     public byte getByte(String colName) {
-        return readPrimitiveValue(colName, "byte");
+        return readNumberValue(colName, NumberConverter.NumberType.Byte);
     }
 
     @Override
     public short getShort(String colName) {
-        return readPrimitiveValue(colName, "short");
+        return readNumberValue(colName, NumberConverter.NumberType.Short);
     }
 
     @Override
     public int getInteger(String colName) {
-        return readPrimitiveValue(colName, "int");
+        return readNumberValue(colName, NumberConverter.NumberType.Int);
     }
 
     @Override
     public long getLong(String colName) {
-        return readPrimitiveValue(colName, "long");
+        return readNumberValue(colName, NumberConverter.NumberType.Long);
     }
 
     @Override
     public float getFloat(String colName) {
-        return readPrimitiveValue(colName, "float");
+        return readNumberValue(colName, NumberConverter.NumberType.Float);
     }
 
     @Override
     public double getDouble(String colName) {
-        return readPrimitiveValue(colName, "double");
+        return readNumberValue(colName, NumberConverter.NumberType.Double);
     }
 
     @Override
     public boolean getBoolean(String colName) {
-        return readPrimitiveValue(colName, "boolean");
+        return readNumberValue(colName, NumberConverter.NumberType.Boolean);
     }
 
     @Override
     public BigInteger getBigInteger(String colName) {
-        return readValue(colName);
+        return readNumberValue(colName, NumberConverter.NumberType.BigInteger);
     }
 
     @Override
     public BigDecimal getBigDecimal(String colName) {
-        return readValue(colName);
+        return readNumberValue(colName, NumberConverter.NumberType.BigDecimal);
     }
 
     @Override
@@ -292,37 +298,37 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte getByte(int index) {
-        return readPrimitiveValue(index, "byte");
+        return getByte(schema.indexToName(index));
     }
 
     @Override
     public short getShort(int index) {
-        return readPrimitiveValue(index, "short");
+        return getShort(schema.indexToName(index));
     }
 
     @Override
     public int getInteger(int index) {
-        return readPrimitiveValue(index, "int");
+        return getInteger(schema.indexToName(index));
     }
 
     @Override
     public long getLong(int index) {
-        return readPrimitiveValue(index, "long");
+        return getLong(schema.indexToName(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return readPrimitiveValue(index, "float");
+        return getFloat(schema.indexToName(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return readPrimitiveValue(index, "double");
+        return getDouble(schema.indexToName(index));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return readPrimitiveValue(index, "boolean");
+        return getBoolean(schema.indexToName(index));
     }
 
     @Override

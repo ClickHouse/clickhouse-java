@@ -11,7 +11,6 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.config.ClickHouseOption;
 
 import java.io.Serializable;

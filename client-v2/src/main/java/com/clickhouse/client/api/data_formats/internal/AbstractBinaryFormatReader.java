@@ -1,12 +1,14 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.MapUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -65,13 +67,15 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         this.input = inputStream;
         this.settings = querySettings == null ? Collections.emptyMap() : new HashMap<>(querySettings.getAllSettings());
-        Boolean useServerTimeZone = (Boolean) this.settings.get(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey());
+        Boolean useServerTimeZone = (Boolean) this.settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
         TimeZone timeZone = useServerTimeZone == Boolean.TRUE && querySettings != null ? querySettings.getServerTimeZone() :
-                (TimeZone) this.settings.get(ClickHouseClientOption.USE_TIME_ZONE.getKey());
+                (TimeZone) this.settings.get(ClientConfigProperties.USE_TIMEZONE.getKey());
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");
         }
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator);
+        boolean jsonAsString = MapUtils.getFlag(this.settings,
+                ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
         if (schema != null) {
             setSchema(schema);
         }
@@ -231,7 +235,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
 
-            Map<NumberType, Function<Number, ?>> converters = new HashMap<>();
             switch (column.getDataType()) {
                 case Int8:
                 case Int16:
@@ -253,21 +256,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Decimal128:
                 case Decimal256:
                 case Bool:
-                    converters.put(NumberType.Byte, SerializerUtils.NumberConverter::toByte);
-                    converters.put(NumberType.Short, SerializerUtils.NumberConverter::toShort);
-                    converters.put(NumberType.Int, SerializerUtils.NumberConverter::toInt);
-                    converters.put(NumberType.Long, SerializerUtils.NumberConverter::toLong);
-                    converters.put(NumberType.BigInteger, SerializerUtils.NumberConverter::toBigInteger);
-                    converters.put(NumberType.BigDecimal, SerializerUtils.NumberConverter::toBigDecimal);
-                    converters.put(NumberType.Float, SerializerUtils.NumberConverter::toFloat);
-                    converters.put(NumberType.Double, SerializerUtils.NumberConverter::toDouble);
-                    converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
+                    this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
+                default:
+                    this.convertions[i] = Collections.emptyMap();
             }
-
-            this.convertions[i] = converters;
         }
+    }
 
+    public Map[] getConvertions() {
+        return convertions;
     }
 
     @Override
@@ -298,11 +296,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return value.toString();
     }
 
-    private <T> T readNumberValue(String colName, NumberType targetType) {
+    private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
         int colIndex = schema.nameToIndex(colName);
-        Function<Number, Number> converter = (Function<Number, Number>) convertions[colIndex].get(targetType);
+        Function<Object, Object> converter = (Function<Object, Object>) convertions[colIndex].get(targetType);
         if (converter != null) {
-            Number value = readValue(colName);
+            Object value = readValue(colName);
             if (value == null) {
                 throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
                         targetType.getTypeName());
@@ -316,47 +314,47 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getByte(String colName) {
-        return readNumberValue(colName, NumberType.Byte);
+        return readNumberValue(colName, NumberConverter.NumberType.Byte);
     }
 
     @Override
     public short getShort(String colName) {
-        return readNumberValue(colName, NumberType.Short);
+        return readNumberValue(colName, NumberConverter.NumberType.Short);
     }
 
     @Override
     public int getInteger(String colName) {
-        return readNumberValue(colName, NumberType.Int);
+        return readNumberValue(colName, NumberConverter.NumberType.Int);
     }
 
     @Override
     public long getLong(String colName) {
-        return readNumberValue(colName, NumberType.Long);
+        return readNumberValue(colName, NumberConverter.NumberType.Long);
     }
 
     @Override
     public float getFloat(String colName) {
-        return readNumberValue(colName, NumberType.Float);
+        return readNumberValue(colName, NumberConverter.NumberType.Float);
     }
 
     @Override
     public double getDouble(String colName) {
-        return readNumberValue(colName, NumberType.Double);
+        return readNumberValue(colName, NumberConverter.NumberType.Double);
     }
 
     @Override
     public boolean getBoolean(String colName) {
-        return readNumberValue(colName, NumberType.Boolean);
+        return readNumberValue(colName, NumberConverter.NumberType.Boolean);
     }
 
     @Override
     public BigInteger getBigInteger(String colName) {
-        return readNumberValue(colName, NumberType.BigInteger);
+        return readNumberValue(colName, NumberConverter.NumberType.BigInteger);
     }
 
     @Override
     public BigDecimal getBigDecimal(String colName) {
-        return readNumberValue(colName, NumberType.BigDecimal);
+        return readNumberValue(colName, NumberConverter.NumberType.BigDecimal);
     }
 
     @Override
@@ -466,17 +464,25 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(String colName) {
-        BinaryStreamReader.ArrayValue array = readValue(colName);
-        return array.asList();
+        try {
+            BinaryStreamReader.ArrayValue array = readValue(colName);
+            return array.asList();
+        } catch (ClassCastException e) {
+            throw new ClientException("Column is not of array type", e);
+        }
     }
 
 
     private <T> T getPrimitiveArray(String colName) {
-        BinaryStreamReader.ArrayValue array = readValue(colName);
-        if (array.itemType.isPrimitive()) {
-            return (T) array.array;
-        } else {
-            throw new ClientException("Array is not of primitive type");
+        try {
+            BinaryStreamReader.ArrayValue array = readValue(colName);
+            if (array.itemType.isPrimitive()) {
+                return (T) array.array;
+            } else {
+                throw new ClientException("Array is not of primitive type");
+            }
+        } catch (ClassCastException e) {
+            throw new ClientException("Column is not of array type", e);
         }
     }
 
@@ -507,7 +513,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().indexToName(colIndex));
+        return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
     }
 
     @Override
@@ -720,20 +726,5 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public void close() throws Exception {
         input.close();
-    }
-
-    private enum NumberType {
-        Byte("byte"), Short("short"), Int("int"), Long("long"), BigInteger("BigInteger"), Float("float"),
-        Double("double"), BigDecimal("BigDecimal"), Boolean("boolean");
-
-        private final String typeName;
-
-        NumberType(String typeName) {
-            this.typeName = typeName;
-        }
-
-        public String getTypeName() {
-            return typeName;
-        }
     }
 }

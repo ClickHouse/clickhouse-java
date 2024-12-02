@@ -245,6 +245,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final ClickHouseProxyType proxyType;
     private final String proxyHost;
     private final int proxyPort;
+    private final String proxyUserName;
+    private final char[] proxyPassword;
     // client specific options
     private final Map<ClickHouseOption, Serializable> options;
     private final ClickHouseCredentials credentials;
@@ -383,6 +385,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.proxyType = getOption(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.class);
         this.proxyHost = getStrOption(ClickHouseClientOption.PROXY_HOST);
         this.proxyPort = getIntOption(ClickHouseClientOption.PROXY_PORT);
+        this.proxyUserName = getStrOption(ClickHouseClientOption.PROXY_USERNAME);
+        this.proxyPassword = getStrOption(ClickHouseClientOption.PROXY_PASSWORD).toCharArray();
     }
 
     @Override
@@ -674,14 +678,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return useObjectsInArray;
     }
 
-    /**
-     * Checks whether no proxy is used or not.
-     *
-     * @return true if no proxy is used; false otherwise
-     * @deprecated will be dropped in 0.5, please use {@link #getProxyType()}
-     *             instead
-     */
-
     public ClickHouseProxyType getProxyType() {
         return proxyType;
     }
@@ -692,6 +688,14 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
     public int getProxyPort() {
         return proxyPort;
+    }
+
+    public String getProxyUserName() {
+        return proxyUserName;
+    }
+
+    public char[] getProxyPassword() {
+        return proxyPassword;
     }
 
     public boolean isUseServerTimeZone() {

@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.metrics;
 
-import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.Gauge;
 import com.clickhouse.client.api.internal.StopWatch;
@@ -36,6 +35,11 @@ public class OperationMetrics {
         return queryId;
     }
 
+    /**
+     * Complete counting metrics on operation and stop all stopwatches.
+     * Multiple calls may have side effects.
+     * Note: should not be called by user code, except when created by user code.
+     */
     public void operationComplete() {
         for (Map.Entry<String, StopWatch> sw : clientStatistics.getStopWatches().entrySet()) {
             sw.getValue().stop();

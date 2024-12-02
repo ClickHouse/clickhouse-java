@@ -2,25 +2,20 @@ package com.clickhouse.client.query;
 
 
 import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientSettings;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -30,14 +25,13 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
-import com.clickhouse.client.http.config.HttpConnectionProvider;
-import com.clickhouse.client.insert.SamplePOJO;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -57,7 +51,6 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -65,7 +58,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -74,7 +66,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -123,7 +114,6 @@ public class QueryTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
-                .useNewImplementation(true)
                 .build();
 
         delayForProfiler(0);
@@ -189,12 +179,10 @@ public class QueryTests extends BaseIntegrationTest {
         final BigInteger expected256 = BigInteger.valueOf(2).pow(256).subtract(BigInteger.ONE).subtract(BigInteger.ONE);
 
         String sqlQuery = "SELECT toUInt128('" + expected128 + "') as i128, toUInt256('" + expected256 + "') as i256";
-        System.out.println(sqlQuery);
         Records records = client.queryRecords(sqlQuery).get(3, TimeUnit.SECONDS);
 
         GenericRecord firstRecord = records.iterator().next();
 
-        System.out.println(firstRecord.getBigInteger("i128"));
         Assert.assertEquals(firstRecord.getBigInteger("i128"), expected128);
         Assert.assertEquals(firstRecord.getBigInteger("i256"), expected256);
     }
@@ -342,7 +330,7 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testQueryJSON() throws ExecutionException, InterruptedException {
+    public void testQueryJSONEachRow() throws ExecutionException, InterruptedException {
         Map<String, Object> datasetRecord = prepareSimpleDataSet();
         QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, settings);
@@ -637,13 +625,13 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertTrue(record.containsKey(columnName));
                 Assert.assertEquals(record.get(columnName), 1L);
                 Assert.assertTrue(reader.hasValue("id"));
-                Assert.assertTrue(reader.hasValue(i), "No value for column " + i);
+                Assert.assertTrue(reader.hasValue(i+1), "No value for column " + i);
 
             } else {
                 Assert.assertFalse(record.containsKey(columnName));
                 Assert.assertNull(record.get(columnName));
                 Assert.assertFalse(reader.hasValue(columnName));
-                Assert.assertFalse(reader.hasValue(i));
+                Assert.assertFalse(reader.hasValue(i+1));
 
                 if (columnName.equals("col1") || columnName.equals("col2")) {
                     Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
@@ -1187,13 +1175,9 @@ public class QueryTests extends BaseIntegrationTest {
     public void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
         final String table = "data_types_test_table";
 
-        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build()) {
+        try {
             // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1203,9 +1187,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
 
             // Insert data
@@ -1218,13 +1200,8 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
-            System.out.println("Insert statement: " + insertStmtBuilder);
 
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {
-                Assert.assertEquals(response.getSummary().getWrittenRows(), 1);
-            }
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("Failed at prepare stage", e);
         }
@@ -1271,13 +1248,13 @@ public class QueryTests extends BaseIntegrationTest {
                 .waitEndOfQuery(true)
                 .setQueryId(uuid);
 
-        QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get();
+        try (QueryResponse response = client.query("SELECT * FROM " + DATASET_TABLE + " LIMIT 3", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
 
-        // Stats should be available after the query is done
-        OperationMetrics metrics = response.getMetrics();
-
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 10); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), 3);
+        }
 
         StringBuilder insertStmtBuilder = new StringBuilder();
         insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
@@ -1288,17 +1265,26 @@ public class QueryTests extends BaseIntegrationTest {
             insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
             insertStmtBuilder.append("), ");
         }
-        response = client.query(insertStmtBuilder.toString(), settings).get();
+        try (QueryResponse response = client.query(insertStmtBuilder.toString(), settings).get()) {
 
-        metrics = response.getMetrics();
+            OperationMetrics metrics = response.getMetrics();
 
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
-        Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
-        Assert.assertEquals(response.getReadRows(), rowsToInsert);
-        Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
-        Assert.assertEquals(metrics.getQueryId(), uuid);
-        Assert.assertEquals(response.getQueryId(), uuid);
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
+            Assert.assertEquals(response.getReadRows(), rowsToInsert);
+            Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+            Assert.assertEquals(metrics.getQueryId(), uuid);
+            Assert.assertEquals(response.getQueryId(), uuid);
+        }
 
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 30", settings).get()) {
+            // Stats should be available after the query is done
+            OperationMetrics metrics = response.getMetrics();
+
+            Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong() > 0);
+            Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
+        }
     }
 
     private final static List<String> DATASET_COLUMNS = Arrays.asList(
@@ -1326,15 +1312,10 @@ public class QueryTests extends BaseIntegrationTest {
     private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
                                                      int rows) {
         List<Map<String, Object>> data = new ArrayList<>(rows);
-        try (
-                ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                        .build()) {
-            // Drop table
-            ClickHouseRequest<?> request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("DROP TABLE IF EXISTS default." + table);
-            try (ClickHouseResponse response = request.executeAndWait()) {}
 
+        try {
+            // Drop table
+            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
@@ -1344,9 +1325,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            request = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query(createStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1358,9 +1337,8 @@ public class QueryTests extends BaseIntegrationTest {
                 insertStmtBuilder.append("), ");
                 data.add(values);
             }
-            request = client.write(getServer(ClickHouseProtocol.HTTP))
-                    .query(insertStmtBuilder.toString());
-            try (ClickHouseResponse response = request.executeAndWait()) {}
+            insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+            client.execute(insertStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             Assert.fail("failed to prepare data set", e);
         }
@@ -1428,8 +1406,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryParams() throws Exception {
         final String table = "query_params_test_table";
 
-        client.query("DROP TABLE IF EXISTS default." + table, null).get();
-        client.query("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("DROP TABLE IF EXISTS default." + table).get();
+        client.execute("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1440,15 +1418,34 @@ public class QueryTests extends BaseIntegrationTest {
         InsertSettings insertSettings = new InsertSettings();
         client.insert(table, new ByteArrayInputStream(insertData.toByteArray()), ClickHouseFormat.TabSeparated, insertSettings).get();
 
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.TabSeparatedWithNamesAndTypes);
         Map<String, Object> queryParams = new HashMap<>();
         queryParams.put("param1", 2);
         QueryResponse queryResponse =
-                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams, querySettings).get();
+                client.query("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get();
 
-        try (BufferedReader responseBody = new BufferedReader(new InputStreamReader(queryResponse.getInputStream()))) {
-            responseBody.lines().forEach(System.out::println);
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+        int count = 0;
+        while (reader.hasNext()) {
+            reader.next();
+            count++;
+            Assert.assertTrue(reader.getInteger("col1") >=2 );
         }
+        Assert.assertEquals(count, 2);
+
+        try (Records records = client.queryRecords("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get()) {
+            count = 0;
+            for (GenericRecord record : records) {
+                Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+                count++;
+            }
+            Assert.assertEquals(count, 2);
+        }
+
+        List<GenericRecord> allRecords = client.queryAll("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams);
+        for (GenericRecord record : allRecords) {
+            Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+        }
+        Assert.assertEquals(allRecords.size(), 2);
     }
 
     @Test(groups = {"integration"})
@@ -1792,6 +1789,35 @@ public class QueryTests extends BaseIntegrationTest {
 
             Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint32"), pojo.getGroupBitmapUint32());
             Assert.assertEquals(reader.getClickHouseBitmap("groupBitmapUint64"), pojo.getGroupBitmapUint64());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingJSONValues() throws Exception {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
+            System.out.println("Test is skipped: feature is supported since 24.8");
+            return;
+        }
+        CommandSettings commandSettings = new CommandSettings();
+        commandSettings.serverSetting("allow_experimental_json_type", "1");
+        client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE test_json_values (json JSON) ENGINE = MergeTree ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
+
+
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV);
+        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
+            Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+        }
+
+        settings = new QuerySettings()
+                .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1");
+        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
         }
     }
 

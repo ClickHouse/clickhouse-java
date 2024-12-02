@@ -59,6 +59,11 @@
             <optional>true</optional>
         </dependency>
         <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>jdbc-v2</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-impl</artifactId>
             <optional>true</optional>
@@ -302,6 +307,8 @@
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
+                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
+                                    <include>com.clickhouse:jdbc-v2</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
@@ -373,6 +380,8 @@
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>org.lz4:lz4-pure-java</include>
+                                    <include>com.clickhouse:jdbc-v2</include>
+                                    <include>com.clickhouse:client-v2</include>
                                 </includes>
                             </artifactSet>
                             <relocations>

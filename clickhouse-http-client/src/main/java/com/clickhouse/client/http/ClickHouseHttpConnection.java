@@ -118,10 +118,25 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
         }
         settingKey = ClickHouseClientOption.MAX_RESULT_ROWS.getKey();
-        if (config.getMaxResultRows() > 0L && !settings.containsKey(settingKey)) {
+        boolean hasRequestSetting = settings.containsKey(settingKey);
+        if (config.getMaxResultRows() > 0L && !hasRequestSetting) {
+            // set on client level
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxResultRows()));
-            appendQueryParameter(builder, "result_overflow_mode", "break");
+        } else if (hasRequestSetting) {
+            // set on request level
+            Object value = settings.get(settingKey);
+            if (value instanceof Number && ((Number) value).longValue() > 0L) {
+                appendQueryParameter(builder, settingKey, String.valueOf(value));
+            } else if (value instanceof String && !(((String) value).isEmpty() || "0".equals(value))) {
+                appendQueryParameter(builder, settingKey, (String) value);
+            }
         }
+
+        if (config.hasOption(ClickHouseClientOption.RESULT_OVERFLOW_MODE)) {
+            appendQueryParameter(builder, ClickHouseClientOption.RESULT_OVERFLOW_MODE.getKey(),
+                    config.getStrOption(ClickHouseClientOption.RESULT_OVERFLOW_MODE));
+        }
+
         settingKey = "log_comment";
         if (!stmts.isEmpty() && config.getBoolOption(ClickHouseClientOption.LOG_LEADING_COMMENT)
                 && !settings.containsKey(settingKey)) {
@@ -162,11 +177,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         for (Entry<String, Serializable> entry : settings.entrySet()) {
-            // Skip internal settings
-            if (entry.getKey().equalsIgnoreCase("_set_roles_stmt")) {
-                continue;
+            if (!processedSettings.contains(entry.getKey())) {
+                appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
             }
-            appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
         if (builder.length() > 0) {
@@ -174,6 +187,12 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
         return builder.toString();
     }
+
+    // Settings that are processed by the client and appropriate parameters are set
+    private static final HashSet<String> processedSettings = new HashSet<>(Arrays.asList(
+            "_set_roles_stmt",
+            ClickHouseClientOption.MAX_RESULT_ROWS.getKey()
+    ));
 
     static String buildUrl(String baseUrl, ClickHouseRequest<?> request, Map<String, Serializable> additionalParams) {
         StringBuilder builder = new StringBuilder().append(baseUrl);
@@ -285,6 +304,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 break;
         }
         return proxy;
+    }
+
+    protected static String getProxyAuth(ClickHouseConfig config) {
+        String authHeader = null;
+        if (config.getProxyType() == ClickHouseProxyType.HTTP) {
+            String userName = config.getProxyUserName();
+            if (!ClickHouseChecker.isNullOrEmpty(userName)) {
+                String auth = userName + ":" + new String(config.getProxyPassword());
+                byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes(StandardCharsets.UTF_8));
+                authHeader = "Basic " + new String(encodedAuth);
+            }
+        }
+        return authHeader;
     }
 
     protected static String parseErrorFromException(String errorCode, String serverName, IOException e, byte[] bytes) {

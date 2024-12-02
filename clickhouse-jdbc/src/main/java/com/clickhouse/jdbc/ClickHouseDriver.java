@@ -1,219 +1,128 @@
 package com.clickhouse.jdbc;
 
-import java.io.Serializable;
-import java.sql.Driver;
-import java.sql.DriverManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.sql.Connection;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.*;
-import java.util.Map.Entry;
+import java.util.Properties;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.config.ClickHouseOption;
-import com.clickhouse.data.ClickHouseVersion;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
-import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
-import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
-
-/**
- * JDBC driver for ClickHouse. It takes a connection string like below for
- * connecting to ClickHouse server:
- * {@code jdbc:(ch|clickhouse)[:<protocol>]://[<user>[:<password>]@]<host>[:<port>][/<db>][?<parameter=value>,[<parameter=value]]][#<tag>[,<tag>]]}
- *
- * <p>
- * For examples:
- * <ul>
- * <li>{@code jdbc:clickhouse://localhost:8123/system}</li>
- * <li>{@code jdbc:clickhouse://admin:password@localhost/system?socket_time=30}</li>
- * <li>{@code jdbc:clickhouse://localhost/system?protocol=grpc}</li>
- * </ul>
- */
-public class ClickHouseDriver implements Driver {
+public class ClickHouseDriver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDriver.class);
-
-    private static final Map<Object, ClickHouseOption> clientSpecificOptions;
-
-    static final String driverVersionString;
-    static final ClickHouseVersion driverVersion;
-    static final ClickHouseVersion specVersion;
-
-    static final java.util.logging.Logger parentLogger = java.util.logging.Logger.getLogger("com.clickhouse.jdbc");
-
-    public static String frameworksDetected = null;
-
-    public static class FrameworksDetection {
-        private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark");
-        static volatile String frameworksDetected = null;
-
-        private FrameworksDetection() {
-        }
-        public static String getFrameworksDetected() {
-            if (frameworksDetected == null) {
-                Set<String> inferredFrameworks = new LinkedHashSet<>();
-                for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
-                    for (String framework : FRAMEWORKS_TO_DETECT) {
-                        if (ste.toString().contains(framework)) {
-                            inferredFrameworks.add(String.format("(%s)", framework));
-                        }
-                    }
-                }
-
-                frameworksDetected = String.join("; ", inferredFrameworks);
-            }
-            return frameworksDetected;
-        }
-
-    }
+    private java.sql.Driver driver;
+    private boolean urlFlagSent;
 
     static {
-        String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
-        if (str != null && !str.isEmpty()) {
-            char[] chars = str.toCharArray();
-            for (int i = 0, len = chars.length; i < len; i++) {
-                if (Character.isDigit(chars[i])) {
-                    str = str.substring(i);
-                    break;
-                }
-            }
-            driverVersionString = str;
-        } else {
-            driverVersionString = "";
-        }
-        driverVersion = ClickHouseVersion.of(driverVersionString);
-        specVersion = ClickHouseVersion.of(ClickHouseDriver.class.getPackage().getSpecificationVersion());
+        load();
+    }
 
+    public ClickHouseDriver() {
+//        log.debug("Creating a new instance of the 'proxy' ClickHouseDriver");
+        log.info("ClickHouse JDBC driver version: {}", ClickHouseDriver.class.getPackage().getImplementationVersion());
+        urlFlagSent = false;
+        this.driver = getDriver(null);
+    }
+
+    public static void load() {
         try {
-            DriverManager.registerDriver(new ClickHouseDriver());
+            log.debug("Loading the 'proxy' JDBC driver into DriverManager.");
+            java.sql.DriverManager.registerDriver(new ClickHouseDriver());
         } catch (SQLException e) {
-            throw new IllegalStateException(e);
+            throw new RuntimeException("Failed to register ClickHouse JDBC driver", e);
         }
+    }
 
-        log.debug("ClickHouse Driver %s(JDBC: %s) registered", driverVersion, specVersion);
-
-        // client-specific options
-        Map<Object, ClickHouseOption> m = new LinkedHashMap<>();
+    public static void unload() {
         try {
-            for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class,
-                    ClickHouseDriver.class.getClassLoader())) {
-                Class<? extends ClickHouseOption> clazz = c.getOptionClass();
-                if (clazz == null || clazz == ClickHouseClientOption.class) {
-                    continue;
-                }
-                for (ClickHouseOption o : clazz.getEnumConstants()) {
-                    m.put(o.getKey(), o);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to load client-specific options", e);
+            log.debug("Unloading the 'proxy' JDBC driver.");
+            java.sql.DriverManager.deregisterDriver(new ClickHouseDriver());
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to deregister ClickHouse JDBC driver", e);
         }
-
-        clientSpecificOptions = Collections.unmodifiableMap(m);
     }
 
-    public static Map<ClickHouseOption, Serializable> toClientOptions(Properties props) {
-        if (props == null || props.isEmpty()) {
-            return Collections.emptyMap();
+
+    public static boolean isV2() {
+        return new ClickHouseDriver().isV2(null);
+    }
+    public boolean isV2(String url) {
+        log.debug("Checking if V2 driver is requested");
+        boolean v2Flag = Boolean.parseBoolean(System.getProperty("clickhouse.jdbc.v2", "false"));
+        if (v2Flag) {
+            log.info("V2 driver is requested through system property.");
+            return true;
         }
 
-        Map<ClickHouseOption, Serializable> options = new HashMap<>();
-        for (Entry<Object, Object> e : props.entrySet()) {
-            if (e.getKey() == null || e.getValue() == null) {
-                continue;
-            }
+        if (url != null && url.contains("clickhouse.jdbc.v2")) {
+            urlFlagSent = true;
 
-            String key = e.getKey().toString();
-            ClickHouseOption o = ClickHouseClientOption.fromKey(key);
-            if (o == null) {
-                o = clientSpecificOptions.get(key);
-            }
-
-            if (o != null) {
-                options.put(o, ClickHouseOption.fromString(e.getValue().toString(), o.getValueType()));
+            if (url.contains("clickhouse.jdbc.v2=true")) {
+                log.info("V2 driver is requested through URL.");
+                return true;
+            } else {
+                log.info("V1 driver is requested through URL.");
+                return false;
             }
         }
-        return options;
+
+        return false;
     }
 
-    private DriverPropertyInfo create(ClickHouseOption option, Properties props) {
-        DriverPropertyInfo propInfo = new DriverPropertyInfo(option.getKey(),
-                props.getProperty(option.getKey(), String.valueOf(option.getEffectiveDefaultValue())));
-        propInfo.required = false;
-        propInfo.description = option.getDescription();
-        propInfo.choices = null;
 
-        Class<?> clazz = option.getValueType();
-        if (Boolean.class == clazz || boolean.class == clazz) {
-            propInfo.choices = new String[]{"true", "false"};
-        } else if (clazz.isEnum()) {
-            Object[] values = clazz.getEnumConstants();
-            String[] names = new String[values.length];
-            int index = 0;
-            for (Object v : values) {
-                names[index++] = ((Enum<?>) v).name();
-            }
-            propInfo.choices = names;
+    private java.sql.Driver getDriver(String url) {
+        if (urlFlagSent && driver != null) {// if the URL flag was sent, we don't need to check the URL again
+
+            return driver;
         }
-        return propInfo;
+
+        if (isV2(url)) {
+            log.info("v2 driver");
+            driver = new com.clickhouse.jdbc.Driver();
+        } else {
+            log.info("v1 driver");
+            driver = new DriverV1();
+        }
+
+        return driver;
+    }
+
+    @Override
+    public Connection connect(String url, Properties info) throws SQLException {
+        java.sql.Driver driver = getDriver(url);
+        return driver.connect(url, info);
     }
 
     @Override
     public boolean acceptsURL(String url) throws SQLException {
-        return url != null && (url.startsWith(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX)
-                || url.startsWith(ClickHouseJdbcUrlParser.JDBC_ABBREVIATION_PREFIX));
-    }
-
-    @Override
-    public ClickHouseConnection connect(String url, Properties info) throws SQLException {
-        if (!acceptsURL(url)) {
-            return null;
-        }
-
-        log.debug("Creating connection");
-        return new ClickHouseConnectionImpl(url, info);
+        java.sql.Driver driver = getDriver(url);
+        return driver.acceptsURL(url);
     }
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        try {
-            info = ClickHouseJdbcUrlParser.parse(url, info).getProperties();
-        } catch (Exception e) {
-            log.error("Could not parse url %s", url, e);
-        }
-
-        List<DriverPropertyInfo> result = new ArrayList<>(ClickHouseClientOption.values().length * 2);
-        for (ClickHouseClientOption option : ClickHouseClientOption.values()) {
-            result.add(create(option, info));
-        }
-
-        // and then client-specific options
-        for (ClickHouseOption option : clientSpecificOptions.values()) {
-            result.add(create(option, info));
-        }
-
-        result.addAll(JdbcConfig.getDriverProperties());
-        return result.toArray(new DriverPropertyInfo[0]);
+        java.sql.Driver driver = getDriver(url);
+        return driver.getPropertyInfo(url, info);
     }
 
     @Override
     public int getMajorVersion() {
-        return driverVersion.getMajorVersion();
+        return driver.getMajorVersion();
     }
 
     @Override
     public int getMinorVersion() {
-        return driverVersion.getMinorVersion();
+        return driver.getMinorVersion();
     }
 
     @Override
     public boolean jdbcCompliant() {
-        return false;
+        return driver.jdbcCompliant();
     }
 
     @Override
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return parentLogger;
+        return driver.getParentLogger();
     }
 }

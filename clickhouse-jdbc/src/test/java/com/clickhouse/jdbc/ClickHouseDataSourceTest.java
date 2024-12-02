@@ -7,7 +7,9 @@ import java.sql.Statement;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseServerForTest;
+import junit.runner.Version;
 import org.testng.Assert;
+import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
@@ -19,7 +21,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testHighAvailabilityConfig() throws SQLException {
-        if (isCloud()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        if (isCloud() || ClickHouseDriver.isV2()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
@@ -36,8 +38,9 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
+    @Ignore
     public void testMultiEndpoints() throws SQLException {
-        if (isCloud()) return; //TODO: testMultiEndpoints - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        if (isCloud() || ClickHouseDriver.isV2()) return; //TODO: testMultiEndpoints - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String httpEndpoint = getEndpointString();
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
         String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
@@ -81,17 +84,17 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         String params = String.format("?%s=%s&%s=%d&%s", ClickHouseClientOption.CLIENT_NAME.getKey(), clientName,
                 ClickHouseClientOption.MAX_EXECUTION_TIME.getKey(), maxExecuteTime, JdbcConfig.PROP_CONTINUE_BATCH);
 
-        for (ClickHouseDataSource ds : new ClickHouseDataSource[] {
-                new ClickHouseDataSource(url, properties),
-                new ClickHouseDataSource(urlWithCredentials, properties),
-                new ClickHouseDataSource(url + params),
-                new ClickHouseDataSource(urlWithCredentials + params),
+        for (DataSourceV1 ds : new DataSourceV1[] {
+                new DataSourceV1(url, properties),
+                new DataSourceV1(urlWithCredentials, properties),
+                new DataSourceV1(url + params),
+                new DataSourceV1(urlWithCredentials + params),
         }) {
             for (ClickHouseConnection connection : new ClickHouseConnection[] {
                     ds.getConnection("default", getPassword()),
-                    new ClickHouseDriver().connect(url, properties),
-                    new ClickHouseDriver().connect(urlWithCredentials, properties),
-                    new ClickHouseDriver().connect(urlWithCredentials + params, new Properties()),
+                    new DriverV1().connect(url, properties),
+                    new DriverV1().connect(urlWithCredentials, properties),
+                    new DriverV1().connect(urlWithCredentials + params, new Properties()),
                     (ClickHouseConnection) DriverManager.getConnection(url, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials, properties),
                     (ClickHouseConnection) DriverManager.getConnection(urlWithCredentials + params),

@@ -181,7 +181,7 @@ public class ProxyTests extends BaseIntegrationTest{
                 .setUsername("default")
                 .setPassword("")
                 .useNewImplementation(onlyNewImplementation ? onlyNewImplementation :
-                        System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
+                        System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .addProxy(ProxyType.HTTP, "localhost", proxyPort);
     }
 
