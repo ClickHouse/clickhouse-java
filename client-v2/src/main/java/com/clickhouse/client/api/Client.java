@@ -980,7 +980,7 @@ public class Client implements AutoCloseable {
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
                 !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
-                !this.configuration.containsKey(ClientSettings.HTTP_HEADER_PREFIX + "Authorization") &&
+                !this.configuration.containsKey(ClientConfigProperties.HTTP_HEADER_PREFIX + "Authorization") &&
                 this.bearerTokenSupplier == null) {
                 throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
@@ -990,7 +990,7 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
             }
 
-            if (this.configuration.containsKey(ClientSettings.HTTP_HEADER_PREFIX + "Authorization") &&
+            if (this.configuration.containsKey(ClientConfigProperties.HTTP_HEADER_PREFIX + "Authorization") &&
                 this.bearerTokenSupplier != null) {
                 throw new IllegalArgumentException("Bearer token supplier cannot be used with a predefined Authorization header");
             }
