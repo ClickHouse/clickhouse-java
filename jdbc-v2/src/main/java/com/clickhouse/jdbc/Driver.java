@@ -15,6 +15,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * JDBC driver for ClickHouse.
@@ -22,6 +24,8 @@ import java.util.Set;
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
     public static final String driverVersion;
+    public static final int majorVersion;
+    public static final int minorVersion;
     private final DataSourceImpl dataSource;
 
     public static String frameworksDetected = null;
@@ -54,11 +58,31 @@ public class Driver implements java.sql.Driver {
         //If the version is not available, set it to 1.0
         if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
             log.warn("ClickHouse JDBC driver version is not available");
-            tempDriverVersion = "1.0";
+            tempDriverVersion = "1.0.0";
         }
 
         driverVersion = tempDriverVersion;
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
+
+        int tmpMajorVersion;
+        int tmpMinorVersion;
+
+        try {
+            Matcher m = Pattern.compile("(\\d+)(\\.\\d+)(\\.\\d+)").matcher(driverVersion);
+            if (m.find()) {
+                tmpMajorVersion = Integer.parseInt(m.group(1));
+                tmpMinorVersion = Integer.parseInt(m.group(2).substring(1));
+            } else {
+                tmpMajorVersion = 0;
+                tmpMinorVersion = 0;
+            }
+        } catch (Exception e) {
+            tmpMajorVersion = 0;
+            tmpMinorVersion = 0;
+        }
+
+        majorVersion = tmpMajorVersion;
+        minorVersion = tmpMinorVersion;
 
         //Load the driver
         //load(); //Commented out to avoid loading the driver multiple times, because we're referenced in V1
@@ -109,23 +133,21 @@ public class Driver implements java.sql.Driver {
     }
 
     public static int getDriverMajorVersion() {
-        return Integer.parseInt(driverVersion.split("\\.")[0]);
+        return majorVersion;
     }
 
     @Override
     public int getMajorVersion() {
-        //Convert the version string to an integer
-        return Integer.parseInt(driverVersion.split("\\.")[0]);
+        return majorVersion;
     }
 
     public static int getDriverMinorVersion() {
-        return Integer.parseInt(driverVersion.split("\\.")[1]);
+        return minorVersion;
     }
 
     @Override
     public int getMinorVersion() {
-        //Convert the version string to an integer
-        return Integer.parseInt(driverVersion.split("\\.")[1]);
+        return minorVersion;
     }
 
     @Override
