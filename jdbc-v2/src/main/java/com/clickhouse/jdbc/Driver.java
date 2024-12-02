@@ -105,7 +105,7 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        return new DriverPropertyInfo[0];
+        return JdbcConfiguration.getDriverPropertyInfo(info).toArray(new DriverPropertyInfo[0]);
     }
 
     public static int getDriverMajorVersion() {

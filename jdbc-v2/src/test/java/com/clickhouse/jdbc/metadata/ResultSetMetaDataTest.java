@@ -10,9 +10,11 @@ import java.sql.Statement;
 import java.sql.Types;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
+
 
 public class ResultSetMetaDataTest extends JdbcIntegrationTest {
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnCount() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -23,7 +25,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnLabel() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -34,7 +36,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnName() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -45,7 +47,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeIntegers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -59,7 +61,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -71,18 +73,18 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeString() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("SELECT toString(1) AS a");
                 ResultSetMetaData rsmd = rs.getMetaData();
-                assertEquals(rsmd.getColumnType(1), Types.CHAR);
+                assertEquals(rsmd.getColumnType(1), Types.VARCHAR);
             }
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeDateAndTime() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -94,7 +96,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeName() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -106,7 +108,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnDisplaySize() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -117,7 +119,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnPrecision() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -128,7 +130,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnScale() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -138,6 +140,21 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rsmd.getScale(2), 5);
                 assertEquals(rsmd.getScale(3), 5);
             }
+        }
+    }
+
+    public static void assertColumnNames(ResultSet rs, String... names) throws Exception {
+        ResultSetMetaData metadata = rs.getMetaData();
+        assertEquals(names.length, metadata.getColumnCount());
+        for (int i = 0; i < metadata.getColumnCount(); i++) {
+            assertEquals(names[i], metadata.getColumnName(i + 1));
+        }
+    }
+    public static void assertColumnTypes(ResultSet rs, String... types) throws Exception {
+        ResultSetMetaData metadata = rs.getMetaData();
+        assertEquals(types.length, metadata.getColumnCount());
+        for (int i = 0; i < metadata.getColumnCount(); i++) {
+            assertEquals(types[i], metadata.getColumnTypeName(i + 1));
         }
     }
 }

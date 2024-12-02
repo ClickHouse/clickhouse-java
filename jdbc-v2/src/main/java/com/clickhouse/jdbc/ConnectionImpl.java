@@ -1,8 +1,10 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,9 +12,12 @@ import org.slf4j.LoggerFactory;
 import java.sql.*;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
@@ -28,6 +33,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private String catalog;
     private String schema;
     private QuerySettings defaultQuerySettings;
+
+    private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
 
     public ConnectionImpl(String url, Properties info) {
         log.debug("Creating connection to {}", url);
@@ -51,7 +58,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setPassword(config.getPassword())
                 .setClientName(clientName)
                 .build();
+        this.schema = client.getDefaultDatabase(); // TODO: fix in properties handling?
         this.defaultQuerySettings = new QuerySettings();
+
+        this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false);
     }
 
     public String getUser() {
@@ -70,31 +80,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.defaultQuerySettings = settings;
     }
 
-    private String getServerVersion() throws SQLException {
+    public String getServerVersion() throws SQLException {
         GenericRecord result = client.queryAll("SELECT version() as server_version").stream()
                 .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version."));
 
         return result.getString("server_version");
-    }
-
-    public int getMajorVersion() throws SQLException {
-        String version = getServerVersion();
-        try {
-            return Integer.parseInt(version.split("\\.")[0]);
-        } catch (NumberFormatException e) {
-            log.error("Failed to parse major version from server version: " + version, e);
-            throw new SQLException("Failed to parse major version from server version: " + version);
-        }
-    }
-
-    public int getMinorVersion() throws SQLException {
-        String version = getServerVersion();
-        try {
-            return Integer.parseInt(version.split("\\.")[1]);
-        } catch (NumberFormatException e) {
-            log.error("Failed to parse minor version from server version: " + version, e);
-            throw new SQLException("Failed to parse minor version from server version: " + version);
-        }
     }
 
     @Override
@@ -118,7 +108,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public String nativeSQL(String sql) throws SQLException {
         checkOpen();
-        return sql;
+        /// TODO: this is not implemented according to JDBC spec and may not be used.
+        throw new RuntimeException("Not implemented");
     }
 
     @Override
@@ -163,7 +154,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
         checkOpen();
-        return new com.clickhouse.jdbc.metadata.DatabaseMetaData(this);
+        return this.metadata;
     }
 
     @Override
@@ -183,7 +174,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setCatalog(String catalog) throws SQLException {
         checkOpen();
-        this.catalog = catalog;
+//        this.catalog = catalog; currently not supported
     }
 
     @Override
@@ -361,44 +352,52 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
-//        try {
-//            checkOpen();
-//            this.defaultQuerySettings.setOption(name, value);
-//        } catch (Exception e) {
-//            throw new SQLClientInfoException("Failed to set client info.", Collections.singletonMap(name, ClientInfoStatus.REASON_UNKNOWN), e);
-//        }
-        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
+        if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
+            client.updateClientName(value);
+        }
+        // TODO: generate warning for unknown properties
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
-//        try {
-//            checkOpen();
-//        } catch (SQLException e) {
-//            throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), e);
-//        }
-//
-//        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
-//            setClientInfo(entry.getKey().toString(), entry.getValue().toString());
-//        }
-        throw new SQLClientInfoException("Failed to set client info.", new HashMap<>(), new SQLFeatureNotSupportedException("setClientInfo not supported"));
+        Set<String> toSet = new HashSet<>();
+        Set<String> toReset = new HashSet<>();
+        for (ClientInfoProperties p : ClientInfoProperties .values()) {
+            String key = p.getKey();
+            if (properties.containsKey(key)) {
+                toSet.add(key);
+            } else {
+                toReset.add(key);
+            }
+        }
+
+        // first we reset value
+        for (String key : toReset) {
+            setClientInfo(key, null);
+        }
+
+        // then we set value, so aliases will not clean values accidentally
+        for (String key : toSet) {
+            setClientInfo(key, properties.getProperty(key));
+        }
     }
 
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
-//        Object value = this.defaultQuerySettings.getAllSettings().get(name);
-//        return value == null ? null : String.valueOf(value);
-        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
+        if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
+            return client.getConfiguration().get(ClientConfigProperties.CLIENT_NAME.getKey());
+        } else {
+            return null;
+        }
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
         checkOpen();
-//        Properties clientInfo = new Properties();
-//        clientInfo.putAll(this.defaultQuerySettings.getAllSettings());
-//        return clientInfo;
-        throw new SQLFeatureNotSupportedException("getClientInfo not supported");
+        Properties clientInfo = new Properties();
+        clientInfo.put(ClientInfoProperties.APPLICATION_NAME.getKey(), getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()));
+        return clientInfo;
     }
 
     @Override

@@ -23,16 +23,22 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
+
 public class DataTypeTests extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(DataTypeTests.class);
 
-    @BeforeClass
-    public void setUp() throws SQLException {
-        DriverManager.registerDriver(new Driver());
+    @BeforeClass(groups = { "integration" })
+    public static void setUp() throws SQLException {
+        Driver.load();
     }
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(getEndpointString(isCloud()));
+        try {
+            return DriverManager.getConnection(getEndpointString(isCloud()));
+        } catch (SQLException e) {
+            Driver.load();
+            return DriverManager.getConnection(getEndpointString(isCloud()));
+        }
     }
 
     private int insertData(String sql) throws SQLException {
@@ -43,7 +49,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testIntegerTypes() throws SQLException {
         runQuery("CREATE TABLE test_integers (order Int8, "
                 + "int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256, "
@@ -150,7 +156,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testDecimalTypes() throws SQLException {
         runQuery("CREATE TABLE test_decimals (order Int8, "
                 + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
@@ -218,7 +224,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testDateTypes() throws SQLException {
         runQuery("CREATE TABLE test_dates (order Int8, "
                 + "date Date, date32 Date32, " +
@@ -300,7 +306,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testStringTypes() throws SQLException {
         runQuery("CREATE TABLE test_strings (order Int8, "
                 + "str String, fixed FixedString(6), "
@@ -356,7 +362,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testFloatTypes() throws SQLException {
         runQuery("CREATE TABLE test_floats (order Int8, "
                 + "float32 Float32, float64 Float64"
@@ -406,7 +412,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testBooleanTypes() throws SQLException {
         runQuery("CREATE TABLE test_booleans (order Int8, "
                 + "bool Boolean"
@@ -439,7 +445,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
                 + "array Array(Int8), arraystr Array(String)"
@@ -492,7 +498,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
@@ -544,7 +550,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testNullableTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_nullable (order Int8, "
                 + "int8 Nullable(Int8), int16 Nullable(Int16), int32 Nullable(Int32), int64 Nullable(Int64), int128 Nullable(Int128), int256 Nullable(Int256), "
@@ -581,7 +587,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testLowCardinalityTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_low_cardinality (order Int8, "
                 + "lowcardinality LowCardinality(String)"
@@ -610,7 +616,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSimpleAggregateFunction() throws SQLException {
         runQuery("CREATE TABLE test_aggregate (order Int8, "
                 + "int8 Int8"
@@ -638,7 +644,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testNestedTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_nested (order Int8, "
                 + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
@@ -679,7 +685,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testTupleTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_tuple (order Int8, "
                 + "tuple Tuple(int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"

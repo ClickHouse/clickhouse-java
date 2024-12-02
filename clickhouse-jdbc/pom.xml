@@ -381,6 +381,7 @@
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                     <include>com.clickhouse:jdbc-v2</include>
+                                    <include>com.clickhouse:client-v2</include>
                                 </includes>
                             </artifactSet>
                             <relocations>

@@ -7,8 +7,9 @@ import java.util.Properties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+
 public class DriverTest extends JdbcIntegrationTest {
-    @Test
+    @Test(groups = { "integration" })
     public void testDriver() {
         try {
             DriverManager.registerDriver(new Driver());
@@ -17,7 +18,7 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testConnect() {
         try {
             Driver driver = new Driver();
@@ -27,7 +28,7 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testAcceptsURL() {
         try {
             Driver driver = new Driver();
@@ -54,25 +55,25 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetMajorVersion() {
         Driver driver = new Driver();
         Assert.assertEquals(driver.getMajorVersion(), 1);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetMinorVersion() {
         Driver driver = new Driver();
         Assert.assertEquals(driver.getMinorVersion(), 0);
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testJdbcCompliant() {
         Driver driver = new Driver();
         Assert.assertFalse(driver.jdbcCompliant());
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetParentLogger() {
         try {
             Driver driver = new Driver();

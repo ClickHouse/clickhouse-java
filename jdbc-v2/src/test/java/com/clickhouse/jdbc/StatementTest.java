@@ -20,6 +20,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
+
 public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testExecuteQuerySimpleNumbers() throws Exception {

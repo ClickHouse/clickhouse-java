@@ -32,13 +32,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private List<String> batch;
     private String lastQueryId;
 
-    public StatementImpl(ConnectionImpl connection) {
+    private String schema;
+
+    public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
         this.queryTimeout = 0;
         this.closed = false;
         this.currentResultSet = null;
         this.metrics = null;
         this.batch = new ArrayList<>();
+        this.schema = connection.getSchema(); // remember DB name
     }
 
     protected void checkClosed() throws SQLException {
@@ -107,10 +110,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
-        return executeQuery(sql, connection.getDefaultQuerySettings());
+        return executeQuery(sql, new QuerySettings().setDatabase(schema));
     }
 
-    public ResultSet executeQuery(String sql, QuerySettings settings) throws SQLException {
+    public ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
@@ -136,10 +139,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdate(sql, connection.getDefaultQuerySettings());
+        return executeUpdate(sql, new QuerySettings().setDatabase(schema));
     }
 
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
+        // TODO: close current result set?
         checkClosed();
 
         if (parseStatementType(sql) == StatementType.SELECT) {
@@ -148,18 +152,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        try {
-            sql = parseJdbcEscapeSyntax(sql);
-            QueryResponse response;
-            if (queryTimeout == 0) {
-                response = connection.client.query(sql, mergedSettings).get();
-            } else {
-                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
-            }
+        sql = parseJdbcEscapeSyntax(sql);
+        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(sql, mergedSettings).get()
+                : connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
+
             currentResultSet = null;
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
-            response.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -249,15 +248,15 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        return execute(sql, new QuerySettings());
+        return execute(sql, new QuerySettings().setDatabase(schema));
     }
 
-    public boolean execute(String sql, QuerySettings settings) throws SQLException {
+    private boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         StatementType type = parseStatementType(sql);
 
         if (type == StatementType.SELECT) {
-            executeQuery(sql, settings);
+            executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
             //SET ROLE

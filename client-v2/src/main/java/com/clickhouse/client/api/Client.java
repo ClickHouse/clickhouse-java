@@ -2117,6 +2117,10 @@ public class Client implements AutoCloseable {
                         this.configuration.get(ClientConfigProperties.SESSION_DB_ROLES.getKey())));
     }
 
+    public void updateClientName(String name) {
+        this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
+    }
+
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
 
     /**

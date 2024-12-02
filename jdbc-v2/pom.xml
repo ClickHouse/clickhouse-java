@@ -45,21 +45,11 @@
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
             <version>${apache.httpclient.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.apache.httpcomponents.core5</groupId>
-                    <artifactId>httpcore5</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.apache.httpcomponents.core5</groupId>
-            <artifactId>httpcore5</artifactId>
-            <version>${apache.httpclient.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
@@ -91,6 +81,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -225,43 +216,20 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.google.code.gson:gson</include>
-                                    <include>com.google.guava:failureaccess</include>
-                                    <include>com.google.guava:guava</include>
-                                    <include>com.google.protobuf:protobuf-java</include>
-                                    <include>com.squareup.okio:okio</include>
-                                    <include>io.opencensus:opencensus-api</include>
-                                    <include>io.opencensus:opencensus-impl</include>
-                                    <include>io.opencensus:opencensus-impl-core</include>
-                                    <include>io.perfmark:perfmark-api</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:client-v2</include>
                                     <include>org.apache.commons:commons-compress</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
+                                    <include>com.fasterxml.jackson.core:jackson-core</include>
+                                    <include>org.roaringbitmap:RoaringBitmap</include>
+                                    <include>org.ow2.asm:asm</include>
+                                    <include>org.slf4j:slf4j-api</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
-                                <relocation>
-                                    <pattern>com.google</pattern>
-                                    <shadedPattern>${shade.base}.google</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.opencensus</pattern>
-                                    <shadedPattern>${shade.base}.opencensus</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.perfmark</pattern>
-                                    <shadedPattern>${shade.base}.perfmark</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>okio</pattern>
-                                    <shadedPattern>${shade.base}.okio</shadedPattern>
-                                </relocation>
                                 <relocation>
                                     <pattern>org.apache</pattern>
                                     <shadedPattern>${shade.base}.apache</shadedPattern>
