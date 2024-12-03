@@ -9,6 +9,11 @@
 <h1>ClickHouse Java Client & JDBC Driver</h1>
 </div>
 
+
+> [!CAUTION]
+> - We are planning to deprecate client-v1 (projects: `clickhouse-client`, `clickhouse-http-client`, `clickhouse-data`) in *4 Monthes*. It means no support and new releases
+> - We are planning to deprecate old JDBC implementation and replace it with a new one in *4 Monthes*. It means no support and new releases.
+
 Table of Contents
 * [About The project](#about-the-project)
 * [Important Updates](#important-updates)
