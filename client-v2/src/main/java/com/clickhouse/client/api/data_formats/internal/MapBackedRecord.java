@@ -287,6 +287,11 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
+    public boolean[] getBooleanArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return record.containsKey(schema.indexToName(colIndex));
     }
@@ -423,6 +428,11 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public double[] getDoubleArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public boolean[] getBooleanArray(int index) {
         return getPrimitiveArray(schema.indexToName(index));
     }
 

@@ -12,6 +12,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -170,6 +171,8 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(record.getString("col3"), dsRecords.get("col3"));
             Assert.assertEquals(record.getLong("col4"), dsRecords.get("col4"));
             Assert.assertEquals(record.getString("col5"), dsRecords.get("col5"));
+            Assert.assertEquals(record.getBooleanArray("col6"), ((List)dsRecords.get("col6")).toArray());
+            Assert.assertEquals(record.getIntArray("col7"), ((List)dsRecords.get("col7")).toArray());
         }
     }
 
@@ -286,7 +289,16 @@ public class QueryTests extends BaseIntegrationTest {
         for (String colDefinition : DATASET_COLUMNS) {
             // result values
             String colName = colDefinition.split(" ")[0];
-            List<Object> colValues = records.stream().map(r -> r.getObject(colName)).collect(Collectors.toList());
+            List<Object> colValues = records.stream().map(r -> {
+                Object v = r.getObject(colName);
+                if (v instanceof BinaryStreamReader.ArrayValue) {
+                    v = ((BinaryStreamReader.ArrayValue)v).asList();
+                }
+
+                return v;
+            }
+
+            ).collect(Collectors.toList());
             Assert.assertEquals(colValues.size(), dataset.size());
 
             // dataset values
@@ -387,11 +399,34 @@ public class QueryTests extends BaseIntegrationTest {
         while (dataIterator.hasNext()) {
             Map<String, Object> expectedRecord = dataIterator.next();
             Map<String, Object> actualRecord = reader.next();
-            Assert.assertEquals(actualRecord, expectedRecord);
+            for (Map.Entry<String, Object> entry : actualRecord.entrySet()) {
+                Object value = entry.getValue();
+                if (entry.getValue() instanceof BinaryStreamReader.ArrayValue) {
+                    value = ((BinaryStreamReader.ArrayValue)value).asList();
+                }
+
+                Assert.assertEquals(value, expectedRecord.get(entry.getKey()), "Value of " + entry.getKey() + " doesn't match: "
+                    + expectedRecord.get(entry.getKey()) + " expected, actual: " + value);
+
+            }
             rowsCount++;
         }
 
         Assert.assertEquals(rowsCount, rows);
+    }
+
+    @Test
+    public void testReadingArrayInNative() throws Exception {
+
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        try (QueryResponse response = client.query("SELECT [1, 2, 3] as arr1, [[1, 2, 3], [4, 5, 6]] as arr2", querySettings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            Map<String, Object> record = reader.next();
+            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr1")).asList(), Arrays.asList((short)1, (short)2, (short)3));
+            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(0), Arrays.asList((short)1, (short)2, (short)3));
+            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(1), Arrays.asList((short)4, (short)5, (short)6));
+        }
     }
 
     @Test(groups = {"integration"})
@@ -450,7 +485,9 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static List<String> ARRAY_COLUMNS = Arrays.asList(
             "col1 Array(UInt32)",
-            "col2 Array(Array(Int32))"
+            "col2 Array(Array(Int32))",
+            "col3 Array(UInt64)",
+            "col4 Array(Bool)"
     );
 
     private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = Arrays.asList(
@@ -459,11 +496,18 @@ public class QueryTests extends BaseIntegrationTest {
                             .asLongStream().collect(ArrayList::new, ArrayList::add, ArrayList::addAll),
             c -> {
                 List<List<Integer>> values = new ArrayList<>();
+
                 for (int i = 0; i < 10; i++) {
-                    values.add(Arrays.asList(1, 2, 3));
+                    values.add(Arrays.asList(i, 2 * i , 3 * i));
                 }
                 return values;
-            }
+            },
+            c ->
+                RANDOM.longs(10, 0, Long.MAX_VALUE)
+                        .mapToObj(BigInteger::valueOf).collect(Collectors.toList()),
+            c -> RANDOM.ints(10, 0, 1)
+                    .mapToObj(i -> i == 0 ).collect(Collectors.toList())
+
     );
 
     @Test(groups = {"integration"})
@@ -497,6 +541,12 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(reader.getList("col1"), datasetRecord.get("col1"));
         List<List<Long>> col2Values = reader.getList("col2");
         Assert.assertEquals(col2Values, data.get(0).get("col2"));
+        List<BigInteger> col3Values = reader.getList("col3");
+        Assert.assertEquals(col3Values, data.get(0).get("col3"));
+        List<Boolean> col4Values = reader.getList("col4");
+        Assert.assertEquals(col4Values, data.get(0).get("col4"));
+        boolean[] col4Array = reader.getBooleanArray("col4");
+        Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
     }
 
     private final static List<String> MAP_COLUMNS = Arrays.asList(
@@ -1292,7 +1342,9 @@ public class QueryTests extends BaseIntegrationTest {
             "col2 Int32",
             "col3 String",
             "col4 Int64",
-            "col5 String"
+            "col5 String",
+            "col6 Array(Bool)",
+            "col7 Array(Int32)"
     );
 
     private final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = Arrays.asList(
@@ -1300,7 +1352,9 @@ public class QueryTests extends BaseIntegrationTest {
             c -> RANDOM.nextInt(Integer.MAX_VALUE),
             c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE),
             c -> Long.valueOf(RANDOM.nextInt(Integer.MAX_VALUE)),
-            c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE)
+            c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE),
+            c -> RANDOM.ints(10, 0, 1).mapToObj(i -> i == 0).collect(Collectors.toList()),
+            c -> RANDOM.ints(10, 0, Integer.MAX_VALUE).boxed().collect(Collectors.toList())
     );
 
     private final static String DATASET_TABLE = "query_test_table";
