@@ -455,7 +455,7 @@ public class BinaryStreamReader {
             v = new BigDecimal(readBigIntegerLE(INT256_SIZE, false), scale);
         }
 
-        return v;
+        return v.stripTrailingZeros();
     }
 
     public static byte[] readNBytes(InputStream inputStream, int len) throws IOException {
