@@ -223,7 +223,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
+                .compressClientRequest(true)
                 .build()) {
 
             List<GenericRecord> records = client.queryAll("SELECT timezone()");
