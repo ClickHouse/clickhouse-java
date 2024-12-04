@@ -512,6 +512,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public boolean[] getBooleanArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
     }
@@ -643,6 +648,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public double[] getDoubleArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public boolean[] getBooleanArray(int index) {
         return getPrimitiveArray(schema.indexToName(index));
     }
 

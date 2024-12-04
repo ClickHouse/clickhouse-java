@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReade
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -58,13 +59,24 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         for (int i = 0; i < nColumns; i++) {
             ClickHouseColumn column = ClickHouseColumn.of(BinaryStreamReader.readString(input),
                     BinaryStreamReader.readString(input));
+
             names.add(column.getColumnName());
             types.add(column.getDataType().name());
 
             List<Object> values = new ArrayList<>(nRows);
-            for (int j = 0; j < nRows; j++) {
-                Object value = binaryStreamReader.readValue(column);
-                values.add(value);
+            if (column.isArray()) {
+                int[] sizes = new int[nRows];
+                for (int j = 0; j < nRows; j++) {
+                    sizes[j] = Math.toIntExact(binaryStreamReader.readLongLE());
+                }
+                for (int j = 0; j < nRows; j++) {
+                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), sizes[0]));
+                }
+            } else {
+                for (int j = 0; j < nRows; j++) {
+                    Object value = binaryStreamReader.readValue(column);
+                    values.add(value);
+                }
             }
             currentBlock.add(values);
         }
