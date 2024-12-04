@@ -6,6 +6,7 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.SqlExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +19,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -46,7 +46,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     protected void checkClosed() throws SQLException {
         if (closed) {
-            throw new SQLException("Statement is closed");
+            throw new SQLException("Statement is closed", SqlExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
         }
     }
 
@@ -130,7 +130,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            throw new SQLException(e);
+            throw SqlExceptionUtils.toSqlState(e);
         }
 
         return currentResultSet;
@@ -147,7 +147,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
 
         if (parseStatementType(sql) == StatementType.SELECT) {
-            throw new SQLException("executeUpdate() cannot be called with a SELECT statement");
+            throw new SQLException("executeUpdate() cannot be called with a SELECT statement", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
@@ -184,7 +184,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Set max field size is not supported.");
+        throw new SQLFeatureNotSupportedException("Set max field size is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -311,7 +311,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        throw new UnsupportedOperationException("Fetch direction is not supported.");
+        throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override

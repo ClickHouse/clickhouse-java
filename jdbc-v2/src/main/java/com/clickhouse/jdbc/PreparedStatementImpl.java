@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.jdbc.internal.SqlExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -234,7 +235,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Ref is not supported.");
+        throw new SQLFeatureNotSupportedException("Ref is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -531,7 +532,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             return escapeString(x.toString());//Escape single quotes
         } catch (Exception e) {
             LOG.error("Error encoding object", e);
-            throw new SQLException("Error encoding object", e);
+            throw new SQLException("Error encoding object", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
     }
 
