@@ -10,7 +10,7 @@ import java.sql.SQLException;
 /**
  * Helper class for building {@link SQLException}.
  */
-public final class SqlExceptionUtils {
+public final class ExceptionUtils {
     public static final String SQL_STATE_CLIENT_ERROR = "HY000";
     public static final String SQL_STATE_OPERATION_CANCELLED = "HY008";
     public static final String SQL_STATE_CONNECTION_EXCEPTION = "08000";
@@ -21,7 +21,7 @@ public final class SqlExceptionUtils {
     public static final String SQL_STATE_DATA_EXCEPTION = "22000";
     public static final String SQL_STATE_FEATURE_NOT_SUPPORTED = "0A000";
 
-    private SqlExceptionUtils() {}//Private constructor
+    private ExceptionUtils() {}//Private constructor
 
     // https://en.wikipedia.org/wiki/SQLSTATE
 

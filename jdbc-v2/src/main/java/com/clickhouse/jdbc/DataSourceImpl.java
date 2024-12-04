@@ -1,6 +1,6 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.jdbc.internal.SqlExceptionUtils;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -70,12 +70,12 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Method not supported", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        throw new SQLFeatureNotSupportedException("Method not supported", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException("Method not supported", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override

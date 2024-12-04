@@ -17,7 +17,7 @@ import java.util.Map;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.jdbc.internal.SqlExceptionUtils;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.types.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private void checkClosed() throws SQLException {
         if (closed) {
-            throw new SQLException("ResultSet is closed.", SqlExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
+            throw new SQLException("ResultSet is closed.", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
         }
     }
 
@@ -66,7 +66,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             try {
                 reader.close();
             } catch (Exception e) {
-                throw SqlExceptionUtils.toSqlState(e);
+                throw ExceptionUtils.toSqlState(e);
             }
 
             reader = null;
@@ -76,7 +76,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             try {
                 response.close();
             } catch (Exception e) {
-                throw SqlExceptionUtils.toSqlState(e);
+                throw ExceptionUtils.toSqlState(e);
             }
             response = null;
         }
@@ -100,7 +100,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -116,7 +116,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return false;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -132,7 +132,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -148,7 +148,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -164,7 +164,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -180,7 +180,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -196,7 +196,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -212,7 +212,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -228,7 +228,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -244,7 +244,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -262,7 +262,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -279,7 +279,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -296,7 +296,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -304,7 +304,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
         checkClosed();
         //TODO: Add this to ClickHouseBinaryFormatReader
-        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -317,7 +317,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
         checkClosed();
         //TODO: implement
-        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -332,7 +332,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -348,7 +348,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return false;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -364,7 +364,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -380,7 +380,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -396,7 +396,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -412,7 +412,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -428,7 +428,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -444,7 +444,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -460,7 +460,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -476,7 +476,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -494,7 +494,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -511,7 +511,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -528,7 +528,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -536,7 +536,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
         checkClosed();
         //TODO: Add this to ClickHouseBinaryFormatReader
-        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -549,7 +549,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
         checkClosed();
         //TODO: implement
-        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -587,7 +587,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -603,7 +603,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -613,20 +613,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return reader.getSchema().getColumnByName(columnLabel).getColumnIndex();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -641,7 +641,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -657,32 +657,32 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
     @Override
     public boolean isBeforeFirst() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("isBeforeFirst is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("isBeforeFirst is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("isAfterLast is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("isAfterLast is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean isFirst() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("isFirst is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("isFirst is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("isLast is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("isLast is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -698,37 +698,37 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean first() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("first is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("first is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean last() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("last is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("last is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public int getRow() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("getRow is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("getRow is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("absolute is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("absolute is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean relative(int rows) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("relative is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("relative is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean previous() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("previous is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("previous is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -740,7 +740,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("setFetchDirection is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("setFetchDirection is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -769,247 +769,247 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean rowUpdated() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean rowInserted() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public boolean rowDeleted() throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNull(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBoolean(int columnIndex, boolean x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateByte(int columnIndex, byte x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateShort(int columnIndex, short x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateInt(int columnIndex, int x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateLong(int columnIndex, long x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateFloat(int columnIndex, float x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateDouble(int columnIndex, double x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateString(int columnIndex, String x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBytes(int columnIndex, byte[] x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateDate(int columnIndex, Date x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateTime(int columnIndex, Time x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNull(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBoolean(String columnLabel, boolean x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateByte(String columnLabel, byte x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateShort(String columnLabel, short x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateInt(String columnLabel, int x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateLong(String columnLabel, long x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateFloat(String columnLabel, float x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateDouble(String columnLabel, double x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBigDecimal(String columnLabel, BigDecimal x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateString(String columnLabel, String x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBytes(String columnLabel, byte[] x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateDate(String columnLabel, Date x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateTime(String columnLabel, Time x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateTimestamp(String columnLabel, Timestamp x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, int length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateObject(String columnLabel, Object x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1062,19 +1062,19 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Ref getRef(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Ref is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Blob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public java.sql.Clob getClob(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Clob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1083,7 +1083,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return new Array(reader.getList(columnIndex));
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1096,19 +1096,19 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Ref getRef(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Ref is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Blob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Blob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Clob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Clob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1117,7 +1117,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return new Array(reader.getList(columnLabel));
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1173,56 +1173,56 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return new URL(reader.getString(columnLabel));
         } catch (MalformedURLException e) {
-            throw new SQLDataException(e.getMessage(), SqlExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
+            throw new SQLDataException(e.getMessage(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
         }
     }
 
     @Override
     public void updateRef(int columnIndex, Ref x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateRef(String columnLabel, Ref x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(int columnIndex, Blob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(String columnLabel, Blob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(int columnIndex, Clob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(String columnLabel, Clob x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateArray(int columnIndex, java.sql.Array x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateArray(String columnLabel, java.sql.Array x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1240,13 +1240,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateRowId(int columnIndex, RowId x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateRowId(String columnLabel, RowId x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1263,61 +1263,61 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNString(int columnIndex, String nString) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNString(String columnLabel, String nString) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(String columnLabel, NClob nClob) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public NClob getNClob(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NClob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("NClob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public NClob getNClob(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("NClob is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("NClob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public SQLXML getSQLXML(int columnIndex) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("SQLXML is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("SQLXML is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public SQLXML getSQLXML(String columnLabel) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("SQLXML is not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("SQLXML is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateSQLXML(String columnLabel, SQLXML xmlObject) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1347,169 +1347,169 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(int columnIndex, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateClob(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(int columnIndex, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void updateNClob(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Writes are not supported.", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -1518,7 +1518,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return (T) reader.readValue(columnIndex);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1528,7 +1528,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return (T) reader.readValue(columnLabel);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 

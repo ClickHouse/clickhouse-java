@@ -6,7 +6,7 @@ import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.SqlExceptionUtils;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -16,8 +16,6 @@ import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
@@ -35,7 +33,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      */
     public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs) throws SQLFeatureNotSupportedException {
         if (useCatalogs) {
-            throw new SQLFeatureNotSupportedException("Catalogs are not supported yet", SqlExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+            throw new SQLFeatureNotSupportedException("Catalogs are not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
         this.connection = connection;
         this.useCatalogs = useCatalogs;
@@ -57,7 +55,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.getURL();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -66,7 +64,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.getUser();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -75,7 +73,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.isReadOnly();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -112,7 +110,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.getServerVersion();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -645,7 +643,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.getTransactionIsolation();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -659,7 +657,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return level == connection.getTransactionIsolation();
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -697,7 +695,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -728,7 +726,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -771,7 +769,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -789,7 +787,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -804,7 +802,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -818,7 +816,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT name AS TABLE_TYPE FROM system.table_engines");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -862,7 +860,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
     @Override
@@ -872,7 +870,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -883,7 +881,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -894,7 +892,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -905,7 +903,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -916,7 +914,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS KEY_SEQ, NULL AS PK_NAME");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -927,7 +925,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -938,7 +936,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -949,7 +947,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -958,7 +956,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1085,7 +1083,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS CLASS_NAME, NULL AS DATA_TYPE, NULL AS REMARKS, NULL AS BASE_TYPE");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1124,7 +1122,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS SUPERTYPE_CAT, NULL AS SUPERTYPE_SCHEM, NULL AS SUPERTYPE_NAME");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1135,7 +1133,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS SUPERTABLE_NAME");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1146,7 +1144,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS ATTR_NAME, NULL AS DATA_TYPE, NULL AS ATTR_TYPE_NAME, NULL AS ATTR_SIZE, NULL AS DECIMAL_DIGITS, NULL AS NUM_PREC_RADIX, NULL AS NULLABLE, NULL AS REMARKS, NULL AS ATTR_DEF, NULL AS SQL_DATA_TYPE, NULL AS SQL_DATETIME_SUB, NULL AS CHAR_OCTET_LENGTH, NULL AS ORDINAL_POSITION, NULL AS IS_NULLABLE, NULL AS SCOPE_CATALOG, NULL AS SCOPE_SCHEMA, NULL AS SCOPE_TABLE, NULL AS SOURCE_DATA_TYPE");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1167,7 +1165,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             return Integer.parseInt(version.split("\\.")[0]);
         } catch (NumberFormatException e) {
             log.error("Failed to parse major version from server version: " + version, e);
-            throw new SQLException("Failed to parse major version from server version: " + version, SqlExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
+            throw new SQLException("Failed to parse major version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
 
@@ -1178,7 +1176,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             return Integer.parseInt(version.split("\\.")[1]);
         } catch (NumberFormatException e) {
             log.error("Failed to parse minor version from server version: " + version, e);
-            throw new SQLException("Failed to parse minor version from server version: " + version, SqlExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
+            throw new SQLException("Failed to parse minor version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
 
@@ -1219,7 +1217,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
                     "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1254,7 +1252,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1274,7 +1272,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1303,7 +1301,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -1327,7 +1325,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
-            throw SqlExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
