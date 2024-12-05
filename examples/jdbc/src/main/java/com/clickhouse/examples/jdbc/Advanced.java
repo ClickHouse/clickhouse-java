@@ -82,23 +82,6 @@ public class Advanced {
         }
     }
 
-    static String manualTransaction(String url) throws SQLException {
-        Properties props = new Properties();
-        // props.setProperty(JdbcConfig.PROP_AUTO_COMMIT, "false");
-        props.setProperty("autoCommit", "false");
-        // props.setProperty(JdbcConfig.PROP_TX_SUPPORT, "true");
-        props.setProperty("transactionSupport", "true");
-        try (Connection conn = getConnection(url, props)) {
-            if (!((ClickHouseConnection) conn).isTransactionSupported()) {
-                System.out.println("Re-establishing connection until transaction is supported...");
-                return manualTransaction(url);
-            }
-
-            conn.commit();
-            return "Transaction committed!";
-        }
-    }
-
     static String namedParameter(String url) throws SQLException {
         Properties props = new Properties();
         // props.setProperty(JdbcConfig.PROP_NAMED_PARAM, "true");
@@ -172,10 +155,7 @@ public class Advanced {
     public static void main(String[] args) {
         // randomly pick one of the two endpoints to connect to,
         // fail over to the other when there's connection issue
-        String url = System.getProperty("chUrl",
-                "jdbc:ch://(https://explorer@play.clickhouse.com:443),"
-                        + "(https://demo:demo@github.demo.trial.altinity.cloud)"
-                        + "/default?failover=1&load_balancing_policy=random");
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost");
 
         try {
             System.out.println(exteralTables(url));
@@ -183,8 +163,6 @@ public class Advanced {
             System.out.println(renameResponseColumn(url));
             System.out.println(unwrapToUseClientApi(url));
 
-            // requires ClickHouse 22.6+ with transaction enabled
-            System.out.println(manualTransaction(url));
         } catch (SQLException e) {
             e.printStackTrace();
         }
