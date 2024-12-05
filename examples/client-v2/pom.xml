@@ -77,15 +77,8 @@
             <groupId>com.clickhouse</groupId>
             <artifactId>client-v2</artifactId>
             <version>${clickhouse-java.version}</version>
+            <classifier>all</classifier>
         </dependency>
-
-        <!-- If Old implementation needed -->
-<!--        <dependency>-->
-<!--            <groupId>com.clickhouse</groupId>-->
-<!--            <artifactId>clickhouse-http-client</artifactId>-->
-<!--            <version>${clickhouse-java.version}</version>-->
-<!--        </dependency>-->
-
 
         <!-- Recommended for JSON parsing -->
         <dependency>

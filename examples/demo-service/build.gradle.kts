@@ -29,8 +29,8 @@ dependencies {
 
 	// -- clickhouse dependencies
 	// Main dependency
-	implementation("com.clickhouse:client-v2:0.7.1-patch1-SNAPSHOT") // local or nightly build
-//	implementation("com.clickhouse:client-v2:0.7.1") // release version
+	implementation("com.clickhouse:client-v2:0.7.1-patch1-SNAPSHOT:all") // local or nightly build
+//	implementation("com.clickhouse:client-v2:0.7.1-patch1:all") // release version
 
 	// -- clickhouse-http-client dependencies if old implementation is needed
 //	implementation("com.clickhouse:clickhouse-http-client:0.7.1-SNAPSHOT")

@@ -242,6 +242,8 @@ public interface GenericRecord {
      */
     double[] getDoubleArray(String colName);
 
+    boolean[] getBooleanArray(String colName);
+
     /**
      * Reads column with name `colName` as a string.
      *
@@ -468,6 +470,8 @@ public interface GenericRecord {
      * @return
      */
     double[] getDoubleArray(int index);
+
+    boolean[] getBooleanArray(int index);
 
     Object[] getTuple(int index);
 

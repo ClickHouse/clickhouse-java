@@ -50,30 +50,44 @@ public class JdbcConfiguration {
     }
 
     public JdbcConfiguration(String url, Properties info) {
+        this.allProperties = new ConcurrentHashMap<>();
+        info.forEach((k, v) -> allProperties.put(k.toString(), v.toString()));
+
         this.jdbcUrl = url;//Raw URL
         this.url = cleanUrl(url);
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
-        this.allProperties = new ConcurrentHashMap<>();
-        info.forEach((k, v) -> allProperties.put(k.toString(), v.toString()));
     }
 
     public static boolean acceptsURL(String url) {
         return url.startsWith(PREFIX_CLICKHOUSE) || url.startsWith(PREFIX_CLICKHOUSE_SHORT);
     }
 
-    private String cleanUrl(String url) {
+    protected String cleanUrl(String url) {
         url = stripUrlPrefix(url);
+        boolean setSSL = false;
+        boolean ssl = false;
+        try {
+            ssl = Boolean.parseBoolean(allProperties.get("ssl"));
+            setSSL = true;
+        } catch (Exception e) {
+            log.trace("Failed to parse SSL property.", e);
+        }
+
         if (url.startsWith("//")) {
-            url = "http:" + url;//Default to HTTP
-            try {
-                URL parsedUrl = new URL(url);
-                if (parsedUrl.getPort() == ClickHouseHttpProto.DEFAULT_HTTPS_PORT) {//If port is 8443, switch to HTTPS
-                        url = "https:" + url;
+            if (setSSL) {
+                url = (ssl ? "https:" : "http:") + url;
+            } else {
+                url = "http:" + url;//Default to HTTP
+                try {
+                    URL parsedUrl = new URL(url);
+                    if (parsedUrl.getPort() == ClickHouseHttpProto.DEFAULT_HTTPS_PORT) {//If port is 8443, switch to HTTPS
+                        url = "https:" + url.substring(5);
+                    }
+                } catch (MalformedURLException e) {
+                    throw new IllegalArgumentException("URL is not valid.", e);
                 }
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("URL is not valid.", e);
             }
         }
 
