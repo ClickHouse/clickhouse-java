@@ -6,6 +6,7 @@ import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -13,9 +14,8 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
@@ -31,9 +31,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      * @param connection - connection for which metadata is created
      * @param useCatalogs - if true then getCatalogs() will return non-empty list (not implemented yet)
      */
-    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs) {
+    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs) throws SQLFeatureNotSupportedException {
         if (useCatalogs) {
-            throw new UnsupportedOperationException("Catalogs are not supported yet");
+            throw new SQLFeatureNotSupportedException("Catalogs are not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
         this.connection = connection;
         this.useCatalogs = useCatalogs;
@@ -52,17 +52,29 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public String getURL() throws SQLException {
-        return connection.getURL();
+        try {
+            return connection.getURL();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public String getUserName() throws SQLException {
-        return connection.getUser();
+        try {
+            return connection.getUser();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public boolean isReadOnly() throws SQLException {
-        return connection.isReadOnly();
+        try {
+            return connection.isReadOnly();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
 
@@ -95,7 +107,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return connection.getServerVersion();
+        try {
+            return connection.getServerVersion();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -624,7 +640,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public int getDefaultTransactionIsolation() throws SQLException {
-        return connection.getTransactionIsolation();
+        try {
+            return connection.getTransactionIsolation();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -634,7 +654,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
-        return level == connection.getTransactionIsolation();
+        try {
+            return level == connection.getTransactionIsolation();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -668,7 +692,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
         log.info("getProcedures: {}", sql);
-        return connection.createStatement().executeQuery(sql);
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -695,7 +723,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'' AS IS_NULLABLE, " +
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
-        return connection.createStatement().executeQuery(sql);
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     /**
@@ -733,7 +765,12 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             }
             sql = sql.substring(0, sql.length() - 1) + ") ";
         }
-        return connection.createStatement().executeQuery(sql);
+
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     /**
@@ -747,7 +784,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas() throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
+        try {
+            return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     /**
@@ -758,7 +799,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      */
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return connection.createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
+        try {
+            return connection.createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     /**
@@ -768,7 +813,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      */
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_TYPE FROM system.table_engines");
+        try {
+            return connection.createStatement().executeQuery("SELECT name AS TABLE_TYPE FROM system.table_engines");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -808,67 +857,107 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         log.info("getColumns: {}", sql);
 
-        return connection.createStatement().executeQuery(sql);
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getColumnPrivileges is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getTablePrivileges is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS GRANTOR, NULL AS GRANTEE, NULL AS PRIVILEGE, NULL AS IS_GRANTABLE");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getBestRowIdentifier is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getVersionColumns is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS SCOPE, NULL AS COLUMN_NAME, NULL AS DATA_TYPE, NULL AS TYPE_NAME, NULL AS COLUMN_SIZE, NULL AS BUFFER_LENGTH, NULL AS DECIMAL_DIGITS, NULL AS PSEUDO_COLUMN");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getPrimaryKeys is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS KEY_SEQ, NULL AS PK_NAME");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS KEY_SEQ, NULL AS PK_NAME");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getImportedKeys is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getExportedKeys is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getCrossReference is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
+        try {
+            return connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
@@ -991,7 +1080,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getUDTs is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS CLASS_NAME, NULL AS DATA_TYPE, NULL AS REMARKS, NULL AS BASE_TYPE");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS CLASS_NAME, NULL AS DATA_TYPE, NULL AS REMARKS, NULL AS BASE_TYPE");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1026,21 +1119,33 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getSuperTypes is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS SUPERTYPE_CAT, NULL AS SUPERTYPE_SCHEM, NULL AS SUPERTYPE_NAME");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS SUPERTYPE_CAT, NULL AS SUPERTYPE_SCHEM, NULL AS SUPERTYPE_NAME");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getSuperTables is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS SUPERTABLE_NAME");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS SUPERTABLE_NAME");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         log.warn("getAttributes is not supported and may return invalid results");
-        return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS ATTR_NAME, NULL AS DATA_TYPE, NULL AS ATTR_TYPE_NAME, NULL AS ATTR_SIZE, NULL AS DECIMAL_DIGITS, NULL AS NUM_PREC_RADIX, NULL AS NULLABLE, NULL AS REMARKS, NULL AS ATTR_DEF, NULL AS SQL_DATA_TYPE, NULL AS SQL_DATETIME_SUB, NULL AS CHAR_OCTET_LENGTH, NULL AS ORDINAL_POSITION, NULL AS IS_NULLABLE, NULL AS SCOPE_CATALOG, NULL AS SCOPE_SCHEMA, NULL AS SCOPE_TABLE, NULL AS SOURCE_DATA_TYPE");
+        try {
+            return connection.createStatement().executeQuery("SELECT NULL AS TYPE_CAT, NULL AS TYPE_SCHEM, NULL AS TYPE_NAME, NULL AS ATTR_NAME, NULL AS DATA_TYPE, NULL AS ATTR_TYPE_NAME, NULL AS ATTR_SIZE, NULL AS DECIMAL_DIGITS, NULL AS NUM_PREC_RADIX, NULL AS NULLABLE, NULL AS REMARKS, NULL AS ATTR_DEF, NULL AS SQL_DATA_TYPE, NULL AS SQL_DATETIME_SUB, NULL AS CHAR_OCTET_LENGTH, NULL AS ORDINAL_POSITION, NULL AS IS_NULLABLE, NULL AS SCOPE_CATALOG, NULL AS SCOPE_SCHEMA, NULL AS SCOPE_TABLE, NULL AS SOURCE_DATA_TYPE");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1060,7 +1165,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             return Integer.parseInt(version.split("\\.")[0]);
         } catch (NumberFormatException e) {
             log.error("Failed to parse major version from server version: " + version, e);
-            throw new SQLException("Failed to parse major version from server version: " + version);
+            throw new SQLException("Failed to parse major version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
 
@@ -1071,7 +1176,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
             return Integer.parseInt(version.split("\\.")[1]);
         } catch (NumberFormatException e) {
             log.error("Failed to parse minor version from server version: " + version, e);
-            throw new SQLException("Failed to parse minor version from server version: " + version);
+            throw new SQLException("Failed to parse minor version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
 
@@ -1108,8 +1213,12 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
-                "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
+        try {
+            return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
+                    "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1140,8 +1249,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-
-        return connection.createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
+        try {
+            return connection.createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1156,7 +1268,12 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "FROM system.functions " +
                 "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
         log.info("getFunctions: " + sql);
-        return connection.createStatement().executeQuery(sql);
+
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1181,7 +1298,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
 
-        return connection.createStatement().executeQuery(sql);
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -1201,7 +1322,11 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'' AS IS_NULLABLE " +
                 " LIMIT 0";
 
-        return connection.createStatement().executeQuery(sql);
+        try {
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override

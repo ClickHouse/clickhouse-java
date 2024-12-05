@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,6 +158,6 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException("Method not supported");
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 }
