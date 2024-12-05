@@ -1521,4 +1521,32 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     "Unexpected exception: " + e.getMessage());
         }
     }
+
+    @Test(groups = "integration")
+    public void testVariantDataType() throws SQLException {
+        String table = "test_variant_type_01";
+        Properties props = new Properties();
+        props.setProperty("custom_settings", "allow_experimental_variant_type=1");
+        props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
+        try (ClickHouseConnection conn = newConnection(props);
+             ClickHouseStatement s = conn.createStatement()) {
+
+            s.execute("DROP TABLE IF EXISTS " + table);
+            s.execute("CREATE TABLE " + table +" ( id Variant(UInt32, String, UUID), name String) Engine = MergeTree ORDER BY ()");
+
+            s.execute("insert into " + table + " values ( 1, 'just number' )");
+            s.execute("insert into " + table + " values  ( 'i-am-id-01', 'ID as string' ) ");
+            s.execute("insert into " + table + " values  ( generateUUIDv4(), 'ID as UUID' ) ");
+
+            try (ResultSet rs = s.executeQuery("SELECT * FROM " + table)) {
+                while (rs.next()) {
+                    Object variantValue = rs.getObject(1);
+                    Object name = rs.getString(2);
+                    Object variantSubColumn = rs.getObject("v.String");
+                    System.out.println("-> " + name + " : " + variantValue);
+                    System.out.println("sub: " + variantSubColumn);
+                }
+            }
+        }
+    }
 }

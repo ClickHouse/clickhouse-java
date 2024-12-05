@@ -245,6 +245,68 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         }
     }
 
+    public static class VariantDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        private final ClickHouseValue[] values;
+        public VariantDeserializer(ClickHouseDataConfig config, ClickHouseColumn column,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (deserializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d deserializers but got %d", len, deserializers.length));
+            }
+            values = new ClickHouseValue[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newValue(config);
+            }
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = values.length;
+            Object[] tupleValues = new Object[len];
+            int ordTypeNum = BinaryStreamUtils.readInt8(input);
+            for (int i = 0; i < len; i++) {
+                if (ordTypeNum == i) {
+                    tupleValues[i] = deserializers[i].deserialize(values[i], input).asObject();
+                } else {
+                    tupleValues[i] = null;
+                }
+            }
+            return ref.update(tupleValues);
+        }
+    }
+
+    public static class VariantSerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final ClickHouseValue[] values;
+
+        public VariantSerializer(ClickHouseDataConfig config, ClickHouseColumn column,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (serializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d serializers but got %d", len, serializers.length));
+            }
+            values = new ClickHouseValue[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newValue(config);
+            }
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            List<Object> tupleValues = value.asTuple();
+            for (int i = 0, len = serializers.length; i < len; i++) {
+                serializers[i].serialize(values[i].update(tupleValues.get(i)), output);
+            }
+        }
+    }
+
     @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
         ClickHouseInputStream in = input;
@@ -512,6 +574,10 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 }
                 deserializer = new BitmapSerDe(config, column)::deserialize;
                 break;
+            case Variant:
+                deserializer = new VariantDeserializer(config, column,
+                        getDeserializers(config, column.getNestedColumns()));
+                break;
             default:
                 throw new IllegalArgumentException("Unsupported column:" + column.toString());
         }
@@ -667,6 +733,9 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     throw new IllegalArgumentException("Only groupMap is supported at this point");
                 }
                 serializer = new BitmapSerDe(config, column)::serialize;
+                break;
+            case Variant:
+                serializer = new VariantSerializer(config, column, getSerializers(config, column.getNestedColumns()));
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported column:" + column.toString());

@@ -101,7 +101,9 @@ public enum ClickHouseDataType {
     Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true),
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     // implementation-defined intermediate state
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true);
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
+    Variant(List.class, true, true, false, 0, 0, 0, 0, 0, true);
+
 
     /**
      * Immutable set(sorted) for all aliases.

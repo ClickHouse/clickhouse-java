@@ -41,6 +41,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -65,6 +66,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_OBJECT = ClickHouseDataType.Object.name();
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
+    private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
 
     private int columnCount;
     private int columnIndex;
@@ -273,6 +275,9 @@ public final class ClickHouseColumn implements Serializable {
             case Nothing:
                 column.template = ClickHouseEmptyValue.INSTANCE;
                 break;
+            case Variant:
+                column.template = ClickHouseTupleValue.of();
+                break;
             default:
                 break;
         }
@@ -398,7 +403,8 @@ public final class ClickHouseColumn implements Serializable {
             fixedLength = false;
             estimatedLength++;
         } else if (args.startsWith(matchedKeyword = KEYWORD_TUPLE, i)
-                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)) {
+                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)
+                || args.startsWith(matchedKeyword = KEYWORD_VARIANT, i)) {
             int index = args.indexOf('(', i + matchedKeyword.length());
             if (index < i) {
                 throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
@@ -410,11 +416,16 @@ public final class ClickHouseColumn implements Serializable {
                 if (c == ')') {
                     break;
                 } else if (c != ',' && !Character.isWhitespace(c)) {
+                    String columnName = "";
                     i = readColumn(args, i, endIndex, "", nestedColumns);
                 }
             }
             if (nestedColumns.isEmpty()) {
                 throw new IllegalArgumentException("Tuple should have at least one nested column");
+            }
+            if (matchedKeyword.equals(KEYWORD_VARIANT)) {
+                nestedColumns.sort(Comparator.comparing(o -> o.getDataType().name()));
+                nestedColumns.forEach(c -> c.columnName = "v." + c.getDataType().name());
             }
             column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
                     args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
