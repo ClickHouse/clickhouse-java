@@ -11,6 +11,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
@@ -135,8 +136,14 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @DataProvider(name = "typedParameters")
     private Object[][] getTypedParameters() {
         return new Object[][] {
-                new Object[] { "Array(DateTime32)", new LocalDateTime[] { LocalDateTime.of(2021, 11, 1, 1, 2, 3),
-                        LocalDateTime.of(2021, 11, 2, 2, 3, 4) } } };
+                new Object[] { "Array(DateTime32)",
+                        new LocalDateTime[] {
+                                LocalDateTime.of(2021, 11, 1, 1, 2, 3),
+                                LocalDateTime.of(2021, 11, 2, 2, 3, 4) },
+                        new Timestamp[] {
+                                Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 1, 2, 3)),
+                                Timestamp.valueOf(LocalDateTime.of(2021, 11, 2, 2, 3, 4)) }
+                } };
     }
 
     @DataProvider(name = "statementAndParams")
@@ -354,15 +361,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getObject(2), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getObject(3), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(3), x);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getObject(2), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getObject(3), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(3), x);
             Assert.assertFalse(rs.next());
         }
@@ -401,16 +408,16 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date_cz order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getObject(2), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getObject(3), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(3), x);
             Assert.assertTrue(rs.next());
 
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getObject(2), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getObject(3), Date.valueOf(d));
             Assert.assertEquals(rs.getDate(3), x);
             Assert.assertFalse(rs.next());
         }
@@ -442,15 +449,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_datetime order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(2), x);
-            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getObject(3), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(3), x);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dx));
             Assert.assertEquals(rs.getTimestamp(2), xx);
-            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getObject(3), Timestamp.valueOf(dx));
             Assert.assertEquals(rs.getTimestamp(3), xx);
             Assert.assertFalse(rs.next());
         }
@@ -478,7 +485,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery("select * from test_read_write_datetime_nanos");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), id);
-            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dt));
             // rs.getString(2) will return "2021-04-02 03:35:45.321"
             Assert.assertFalse(rs.next());
         }
@@ -511,15 +518,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = s.executeQuery("select * from test_read_write_datetime_cz order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(2), x);
-            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getObject(3), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(3), x);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(2), x);
-            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getObject(3), Timestamp.valueOf(dt));
             Assert.assertEquals(rs.getTimestamp(3), x);
             Assert.assertFalse(rs.next());
         }
@@ -589,21 +596,21 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = s.executeQuery("select * from test_read_write_nullable_unsigned_types order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), new Byte[0]);
+            Assert.assertEquals(rs.getObject(2, Byte[].class), new Byte[0]);
             Assert.assertEquals(rs.getArray(2).getArray(), new Byte[0]);
-            Assert.assertEquals(rs.getObject(3), new UnsignedLong[0]);
+            Assert.assertEquals(rs.getObject(3, UnsignedLong[].class), new UnsignedLong[0]);
             Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[0]);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), new Byte[] { 2, 2 });
+            Assert.assertEquals(rs.getObject(2, Byte[].class), new Byte[] { 2, 2 });
             Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { 2, 2 });
-            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
+            Assert.assertEquals(rs.getObject(3, UnsignedLong[].class), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
             Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 3);
-            Assert.assertEquals(rs.getObject(2), new Byte[] { null, 3 });
+            Assert.assertEquals(rs.getObject(2, Byte[].class), new Byte[] { null, 3 });
             Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { null, 3 });
-            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
+            Assert.assertEquals(rs.getObject(3, UnsignedLong[].class), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
             Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
             Assert.assertFalse(rs.next());
         }
@@ -647,14 +654,14 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getString(2), "");
             Assert.assertEquals(rs.getObject(3), "");
-            Assert.assertEquals(rs.getObject(4), new String[] { "" });
+            Assert.assertEquals(((Array)rs.getObject(4)).getArray(), new String[] { "" });
             Assert.assertEquals(rs.getArray(5).getArray(), new String[] { "" });
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
             Assert.assertEquals(rs.getObject(2), "");
             Assert.assertEquals(rs.getString(3), null);
             Assert.assertEquals(rs.getArray(4).getArray(), new String[0]);
-            Assert.assertEquals(rs.getObject(5), new String[] { null });
+            Assert.assertEquals(rs.getObject(5, String[].class), new String[] { null });
             Assert.assertFalse(rs.next());
         }
     }
@@ -683,7 +690,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 ResultSet rs = ps.executeQuery();
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getObject(1), id);
-                Assert.assertEquals(rs.getObject(2), dt);
+                Assert.assertEquals(rs.getObject(2), Timestamp.valueOf(dt));
                 Assert.assertEquals(rs.getLong(2), dt.atZone(conn.getServerTimeZone().toZoneId()).toEpochSecond());
                 Assert.assertFalse(rs.next());
             }
@@ -692,7 +699,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 ps.setObject(1, id);
                 ResultSet rs = ps.executeQuery();
                 Assert.assertTrue(rs.next());
-                Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 9, 1, 0, 0, 0, 123456000));
+                Assert.assertEquals(rs.getObject(2),
+                        Timestamp.valueOf(LocalDateTime.of(2021, 9, 1, 0, 0, 0, 123456000)));
                 Assert.assertFalse(rs.next());
             }
         }
@@ -859,7 +867,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery();
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 3, 26, 12, 34, 56));
+            Assert.assertEquals(rs.getObject(2),
+                    Timestamp.valueOf(LocalDateTime.of(2021, 3, 26, 12, 34, 56)));
             Assert.assertFalse(rs.next());
         }
     }
@@ -1165,7 +1174,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "typedParameters", groups = "integration")
-    public void testArrayParameter(String t, Object v) throws SQLException {
+    public void testArrayParameter(String t, Object v, Object expectedValue) throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 PreparedStatement stmt = conn.prepareStatement("select ?::?")) {
             if (conn.getServerVersion().check("(,21.3]")) {
@@ -1177,7 +1186,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setObject(2, new StringBuilder(t));
             ResultSet rs = stmt.executeQuery();
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getObject(1), v);
+            Assert.assertEquals(((Array)rs.getObject(1)).getArray(), expectedValue);
             Assert.assertFalse(rs.next());
         }
     }
@@ -1288,8 +1297,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 ResultSet rs = s.executeQuery("select * from test_insert_byte_array order by id");
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
-                Assert.assertEquals(rs.getObject(2), new byte[] { 1, 2, 3 });
-                Assert.assertEquals(rs.getObject(3), new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
+                Assert.assertEquals(((Array)rs.getObject(2)).getArray(), new byte[] { 1, 2, 3 });
+                Assert.assertEquals(((Array)rs.getObject(3)).getArray(), new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
                 Assert.assertFalse(rs.next());
             }
         }
@@ -1480,8 +1489,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     for (int j = 0; j < i; j++) {
                         bytes[j] = (byte) (j + 1);
                     }
-                    Assert.assertEquals(rs.getObject(2), bytes);
-                    Assert.assertEquals(rs.getObject(3), bytes);
+                    Assert.assertEquals(((Array)rs.getObject(2)).getArray(), bytes);
+                    Assert.assertEquals(((Array)rs.getObject(3)).getArray(), bytes);
                 }
                 Assert.assertFalse(rs.next());
             }
@@ -1587,8 +1596,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             try (ResultSet rs = s.executeQuery("select * from test_nested_insert order by id")) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 3);
-                Assert.assertEquals(rs.getObject(2), new byte[] { 7, 8, 9 });
-                Assert.assertEquals(rs.getObject(3), new String[] { "foo3", "bar3", "bug3" });
+                Assert.assertEquals(rs.getObject(2, byte[].class), new byte[] { 7, 8, 9 });
+                Assert.assertEquals(rs.getObject(3, String[].class), new String[] { "foo3", "bar3", "bug3" });
                 Assert.assertFalse(rs.next());
             }
         }
@@ -1683,8 +1692,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = s.executeQuery("select * from test_array_insert order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), new short[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getObject(3),
+            Assert.assertEquals(((Array)rs.getObject(2)).getArray(), new short[] { 1, 2, 3 });
+            Assert.assertEquals(((Array)rs.getObject(3)).getArray(),
                     new UnsignedInteger[] { UnsignedInteger.valueOf(3), null, UnsignedInteger.ONE });
             Assert.assertFalse(rs.next());
         }
@@ -1706,7 +1715,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getArray(2).getArray(), new String[] { "1", "2", "3" });
-            Assert.assertEquals(rs.getObject(3), new String[] { "3", null, "1" });
+            Assert.assertEquals(rs.getObject(3, String[].class), new String[] { "3", null, "1" });
             Assert.assertFalse(rs.next());
         }
     }
