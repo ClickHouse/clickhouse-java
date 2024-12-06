@@ -909,10 +909,19 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getPrimaryKeys is not supported and may return invalid results");
         try {
-            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS KEY_SEQ, NULL AS PK_NAME");
+            String sql = "SELECT NULL AS TABLE_CAT, " +
+                    "system.tables.database AS TABLE_SCHEM, " +
+                    "system.tables.name AS TABLE_NAME, " +
+                    "trim(c.1) AS COLUMN_NAME, " +
+                    "c.2 AS KEY_SEQ, " +
+                    "'PRIMARY' AS PK_NAME " +
+                    "FROM system.tables " +
+                    "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
+                    "WHERE system.tables.primary_key <> '' " +
+                    "AND system.tables.database LIKE '" + (schema == null ? "%" : schema) + "' " +
+                    "AND system.tables.name LIKE '" + (table == null ? "%" : table) + "'";
+            return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -923,7 +932,21 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         //Return an empty result set with the required columns
         log.warn("getImportedKeys is not supported and may return invalid results");
         try {
-            return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+            String sql = "SELECT NULL AS PKTABLE_CAT, " +
+                    "NULL AS PKTABLE_SCHEM, " +
+                    "NULL AS PKTABLE_NAME, " +
+                    "NULL AS PKCOLUMN_NAME, " +
+                    "NULL AS FKTABLE_CAT, " +
+                    "NULL AS FKTABLE_SCHEM, " +
+                    "NULL AS FKTABLE_NAME, " +
+                    "NULL AS FKCOLUMN_NAME, " +
+                    "NULL AS KEY_SEQ, " +
+                    "NULL AS UPDATE_RULE, " +
+                    "NULL AS DELETE_RULE, " +
+                    "NULL AS FK_NAME, " +
+                    "NULL AS PK_NAME, " +
+                    "NULL AS DEFERRABILITY LIMIT 0";
+            return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
