@@ -919,8 +919,10 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                     "FROM system.tables " +
                     "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
                     "WHERE system.tables.primary_key <> '' " +
-                    "AND system.tables.database LIKE '" + (schema == null ? "%" : schema) + "' " +
-                    "AND system.tables.name LIKE '" + (table == null ? "%" : table) + "'";
+                    "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
+                    "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
+                    "ORDER BY TABLE_SCHEM, TABLE_NAME, KEY_SEQ";
+            log.debug("getPrimaryKeys: %s", sql);
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
