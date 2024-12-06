@@ -98,12 +98,12 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Ignore("ClickHouse does not support primary keys")
+    //@Ignore("ClickHouse does not support primary keys")
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getPrimaryKeys("system", null, "numbers");
+            ResultSet rs = dbmd.getPrimaryKeys(null, "system", "numbers");
             assertTrue(rs.next());
             assertEquals(rs.getString("TABLE_NAME"), "numbers");
             assertEquals(rs.getString("COLUMN_NAME"), "number");
