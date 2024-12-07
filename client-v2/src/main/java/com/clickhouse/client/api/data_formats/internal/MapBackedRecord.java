@@ -5,7 +5,6 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -23,17 +22,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 
 public class MapBackedRecord implements GenericRecord {
 
     private final Map<String, Object> record;
 
-    private TableSchema schema;
+    private final TableSchema schema;
 
     private Map[] columnConverters;
 
@@ -511,6 +507,11 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public ClickHouseBitmap getClickHouseBitmap(int index) {
         return readValue(index);
+    }
+
+    @Override
+    public TableSchema getSchema() {
+        return this.schema;
     }
 
     @Override
