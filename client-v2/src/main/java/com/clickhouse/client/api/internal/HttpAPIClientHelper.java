@@ -73,6 +73,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static com.clickhouse.client.api.ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT;
+
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
@@ -235,6 +237,9 @@ public class HttpAPIClientHelper {
                 soCfgBuilder::setSndBufSize);
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_LINGER_OPT.getKey(),
                     (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
+        if (MapUtils.getFlag(chConfiguration, ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT.getKey(), false)) {
+            soCfgBuilder.setTcpNoDelay(true);
+        }
 
         // Proxy
         String proxyHost = chConfiguration.get(ClientConfigProperties.PROXY_HOST.getKey());

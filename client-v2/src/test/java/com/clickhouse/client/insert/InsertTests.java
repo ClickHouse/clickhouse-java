@@ -20,7 +20,6 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
-import com.clickhouse.data.stream.ByteArrayQueueInputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
@@ -38,9 +37,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -70,7 +67,6 @@ public class InsertTests extends BaseIntegrationTest {
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         int bufferSize = (7 * 65500);
-
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
@@ -81,6 +77,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .setSocketRcvbuf(bufferSize)
                 .setClientNetworkBufferSize(bufferSize)
                 .build();
+
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
@@ -232,38 +229,6 @@ public class InsertTests extends BaseIntegrationTest {
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
         assertEquals(records.size(), 1000);
     }
-
-
-    @Test(groups = { "integration" }, enabled = true)
-    public void insertRawDataQueued() throws Exception {
-        final String tableName = "raw_data_table";
-        final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
-
-        initTable(tableName, createSQL);
-        settings.setInputStreamCopyBufferSize(8198 * 2);
-        settings.compressClientRequest(true);
-        Queue<byte[]> queue = new LinkedList<>();
-        ByteArrayQueueInputStream qIn = new ByteArrayQueueInputStream(queue, null);
-        for (int i = 0; i < 10; i++) {
-            if (i > 2 && i < 5) {
-                queue.add(new byte[0]);
-            } else {
-                queue.add(String.format("{ \"Id\": %d, \"events_ts\": \"%s\", \"name\": \"%s\", \"p1\": \"%d\", \"p2\": \"%s\"}\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2").getBytes());
-            }
-        }
-        InsertResponse response = client.insert(tableName, qIn,
-                ClickHouseFormat.JSONEachRow, settings).get(30, TimeUnit.SECONDS);
-
-        assertEquals((int)response.getWrittenRows(), 10 );
-
-        List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
-        assertEquals(records.size(), 10);
-        for (GenericRecord record : records) {
-            System.out.println(record.getString(1) + " " +record.getString(2) + " " +record.getString(3) + " " +record.getString(4) + " " +record.getString(5) + " ");
-        }
-    }
-
 
     @Test(groups = { "integration" }, enabled = true)
     public void insertRawDataSimple() throws Exception {

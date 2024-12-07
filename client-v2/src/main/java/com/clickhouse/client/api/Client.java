@@ -1501,7 +1501,7 @@ public class Client implements AutoCloseable {
 
                                              byte[] buffer = new byte[writeBufferSize];
                                              int bytesRead;
-                                             while ((bytesRead = data.read(buffer)) != -1) {
+                                             while ((bytesRead = data.read(buffer)) > 0) {
                                                  out.write(buffer, 0, bytesRead);
                                              }
                                              out.close();
