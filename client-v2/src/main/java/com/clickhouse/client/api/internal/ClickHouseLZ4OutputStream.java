@@ -65,21 +65,23 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     @Override
     public void flush() throws IOException {
-        compressedBuffer.clear();
-        compressedBuffer.put(16, ClickHouseLZ4InputStream.MAGIC);
-        int uncompressedLen = buffer.position();
-        buffer.flip();
-        int compressed = compressor.compress(buffer, 0, uncompressedLen, compressedBuffer, 25,
-                compressedBuffer.remaining() - 25);
-        int compressedSizeWithHeader = compressed + 9;
-        ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 17, compressedSizeWithHeader); // compressed size with header
-        ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 21, uncompressedLen); // uncompressed size
-        long[] hash = ClickHouseCityHash.cityHash128(compressedBuffer.array(), 16, compressedSizeWithHeader);
-        setInt64(compressedBuffer.array(), 0, hash[0]);
-        setInt64(compressedBuffer.array(), 8, hash[1]);
-        compressedBuffer.flip();
-        out.write(compressedBuffer.array(), 0, compressed + 25);
-        buffer.clear();
+        if (buffer.position() > 0) {
+            compressedBuffer.clear();
+            compressedBuffer.put(16, ClickHouseLZ4InputStream.MAGIC);
+            int uncompressedLen = buffer.position();
+            buffer.flip();
+            int compressed = compressor.compress(buffer, 0, uncompressedLen, compressedBuffer, 25,
+                    compressedBuffer.remaining() - 25);
+            int compressedSizeWithHeader = compressed + 9;
+            ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 17, compressedSizeWithHeader); // compressed size with header
+            ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 21, uncompressedLen); // uncompressed size
+            long[] hash = ClickHouseCityHash.cityHash128(compressedBuffer.array(), 16, compressedSizeWithHeader);
+            setInt64(compressedBuffer.array(), 0, hash[0]);
+            setInt64(compressedBuffer.array(), 8, hash[1]);
+            compressedBuffer.flip();
+            out.write(compressedBuffer.array(), 0, compressed + 25);
+            buffer.clear();
+        }
     }
 
 
