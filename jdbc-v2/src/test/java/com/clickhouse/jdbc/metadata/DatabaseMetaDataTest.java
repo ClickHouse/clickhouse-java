@@ -101,6 +101,9 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
+        runQuery("SELECT 1;");
+        Thread.sleep(5 * 1000); // wait for query log to be updated
+
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getPrimaryKeys(null, "system", "query_log");
