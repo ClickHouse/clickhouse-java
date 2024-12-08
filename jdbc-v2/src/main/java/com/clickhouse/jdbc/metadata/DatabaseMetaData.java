@@ -24,6 +24,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     private boolean useCatalogs = false;
     private String catalogPlaceholder;
 
+    private String jdbcUrl;
+
     /**
      * Creates an instance of DatabaseMetaData for the given connection.
      *
@@ -31,13 +33,14 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      * @param connection - connection for which metadata is created
      * @param useCatalogs - if true then getCatalogs() will return non-empty list (not implemented yet)
      */
-    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs) throws SQLFeatureNotSupportedException {
+    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs, String url) throws SQLFeatureNotSupportedException {
         if (useCatalogs) {
             throw new SQLFeatureNotSupportedException("Catalogs are not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
         this.connection = connection;
         this.useCatalogs = useCatalogs;
         this.catalogPlaceholder = useCatalogs ? "'local' " : "''";
+        this.jdbcUrl = url;
     }
 
     @Override
@@ -52,17 +55,13 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public String getURL() throws SQLException {
-        try {
-            return connection.getURL();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return jdbcUrl;
     }
 
     @Override
     public String getUserName() throws SQLException {
         try {
-            return connection.getUser();
+            return connection.getClient().getUser();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -70,13 +69,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public boolean isReadOnly() throws SQLException {
-        try {
-            return connection.isReadOnly();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return false; // There is no way to detect if database is read only
     }
-
 
     @Override
     public boolean nullsAreSortedHigh() throws SQLException {
