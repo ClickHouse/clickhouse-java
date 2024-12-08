@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeClass;
@@ -16,6 +17,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
 
@@ -33,11 +35,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     private Connection getConnection() throws SQLException {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefaultValue());
+        props.put(ClientConfigProperties.PASSWORD.getKey(), ClientConfigProperties.PASSWORD.getDefaultValue());
         try {
-            return DriverManager.getConnection(getEndpointString(isCloud()));
+            return DriverManager.getConnection(getEndpointString(isCloud()), props);
         } catch (SQLException e) {
             Driver.load();
-            return DriverManager.getConnection(getEndpointString(isCloud()));
+            return DriverManager.getConnection(getEndpointString(isCloud()), props);
         }
     }
 
