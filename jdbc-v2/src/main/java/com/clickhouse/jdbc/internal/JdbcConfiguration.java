@@ -3,13 +3,16 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.Driver;
 
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.sql.DriverPropertyInfo;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -22,6 +25,8 @@ public class JdbcConfiguration {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);
     public static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
     public static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
+
+    public static final String USE_SSL_PROP = "ssl";
 
     final boolean disableFrameworkDetection;
 
@@ -41,12 +46,14 @@ public class JdbcConfiguration {
      * @param url - JDBC url
      * @param info - Driver and Client properties.
      */
-    public JdbcConfiguration(String url, Properties info) {
-        this.connectionUrl = cleanUrl(url);
+    public JdbcConfiguration(String url, Properties info) throws SQLException {
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
-        initProperties(this.connectionUrl, info);
+        initProperties(url, info);
+
+        boolean useSSL = Boolean.parseBoolean(info.getProperty("ssl", "false"));
+        this.connectionUrl = createConnectionURL(url, useSSL);
     }
 
     public static boolean acceptsURL(String url) {
@@ -59,20 +66,30 @@ public class JdbcConfiguration {
     }
 
     /**
-     * Transforms JDBC URL to WEB network. Method doesn't do guessing.
-     * If protocol is not set - then {@code https} used by default.
-     * User can always pass any protocol explicitly what is always should be encouraged.
+     * Returns normalized URL that can be passed as parameter to Client#addEndpoint().
+     * Returned url has only schema and authority and doesn't have query parameters.
+     * Note: Some BI tools do not let pass
      * @param url - JDBC url
+     * @param ssl - if SSL protocol should be used when protocol is not specified
      * @return URL without JDBC prefix
      */
-    protected String cleanUrl(String url) {
+    static String createConnectionURL(String url, boolean ssl) throws SQLException {
         url = stripUrlPrefix(url);
         if (url.startsWith("//")) {
-            url = "https:" + url;
+            url = (ssl ? "https:" : "http:") + url;
         }
-        return url;
+
+        try {
+            System.out.println(url);
+            URI tmp = URI.create(url);
+            System.out.println(tmp);
+            return tmp.getScheme() + "://" + tmp.getAuthority() + tmp.getPath();
+        } catch (Exception e) {
+            throw new SQLException("Failed to parse url", e);
+        }
     }
-    private String stripUrlPrefix(String url) {
+
+    private static String stripUrlPrefix(String url) {
         if (url.startsWith(PREFIX_CLICKHOUSE)) {
             return url.substring(PREFIX_CLICKHOUSE.length());
         } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {
