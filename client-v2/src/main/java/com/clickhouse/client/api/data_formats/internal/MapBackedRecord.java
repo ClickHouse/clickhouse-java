@@ -5,24 +5,18 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.ClickHouseBitmap;
-import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoPointValue;
-import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.clickhouse.data.value.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 public class MapBackedRecord implements GenericRecord {
@@ -522,5 +516,10 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public Object getObject(int index) {
         return readValue(index);
+    }
+
+    @Override
+    public Map<String, Object> getValues() {
+        return this.record;
     }
 }
