@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.metadata;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 
 import java.util.ArrayList;
@@ -87,20 +88,22 @@ public class TableSchema {
     }
 
     public ClickHouseColumn getColumnByName(String name) {
-        for (ClickHouseColumn column : columns) {
-            if (column.getColumnName().equalsIgnoreCase(name)) {
-                return column;//TODO: Try to deep clone the column rather than reference pass
-            }
-        }
-
-        return null;
+        return columns.get(nameToIndex(name));
     }
 
     public String indexToName(int index) {
-        return columns.get(index).getColumnName();
+        try {
+            return columns.get(index).getColumnName();
+        } catch (IndexOutOfBoundsException e) {
+            throw new NoSuchColumnException("Result has no column with index = " + index);
+        }
     }
 
     public int nameToIndex(String name) {
+        Integer index = colIndex.get(name);
+        if (index == null) {
+            throw new NoSuchColumnException("Result has no column with name '" + name + "'");
+        }
         return colIndex.get(name).intValue();
     }
 
