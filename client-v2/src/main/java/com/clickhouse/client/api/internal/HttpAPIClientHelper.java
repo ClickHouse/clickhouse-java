@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.clickhouse.client.api.ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT;
 
@@ -92,9 +93,12 @@ public class HttpAPIClientHelper {
 
     private String httpClientUserAgentPart;
 
-    public HttpAPIClientHelper(Map<String, String> configuration) {
+    private final Supplier<String> bearerTokenSupplier;
+
+    public HttpAPIClientHelper(Map<String, String> configuration, Supplier<String> bearerTokenSupplier) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
+        this.bearerTokenSupplier = bearerTokenSupplier;
 
         this.httpClientUserAgentPart = this.httpClient.getClass().getPackage().getImplementationTitle() + "/" + this.httpClient.getClass().getPackage().getImplementationVersion();
 
@@ -422,6 +426,8 @@ public class HttpAPIClientHelper {
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
             req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER.getKey()));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
+        } else if (bearerTokenSupplier != null) {
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerTokenSupplier.get());
         } else if (chConfig.getOrDefault(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey(), "true").equalsIgnoreCase("true")) {
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
                     (chConfig.get(ClientConfigProperties.USER.getKey()) + ":" + chConfig.get(ClientConfigProperties.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));
