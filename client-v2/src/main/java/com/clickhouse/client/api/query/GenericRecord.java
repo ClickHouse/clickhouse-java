@@ -1,21 +1,15 @@
 package com.clickhouse.client.api.query;
 
-import com.clickhouse.data.value.ClickHouseBitmap;
-import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoPointValue;
-import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.value.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface GenericRecord {
@@ -500,4 +494,13 @@ public interface GenericRecord {
     ClickHouseBitmap getClickHouseBitmap(String colName);
 
     ClickHouseBitmap getClickHouseBitmap(int index);
+
+    TableSchema getSchema();
+
+    /**
+     * Returns all values of this record in Map.
+     *
+     * @return a Map of column names and values.
+     */
+    Map<String, Object> getValues();
 }
