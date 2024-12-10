@@ -12,6 +12,11 @@ import java.util.List;
 public enum DriverProperties {
 
     /**
+     * Indicates if driver should create a secure connection over SSL/TLS
+     */
+    SECURE_CONNECTION("ssl", "false"),
+
+    /**
      * query settings to be passed along with query operation.
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */

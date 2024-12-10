@@ -3,10 +3,13 @@ package com.clickhouse.jdbc;
 import java.sql.*;
 import java.util.Properties;
 
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -304,6 +307,40 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Assert.assertTrue(e.getCause() instanceof ServerException);
                 Assert.assertEquals(((ServerException)e.getCause()).getCode(), 396);
             }
+        }
+    }
+
+    @Test
+    public void testSecureConnection() throws Exception {
+        if (isCloud()) {
+            return; // this test uses self-signed cert
+        }
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+        properties.put(ClientConfigProperties.CA_CERTIFICATE.getKey(), "containers/clickhouse-server/certs/localhost.crt");
+
+        try (Connection conn = new ConnectionImpl("jdbc:clickhouse:" + secureServer.getBaseUri(), properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+            int count = 0;
+            while (rs.next()) { count ++ ; }
+            Assert.assertEquals(count, 10);
+        }
+
+        properties.put(DriverProperties.SECURE_CONNECTION.getKey(), "true");
+        String jdbcUrl = "jdbc:clickhouse://"+secureServer.getHost() + ":" + secureServer.getPort() + "/";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+            int count = 0;
+            while (rs.next()) { count ++ ; }
+            Assert.assertEquals(count, 10);
         }
     }
 }

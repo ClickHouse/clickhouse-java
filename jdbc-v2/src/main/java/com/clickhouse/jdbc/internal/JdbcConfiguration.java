@@ -80,9 +80,7 @@ public class JdbcConfiguration {
         }
 
         try {
-            System.out.println(url);
             URI tmp = URI.create(url);
-            System.out.println(tmp);
             return tmp.getScheme() + "://" + tmp.getAuthority() + tmp.getPath();
         } catch (Exception e) {
             throw new SQLException("Failed to parse url", e);
@@ -95,7 +93,7 @@ public class JdbcConfiguration {
         } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {
             return url.substring(PREFIX_CLICKHOUSE_SHORT.length());
         } else {
-            throw new IllegalArgumentException("URL is not supported.");
+            throw new IllegalArgumentException("Specified URL doesn't have jdbc any of prefixes: [ " + PREFIX_CLICKHOUSE + ", " + PREFIX_CLICKHOUSE_SHORT + " ]");
         }
     }
 
@@ -107,7 +105,7 @@ public class JdbcConfiguration {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
                 props.put((String) entry.getKey(), (String) entry.getValue());
             } else {
-                throw new RuntimeException("Cannot apply non-String properties");
+                throw new IllegalArgumentException("Property key and value should be a string");
             }
         }
 
