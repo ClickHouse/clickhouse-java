@@ -10,6 +10,7 @@ import com.clickhouse.jdbc.Driver;
 
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
@@ -50,7 +51,7 @@ public class JdbcConfiguration {
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
-        initProperties(url, info);
+        initProperties(stripUrlPrefix(url), info);
 
         boolean useSSL = Boolean.parseBoolean(info.getProperty("ssl", "false"));
         this.connectionUrl = createConnectionURL(url, useSSL);
@@ -67,8 +68,9 @@ public class JdbcConfiguration {
 
     /**
      * Returns normalized URL that can be passed as parameter to Client#addEndpoint().
-     * Returned url has only schema and authority and doesn't have query parameters.
-     * Note: Some BI tools do not let pass
+     * Returned url has only schema and authority and doesn't have query parameters or path.
+     * JDBC URL should have only a single path parameter to specify database name.
+     * Note: Some BI tools do not let pass JDBC URL, so ssl is passed as property.
      * @param url - JDBC url
      * @param ssl - if SSL protocol should be used when protocol is not specified
      * @return URL without JDBC prefix
@@ -81,7 +83,7 @@ public class JdbcConfiguration {
 
         try {
             URI tmp = URI.create(url);
-            return tmp.getScheme() + "://" + tmp.getAuthority() + tmp.getPath();
+            return tmp.getScheme() + "://" + tmp.getAuthority();
         } catch (Exception e) {
             throw new SQLException("Failed to parse url", e);
         }
@@ -100,6 +102,24 @@ public class JdbcConfiguration {
     List<DriverPropertyInfo> listOfProperties;
 
     private void initProperties(String url, Properties providedProperties) {
+
+        // Parse url for database name and override
+        try {
+            URI tmp = new URI(url);
+            String path = tmp.getPath();
+            if (path != null) {
+                String[] pathElements = path.split("([\\/]+)+", 3);
+                if (pathElements.length > 2) {
+                    throw new IllegalArgumentException("There can be only one URL path element indicating a database name");
+                } else if (pathElements.length == 2) {
+                    providedProperties.put(ClientConfigProperties.DATABASE.getKey(), pathElements[1]);
+                }
+            }
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid JDBC URL is specified");
+        }
+
+        // Process properties
         Map<String, String> props = new HashMap<>();
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
@@ -128,7 +148,8 @@ public class JdbcConfiguration {
             }
         }
 
-        // Fill list of driver properties information, add not specified properties, copy know driver properties from client properties
+        // Fill list of driver properties information, add not specified properties,
+        // copy know driver properties from client properties
         for (DriverProperties driverProp : DriverProperties.values()) {
             DriverPropertyInfo propertyInfo = propertyInfos.get(driverProp.getKey());
             if (propertyInfo == null) {

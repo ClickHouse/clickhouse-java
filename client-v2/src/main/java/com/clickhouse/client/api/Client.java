@@ -209,6 +209,10 @@ public class Client implements AutoCloseable {
         if (oldClient != null) {
             oldClient.close();
         }
+
+        if (httpClientHelper != null) {
+            httpClientHelper.close();
+        }
     }
 
     public static class Builder {
@@ -290,7 +294,7 @@ public class Client implements AutoCloseable {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
-                throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
+                throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
             return this;
         }

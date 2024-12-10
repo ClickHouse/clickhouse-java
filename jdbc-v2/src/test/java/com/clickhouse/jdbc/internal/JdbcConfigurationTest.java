@@ -28,11 +28,11 @@ public class JdbcConfigurationTest {
         useSSL.put(JdbcConfiguration.USE_SSL_PROP, "true");
 
         return new Object[][] {
-                {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123/", defaultProps},
-                {"jdbc:clickhouse://localhost:8443/clickhouse?param1=value1&param2=value2", "http://localhost:8443/clickhouse", defaultProps},
-                {"jdbc:clickhouse:https://localhost:8123/clickhouse?param1=value1&param2=value2", "https://localhost:8123/clickhouse", defaultProps},
-                {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443/", useSSL},
-                {"jdbc:clickhouse://localhost:8443/default?param1=value1&custom_header1=val1,val2,val3", "https://localhost:8443/default", useSSL},
+                {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123", defaultProps},
+                {"jdbc:clickhouse://localhost:8443/clickhouse?param1=value1&param2=value2", "http://localhost:8443", defaultProps},
+                {"jdbc:clickhouse:https://localhost:8123/clickhouse?param1=value1&param2=value2", "https://localhost:8123", defaultProps},
+                {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443", useSSL},
+                {"jdbc:clickhouse://localhost:8443/default?param1=value1&custom_header1=val1,val2,val3", "https://localhost:8443", useSSL},
         };
     }
 
@@ -45,7 +45,7 @@ public class JdbcConfigurationTest {
                 ClientConfigProperties.commaSeparated(Arrays.asList("http_headers=header1=3,header2=4")));
         String url = "jdbc:clickhouse://localhost:8123/clickhouse?client_name=test_application&database=default1";
         JdbcConfiguration configuration = new JdbcConfiguration(url, properties);
-        Assert.assertEquals(configuration.getConnectionUrl(), "http://localhost:8123/clickhouse");
+        Assert.assertEquals(configuration.getConnectionUrl(), "http://localhost:8123");
         Map<String, DriverPropertyInfo> infos = configuration.getDriverPropertyInfo().stream().collect(Collectors.toMap(d -> d.name, d -> d));
 
         DriverPropertyInfo p = infos.get(ClientConfigProperties.DATABASE.getKey());

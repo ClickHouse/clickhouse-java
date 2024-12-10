@@ -42,6 +42,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -638,5 +639,9 @@ public class HttpAPIClientHelper {
         }
 
         return params;
+    }
+
+    public void close() {
+        httpClient.close(CloseMode.IMMEDIATE);
     }
 }

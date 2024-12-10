@@ -343,4 +343,42 @@ public class ConnectionTest extends JdbcIntegrationTest {
             Assert.assertEquals(count, 10);
         }
     }
+
+    @Test
+    public void testSelectingDatabase() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+
+        String jdbcUrl = "jdbc:clickhouse://" + server.getHost() + ":" + server.getPort();
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "default");
+        }
+
+        properties.put(ClientConfigProperties.DATABASE.getKey(), "system");
+        jdbcUrl = "jdbc:clickhouse://"+server.getHost() + ":" + server.getPort() + "/default";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "default");
+        }
+
+        properties.put(ClientConfigProperties.DATABASE.getKey(), "default1");
+        jdbcUrl = "jdbc:clickhouse://"+server.getHost() + ":" + server.getPort() + "/system";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+        }
+    }
 }
