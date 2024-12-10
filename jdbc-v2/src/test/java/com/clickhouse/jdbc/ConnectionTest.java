@@ -1,11 +1,18 @@
 package com.clickhouse.jdbc;
 
 import java.sql.*;
+import java.util.Properties;
+
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.fail;
 
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -283,5 +290,20 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Connection localConnection = this.getJdbcConnection();
        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null));
        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null, null));
+    }
+
+    @Test
+    public void testMaxResultRowsProperty() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(Driver.chSettingKey(ServerSettings.MAX_RESULT_ROWS), "5");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT toInt32(number) FROM system.numbers LIMIT 20");
+                fail("Exception expected");
+            } catch (SQLException e) {
+                Assert.assertTrue(e.getCause() instanceof ServerException);
+                Assert.assertEquals(((ServerException)e.getCause()).getCode(), 396);
+            }
+        }
     }
 }

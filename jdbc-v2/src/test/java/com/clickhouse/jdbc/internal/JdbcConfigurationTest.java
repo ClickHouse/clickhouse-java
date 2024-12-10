@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import static org.testng.Assert.assertEquals;
 
 public class JdbcConfigurationTest {
+    
     @Test(dataProvider = "testConnectionUrlDataProvider")
     public void testConnectionUrl(String jdbcUrl, String connectionUrl, Properties properties) throws Exception {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcUrl, properties);

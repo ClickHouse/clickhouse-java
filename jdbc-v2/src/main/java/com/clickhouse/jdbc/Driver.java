@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
@@ -154,6 +155,10 @@ public class Driver implements java.sql.Driver {
     @Override
     public boolean jdbcCompliant() {
         return false;
+    }
+
+    public static String chSettingKey(String key) {
+        return ClientConfigProperties.serverSetting(key);
     }
 
     @Override

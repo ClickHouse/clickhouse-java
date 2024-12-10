@@ -102,7 +102,6 @@ public class JdbcConfiguration {
     List<DriverPropertyInfo> listOfProperties;
 
     private void initProperties(String url, Properties providedProperties) {
-        log.debug("Parsing url: " + url + ", properties: " + providedProperties);
         Map<String, String> props = new HashMap<>();
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
@@ -111,21 +110,17 @@ public class JdbcConfiguration {
                 throw new RuntimeException("Cannot apply non-String properties");
             }
         }
-        Map<String, String> mergedProperties = ClickHouseUtils.extractParameters(url, props);
+
         Map<String, DriverPropertyInfo> propertyInfos = new HashMap<>();
-        for (Map.Entry<String, String> prop : mergedProperties.entrySet()) {
+        // create initial list of properties that will be passed to a client
+        for (Map.Entry<String, String> prop : ClickHouseUtils.extractParameters(url, props).entrySet()) {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
             propertyInfo.description = "(User Defined)";
             propertyInfos.put(prop.getKey(), propertyInfo);
-            if (prop.getValue() != null) {
-                if (prop.getKey().contains("driver.")) {
-                    driverProperties.put(prop.getKey(), prop.getValue());
-                } else {
-                    clientProperties.put(prop.getKey(), prop.getValue());
-                }
-            }
+            clientProperties.put(prop.getKey(), prop.getValue());
         }
-        // set know properties
+
+        // Fill list of client properties information, add not specified properties (doesn't affect client properties)
         for (ClientConfigProperties clientProp : ClientConfigProperties.values()) {
             DriverPropertyInfo propertyInfo = propertyInfos.get(clientProp.getKey());
             if (propertyInfo == null) {
@@ -135,11 +130,17 @@ public class JdbcConfiguration {
             }
         }
 
+        // Fill list of driver properties information, add not specified properties, copy know driver properties from client properties
         for (DriverProperties driverProp : DriverProperties.values()) {
             DriverPropertyInfo propertyInfo = propertyInfos.get(driverProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
+            }
+
+            String value = clientProperties.get(driverProp.getKey());
+            if (value != null) {
+                driverProperties.put(driverProp.getKey(), value);
             }
         }
 

@@ -5,7 +5,9 @@ import java.util.List;
 
 /**
  * JDBC driver specific properties. Should not include any of ClientConfigProperties.
- * All driver specific properties must have {@code "driver."} prefix to isolate them from everything else
+ * Processing logic should be the follows
+ * 1. If property is among DriverProperties then Driver handles it specially and will not pass to a client
+ * 2. If property is not among DriverProperties then it is passed to a client
  */
 public enum DriverProperties {
 
@@ -13,7 +15,7 @@ public enum DriverProperties {
      * query settings to be passed along with query operation.
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */
-    DEFAULT_QUERY_SETTINGS("driver.query_settings", null);
+    DEFAULT_QUERY_SETTINGS("default_query_settings", null);
 
     private final String key;
 
