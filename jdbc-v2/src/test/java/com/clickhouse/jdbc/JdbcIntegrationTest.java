@@ -25,10 +25,17 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     public Connection getJdbcConnection() throws SQLException {
+        return getJdbcConnection(null);
+    }
+
+    public Connection getJdbcConnection(Properties properties) throws SQLException {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
         LOGGER.info("Connecting to {}", getEndpointString());
+        if (properties != null) {
+            info.putAll(properties);
+        }
 
         return new ConnectionImpl(getEndpointString(), info);
         //return DriverManager.getConnection(getEndpointString(), "default", ClickHouseServerForTest.getPassword());

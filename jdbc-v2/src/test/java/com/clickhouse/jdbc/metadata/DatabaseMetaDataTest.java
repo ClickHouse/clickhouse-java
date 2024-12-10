@@ -1,7 +1,9 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
@@ -13,6 +15,7 @@ import java.sql.DatabaseMetaData;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 
 import static org.testng.Assert.assertEquals;
@@ -35,7 +38,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
             List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5);
             List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.CHAR, Types.DECIMAL, Types.DECIMAL);
-            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Decimal(5, 4)");
+            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
             List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true);
             List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4);
             List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10);
@@ -102,7 +105,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
         runQuery("SELECT 1;");
-        Thread.sleep(10 * 1000); // wait for query log to be updated
+        runQuery("SYSTEM FLUSH LOGS");
 
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -133,6 +136,20 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             }
 
             assertTrue(defaultSchemaFound);
+        }
+    }
+
+    @Test
+    public void testSchemaTerm() throws Exception {
+
+        try (Connection connection = getJdbcConnection()){
+            Assert.assertEquals(connection.getMetaData().getSchemaTerm(), "schema");
+        }
+
+        Properties prop = new Properties();
+        prop.put(DriverProperties.SCHEMA_TERM.getKey(), "database");
+        try (Connection connection = getJdbcConnection(prop)){
+            Assert.assertEquals(connection.getMetaData().getSchemaTerm(), "database");
         }
     }
 

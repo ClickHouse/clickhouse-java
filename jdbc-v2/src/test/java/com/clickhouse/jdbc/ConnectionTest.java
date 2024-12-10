@@ -1,7 +1,10 @@
 package com.clickhouse.jdbc;
 
 import java.sql.*;
+import java.util.Properties;
+
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -50,29 +53,40 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void setAutoCommitTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setAutoCommit(false));
-        localConnection.setAutoCommit(true);
+        try (Connection localConnection = this.getJdbcConnection()) {
+            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setAutoCommit(false));
+            Assert.assertTrue(localConnection.getAutoCommit());
+            localConnection.setAutoCommit(true);
+        }
+
+        Properties prop = new Properties();
+        prop.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+        try (Connection localConnection = getJdbcConnection(prop)) {
+            localConnection.setAutoCommit(false);
+            Assert.assertTrue(localConnection.getAutoCommit());
+            localConnection.setAutoCommit(true);
+            Assert.assertTrue(localConnection.getAutoCommit());
+            localConnection.setAutoCommit(false);
+        }
     }
 
     @Test(groups = { "integration" })
-    public void getAutoCommitTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Assert.assertTrue(localConnection.getAutoCommit());
+    public void testCommitRollback() throws SQLException {
+        try (Connection localConnection = this.getJdbcConnection()) {
+            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.commit());
+            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback());
+            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback(null));
+        }
+
+        Properties prop = new Properties();
+        prop.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+        try (Connection localConnection = this.getJdbcConnection(prop)) {
+            localConnection.commit();
+            localConnection.rollback();
+            localConnection.rollback(null);
+        }
     }
 
-    @Test(groups = { "integration" })
-    public void commitTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.commit());
-    }
-
-    @Test(groups = { "integration" })
-    public void rollbackTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback());
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback(null));
-    }
 
     @Test(groups = { "integration" })
     public void closeTest() throws SQLException {

@@ -5,6 +5,7 @@ import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.logging.Logger;
@@ -380,7 +381,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      */
     @Override
     public String getSchemaTerm() {
-        return "database";
+        return connection.getJdbcConfig().getDriverProperty(DriverProperties.SCHEMA_TERM.getKey(), "schema");
     }
 
     @Override
@@ -830,7 +831,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
                 JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
-                "replaceRegexpOne(type, '^Nullable\\(([\\\\w ,\\\\)\\\\(]+)\\)$', '\\\\1') AS TYPE_NAME, " +
+                "type AS TYPE_NAME, " +
                 JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
                 "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
