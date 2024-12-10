@@ -49,15 +49,21 @@ public class JdbcConfiguration {
         return disableFrameworkDetection;
     }
 
+    private boolean isIgnoreUnsupportedRequests;
+
+    public boolean isIgnoreUnsupportedRequests() {
+        return isIgnoreUnsupportedRequests;
+    }
+
     public JdbcConfiguration(String url, Properties info) {
         this.allProperties = new ConcurrentHashMap<>();
         info.forEach((k, v) -> allProperties.put(k.toString(), v.toString()));
-
         this.jdbcUrl = url;//Raw URL
         this.url = cleanUrl(url);
         this.user = info.getProperty("user", "default");
         this.password = info.getProperty("password", "");
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
+        this.isIgnoreUnsupportedRequests= Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
 
     public static boolean acceptsURL(String url) {
@@ -117,5 +123,9 @@ public class JdbcConfiguration {
         }
 
         return listOfProperties;
+    }
+
+    public String getDriverProperty(String key, String defaultValue) {
+        return allProperties.getOrDefault(key, defaultValue);
     }
 }
