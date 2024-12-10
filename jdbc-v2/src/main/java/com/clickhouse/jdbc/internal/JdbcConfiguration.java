@@ -111,7 +111,7 @@ public class JdbcConfiguration {
                 String[] pathElements = path.split("([\\/]+)+", 3);
                 if (pathElements.length > 2) {
                     throw new IllegalArgumentException("There can be only one URL path element indicating a database name");
-                } else if (pathElements.length == 2) {
+                } else if (pathElements.length == 2 && pathElements[1] != null && !pathElements[1].trim().isEmpty()) {
                     providedProperties.put(ClientConfigProperties.DATABASE.getKey(), pathElements[1]);
                 }
             }
