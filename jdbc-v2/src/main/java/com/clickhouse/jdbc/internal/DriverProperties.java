@@ -5,6 +5,8 @@ package com.clickhouse.jdbc.internal;
  */
 public enum DriverProperties {
 
+    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", ""),
+    SCHEMA_TERM("jdbc_schema_term", ""),
     PLACEHOLDER("placeholder", "Placeholder for unknown properties");
 
     private final String key;
@@ -16,4 +18,7 @@ public enum DriverProperties {
         this.description = description;
     }
 
+    public String getKey() {
+        return key;
+    }
 }
