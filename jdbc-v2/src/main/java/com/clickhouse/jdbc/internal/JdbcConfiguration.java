@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);
@@ -220,7 +221,7 @@ public class JdbcConfiguration {
             }
         }
 
-        listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).toList();
+        listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).collect(Collectors.toList());
     }
 
     /**
