@@ -22,40 +22,7 @@ public class JdbcConfigurationTest {
     public void testConnectionUrl(String jdbcUrl, String connectionUrl, Properties properties, Map<String, String> expectedClientProps) throws Exception {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcUrl, properties);
         assertEquals(configuration.getConnectionUrl(), connectionUrl);
-        System.out.println(configuration.clientProperties);
         assertEquals(configuration.clientProperties, expectedClientProps);
-    }
-
-    @Test
-    public void testRegExp() {
-        String url = "//localhost:8123/";
-
-        Pattern pattern = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
-
-
-        Matcher m = pattern.matcher(url);
-        System.out.println("hasMatch: " + m.matches());
-        for (int i = 1; i <= m.groupCount(); i++) {
-            System.out.println("g: " + i + " > " + m.group(i));
-        }
-    }
-
-    @Test
-    public void testRe3gExp() {
-        String url = "param1=value1&param2=value2,value3,\"value4\"&p_p.3=\" = \"";
-
-        Pattern pattern = Pattern.compile("(?:&?[\\w\\.]+)=(?:[\\\\w])*");
-
-
-        Matcher m = pattern.matcher(url);
-        while (m.find()) {
-            System.out.println("found: " + (url.substring(m.start(), m.end())));
-
-        }
-        System.out.println("hasMatch: " + m.matches());
-        for (int i = 1; i <= m.groupCount(); i++) {
-            System.out.println("g: " + i + " > " + m.group(i));
-        }
     }
 
     @DataProvider(name = "testConnectionUrlDataProvider")
