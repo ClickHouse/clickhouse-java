@@ -11,6 +11,8 @@ import java.util.List;
  */
 public enum DriverProperties {
 
+    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", ""),
+    SCHEMA_TERM("jdbc_schema_term", ""),
     /**
      * Indicates if driver should create a secure connection over SSL/TLS
      */

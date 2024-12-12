@@ -5,6 +5,7 @@ import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.logging.Logger;
@@ -374,7 +375,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      */
     @Override
     public String getSchemaTerm() {
-        return "database";
+        return connection.getJdbcConfig().getDriverProperty(DriverProperties.SCHEMA_TERM.getKey(), "schema");
     }
 
     @Override
@@ -824,7 +825,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
                 JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
-                "replaceRegexpOne(type, '^Nullable\\(([\\\\w ,\\\\)\\\\(]+)\\)$', '\\\\1') AS TYPE_NAME, " +
+                "type AS TYPE_NAME, " +
                 JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
                 "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
@@ -903,10 +904,21 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getPrimaryKeys is not supported and may return invalid results");
         try {
-            return connection.createStatement().executeQuery("SELECT NULL AS TABLE_CAT, NULL AS TABLE_SCHEM, NULL AS TABLE_NAME, NULL AS COLUMN_NAME, NULL AS KEY_SEQ, NULL AS PK_NAME");
+            String sql = "SELECT NULL AS TABLE_CAT, " +
+                    "system.tables.database AS TABLE_SCHEM, " +
+                    "system.tables.name AS TABLE_NAME, " +
+                    "trim(c.1) AS COLUMN_NAME, " +
+                    "c.2 AS KEY_SEQ, " +
+                    "'PRIMARY' AS PK_NAME " +
+                    "FROM system.tables " +
+                    "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
+                    "WHERE system.tables.primary_key <> '' " +
+                    "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
+                    "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
+                    "ORDER BY COLUMN_NAME";
+            log.debug("getPrimaryKeys: %s", sql);
+            return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -917,7 +929,21 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         //Return an empty result set with the required columns
         log.warn("getImportedKeys is not supported and may return invalid results");
         try {
-            return connection.createStatement().executeQuery("SELECT NULL AS PKTABLE_CAT, NULL AS PKTABLE_SCHEM, NULL AS PKTABLE_NAME, NULL AS PKCOLUMN_NAME, NULL AS FKTABLE_CAT, NULL AS FKTABLE_SCHEM, NULL AS FKTABLE_NAME, NULL AS FKCOLUMN_NAME, NULL AS KEY_SEQ, NULL AS UPDATE_RULE, NULL AS DELETE_RULE, NULL AS FK_NAME, NULL AS PK_NAME, NULL AS DEFERRABILITY");
+            String sql = "SELECT NULL AS PKTABLE_CAT, " +
+                    "NULL AS PKTABLE_SCHEM, " +
+                    "NULL AS PKTABLE_NAME, " +
+                    "NULL AS PKCOLUMN_NAME, " +
+                    "NULL AS FKTABLE_CAT, " +
+                    "NULL AS FKTABLE_SCHEM, " +
+                    "NULL AS FKTABLE_NAME, " +
+                    "NULL AS FKCOLUMN_NAME, " +
+                    "NULL AS KEY_SEQ, " +
+                    "NULL AS UPDATE_RULE, " +
+                    "NULL AS DELETE_RULE, " +
+                    "NULL AS FK_NAME, " +
+                    "NULL AS PK_NAME, " +
+                    "NULL AS DEFERRABILITY LIMIT 0";
+            return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

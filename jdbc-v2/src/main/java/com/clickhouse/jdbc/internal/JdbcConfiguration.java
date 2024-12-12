@@ -33,6 +33,12 @@ public class JdbcConfiguration {
         return disableFrameworkDetection;
     }
 
+    private boolean isIgnoreUnsupportedRequests;
+
+    public boolean isIgnoreUnsupportedRequests() {
+        return isIgnoreUnsupportedRequests;
+    }
+
     /**
      * Parses URL to get property and target host.
      * Properties that are passed in the {@code info} parameter will override that are set in the {@code url}.
@@ -51,6 +57,7 @@ public class JdbcConfiguration {
         // after initializing all properties - set final connection URL
         boolean useSSL = Boolean.parseBoolean(info.getProperty("ssl", "false"));
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
+        this.isIgnoreUnsupportedRequests= Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
 
     public static boolean acceptsURL(String url) {
@@ -222,6 +229,10 @@ public class JdbcConfiguration {
      */
     public List<DriverPropertyInfo> getDriverPropertyInfo() {
         return listOfProperties;
+    }
+
+    public String getDriverProperty(String key, String defaultValue) {
+        return driverProperties.getOrDefault(key, defaultValue);
     }
 
     public Client.Builder applyClientProperties(Client.Builder builder) {

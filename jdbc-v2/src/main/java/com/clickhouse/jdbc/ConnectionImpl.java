@@ -5,6 +5,8 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
@@ -91,6 +93,15 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         return result.getString("server_version");
     }
 
+    /**
+     * Returns configuration for current connection. Changes made to the instance of configuration may have side effects.
+     * Application should avoid making changes to this object until it is documented.
+     * @return - reference to internal instance of JdbcConfiguration
+     */
+    public JdbcConfiguration getJdbcConfig() {
+        return this.config;
+    }
+
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
@@ -119,7 +130,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         checkOpen();
-        if (!autoCommit) {
+
+        if (!config.isIgnoreUnsupportedRequests() && !autoCommit) {
             throw new SQLFeatureNotSupportedException("setAutoCommit = false not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
     }
@@ -132,12 +144,16 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void commit() throws SQLException {
-        throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests() ) {
+            throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public void rollback() throws SQLException {
-        throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -269,7 +285,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void rollback(Savepoint savepoint) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Commit/Rollback not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
