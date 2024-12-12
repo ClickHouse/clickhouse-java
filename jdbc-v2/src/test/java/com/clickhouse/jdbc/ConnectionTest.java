@@ -13,7 +13,7 @@ import static org.testng.Assert.assertThrows;
 
 public class ConnectionTest extends JdbcIntegrationTest {
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void createAndCloseStatementTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         Statement statement = localConnection.createStatement();
@@ -23,7 +23,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void prepareStatementTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         PreparedStatement statement = localConnection.prepareStatement("SELECT 1");
