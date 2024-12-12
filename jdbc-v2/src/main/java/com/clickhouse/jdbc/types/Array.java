@@ -16,13 +16,13 @@ public class Array implements java.sql.Array {
     Object[] array;
     int type; //java.sql.Types
 
-    public Array(List<Object> list) throws SQLException {
+    public Array(List<Object> list, int itemType) throws SQLException {
         if (list == null) {
             throw ExceptionUtils.toSqlState(new IllegalArgumentException("List cannot be null"));
         }
 
         this.array = list.toArray();
-        this.type = Types.OTHER;
+        this.type = itemType;
     }
 
     @Override

@@ -81,8 +81,8 @@ public class MapBackedRecord implements GenericRecord {
             return (T) converter.apply(value);
         } else {
             String columnTypeName = schema.getColumnByName(colName).getDataType().name();
-            throw new ClientException("Column " + colName + " " + columnTypeName +
-                    " cannot be converted to " + targetType.getTypeName());
+            throw new ClientException("Column '" + colName + "' of type " + columnTypeName +
+                    " cannot be converted to '" + targetType.getTypeName() + "' value");
         }
     }
 
@@ -238,7 +238,12 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(String colName) {
-        return getList(schema.nameToIndex(colName));
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else {
+            throw new ClientException("Column is not of array type");
+        }
     }
 
 
@@ -388,12 +393,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(int index) {
-        Object value = readValue(index);
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).asList();
-        } else {
-            throw new ClientException("Column is not of array type");
-        }
+        return getList(schema.indexToName(index));
     }
 
     @Override
