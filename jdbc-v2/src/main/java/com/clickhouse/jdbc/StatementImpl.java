@@ -17,6 +17,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -161,12 +162,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         lastSql = parseJdbcEscapeSyntax(sql);
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
                 : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
-
             currentResultSet = null;
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw ExceptionUtils.toSqlState(e);
         }
 
         return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
@@ -302,8 +302,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getUpdateCount() throws SQLException {
         checkClosed();
-        if (currentResultSet == null) {
-            return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+        if (currentResultSet == null && metrics != null) {
+            int updateCount = (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+            metrics = null;// clear metrics
+            return updateCount;
         }
 
         return -1;
