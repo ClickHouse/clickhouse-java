@@ -518,6 +518,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(String colName) {
+        getSchema().getColumnByName(colName);
         return currentRecord.containsKey(colName);
     }
 

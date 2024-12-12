@@ -22,4 +22,14 @@ public final class ServerSettings {
      */
     public static final String OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING = "output_format_binary_write_json_as_string";
 
+    /**
+     * Limit number of rows in a result set
+     */
+    public static final String MAX_RESULT_ROWS = "max_result_rows";
+
+    /**
+     * Defines server response if result set exceeded a limit set by {@code max_result_rows}.
+     * Possible values are 'throw' or 'break'. Default is 'throw'
+     */
+    public static final String RESULT_OVERFLOW_MODE = "result_overflow_mode";
 }
