@@ -3,12 +3,21 @@ package com.clickhouse.jdbc;
 import java.sql.*;
 import java.util.Properties;
 
+import java.util.Properties;
+
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.fail;
 
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -297,5 +306,92 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Connection localConnection = this.getJdbcConnection();
        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null));
        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null, null));
+    }
+
+    @Test
+    public void testMaxResultRowsProperty() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(Driver.chSettingKey(ServerSettings.MAX_RESULT_ROWS), "5");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT toInt32(number) FROM system.numbers LIMIT 20");
+                fail("Exception expected");
+            } catch (SQLException e) {
+                Assert.assertTrue(e.getCause() instanceof ServerException);
+                Assert.assertEquals(((ServerException)e.getCause()).getCode(), 396);
+            }
+        }
+    }
+
+    @Test
+    public void testSecureConnection() throws Exception {
+        if (isCloud()) {
+            return; // this test uses self-signed cert
+        }
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+        properties.put(ClientConfigProperties.CA_CERTIFICATE.getKey(), "containers/clickhouse-server/certs/localhost.crt");
+
+        try (Connection conn = new ConnectionImpl("jdbc:clickhouse:" + secureServer.getBaseUri(), properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+            int count = 0;
+            while (rs.next()) { count ++ ; }
+            Assert.assertEquals(count, 10);
+        }
+
+        properties.put(DriverProperties.SECURE_CONNECTION.getKey(), "true");
+        String jdbcUrl = "jdbc:clickhouse://"+secureServer.getHost() + ":" + secureServer.getPort() + "/";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+            int count = 0;
+            while (rs.next()) { count ++ ; }
+            Assert.assertEquals(count, 10);
+        }
+    }
+
+    @Test
+    public void testSelectingDatabase() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+
+        String jdbcUrl = "jdbc:clickhouse://" + server.getHost() + ":" + server.getPort();
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "default");
+        }
+
+        properties.put(ClientConfigProperties.DATABASE.getKey(), "system");
+        jdbcUrl = "jdbc:clickhouse://"+server.getHost() + ":" + server.getPort() + "/default";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "default");
+        }
+
+        properties.put(ClientConfigProperties.DATABASE.getKey(), "default1");
+        jdbcUrl = "jdbc:clickhouse://"+server.getHost() + ":" + server.getPort() + "/system";
+
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT database()")) {
+
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+        }
     }
 }
