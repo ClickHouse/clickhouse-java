@@ -17,7 +17,9 @@ import java.util.Map;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.types.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1080,11 +1082,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public java.sql.Array getArray(int columnIndex) throws SQLException {
         checkClosed();
-        try {
-            return new Array(reader.getList(columnIndex));
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getArray(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getArray(reader.getSchema().indexToName(columnIndex - 1));
     }
 
     @Override
@@ -1115,7 +1113,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public java.sql.Array getArray(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return new Array(reader.getList(columnLabel));
+            ClickHouseColumn column = reader.getSchema().getColumnByName(columnLabel);
+            return new Array(reader.getList(columnLabel), JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()));
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getArray(%s)", parentStatement.getLastSql(), columnLabel), e);
         }

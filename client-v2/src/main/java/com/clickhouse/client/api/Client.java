@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -209,6 +210,10 @@ public class Client implements AutoCloseable {
         if (oldClient != null) {
             oldClient.close();
         }
+
+        if (httpClientHelper != null) {
+            httpClientHelper.close();
+        }
     }
 
     public static class Builder {
@@ -290,7 +295,7 @@ public class Client implements AutoCloseable {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
-                throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
+                throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
             return this;
         }
@@ -940,6 +945,16 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets client options from provided map. Values are copied as is
+         * @param options - map of client options
+         * @return same instance of the builder
+         */
+        public Builder setOptions(Map<String, String> options) {
+            this.configuration.putAll(options);
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -950,7 +965,7 @@ public class Client implements AutoCloseable {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
-                !MapUtils.getFlag(this.configuration, "ssl_authentication")) {
+                !MapUtils.getFlag(this.configuration, "ssl_authentication", false)) {
                 throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
             }
 
@@ -1394,7 +1409,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1522,7 +1537,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1688,7 +1703,7 @@ public class Client implements AutoCloseable {
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
 
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Query request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
@@ -2103,6 +2118,10 @@ public class Client implements AutoCloseable {
      */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
+    }
+
+    public String getUser() {
+        return this.configuration.get(ClientConfigProperties.USER.getKey());
     }
 
     /**

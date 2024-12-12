@@ -251,6 +251,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Decimal128:
                 case Decimal256:
                 case Bool:
+                case String:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -518,6 +519,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(String colName) {
+        getSchema().getColumnByName(colName);
         return currentRecord.containsKey(colName);
     }
 

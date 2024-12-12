@@ -5,9 +5,10 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
-import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcConfiguration;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,7 @@ import java.sql.Savepoint;
 import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.sql.Types;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,24 +70,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             clientName += " (" + detectedFrameworks + ")";
         }
 
-        this.client =  new Client.Builder()
-                .fromUrl(this.config.getUrl())//URL without prefix
-                .setUsername(config.getUser())
-                .setPassword(config.getPassword())
+        this.client =  this.config.applyClientProperties(new Client.Builder())
                 .setClientName(clientName)
                 .build();
-        this.schema = client.getDefaultDatabase(); // TODO: fix in properties handling?
+        this.schema = client.getDefaultDatabase();
         this.defaultQuerySettings = new QuerySettings();
 
-        this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false);
-    }
-
-    public String getUser() {
-        return config.getUser();
-    }
-
-    public String getURL() {
-        return url;
+        this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
 
     public QuerySettings getDefaultQuerySettings() {
@@ -444,7 +435,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            return new com.clickhouse.jdbc.types.Array(List.of(elements));
+            // TODO: pass type name
+            return new com.clickhouse.jdbc.types.Array(List.of(elements), Types.OTHER);
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -513,6 +505,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setShardingKey(ShardingKey shardingKey) throws SQLException {
         Connection.super.setShardingKey(shardingKey);
+    }
+
+    /**
+     * Returns instance of the client used to execute queries by this connection.
+     * @return - client instance
+     */
+    public Client getClient() {
+        return client;
     }
 
     private void checkOpen() throws SQLException {
