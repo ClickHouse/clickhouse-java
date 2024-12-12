@@ -618,7 +618,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return readValue(index);
+        try {
+            BinaryStreamReader.ArrayValue array = readValue(index);
+            return array.asList();
+        } catch (ClassCastException e) {
+            throw new ClientException("Column is not of array type", e);
+        }
     }
 
     @Override

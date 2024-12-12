@@ -30,9 +30,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     private List<String> batch;
+    private String lastSql;
     private String lastQueryId;
-
     private String schema;
+    private int maxRows;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -41,7 +42,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.currentResultSet = null;
         this.metrics = null;
         this.batch = new ArrayList<>();
-        this.schema = connection.getSchema(); // remember DB name
+        this.schema = connection.getSchema();// remember DB name
+        this.maxRows = 0;
     }
 
     protected void checkClosed() throws SQLException {
@@ -107,6 +109,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return sql;
     }
 
+    protected String getLastSql() {
+        return lastSql;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
@@ -118,12 +124,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
         try {
-            sql = parseJdbcEscapeSyntax(sql);
+            lastSql = parseJdbcEscapeSyntax(sql);
             QueryResponse response;
             if (queryTimeout == 0) {
-                response = connection.client.query(sql, mergedSettings).get();
+                response = connection.client.query(lastSql, mergedSettings).get();
             } else {
-                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(this, response, reader);
@@ -152,9 +158,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        sql = parseJdbcEscapeSyntax(sql);
-        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(sql, mergedSettings).get()
-                : connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
+        lastSql = parseJdbcEscapeSyntax(sql);
+        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
+                : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
 
             currentResultSet = null;
             metrics = response.getMetrics();
@@ -190,12 +196,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getMaxRows() throws SQLException {
         checkClosed();
-        return 0;
+        return maxRows;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-
+        checkClosed();
+        maxRows = max;
     }
 
     @Override
