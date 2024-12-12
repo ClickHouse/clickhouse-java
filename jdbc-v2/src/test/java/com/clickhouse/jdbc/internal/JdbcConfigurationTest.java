@@ -7,8 +7,11 @@ import org.testng.annotations.Test;
 
 import java.sql.DriverPropertyInfo;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
@@ -16,23 +19,68 @@ import static org.testng.Assert.assertEquals;
 public class JdbcConfigurationTest {
 
     @Test(dataProvider = "testConnectionUrlDataProvider")
-    public void testConnectionUrl(String jdbcUrl, String connectionUrl, Properties properties) throws Exception {
+    public void testConnectionUrl(String jdbcUrl, String connectionUrl, Properties properties, Map<String, String> expectedClientProps) throws Exception {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcUrl, properties);
         assertEquals(configuration.getConnectionUrl(), connectionUrl);
+        System.out.println(configuration.clientProperties);
+        assertEquals(configuration.clientProperties, expectedClientProps);
+    }
+
+    @Test
+    public void testRegExp() {
+        String url = "//localhost:8123/";
+
+        Pattern pattern = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
+
+
+        Matcher m = pattern.matcher(url);
+        System.out.println("hasMatch: " + m.matches());
+        for (int i = 1; i <= m.groupCount(); i++) {
+            System.out.println("g: " + i + " > " + m.group(i));
+        }
+    }
+
+    @Test
+    public void testRe3gExp() {
+        String url = "param1=value1&param2=value2,value3,\"value4\"&p_p.3=\" = \"";
+
+        Pattern pattern = Pattern.compile("(?:&?[\\w\\.]+)=(?:[\\\\w])*");
+
+
+        Matcher m = pattern.matcher(url);
+        while (m.find()) {
+            System.out.println("found: " + (url.substring(m.start(), m.end())));
+
+        }
+        System.out.println("hasMatch: " + m.matches());
+        for (int i = 1; i <= m.groupCount(); i++) {
+            System.out.println("g: " + i + " > " + m.group(i));
+        }
     }
 
     @DataProvider(name = "testConnectionUrlDataProvider")
     public static Object[][] testConnectionUrlDataProvider() {
         Properties defaultProps = new Properties();
+        defaultProps.setProperty(ClientConfigProperties.USER.getKey(), "default");
+        defaultProps.setProperty(ClientConfigProperties.PASSWORD.getKey(), "");
         Properties useSSL = new Properties();
         useSSL.put(JdbcConfiguration.USE_SSL_PROP, "true");
 
+        Map<String, String> defaultParams = Map.of( "user", "default", "password", "");
+        Map<String, String> simpleParams = Map.of( "database", "clickhouse", "param1", "value1", "param2", "value2", "user", "default", "password", "");
+        Map<String, String> useSSLParams = Map.of("ssl", "true");
+        Map<String, String> withListParams = Map.of("database", "default", "param1", "value1", "custom_header1", "val1,val2,val3", "user", "default", "password", "");
+        Map<String, String> withListParamsQuotes = Map.of("database", "default", "param1", "value1", "custom_header1", "\"role 1,3,4\",'val2',val3", "user", "default", "password", "");
+
+
         return new Object[][] {
-                {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123", defaultProps},
-                {"jdbc:clickhouse://localhost:8443/clickhouse?param1=value1&param2=value2", "http://localhost:8443", defaultProps},
-                {"jdbc:clickhouse:https://localhost:8123/clickhouse?param1=value1&param2=value2", "https://localhost:8123", defaultProps},
-                {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443", useSSL},
-                {"jdbc:clickhouse://localhost:8443/default?param1=value1&custom_header1=val1,val2,val3", "https://localhost:8443", useSSL},
+                {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123", defaultProps, defaultParams},
+                {"jdbc:clickhouse://localhost:8443/clickhouse?param1=value1&param2=value2", "http://localhost:8443", defaultProps, simpleParams},
+                {"jdbc:clickhouse:https://localhost:8123/clickhouse?param1=value1&param2=value2", "https://localhost:8123", defaultProps, simpleParams},
+                {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443", useSSL, useSSLParams},
+                {"jdbc:clickhouse://localhost:8443/default?param1=value1&custom_header1=val1,val2,val3", "http://localhost:8443", defaultProps, withListParams},
+                {"jdbc:clickhouse://localhost:8443/default?custom_header1=\"role 1,3,4\",'val2',val3&param1=value1", "http://localhost:8443", defaultProps, withListParamsQuotes},
+
         };
     }
 

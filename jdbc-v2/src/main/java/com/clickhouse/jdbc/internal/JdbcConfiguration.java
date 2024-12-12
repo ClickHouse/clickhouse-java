@@ -1,26 +1,18 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.http.ClickHouseHttpProto;
-import com.clickhouse.data.ClickHouseUtils;
-import com.clickhouse.jdbc.Driver;
 
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JdbcConfiguration {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);
@@ -31,7 +23,7 @@ public class JdbcConfiguration {
 
     final boolean disableFrameworkDetection;
 
-    private final Map<String, String> clientProperties;
+    final Map<String, String> clientProperties;
 
     private final Map<String, String> driverProperties;
 
@@ -51,10 +43,14 @@ public class JdbcConfiguration {
         this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
-        initProperties(stripUrlPrefix(url), info);
 
+        Map<String, String> urlProperties = parseUrl(url);
+        String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
+        initProperties(urlProperties, info);
+
+        // after initializing all properties - set final connection URL
         boolean useSSL = Boolean.parseBoolean(info.getProperty("ssl", "false"));
-        this.connectionUrl = createConnectionURL(url, useSSL);
+        this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
     }
 
     public static boolean acceptsURL(String url) {
@@ -76,7 +72,6 @@ public class JdbcConfiguration {
      * @return URL without JDBC prefix
      */
     static String createConnectionURL(String url, boolean ssl) throws SQLException {
-        url = stripUrlPrefix(url);
         if (url.startsWith("//")) {
             url = (ssl ? "https:" : "http:") + url;
         }
@@ -89,7 +84,7 @@ public class JdbcConfiguration {
         }
     }
 
-    private static String stripUrlPrefix(String url) {
+    private static String stripJDBCPrefix(String url) {
         if (url.startsWith(PREFIX_CLICKHOUSE)) {
             return url.substring(PREFIX_CLICKHOUSE.length());
         } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {
@@ -101,25 +96,74 @@ public class JdbcConfiguration {
 
     List<DriverPropertyInfo> listOfProperties;
 
-    private void initProperties(String url, Properties providedProperties) {
+    /**
+     * RegExp that extracts main parts:
+     * <ul>
+     *     <li>1 - protocol (ex.: {@code http:}) (optional)</li>
+     *     <li>2 - host (ex.: {@code localhost} (required)</li>
+     *     <li>3 - port (ex.: {@code 8123 } (optional)</li>
+     *     <li>4 - database name (optional)</li>
+     *     <li>5 - query parameters as is (optional)</li>
+     * </ul>
+     */
+    private static final Pattern URL_REGEXP = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
 
-        // Parse url for database name and override
-        try {
-            URI tmp = new URI(url);
-            String path = tmp.getPath();
-            if (path != null) {
-                String[] pathElements = path.split("([\\/]+)+", 3);
-                if (pathElements.length > 2) {
-                    throw new IllegalArgumentException("There can be only one URL path element indicating a database name");
-                } else if (pathElements.length == 2 && pathElements[1] != null && !pathElements[1].trim().isEmpty()) {
-                    providedProperties.put(ClientConfigProperties.DATABASE.getKey(), pathElements[1]);
-                }
-            }
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid JDBC URL is specified");
+    /**
+     * Extracts positions of parameters names.
+     * Match will be {@code param1=} or {@code &param2=}.
+     * There is limitation to not have '=' in values.
+     */
+    private static final Pattern PARAM_EXTRACT_REGEXP = Pattern.compile("(?:&?[\\w\\.]+)=(?:[\\\\w])*");
+    private Map<String, String> parseUrl(String url) throws SQLException {
+        Map<String, String> properties = new HashMap<>();
+
+        // process host and protocol
+        url = stripJDBCPrefix(url);
+        Matcher m = URL_REGEXP.matcher(url);
+        if (!m.find()) {
+            throw new SQLException("Invalid url " + url);
+        }
+        String proto = m.group(1);
+        String host = m.group(2);
+        String port = m.group(3);
+
+        String connectionUrl = (proto == null ? "" : proto)  + "//" + host + (port.isEmpty() ? "" : ":" + port);
+        properties.put(PARSE_URL_CONN_URL_PROP, connectionUrl);
+
+        // Set database if present
+        String database = m.group(4);
+        if (database != null && !database.isEmpty()) {
+            properties.put(ClientConfigProperties.DATABASE.getKey(), database);
         }
 
-        // Process properties
+        // Parse query string
+        String queryStr = m.group(5);
+        if (queryStr != null && !queryStr.isEmpty()) {
+            Matcher qm = PARAM_EXTRACT_REGEXP.matcher(queryStr);
+
+            if (qm.find()) {
+                String name = queryStr.substring(qm.start() + (queryStr.charAt(qm.start()) == '&' ? 1 : 0), qm.end() - 1);
+                int valStartPos = qm.end();
+                while (qm.find()) {
+                    String value = queryStr.substring(valStartPos, qm.start());
+                    properties.put(name, value);
+                    name = queryStr.substring(qm.start() + (queryStr.charAt(qm.start()) == '&' ? 1 : 0), qm.end() - 1);
+                    valStartPos = qm.end();
+                }
+
+                String value = queryStr.substring(valStartPos);
+                properties.put(name, value);
+            }
+        }
+
+        return properties;
+    }
+
+    private static final String PARSE_URL_CONN_URL_PROP = "connection_url";
+
+    private void initProperties(Map<String, String> urlProperties, Properties providedProperties) {
+
+        // Copy provided properties
         Map<String, String> props = new HashMap<>();
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
@@ -129,9 +173,15 @@ public class JdbcConfiguration {
             }
         }
 
+        for (Map.Entry<String, String> entry : urlProperties.entrySet()) {
+            props.put(entry.getKey(), entry.getValue());
+        }
+
+        // Process all properties
         Map<String, DriverPropertyInfo> propertyInfos = new HashMap<>();
+
         // create initial list of properties that will be passed to a client
-        for (Map.Entry<String, String> prop : ClickHouseUtils.extractParameters(url, props).entrySet()) {
+        for (Map.Entry<String, String> prop : props.entrySet()) {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
             propertyInfo.description = "(User Defined)";
             propertyInfos.put(prop.getKey(), propertyInfo);
