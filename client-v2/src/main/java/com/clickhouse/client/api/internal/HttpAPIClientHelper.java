@@ -42,6 +42,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -73,6 +74,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static com.clickhouse.client.api.ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
@@ -239,6 +242,9 @@ public class HttpAPIClientHelper {
                 soCfgBuilder::setSndBufSize);
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_LINGER_OPT.getKey(),
                     (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
+        if (MapUtils.getFlag(chConfiguration, ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT.getKey(), false)) {
+            soCfgBuilder.setTcpNoDelay(true);
+        }
 
         // Proxy
         String proxyHost = chConfiguration.get(ClientConfigProperties.PROXY_HOST.getKey());
@@ -639,5 +645,9 @@ public class HttpAPIClientHelper {
         }
 
         return params;
+    }
+
+    public void close() {
+        httpClient.close(CloseMode.IMMEDIATE);
     }
 }

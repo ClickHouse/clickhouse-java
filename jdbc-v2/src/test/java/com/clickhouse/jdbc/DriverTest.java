@@ -4,6 +4,8 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.annotation.JsonAppend;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -22,7 +24,10 @@ public class DriverTest extends JdbcIntegrationTest {
     public void testConnect() {
         try {
             Driver driver = new Driver();
-            Assert.assertNotNull(driver.connect(getEndpointString(), new Properties()));
+            Properties props = new Properties();
+            props.put(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefaultValue());
+            props.put(ClientConfigProperties.PASSWORD.getKey(), ClientConfigProperties.PASSWORD.getDefaultValue());
+            Assert.assertNotNull(driver.connect(getEndpointString(), props));
         } catch (SQLException e) {
             Assert.fail("Failed to connect to ClickHouse", e);
         }

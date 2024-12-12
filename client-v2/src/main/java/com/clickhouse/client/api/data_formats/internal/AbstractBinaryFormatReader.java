@@ -32,12 +32,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -256,6 +251,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Decimal128:
                 case Decimal256:
                 case Bool:
+                case String:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -512,12 +508,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public boolean[] getBooleanArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
     }
 
     @Override
     public boolean hasValue(String colName) {
+        getSchema().getColumnByName(colName);
         return currentRecord.containsKey(colName);
     }
 
@@ -618,7 +620,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return readValue(index);
+        return getList(schema.indexToName(index));
     }
 
     @Override
@@ -643,6 +645,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public double[] getDoubleArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public boolean[] getBooleanArray(int index) {
         return getPrimitiveArray(schema.indexToName(index));
     }
 

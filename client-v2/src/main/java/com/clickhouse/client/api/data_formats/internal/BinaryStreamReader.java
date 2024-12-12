@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 
-import static com.clickhouse.data.ClickHouseDataType.toObjectType;
-
 /**
  * This class is not thread safe and should not be shared between multiple threads.
  * Internally it may use a shared buffer to read data from the input stream.
@@ -521,21 +519,56 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public ArrayValue readArray(ClickHouseColumn column) throws IOException {
-        Class<?> itemType = column.getArrayBaseColumn().getDataType().getWiderPrimitiveClass();
-        if (column.getArrayBaseColumn().isNullable()) {
-            itemType = toObjectType(itemType);
-        }
         int len = readVarInt(input);
-        ArrayValue array = new ArrayValue(column.getArrayNestedLevel() > 1 ? ArrayValue.class : itemType, len);
-
         if (len == 0) {
-            return array;
+            return new ArrayValue(Object.class, 0);
         }
 
-        for (int i = 0; i < len; i++) {
-            array.set(i, readValue(column.getNestedColumns().get(0)));
+        ArrayValue array;
+        ClickHouseColumn itemTypeColumn = column.getNestedColumns().get(0);
+        if (column.getArrayNestedLevel() == 1) {
+            array = readArrayItem(itemTypeColumn, len);
+
+        } else {
+            array = new ArrayValue(ArrayValue.class, len);
+            for (int i = 0; i < len; i++) {
+                array.set(i, readArray(itemTypeColumn));
+            }
         }
 
+        return array;
+    }
+
+    public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
+        ArrayValue array;
+        if (itemTypeColumn.isNullable()) {
+            array = new ArrayValue(Object.class, len);
+            for (int i = 0; i < len; i++) {
+                array.set(i, readValue(itemTypeColumn));
+            }
+        } else {
+            Object firstValue = readValue(itemTypeColumn);
+            Class<?> itemClass = firstValue.getClass();
+            if (firstValue instanceof Byte) {
+                itemClass = byte.class;
+            } else if (firstValue instanceof Character) {
+                itemClass = char.class;
+            } else if (firstValue instanceof Short) {
+                itemClass = short.class;
+            } else if (firstValue instanceof Integer) {
+                itemClass = int.class;
+            } else if (firstValue instanceof Long) {
+                itemClass = long.class;
+            } else if (firstValue instanceof Boolean) {
+                itemClass = boolean.class;
+            }
+
+            array = new ArrayValue(itemClass, len);
+            array.set(0, firstValue);
+            for (int i = 1; i < len; i++) {
+                array.set(i, readValue(itemTypeColumn));
+            }
+        }
         return array;
     }
 
@@ -557,8 +590,6 @@ public class BinaryStreamReader {
 
             try {
                 if (itemType.isArray()) {
-                    array = Array.newInstance(ArrayValue.class, length);
-                } else if (itemType == List.class) {
                     array = Array.newInstance(Object[].class, length);
                 } else {
                     array = Array.newInstance(itemType, length);

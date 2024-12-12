@@ -5,23 +5,13 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.ClickHouseArrayValue;
-import com.clickhouse.data.value.ClickHouseBitmap;
-import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoPointValue;
-import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.clickhouse.data.value.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +23,7 @@ public class MapBackedRecord implements GenericRecord {
 
     private final Map<String, Object> record;
 
-    private TableSchema schema;
+    private final TableSchema schema;
 
     private Map[] columnConverters;
 
@@ -91,8 +81,8 @@ public class MapBackedRecord implements GenericRecord {
             return (T) converter.apply(value);
         } else {
             String columnTypeName = schema.getColumnByName(colName).getDataType().name();
-            throw new ClientException("Column " + colName + " " + columnTypeName +
-                    " cannot be converted to " + targetType.getTypeName());
+            throw new ClientException("Column '" + colName + "' of type " + columnTypeName +
+                    " cannot be converted to '" + targetType.getTypeName() + "' value");
         }
     }
 
@@ -248,7 +238,12 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(String colName) {
-        return getList(schema.nameToIndex(colName));
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else {
+            throw new ClientException("Column is not of array type");
+        }
     }
 
 
@@ -283,6 +278,11 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public double[] getDoubleArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public boolean[] getBooleanArray(String colName) {
         return getPrimitiveArray(colName);
     }
 
@@ -393,12 +393,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(int index) {
-        Object value = readValue(index);
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).asList();
-        } else {
-            throw new ClientException("Column is not of array type");
-        }
+        return getList(schema.indexToName(index));
     }
 
     @Override
@@ -423,6 +418,11 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public double[] getDoubleArray(int index) {
+        return getPrimitiveArray(schema.indexToName(index));
+    }
+
+    @Override
+    public boolean[] getBooleanArray(int index) {
         return getPrimitiveArray(schema.indexToName(index));
     }
 
@@ -504,6 +504,11 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
+    public TableSchema getSchema() {
+        return this.schema;
+    }
+
+    @Override
     public Object getObject(String colName) {
         return readValue(colName);
     }
@@ -511,5 +516,10 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public Object getObject(int index) {
         return readValue(index);
+    }
+
+    @Override
+    public Map<String, Object> getValues() {
+        return this.record;
     }
 }

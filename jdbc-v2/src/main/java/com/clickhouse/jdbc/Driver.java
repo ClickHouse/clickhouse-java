@@ -1,7 +1,9 @@
 package com.clickhouse.jdbc;
 
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +17,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * JDBC driver for ClickHouse.
@@ -22,6 +26,8 @@ import java.util.Set;
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
     public static final String driverVersion;
+    public static final int majorVersion;
+    public static final int minorVersion;
     private final DataSourceImpl dataSource;
 
     public static String frameworksDetected = null;
@@ -54,11 +60,31 @@ public class Driver implements java.sql.Driver {
         //If the version is not available, set it to 1.0
         if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
             log.warn("ClickHouse JDBC driver version is not available");
-            tempDriverVersion = "1.0";
+            tempDriverVersion = "1.0.0";
         }
 
         driverVersion = tempDriverVersion;
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
+
+        int tmpMajorVersion;
+        int tmpMinorVersion;
+
+        try {
+            Matcher m = Pattern.compile("(\\d+)(\\.\\d+)(\\.\\d+)").matcher(driverVersion);
+            if (m.find()) {
+                tmpMajorVersion = Integer.parseInt(m.group(1));
+                tmpMinorVersion = Integer.parseInt(m.group(2).substring(1));
+            } else {
+                tmpMajorVersion = 0;
+                tmpMinorVersion = 0;
+            }
+        } catch (Exception e) {
+            tmpMajorVersion = 0;
+            tmpMinorVersion = 0;
+        }
+
+        majorVersion = tmpMajorVersion;
+        minorVersion = tmpMinorVersion;
 
         //Load the driver
         //load(); //Commented out to avoid loading the driver multiple times, because we're referenced in V1
@@ -105,27 +131,25 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        return JdbcConfiguration.getDriverPropertyInfo(info).toArray(new DriverPropertyInfo[0]);
+        return new JdbcConfiguration(url, info).getDriverPropertyInfo().toArray(new DriverPropertyInfo[0]);
     }
 
     public static int getDriverMajorVersion() {
-        return Integer.parseInt(driverVersion.split("\\.")[0]);
+        return majorVersion;
     }
 
     @Override
     public int getMajorVersion() {
-        //Convert the version string to an integer
-        return Integer.parseInt(driverVersion.split("\\.")[0]);
+        return majorVersion;
     }
 
     public static int getDriverMinorVersion() {
-        return Integer.parseInt(driverVersion.split("\\.")[1]);
+        return minorVersion;
     }
 
     @Override
     public int getMinorVersion() {
-        //Convert the version string to an integer
-        return Integer.parseInt(driverVersion.split("\\.")[1]);
+        return minorVersion;
     }
 
     @Override
@@ -133,8 +157,12 @@ public class Driver implements java.sql.Driver {
         return false;
     }
 
+    public static String chSettingKey(String key) {
+        return ClientConfigProperties.serverSetting(key);
+    }
+
     @Override
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException("Method not supported");
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 }

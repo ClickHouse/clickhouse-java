@@ -210,6 +210,10 @@ public class Client implements AutoCloseable {
         if (oldClient != null) {
             oldClient.close();
         }
+
+        if (httpClientHelper != null) {
+            httpClientHelper.close();
+        }
     }
 
     public static class Builder {
@@ -293,7 +297,7 @@ public class Client implements AutoCloseable {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
-                throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
+                throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
             return this;
         }
@@ -944,6 +948,16 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Sets client options from provided map. Values are copied as is
+         * @param options - map of client options
+         * @return same instance of the builder
+         */
+        public Builder setOptions(Map<String, String> options) {
+            this.configuration.putAll(options);
+            return this;
+        }
+
+        /**
          * Specifies whether to use Bearer Authentication and what token to use.
          * The token will be sent as is, so it should be encoded before passing to this method.
          *
@@ -1545,7 +1559,7 @@ public class Client implements AutoCloseable {
 
                                              byte[] buffer = new byte[writeBufferSize];
                                              int bytesRead;
-                                             while ((bytesRead = data.read(buffer)) != -1) {
+                                             while ((bytesRead = data.read(buffer)) > 0) {
                                                  out.write(buffer, 0, bytesRead);
                                              }
                                              out.close();
@@ -2147,6 +2161,10 @@ public class Client implements AutoCloseable {
      */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
+    }
+
+    public String getUser() {
+        return this.configuration.get(ClientConfigProperties.USER.getKey());
     }
 
     /**

@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 
 public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrapper {
     private final ResultSetImpl resultSet;
@@ -16,7 +17,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     private ClickHouseColumn getColumn(int column) throws SQLException {
         if (column < 1 || column > getColumnCount()) {
-            throw new SQLException("Column index out of range: " + column);
+            throw new SQLException("Column index out of range: " + column, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
         return resultSet.getSchema().getColumns().get(column - 1);
     }
@@ -27,7 +28,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
             TableSchema schema = resultSet.getSchema();
             return schema.getColumns().size();
         } catch (Exception e) {
-            throw new SQLException(e);
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -53,12 +54,20 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public int isNullable(int column) throws SQLException {
-        return getColumn(column).isNullable() ? columnNullable : columnNoNulls;
+        try {
+            return getColumn(column).isNullable() ? columnNullable : columnNoNulls;
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return getColumn(column).getDataType().isSigned();
+        try {
+            return getColumn(column).getDataType().isSigned();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -68,12 +77,20 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        return getColumn(column).getColumnName();
+        try {
+            return getColumn(column).getColumnName();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public String getColumnName(int column) throws SQLException {
-        return getColumn(column).getColumnName();
+        try {
+            return getColumn(column).getColumnName();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -83,17 +100,29 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        return getColumn(column).getPrecision();
+        try {
+            return getColumn(column).getPrecision();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        return getColumn(column).getScale();
+        try {
+            return getColumn(column).getScale();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public String getTableName(int column) throws SQLException {
-        return resultSet.getSchema().getTableName();
+        try {
+            return resultSet.getSchema().getTableName();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -103,12 +132,20 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return JdbcUtils.convertToSqlType(getColumn(column).getDataType());
+        try {
+            return JdbcUtils.convertToSqlType(getColumn(column).getDataType());
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return getColumn(column).getDataType().name();
+        try {
+            return getColumn(column).getDataType().name();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
@@ -128,6 +165,6 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        throw new UnsupportedOperationException("Not implemented yet.");
+        throw new SQLException("Not implemented", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 }

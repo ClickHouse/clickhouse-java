@@ -66,14 +66,18 @@ public class InsertTests extends BaseIntegrationTest {
     @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        int bufferSize = (7 * 65500);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
+                .setSocketSndbuf(bufferSize)
+                .setSocketRcvbuf(bufferSize)
+                .setClientNetworkBufferSize(bufferSize)
                 .build();
+
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
@@ -225,7 +229,6 @@ public class InsertTests extends BaseIntegrationTest {
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
         assertEquals(records.size(), 1000);
     }
-
 
     @Test(groups = { "integration" }, enabled = true)
     public void insertRawDataSimple() throws Exception {
@@ -379,7 +382,7 @@ public class InsertTests extends BaseIntegrationTest {
         };
     }
 
-    private void initTable(String tableName, String createTableSQL) throws Exception {
+    protected void initTable(String tableName, String createTableSQL) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + tableName).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
     }
