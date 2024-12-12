@@ -4,6 +4,7 @@ import com.clickhouse.client.api.query.GenericRecord;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -14,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import static org.testng.Assert.*;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
@@ -379,6 +381,27 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 2);
+        }
+    }
+
+    @Test
+    public void testGettingArrays() throws Exception {
+        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+
+            ResultSet rs = stmt.executeQuery("SELECT [] as empty_array, [1, 2, 3] as number_array, " +
+                    " ['val1', 'val2', 'val3'] as str_array");
+
+            assertTrue(rs.next());
+            Array emptyArray = rs.getArray("empty_array");
+            assertEquals(((Object[]) emptyArray.getArray()).length, 0);
+            Array numberArray = rs.getArray("number_array");
+            assertEquals(((Object[]) numberArray.getArray()).length, 3);
+            System.out.println(((Object[]) numberArray.getArray())[0].getClass().getName());
+            assertEquals(numberArray.getArray(), new short[] {1, 2, 3} );
+            Array stringArray = rs.getArray("str_array");
+            assertEquals(((Object[]) stringArray.getArray()).length, 3);
+            assertEquals(Arrays.stream(((Object[]) stringArray.getArray())).toList(), Arrays.asList("val1", "val2", "val3"));
         }
     }
 }

@@ -251,6 +251,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Decimal128:
                 case Decimal256:
                 case Bool:
+                case String:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -619,7 +620,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return readValue(index);
+        return getList(schema.indexToName(index));
     }
 
     @Override

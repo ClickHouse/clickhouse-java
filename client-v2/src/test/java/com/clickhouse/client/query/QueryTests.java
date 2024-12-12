@@ -549,6 +549,15 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
     }
 
+    @Test
+    public void testArraysAsList() {
+        GenericRecord record =
+                client.queryAll("SELECT [] as empty_array").get(0);
+
+        List<Object> items = record.getList("empty_array");
+        Assert.assertTrue(items.isEmpty());
+    }
+
     private final static List<String> MAP_COLUMNS = Arrays.asList(
             "col1 Map(String, Int8)",
             "col2 Map(String, String)"
@@ -1216,6 +1225,25 @@ public class QueryTests extends BaseIntegrationTest {
             }
         }
         testDataTypes(columns, valueGenerators, verifiers);
+    }
+
+
+    @Test
+    public void testNumberToStringConvertions() throws Exception {
+
+        GenericRecord record =
+                client.queryAll("SELECT '100' as small_number, '100500' as number").get(0);
+
+        Assert.assertEquals(record.getString("number"), "100500");
+        Assert.assertEquals(record.getString("small_number"), "100");
+        Assert.assertEquals(record.getByte("small_number"), 100);
+        Assert.assertEquals(record.getShort("small_number"), 100);
+        Assert.assertThrows(() -> record.getShort("number"));
+        Assert.assertEquals(record.getInteger("number"), 100500);
+        Assert.assertEquals(record.getLong("number"), 100500L);
+        Assert.assertEquals(record.getFloat("number"), 100500.0F);
+        Assert.assertEquals(record.getBigInteger("number"), BigInteger.valueOf(100500L));
+
     }
 
     private static String sq(String str) {
