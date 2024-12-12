@@ -618,7 +618,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return getList(schema.indexToName(index));
+        return getList(schema.indexToName(index - 1));
     }
 
     @Override

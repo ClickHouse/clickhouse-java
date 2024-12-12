@@ -151,9 +151,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
         // TODO: close current result set?
         checkClosed();
-
-        if (parseStatementType(sql) == StatementType.SELECT) {
-            throw new SQLException("executeUpdate() cannot be called with a SELECT statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
+        StatementType type = parseStatementType(sql);
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
+            throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
@@ -262,7 +262,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         StatementType type = parseStatementType(sql);
 
-        if (type == StatementType.SELECT) {
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
             executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
