@@ -94,12 +94,9 @@ public class HttpAPIClientHelper {
 
     private String httpClientUserAgentPart;
 
-    private final Supplier<String> bearerTokenSupplier;
-
-    public HttpAPIClientHelper(Map<String, String> configuration, Supplier<String> bearerTokenSupplier) {
+    public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
-        this.bearerTokenSupplier = bearerTokenSupplier;
 
         this.httpClientUserAgentPart = this.httpClient.getClass().getPackage().getImplementationTitle() + "/" + this.httpClient.getClass().getPackage().getImplementationVersion();
 
@@ -339,10 +336,13 @@ public class HttpAPIClientHelper {
 
             String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
                     .replaceAll("\\\\/", "/");
-            return new ServerException(serverCode, msg);
+            if (msg.trim().isEmpty()) {
+                msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            }
+            return new ServerException(serverCode, msg, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
         }
     }
 
@@ -427,8 +427,6 @@ public class HttpAPIClientHelper {
         if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
             req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER.getKey()));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
-        } else if (bearerTokenSupplier != null) {
-            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerTokenSupplier.get());
         } else if (chConfig.getOrDefault(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey(), "true").equalsIgnoreCase("true")) {
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
                     (chConfig.get(ClientConfigProperties.USER.getKey()) + ":" + chConfig.get(ClientConfigProperties.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));
@@ -456,12 +454,12 @@ public class HttpAPIClientHelper {
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
             }
         }
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
         }
 

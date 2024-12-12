@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -155,6 +156,10 @@ public enum ClientConfigProperties {
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
+    }
+
+    public static String httpHeader(String key) {
+        return HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US);
     }
 
     public static String commaSeparated(Collection<?> values) {

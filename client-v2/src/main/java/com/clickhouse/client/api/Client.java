@@ -117,7 +117,6 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *          ...
  *      }
  *  }
- *
  * }
  *
  *
@@ -131,6 +130,9 @@ public class Client implements AutoCloseable {
 
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
+
+    private final Map<String, String> readOnlyConfig;
+
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
 
     // POJO serializer mapping (class -> (schema -> (format -> serializer)))
@@ -154,10 +156,10 @@ public class Client implements AutoCloseable {
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Supplier<String> bearerTokenSupplier) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
         this.configuration = configuration;
+        this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
@@ -172,7 +174,7 @@ public class Client implements AutoCloseable {
         }
         this.useNewImplementation = useNewImplementation;
         if (useNewImplementation) {
-            this.httpClientHelper = new HttpAPIClientHelper(configuration, bearerTokenSupplier);
+            this.httpClientHelper = new HttpAPIClientHelper(configuration);
             LOG.info("Using new http client implementation");
         } else {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
@@ -225,8 +227,6 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
-
-        private Supplier<String> bearerTokenSupplier = null;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -855,7 +855,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, String value) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), value);
+            this.configuration.put(ClientConfigProperties.httpHeader(key), value);
             return this;
         }
 
@@ -866,7 +866,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, Collection<String> values) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), ClientConfigProperties.commaSeparated(values));
+            this.configuration.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
             return this;
         }
 
@@ -965,21 +965,8 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder useBearerTokenAuth(String bearerToken) {
-            this.httpHeader("Authorization", "Bearer " + bearerToken);
-            return this;
-        }
-
-        /**
-         * Specifies a supplier for a bearer tokens. It is useful when token should be refreshed.
-         * Supplier is called each time before sending a request.
-         * Supplier should return encoded token.
-         * This configuration cannot be used with {@link #useBearerTokenAuth(String)}.
-         *
-         * @param tokenSupplier - token supplier
-         * @return
-         */
-        public Builder useBearerTokenAuth(Supplier<String> tokenSupplier) {
-            this.bearerTokenSupplier = tokenSupplier;
+            // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
+            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             return this;
         }
 
@@ -994,19 +981,13 @@ public class Client implements AutoCloseable {
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
                 !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
-                !this.configuration.containsKey(ClientConfigProperties.HTTP_HEADER_PREFIX + "Authorization") &&
-                this.bearerTokenSupplier == null) {
+                !this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION))) {
                 throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
                     (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
                 throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
-            }
-
-            if (this.configuration.containsKey(ClientConfigProperties.HTTP_HEADER_PREFIX + "Authorization") &&
-                this.bearerTokenSupplier != null) {
-                throw new IllegalArgumentException("Bearer token supplier cannot be used with a predefined Authorization header");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
@@ -1047,15 +1028,8 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            // check for only new implementation configuration
-            if (!this.useNewImplementation) {
-                if (this.bearerTokenSupplier != null) {
-                    throw new IllegalArgumentException("Bearer token supplier cannot be used with old implementation");
-                }
-            }
-
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.bearerTokenSupplier);
+                this.columnToMethodMatchingStrategy);
         }
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
@@ -2147,7 +2121,7 @@ public class Client implements AutoCloseable {
      * @return - configuration options
      */
     public Map<String, String> getConfiguration() {
-        return Collections.unmodifiableMap(configuration);
+        return readOnlyConfig;
     }
 
     /** Returns operation timeout in seconds */
@@ -2192,6 +2166,10 @@ public class Client implements AutoCloseable {
      */
     public Collection<String> getDBRoles() {
         return unmodifiableDbRolesView;
+    }
+
+    public void updateBearerToken(String bearer) {
+        this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
     }
 
     private ClickHouseNode getNextAliveNode() {

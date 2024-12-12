@@ -809,6 +809,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .reduce((s1, s2) -> s1 + "." + s2).get();
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .useBearerTokenAuth(jwtToken1)
+                .compressServerResponse(false)
                 .build()) {
 
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
@@ -828,37 +829,38 @@ public class HttpTransportTests extends BaseIntegrationTest {
                         new String[]{"header2", "payload2", "signature2"})
                 .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
                 .reduce((s1, s2) -> s1 + "." + s2).get();
-        final AtomicInteger callCount = new AtomicInteger(0);
-        Supplier<String> tokenSupplier = () -> {
-            callCount.incrementAndGet();
-            return jwtToken2;
-        };
-
+        
+        mockServer.resetAll();
         mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken2))
+                .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
                 .willReturn(WireMock.aResponse()
-                        .withHeader("X-ClickHouse-Summary",
-                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+                        .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                .build());
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                .useBearerTokenAuth(tokenSupplier)
+                .useBearerTokenAuth(jwtToken1)
+                .compressServerResponse(false)
                 .build()) {
 
-            for (int i = 0; i < 3; i++ ) {
-
-                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
-                    Assert.assertEquals(response.getReadBytes(), 10);
-                } catch (Exception e) {
-                    Assert.fail("Unexpected exception", e);
-                }
+            try {
+                client.execute("SELECT 1").get();
+                fail("Exception expected");
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
             }
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken2))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+
+                    .build());
+
+            client.updateBearerToken(jwtToken2);
+
+            client.execute("SELECT 1").get();
         }
-
-        assertEquals(callCount.get(), 3);
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            new Client.Builder().useBearerTokenAuth("token")
-                    .useBearerTokenAuth(() -> "token2").build();
-        });
     }
 }
