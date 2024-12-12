@@ -583,7 +583,7 @@ public class HttpAPIClientHelper {
             return retryCauses.contains(ClientFaultCause.NoHttpResponse);
         }
 
-        if (ex instanceof ConnectException) {
+        if (ex instanceof ConnectTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectTimeout);
         }
 
