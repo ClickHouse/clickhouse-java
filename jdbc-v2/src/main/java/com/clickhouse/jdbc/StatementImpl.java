@@ -57,32 +57,51 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
     }
 
-    protected StatementType parseStatementType(String sql) {
-        String[] tokens = sql.trim().split("\\s+");
-        if (tokens.length == 0) {
+    protected static StatementType parseStatementType(String sql) {
+        if (sql == null) {
             return StatementType.OTHER;
         }
 
-        switch (tokens[0].toUpperCase()) {
-            case "SELECT": return StatementType.SELECT;
-            case "INSERT": return StatementType.INSERT;
-            case "DELETE": return StatementType.DELETE;
-            case "UPDATE": return StatementType.UPDATE;
-            case "CREATE": return StatementType.CREATE;
-            case "DROP": return StatementType.DROP;
-            case "ALTER": return StatementType.ALTER;
-            case "TRUNCATE": return StatementType.TRUNCATE;
-            case "USE": return StatementType.USE;
-            case "SHOW": return StatementType.SHOW;
-            case "DESCRIBE": return StatementType.DESCRIBE;
-            case "EXPLAIN": return StatementType.EXPLAIN;
-            case "SET": return StatementType.SET;
-            case "KILL": return StatementType.KILL;
-            default: return StatementType.OTHER;
+        String trimmedSql = sql.trim();
+        if (trimmedSql.isEmpty()) {
+            return StatementType.OTHER;
         }
+
+        trimmedSql = trimmedSql.replaceAll("/\\*.*?\\*/", "").trim(); // remove comments
+        String[] lines = trimmedSql.split("\n");
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            //https://clickhouse.com/docs/en/sql-reference/syntax#comments
+            if (!trimmedLine.startsWith("--") && !trimmedLine.startsWith("#!") && !trimmedLine.startsWith("#")) {
+                String[] tokens = trimmedLine.split("\\s+");
+                if (tokens.length == 0) {
+                    continue;
+                }
+
+                switch (tokens[0].toUpperCase()) {
+                    case "SELECT": return StatementType.SELECT;
+                    case "INSERT": return StatementType.INSERT;
+                    case "DELETE": return StatementType.DELETE;
+                    case "UPDATE": return StatementType.UPDATE;
+                    case "CREATE": return StatementType.CREATE;
+                    case "DROP": return StatementType.DROP;
+                    case "ALTER": return StatementType.ALTER;
+                    case "TRUNCATE": return StatementType.TRUNCATE;
+                    case "USE": return StatementType.USE;
+                    case "SHOW": return StatementType.SHOW;
+                    case "DESCRIBE": return StatementType.DESCRIBE;
+                    case "EXPLAIN": return StatementType.EXPLAIN;
+                    case "SET": return StatementType.SET;
+                    case "KILL": return StatementType.KILL;
+                    default: return StatementType.OTHER;
+                }
+            }
+        }
+
+        return StatementType.OTHER;
     }
 
-    protected String parseTableName(String sql) {
+    protected static String parseTableName(String sql) {
         String[] tokens = sql.trim().split("\\s+");
         if (tokens.length < 3) {
             return null;
