@@ -155,8 +155,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        colIndex = colIndex - 1;
-        return (T) currentRecord.get(getSchema().indexToName(colIndex));
+        return (T) currentRecord.get(getSchema().columnIndexToName(colIndex));
     }
 
     @Override
@@ -514,7 +513,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
+        return currentRecord.containsKey(getSchema().columnIndexToName(colIndex));
     }
 
     @Override
@@ -525,47 +524,47 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.indexToName(index - 1 ));
+        return getByte(schema.columnIndexToName(index));
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.indexToName(index - 1));
+        return getShort(schema.columnIndexToName(index));
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.indexToName(index - 1));
+        return getInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.indexToName(index - 1));
+        return getLong(schema.columnIndexToName(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.indexToName(index - 1));
+        return getFloat(schema.columnIndexToName(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.indexToName(index - 1));
+        return getDouble(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.indexToName(index - 1));
+        return getBoolean(schema.columnIndexToName(index));
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return getBigInteger(schema.indexToName(index - 1));
+        return getBigInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return getBigDecimal(schema.indexToName(index - 1));
+        return getBigDecimal(schema.columnIndexToName(index));
     }
 
     @Override
@@ -620,37 +619,37 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return getList(schema.indexToName(index - 1));
+        return getList(schema.columnIndexToName(index));
     }
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
