@@ -1235,11 +1235,14 @@ public class QueryTests extends BaseIntegrationTest {
                 client.queryAll("SELECT '100' as small_number, '100500' as number").get(0);
 
         Assert.assertEquals(record.getString("number"), "100500");
+        Assert.assertEquals(record.getString(2), "100500");
         Assert.assertEquals(record.getString("small_number"), "100");
         Assert.assertEquals(record.getByte("small_number"), 100);
         Assert.assertEquals(record.getShort("small_number"), 100);
+        Assert.assertEquals(record.getShort(1), 100);
         Assert.assertThrows(() -> record.getShort("number"));
         Assert.assertEquals(record.getInteger("number"), 100500);
+        Assert.assertEquals(record.getInteger(2), 100500);
         Assert.assertEquals(record.getLong("number"), 100500L);
         Assert.assertEquals(record.getFloat("number"), 100500.0F);
         Assert.assertEquals(record.getBigInteger("number"), BigInteger.valueOf(100500L));
@@ -1900,6 +1903,17 @@ public class QueryTests extends BaseIntegrationTest {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
             Assert.assertNotNull(reader.next());
             Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+        }
+    }
+
+    @Test
+    public void testGetColumnsByIndex() throws Exception {
+
+        try (QueryResponse response = client.query("SELECT toInt8(1) as number, 'test' as string").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+            Assert.assertEquals(reader.getInteger(1), 1);
+            Assert.assertEquals(reader.getString(2), "test");
         }
     }
 

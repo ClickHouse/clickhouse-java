@@ -37,8 +37,8 @@ public class MapBackedRecord implements GenericRecord {
         if (colIndex < 1 || colIndex > schema.getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        colIndex = colIndex - 1;
-        return (T) record.get(schema.indexToName(colIndex));
+
+        return (T) record.get(schema.columnIndexToName(colIndex));
     }
 
     public <T> T readValue(String colName) {
@@ -133,8 +133,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Instant getInstant(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column =  schema.getColumnByName(colName);
         switch (column.getDataType()) {
             case Date:
             case Date32:
@@ -144,15 +143,13 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
                 LocalDateTime dateTime = readValue(colName);
                 return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-
         }
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column = schema.getColumnByName(colName);
         switch (column.getDataType()) {
             case DateTime:
             case DateTime64:
@@ -166,8 +163,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Duration getDuration(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column = schema.getColumnByName(colName);
         BigInteger value = readValue(colName);
         try {
             switch (column.getDataType()) {
@@ -288,7 +284,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public boolean hasValue(int colIndex) {
-        return record.containsKey(schema.indexToName(colIndex));
+        return record.containsKey(schema.columnIndexToName(colIndex));
     }
 
     @Override
@@ -298,37 +294,37 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.indexToName(index));
+        return getByte(schema.columnIndexToName(index));
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.indexToName(index));
+        return getShort(schema.columnIndexToName(index));
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.indexToName(index));
+        return getInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.indexToName(index));
+        return getLong(schema.columnIndexToName(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.indexToName(index));
+        return getFloat(schema.columnIndexToName(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.indexToName(index));
+        return getDouble(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.indexToName(index));
+        return getBoolean(schema.columnIndexToName(index));
     }
 
     @Override
@@ -393,37 +389,37 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(int index) {
-        return getList(schema.indexToName(index));
+        return getList(schema.columnIndexToName(index));
     }
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override

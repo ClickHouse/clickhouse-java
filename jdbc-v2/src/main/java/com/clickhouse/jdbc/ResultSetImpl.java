@@ -1082,7 +1082,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public java.sql.Array getArray(int columnIndex) throws SQLException {
         checkClosed();
-        return getArray(reader.getSchema().indexToName(columnIndex));
+        return getArray(reader.getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
