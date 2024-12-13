@@ -30,10 +30,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     protected ClickHouseBinaryFormatReader reader;
     private QueryResponse response;
     private boolean closed;
-    private final Statement parentStatement;
+    private final StatementImpl parentStatement;
     private boolean wasNull;
 
-    public ResultSetImpl(Statement parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
+    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
@@ -102,7 +102,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getString(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -118,7 +118,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return false;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBoolean(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -134,7 +134,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getByte(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -150,7 +150,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getShort(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -166,7 +166,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getInt(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -182,7 +182,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getLong(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -198,7 +198,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getFloat(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -214,7 +214,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDouble(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -230,7 +230,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -246,7 +246,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBytes(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -264,7 +264,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -281,7 +281,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -298,7 +298,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -334,7 +334,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getString(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -350,7 +350,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return false;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBoolean(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -366,7 +366,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getByte(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -382,7 +382,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getShort(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -398,7 +398,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getInt(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -414,7 +414,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getLong(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -430,7 +430,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getFloat(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -446,7 +446,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDouble(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -462,7 +462,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -478,7 +478,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBytes(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -496,7 +496,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Date.valueOf(localDate);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -513,7 +513,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Time.valueOf(localDateTime.toLocalTime());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -530,7 +530,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
             return Timestamp.valueOf(localDateTime);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -589,7 +589,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getObject(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -605,7 +605,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getObject(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -615,7 +615,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return reader.getSchema().getColumnByName(columnLabel).getColumnIndex();
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: findColumn(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -643,7 +643,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
         }
     }
 
@@ -659,7 +659,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 
@@ -1088,7 +1088,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
         checkClosed();
-        return null;
+        return getObject(columnLabel);
     }
 
     @Override
@@ -1116,7 +1116,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             ClickHouseColumn column = reader.getSchema().getColumnByName(columnLabel);
             return new Array(reader.getList(columnLabel), JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()));
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getArray(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
     }
 

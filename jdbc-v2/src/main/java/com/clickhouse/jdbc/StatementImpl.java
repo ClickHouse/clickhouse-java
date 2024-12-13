@@ -17,6 +17,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -30,9 +31,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     private List<String> batch;
+    private String lastSql;
     private String lastQueryId;
-
     private String schema;
+    private int maxRows;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -41,7 +43,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.currentResultSet = null;
         this.metrics = null;
         this.batch = new ArrayList<>();
-        this.schema = connection.getSchema(); // remember DB name
+        this.schema = connection.getSchema();// remember DB name
+        this.maxRows = 0;
     }
 
     protected void checkClosed() throws SQLException {
@@ -107,6 +110,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return sql;
     }
 
+    protected String getLastSql() {
+        return lastSql;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
@@ -118,12 +125,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
         try {
-            sql = parseJdbcEscapeSyntax(sql);
+            lastSql = parseJdbcEscapeSyntax(sql);
             QueryResponse response;
             if (queryTimeout == 0) {
-                response = connection.client.query(sql, mergedSettings).get();
+                response = connection.client.query(lastSql, mergedSettings).get();
             } else {
-                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(this, response, reader);
@@ -145,22 +152,21 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
         // TODO: close current result set?
         checkClosed();
-
-        if (parseStatementType(sql) == StatementType.SELECT) {
-            throw new SQLException("executeUpdate() cannot be called with a SELECT statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
+        StatementType type = parseStatementType(sql);
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
+            throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        sql = parseJdbcEscapeSyntax(sql);
-        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(sql, mergedSettings).get()
-                : connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
-
+        lastSql = parseJdbcEscapeSyntax(sql);
+        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
+                : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw ExceptionUtils.toSqlState(e);
         }
 
         return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
@@ -190,12 +196,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getMaxRows() throws SQLException {
         checkClosed();
-        return 0;
+        return maxRows;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-
+        checkClosed();
+        maxRows = max;
     }
 
     @Override
@@ -255,7 +262,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         StatementType type = parseStatementType(sql);
 
-        if (type == StatementType.SELECT) {
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
             executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
@@ -295,8 +302,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getUpdateCount() throws SQLException {
         checkClosed();
-        if (currentResultSet == null) {
-            return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+        if (currentResultSet == null && metrics != null) {
+            int updateCount = (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+            metrics = null;// clear metrics
+            return updateCount;
         }
 
         return -1;
