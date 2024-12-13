@@ -57,8 +57,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public boolean next() throws SQLException {
         checkClosed();
 
-        Map<String, Object> currentRow = reader.next();
-        return currentRow != null;
+        try {
+            Map<String, Object> currentRow = reader.next();
+            return currentRow != null;
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
