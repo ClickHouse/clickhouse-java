@@ -1957,4 +1957,26 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertFalse(reader.hasNext());
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testReadingEnumsAsStrings() throws Exception {
+        final String tableName = "enums_as_strings_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, enum1 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum2 Enum16('atch' = 1, 'batch' = 2, 'catch' = 3)) " +
+                "ENGINE Memory").get();
+
+        try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\ta\t2".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals(reader.getString("enum1"), "a");
+            Assert.assertEquals(reader.getString("enum2"), "batch");
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
 }

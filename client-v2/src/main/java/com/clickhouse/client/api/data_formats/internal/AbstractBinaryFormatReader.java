@@ -10,6 +10,8 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseEnum;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -275,20 +277,19 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         } else if (value instanceof String) {
             return (String) value;
+        } else {
+            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
+                ClickHouseEnum clickHouseEnum = schema.getColumnByName(colName).getEnumConstants();
+                return clickHouseEnum.name(Integer.parseInt(value.toString()));
+            }
         }
         return value.toString();
     }
 
     @Override
     public String getString(int index) {
-        // TODO: it may be incorrect to call .toString() on some objects
-        Object value = readValue(index);
-        if (value == null) {
-            return null;
-        } else if (value instanceof String) {
-            return (String) value;
-        }
-        return value.toString();
+        return getString(schema.columnIndexToName(index));
     }
 
     private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
