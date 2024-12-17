@@ -209,7 +209,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -226,7 +228,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
-
+        checkClosed();
+        //TODO: Should we support this?
     }
 
     @Override
@@ -258,17 +261,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        checkClosed();
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-
+        checkClosed();
     }
 
     @Override
     public void setCursorName(String name) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
@@ -339,7 +343,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -350,11 +356,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
     public int getFetchSize() throws SQLException {
+        checkClosed();
         return 0;
     }
 
@@ -451,7 +458,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setPoolable(boolean poolable) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
@@ -461,7 +468,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void closeOnCompletion() throws SQLException {
-
+        checkClosed();
     }
 
     @Override
