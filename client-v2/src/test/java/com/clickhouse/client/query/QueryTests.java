@@ -1975,7 +1975,11 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertNotNull(reader.next());
             Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
             Assert.assertEquals(reader.getString("enum1"), "a");
+            Assert.assertEquals(reader.getShort("enum1"), 1);
+            Assert.assertEquals(reader.getInteger("enum1"), 1);
             Assert.assertEquals(reader.getString("enum2"), "batch");
+            Assert.assertEquals(reader.getShort("enum2"), 2);
+            Assert.assertEquals(reader.getInteger("enum2"), 2);
             Assert.assertFalse(reader.hasNext());
         }
     }

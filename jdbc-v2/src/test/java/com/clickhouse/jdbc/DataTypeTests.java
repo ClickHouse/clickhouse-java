@@ -355,8 +355,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("str"), str);
                     assertEquals(rs.getString("fixed"), fixed);
                     assertEquals(rs.getString("enum"), "a");
+                    assertEquals(rs.getInt("enum"), 6);
                     assertEquals(rs.getString("enum8"), "a");
+                    assertEquals(rs.getInt("enum8"), 1);
                     assertEquals(rs.getString("enum16"), "b");
+                    assertEquals(rs.getInt("enum16"), 2);
                     assertEquals(rs.getString("uuid"), uuid);
                     assertEquals(rs.getString("ipv4"), "/" + ipv4);
                     assertEquals(rs.getString("ipv6"), "/" + ipv6);
