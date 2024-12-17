@@ -103,7 +103,7 @@ public enum ClientConfigProperties {
 
     QUERY_ID("query_id"), // actually a server setting, but has client effect too
 
-    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size"),
+    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", "8192"),
 
 
     ACCESS_TOKEN("access_token"), SSL_AUTH("ssl_authentication"),
@@ -114,7 +114,14 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures"),
 
-    CLIENT_NAME("client_name");
+    CLIENT_NAME("client_name"),
+
+    /**
+     * Indicates that data provided for write operation is compressed by application.
+     */
+    APP_COMPRESSED_DATA("app_compressed_data"),
+
+    ;
 
     private String key;
 

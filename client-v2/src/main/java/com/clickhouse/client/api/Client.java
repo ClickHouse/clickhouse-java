@@ -61,11 +61,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.UnsupportedCharsetException;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -90,6 +94,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -589,6 +594,11 @@ public class Client implements AutoCloseable {
          */
         public Builder useHttpCompression(boolean enabled) {
             this.configuration.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), String.valueOf(enabled));
+            return this;
+        }
+
+        public Builder appCompressedData(boolean enabled) {
+            this.configuration.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), String.valueOf(enabled));
             return this;
         }
 
@@ -1109,6 +1119,10 @@ public class Client implements AutoCloseable {
             String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
             String clientName = configuration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
             httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
+
+            if (!configuration.containsKey(ClientConfigProperties.APP_COMPRESSED_DATA.getKey())) {
+                appCompressedData(false);
+            }
         }
 
         private static String buildUserAgent(String customUserAgent) {
@@ -1458,7 +1472,7 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * <p>Sends write request to database. Input data is read from the input stream.</p>
+     * Sends write request to database. Input data is read from the input stream.
      *
      * @param tableName - destination table name
      * @param data  - data stream to insert
@@ -1467,7 +1481,49 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName,
-                                     InputStream data,
+                                                    InputStream data,
+                                                    ClickHouseFormat format,
+                                                    InsertSettings settings) {
+
+        final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
+                Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(),
+                        ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getDefaultValue())) :
+                settings.getInputStreamCopyBufferSize();
+
+        if (writeBufferSize <= 0) {
+            throw new IllegalArgumentException("Buffer size must be greater than 0");
+        }
+
+        return insert(tableName, new DataWriter() {
+                    @Override
+                    public void onOutput(OutputStream out) throws IOException {
+                        byte[] buffer = new byte[writeBufferSize];
+                        int bytesRead;
+                        while ((bytesRead = data.read(buffer)) > 0) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                        out.close();
+                    }
+
+                    @Override
+                    public void onRetry() throws IOException {
+                        data.reset();
+                    }
+                },
+                format, settings);
+    }
+
+    /**
+     * Does an insert request to a server. Data is pushed when a {@link DataWriter#onOutput(OutputStream)} is called.
+     *
+     * @param tableName - target table name
+     * @param writer - {@link DataWriter} implementation
+     * @param format - source format
+     * @param settings - operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName,
+                                     DataWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
 
@@ -1498,6 +1554,8 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
+            final String sqlStmt = "INSERT INTO \"" + tableName + "\" FORMAT " + format.name();
+            finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
             responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
@@ -1508,17 +1566,7 @@ public class Client implements AutoCloseable {
                     try (ClassicHttpResponse httpResponse =
                                  httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
                                          out -> {
-                                             out.write("INSERT INTO ".getBytes());
-                                             out.write(tableName.getBytes());
-                                             out.write(" FORMAT ".getBytes());
-                                             out.write(format.name().getBytes());
-                                             out.write(" \n".getBytes());
-
-                                             byte[] buffer = new byte[writeBufferSize];
-                                             int bytesRead;
-                                             while ((bytesRead = data.read(buffer)) > 0) {
-                                                 out.write(buffer, 0, bytesRead);
-                                             }
+                                             writer.onOutput(out);
                                              out.close();
                                          })) {
 
@@ -1551,7 +1599,7 @@ public class Client implements AutoCloseable {
 
                     if (i < maxRetries) {
                         try {
-                            data.reset();
+                            writer.onRetry();
                         } catch (IOException ioe) {
                             throw new ClientException("Failed to reset stream before next attempt", ioe);
                         }
@@ -1566,12 +1614,7 @@ public class Client implements AutoCloseable {
 
                 CompletableFuture<ClickHouseResponse> future = null;
                 future = request.data(output -> {
-                    //Copy the data from the input stream to the output stream
-                    byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
-                    int bytesRead;
-                    while ((bytesRead = data.read(buffer)) != -1) {
-                        output.write(buffer, 0, bytesRead);
-                    }
+                    writer.onOutput(output);
                     output.close();
                 }).option(ClickHouseClientOption.ASYNC, false).execute();
 
