@@ -154,6 +154,10 @@ public class Client implements AutoCloseable {
 
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
+    // Server context
+    private String serverUser;
+    private String serverVersion;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
@@ -179,7 +183,24 @@ public class Client implements AutoCloseable {
             LOG.info("Using old http client implementation");
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
+        updateServerContext();
     }
+
+    private void updateServerContext() {
+        try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
+            try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
+                if (reader.next() != null) {
+                    serverUser = reader.getString("user");
+                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                    serverVersion = reader.getString("version");
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to get server info", e);
+        }
+    }
+
 
     /**
      * Returns default database name that will be used by operations if not specified.
@@ -215,6 +236,7 @@ public class Client implements AutoCloseable {
             httpClientHelper.close();
         }
     }
+
 
     public static class Builder {
         private Set<String> endpoints;
@@ -1014,6 +1036,7 @@ public class Client implements AutoCloseable {
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
         }
+
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
 
