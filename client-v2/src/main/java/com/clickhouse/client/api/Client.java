@@ -155,7 +155,6 @@ public class Client implements AutoCloseable {
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
     // Server context
-    private String serverUser;
     private String serverVersion;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
@@ -191,7 +190,7 @@ public class Client implements AutoCloseable {
         try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
             try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
                 if (reader.next() != null) {
-                    serverUser = reader.getString("user");
+                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
                     this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
                     serverVersion = reader.getString("version");
                 }
@@ -200,6 +199,8 @@ public class Client implements AutoCloseable {
             LOG.error("Failed to get server info", e);
         }
     }
+
+
 
 
     /**
@@ -2145,6 +2146,10 @@ public class Client implements AutoCloseable {
 
     public String getUser() {
         return this.configuration.get(ClientConfigProperties.USER.getKey());
+    }
+
+    public String getServerVersion() {
+        return this.serverVersion;
     }
 
     /**
