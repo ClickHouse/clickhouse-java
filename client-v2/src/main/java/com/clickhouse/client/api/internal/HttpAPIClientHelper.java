@@ -73,6 +73,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.clickhouse.client.api.ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT;
 
@@ -335,10 +336,13 @@ public class HttpAPIClientHelper {
 
             String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
                     .replaceAll("\\\\/", "/");
-            return new ServerException(serverCode, msg);
+            if (msg.trim().isEmpty()) {
+                msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            }
+            return new ServerException(serverCode, msg, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
         }
     }
 
@@ -450,12 +454,12 @@ public class HttpAPIClientHelper {
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
             }
         }
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
         }
 
