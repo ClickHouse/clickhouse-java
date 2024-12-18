@@ -502,7 +502,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 listString.append("]");
 
                 return listString.toString();
-            } else if (x instanceof Map<?, ?> tmpMap) {
+            } else if (x instanceof Map) {
+                Map<?, ?> tmpMap = (Map<?, ?>) x;
                 StringBuilder mapString = new StringBuilder();
                 mapString.append("{");
                 for (Object key : tmpMap.keySet()) {
