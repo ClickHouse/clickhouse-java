@@ -457,6 +457,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private static String encodeObject(Object x) throws SQLException {
+        LOG.trace("Encoding object: {}", x);
+
         try {
             if (x == null) {
                 return "NULL";
@@ -500,14 +502,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 listString.append("]");
 
                 return listString.toString();
-            } else if (x instanceof Map) {
-                Map<?, ?> tmpMap = (Map<?, ?>) x;
+            } else if (x instanceof Map<?, ?> tmpMap) {
                 StringBuilder mapString = new StringBuilder();
                 mapString.append("{");
                 for (Object key : tmpMap.keySet()) {
                     mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
                 }
-                mapString.delete(mapString.length() - 2, mapString.length());
+                if (!tmpMap.isEmpty())
+                    mapString.delete(mapString.length() - 2, mapString.length());
                 mapString.append("}");
 
                 return mapString.toString();
