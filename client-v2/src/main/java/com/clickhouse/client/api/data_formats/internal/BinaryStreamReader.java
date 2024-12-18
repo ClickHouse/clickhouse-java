@@ -210,7 +210,8 @@ public class BinaryStreamReader {
                     return (T) readTuple(column);
                 case Nothing:
                     return null;
-//                case SimpleAggregateFunction:
+                case SimpleAggregateFunction:
+                    return (T) readValue(column.getNestedColumns().get(0));
                 case AggregateFunction:
                     return (T) readBitmap( column);
                 default:

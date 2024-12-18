@@ -235,7 +235,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override

@@ -52,6 +52,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -62,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -73,6 +75,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1235,11 +1238,14 @@ public class QueryTests extends BaseIntegrationTest {
                 client.queryAll("SELECT '100' as small_number, '100500' as number").get(0);
 
         Assert.assertEquals(record.getString("number"), "100500");
+        Assert.assertEquals(record.getString(2), "100500");
         Assert.assertEquals(record.getString("small_number"), "100");
         Assert.assertEquals(record.getByte("small_number"), 100);
         Assert.assertEquals(record.getShort("small_number"), 100);
+        Assert.assertEquals(record.getShort(1), 100);
         Assert.assertThrows(() -> record.getShort("number"));
         Assert.assertEquals(record.getInteger("number"), 100500);
+        Assert.assertEquals(record.getInteger(2), 100500);
         Assert.assertEquals(record.getLong("number"), 100500L);
         Assert.assertEquals(record.getFloat("number"), 100500.0F);
         Assert.assertEquals(record.getBigInteger("number"), BigInteger.valueOf(100500L));
@@ -1903,6 +1909,17 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testGetColumnsByIndex() throws Exception {
+
+        try (QueryResponse response = client.query("SELECT toInt8(1) as number, 'test' as string").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+            Assert.assertEquals(reader.getInteger(1), 1);
+            Assert.assertEquals(reader.getString(2), "test");
+        }
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         return new Client.Builder()
@@ -1914,5 +1931,30 @@ public class QueryTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingSimpleAggregateFunction() throws Exception {
+        final String tableName = "simple_aggregate_function_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), mp SimpleAggregateFunction(maxMap, Map(UInt8, UInt8))) " +
+                "ENGINE Memory;").get();
+
+
+            try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t{1:2}".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals((Short) reader.readValue("lowest_value"), Short.parseShort("2"));
+            Assert.assertEquals((Long) reader.readValue("count"), Long.parseLong("3"));
+            Assert.assertEquals(String.valueOf((LinkedHashMap) reader.readValue("mp")), "{1=2}");
+            Assert.assertFalse(reader.hasNext());
+        }
     }
 }

@@ -91,12 +91,29 @@ public class TableSchema {
         return columns.get(nameToIndex(name));
     }
 
+    /**
+     * Takes absolute index (starting from 0) and returns corresponding column.
+     *
+     * @param index - column index starting from 0
+     * @return - column name
+     */
     public String indexToName(int index) {
         try {
             return columns.get(index).getColumnName();
         } catch (IndexOutOfBoundsException e) {
             throw new NoSuchColumnException("Result has no column with index = " + index);
         }
+    }
+
+    /**
+     * Takes absolute index (starting from 1) and return corresponding column.
+     * Equals to {@code indexToName(index - 1}.
+     *
+     * @param index - column index starting from 1
+     * @return - column name.
+     */
+    public String columnIndexToName(int index) {
+        return indexToName(index - 1);
     }
 
     public int nameToIndex(String name) {

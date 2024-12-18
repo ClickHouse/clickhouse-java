@@ -20,6 +20,9 @@ import java.util.Arrays;
 
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
+    public static final String[] TABLE_TYPES = new String[] { "DICTIONARY", "LOG TABLE", "MEMORY TABLE",
+            "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
+
     ConnectionImpl connection;
 
     private boolean useCatalogs = false;
@@ -737,12 +740,22 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
 //        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
         // TODO: handle useCatalogs == true and return schema catalog name
+        if (types == null || types.length == 0) {
+            types = TABLE_TYPES;
+        }
 
         String sql = "SELECT " +
                  catalogPlaceholder + " AS TABLE_CAT, " +
                 "t.database AS TABLE_SCHEM, " +
                 "t.name AS TABLE_NAME, " +
-                "t.engine AS TABLE_TYPE, " +
+                "CASE WHEN t.engine LIKE '%Log' THEN 'LOG TABLE' " +
+                "WHEN t.engine in ('Buffer', 'Memory', 'Set') THEN 'MEMORY TABLE' " +
+                "WHEN t.is_temporary != 0 THEN 'TEMPORARY TABLE' " +
+                "WHEN t.engine like '%View' THEN 'VIEW'" +
+                "WHEN t.engine = 'Dictionary' THEN 'DICTIONARY' " +
+                "WHEN t.engine LIKE 'Async%' OR t.engine LIKE 'System%' THEN 'SYSTEM TABLE' " +
+                "WHEN empty(t.data_paths) THEN 'REMOTE TABLE' " +
+                "ELSE 'TABLE' END AS TABLE_TYPE, " +
                 "t.comment AS REMARKS, " +
                 "null AS TYPE_CAT, " + // no types catalog
                 "d.engine AS TYPE_SCHEM, " + // no types schema
@@ -752,14 +765,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " FROM system.tables t" +
                 " JOIN system.databases d ON system.tables.database = system.databases.name" +
                 " WHERE t.database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'";
-        if (types != null && types.length > 0) {
-            sql += "AND t.engine IN (";
-            for (String type : types) {
-                sql += "'" + type + "',";
-            }
-            sql = sql.substring(0, sql.length() - 1) + ") ";
-        }
+                " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
+                " AND TABLE_TYPE IN ('" + String.join("','", types) + "')";
 
         try {
             return connection.createStatement().executeQuery(sql);
@@ -802,14 +809,14 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     }
 
     /**
-     * Returns name of the ClickHouse table types as they are used in create table statements.
+     * Returns name of the ClickHouse table types as the broad category (rather than engine name).
      * @return - ResultSet with one column TABLE_TYPE
      * @throws SQLException - if an error occurs
      */
     @Override
     public ResultSet getTableTypes() throws SQLException {
         try {
-            return connection.createStatement().executeQuery("SELECT name AS TABLE_TYPE FROM system.table_engines");
+            return connection.createStatement().executeQuery("SELECT arrayJoin(['" + String.join("','", TABLE_TYPES) + "']) AS TABLE_TYPE ORDER BY TABLE_TYPE");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

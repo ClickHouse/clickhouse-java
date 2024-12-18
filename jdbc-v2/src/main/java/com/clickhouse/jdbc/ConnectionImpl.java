@@ -106,26 +106,34 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
-        return new StatementImpl(this);
+        return createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         checkOpen();
-        return new PreparedStatementImpl(this, sql);
+        return prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
         checkOpen();
         /// TODO: this is not implemented according to JDBC spec and may not be used.
-        throw new SQLFeatureNotSupportedException("nativeSQL not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("nativeSQL not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -181,7 +189,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
         checkOpen();
-        if (readOnly) {
+        if (!config.isIgnoreUnsupportedRequests() && readOnly) {
             throw new SQLFeatureNotSupportedException("read-only=true unsupported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
     }
@@ -206,7 +214,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
         checkOpen();
-        if (TRANSACTION_NONE != level) {
+        if (!config.isIgnoreUnsupportedRequests() && TRANSACTION_NONE != level) {
             throw new SQLFeatureNotSupportedException("setTransactionIsolation not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
     }
@@ -231,32 +239,41 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
         checkOpen();
-        //TODO: Should this be a silent ignore?
-        throw new SQLFeatureNotSupportedException("Statement with resultSetType and resultSetConcurrency override not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        return createStatement(resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("PreparedStatement with resultSetType and resultSetConcurrency override not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        return prepareStatement(sql, resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Map<String, Class<?>> getTypeMap() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("getTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("getTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("setTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("setTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -274,13 +291,21 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Savepoint setSavepoint() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Savepoint setSavepoint(String name) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -294,72 +319,104 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        //TODO: Should this be a silent ignore?
-        throw new SQLFeatureNotSupportedException("Statement with resultSetType, resultSetConcurrency, and resultSetHoldability override not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        return new StatementImpl(this);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        //TODO: Should this be a silent ignore?
-        throw new SQLFeatureNotSupportedException("PreparedStatement with resultSetType, resultSetConcurrency, and resultSetHoldability override not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        return new PreparedStatementImpl(this, sql);
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
         checkOpen();
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("prepareStatement(String sql, int autoGeneratedKeys) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("prepareStatement(String sql, int autoGeneratedKeys) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        } else {
+            return prepareStatement(sql);
+        }
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
         checkOpen();
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("prepareStatement(String sql, int[] columnIndexes) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("prepareStatement(String sql, int[] columnIndexes) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        } else {
+            return prepareStatement(sql);
+        }
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
         checkOpen();
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("prepareStatement(String sql, String[] columnNames) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("prepareStatement(String sql, String[] columnNames) not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        } else {
+            return prepareStatement(sql);
+        }
     }
 
     @Override
     public Clob createClob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Clob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Clob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Blob createBlob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Blob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Blob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public NClob createNClob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("NClob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("NClob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public SQLXML createSQLXML() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("SQLXML not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("SQLXML not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -436,7 +493,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -453,19 +514,27 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void abort(Executor executor) throws SQLException {
-        throw new SQLFeatureNotSupportedException("abort not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("abort not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("setNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("setNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("getNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("getNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return -1;
     }
 
     @Override

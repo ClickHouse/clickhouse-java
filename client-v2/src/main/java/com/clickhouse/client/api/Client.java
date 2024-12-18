@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -1426,7 +1427,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1554,7 +1555,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1720,7 +1721,7 @@ public class Client implements AutoCloseable {
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
 
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Query request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);

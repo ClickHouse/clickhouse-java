@@ -587,7 +587,7 @@ public class HttpAPIClientHelper {
             return retryCauses.contains(ClientFaultCause.NoHttpResponse);
         }
 
-        if (ex instanceof ConnectException) {
+        if (ex instanceof ConnectException || ex instanceof ConnectTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectTimeout);
         }
 
@@ -602,6 +602,7 @@ public class HttpAPIClientHelper {
     // ClientException will be also wrapped
     public ClientException wrapException(String message, Exception cause) {
         if (cause instanceof ConnectionRequestTimeoutException ||
+                cause instanceof NoHttpResponseException ||
                 cause instanceof ConnectTimeoutException ||
                 cause instanceof ConnectException) {
             return new ConnectionInitiationException(message, cause);

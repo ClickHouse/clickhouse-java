@@ -3,6 +3,9 @@
 ### New Features
 - Added basic auth support for proxies. Now you can specify username/password when connecting via a proxy that requires it with HttpURLConnection and Apache HttpClient.
 
+### Bug Fixes
+- Fix for retrying on `ConnectTimeoutException`
+
 ## 0.7.1-patch1
 
 ### Bug Fixes

@@ -27,24 +27,38 @@ public final class ExceptionUtils {
 
     /**
      * Convert a {@link Exception} to a {@link SQLException}.
-     * @param e {@link Exception} to convert
+     * @param cause {@link Exception} to convert
      * @return Converted {@link SQLException}
      */
-    public static SQLException toSqlState(Exception e) {
-        if (e == null) {
-            return new SQLException("Unknown client error", SQL_STATE_CLIENT_ERROR);
-        } else if (e instanceof SQLException) {
-            return (SQLException) e;
-        } else if (e instanceof ClientMisconfigurationException) {
-            return new SQLException(e.getMessage(), SQL_STATE_CLIENT_ERROR, e);
-        } else if (e instanceof ConnectionInitiationException) {
-            return new SQLException(e.getMessage(), SQL_STATE_CONNECTION_EXCEPTION, e);
-        } else if (e instanceof ServerException) {
-            return new SQLException(e.getMessage(), SQL_STATE_DATA_EXCEPTION, e);
-        } else if (e instanceof ClientException) {
-            return new SQLException(e.getMessage(), SQL_STATE_CLIENT_ERROR, e);
+    public static SQLException toSqlState(Exception cause) {
+        return toSqlState( null, cause);
+    }
+
+    /**
+     * Convert a {@link Exception} to a {@link SQLException}.
+     * @param message Custom message to use
+     * @param cause {@link Exception} to convert
+     * @return Converted {@link SQLException}
+     */
+    public static SQLException toSqlState(String message, Exception cause) {
+        if (cause == null) {
+            return new SQLException(message == null ? "Unknown client error" : message, SQL_STATE_CLIENT_ERROR);
         }
 
-        return new SQLException(e.getMessage(), SQL_STATE_CLIENT_ERROR, e);//Default
+        String exceptionMessage = message == null ? cause.getMessage() : message;
+
+        if (cause instanceof SQLException) {
+            return (SQLException) cause;
+        } else if (cause instanceof ClientMisconfigurationException) {
+            return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);
+        } else if (cause instanceof ConnectionInitiationException) {
+            return new SQLException(exceptionMessage, SQL_STATE_CONNECTION_EXCEPTION, cause);
+        } else if (cause instanceof ServerException) {
+            return new SQLException(exceptionMessage, SQL_STATE_DATA_EXCEPTION, cause);
+        } else if (cause instanceof ClientException) {
+            return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);
+        }
+
+        return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);//Default
     }
 }

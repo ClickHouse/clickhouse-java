@@ -17,6 +17,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -30,9 +31,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     private List<String> batch;
+    private String lastSql;
     private String lastQueryId;
-
     private String schema;
+    private int maxRows;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -41,7 +43,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.currentResultSet = null;
         this.metrics = null;
         this.batch = new ArrayList<>();
-        this.schema = connection.getSchema(); // remember DB name
+        this.schema = connection.getSchema();// remember DB name
+        this.maxRows = 0;
     }
 
     protected void checkClosed() throws SQLException {
@@ -54,32 +57,51 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
     }
 
-    protected StatementType parseStatementType(String sql) {
-        String[] tokens = sql.trim().split("\\s+");
-        if (tokens.length == 0) {
+    protected static StatementType parseStatementType(String sql) {
+        if (sql == null) {
             return StatementType.OTHER;
         }
 
-        switch (tokens[0].toUpperCase()) {
-            case "SELECT": return StatementType.SELECT;
-            case "INSERT": return StatementType.INSERT;
-            case "DELETE": return StatementType.DELETE;
-            case "UPDATE": return StatementType.UPDATE;
-            case "CREATE": return StatementType.CREATE;
-            case "DROP": return StatementType.DROP;
-            case "ALTER": return StatementType.ALTER;
-            case "TRUNCATE": return StatementType.TRUNCATE;
-            case "USE": return StatementType.USE;
-            case "SHOW": return StatementType.SHOW;
-            case "DESCRIBE": return StatementType.DESCRIBE;
-            case "EXPLAIN": return StatementType.EXPLAIN;
-            case "SET": return StatementType.SET;
-            case "KILL": return StatementType.KILL;
-            default: return StatementType.OTHER;
+        String trimmedSql = sql.trim();
+        if (trimmedSql.isEmpty()) {
+            return StatementType.OTHER;
         }
+
+        trimmedSql = trimmedSql.replaceAll("/\\*.*?\\*/", "").trim(); // remove comments
+        String[] lines = trimmedSql.split("\n");
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            //https://clickhouse.com/docs/en/sql-reference/syntax#comments
+            if (!trimmedLine.startsWith("--") && !trimmedLine.startsWith("#!") && !trimmedLine.startsWith("#")) {
+                String[] tokens = trimmedLine.split("\\s+");
+                if (tokens.length == 0) {
+                    continue;
+                }
+
+                switch (tokens[0].toUpperCase()) {
+                    case "SELECT": return StatementType.SELECT;
+                    case "INSERT": return StatementType.INSERT;
+                    case "DELETE": return StatementType.DELETE;
+                    case "UPDATE": return StatementType.UPDATE;
+                    case "CREATE": return StatementType.CREATE;
+                    case "DROP": return StatementType.DROP;
+                    case "ALTER": return StatementType.ALTER;
+                    case "TRUNCATE": return StatementType.TRUNCATE;
+                    case "USE": return StatementType.USE;
+                    case "SHOW": return StatementType.SHOW;
+                    case "DESCRIBE": return StatementType.DESCRIBE;
+                    case "EXPLAIN": return StatementType.EXPLAIN;
+                    case "SET": return StatementType.SET;
+                    case "KILL": return StatementType.KILL;
+                    default: return StatementType.OTHER;
+                }
+            }
+        }
+
+        return StatementType.OTHER;
     }
 
-    protected String parseTableName(String sql) {
+    protected static String parseTableName(String sql) {
         String[] tokens = sql.trim().split("\\s+");
         if (tokens.length < 3) {
             return null;
@@ -107,6 +129,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return sql;
     }
 
+    protected String getLastSql() {
+        return lastSql;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
@@ -118,12 +144,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
         try {
-            sql = parseJdbcEscapeSyntax(sql);
+            lastSql = parseJdbcEscapeSyntax(sql);
             QueryResponse response;
             if (queryTimeout == 0) {
-                response = connection.client.query(sql, mergedSettings).get();
+                response = connection.client.query(lastSql, mergedSettings).get();
             } else {
-                response = connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
             currentResultSet = new ResultSetImpl(this, response, reader);
@@ -145,22 +171,21 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
         // TODO: close current result set?
         checkClosed();
-
-        if (parseStatementType(sql) == StatementType.SELECT) {
-            throw new SQLException("executeUpdate() cannot be called with a SELECT statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
+        StatementType type = parseStatementType(sql);
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
+            throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        sql = parseJdbcEscapeSyntax(sql);
-        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(sql, mergedSettings).get()
-                : connection.client.query(sql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
-
+        lastSql = parseJdbcEscapeSyntax(sql);
+        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
+                : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw ExceptionUtils.toSqlState(e);
         }
 
         return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
@@ -184,23 +209,27 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public int getMaxRows() throws SQLException {
         checkClosed();
-        return 0;
+        return maxRows;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-
+        checkClosed();
+        maxRows = max;
     }
 
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
-
+        checkClosed();
+        //TODO: Should we support this?
     }
 
     @Override
@@ -232,17 +261,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        checkClosed();
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-
+        checkClosed();
     }
 
     @Override
     public void setCursorName(String name) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
@@ -255,7 +285,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         StatementType type = parseStatementType(sql);
 
-        if (type == StatementType.SELECT) {
+        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
             executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
@@ -295,8 +325,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getUpdateCount() throws SQLException {
         checkClosed();
-        if (currentResultSet == null) {
-            return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+        if (currentResultSet == null && metrics != null) {
+            int updateCount = (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+            metrics = null;// clear metrics
+            return updateCount;
         }
 
         return -1;
@@ -311,7 +343,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -322,11 +356,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
     public int getFetchSize() throws SQLException {
+        checkClosed();
         return 0;
     }
 
@@ -423,7 +458,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setPoolable(boolean poolable) throws SQLException {
-
+        checkClosed();
     }
 
     @Override
@@ -433,7 +468,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void closeOnCompletion() throws SQLException {
-
+        checkClosed();
     }
 
     @Override

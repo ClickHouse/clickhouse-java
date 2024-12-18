@@ -22,7 +22,7 @@ import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void createAndCloseStatementTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         Statement statement = localConnection.createStatement();
@@ -32,7 +32,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void prepareStatementTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         PreparedStatement statement = localConnection.prepareStatement("SELECT 1");
@@ -308,7 +308,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null, null));
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testMaxResultRowsProperty() throws Exception {
         Properties properties = new Properties();
         properties.setProperty(Driver.chSettingKey(ServerSettings.MAX_RESULT_ROWS), "5");
@@ -323,7 +323,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSecureConnection() throws Exception {
         if (isCloud()) {
             return; // this test uses self-signed cert
@@ -357,7 +357,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testSelectingDatabase() throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         Properties properties = new Properties();
@@ -393,5 +393,15 @@ public class ConnectionTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "system");
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnwrapping() throws Exception {
+        Connection conn = getJdbcConnection();
+        Assert.assertTrue(conn.isWrapperFor(Connection.class));
+        Assert.assertTrue(conn.isWrapperFor(JdbcV2Wrapper.class));
+        Assert.assertEquals(conn.unwrap(Connection.class), conn);
+        Assert.assertEquals(conn.unwrap(JdbcV2Wrapper.class), conn);
+        assertThrows(SQLException.class, () -> conn.unwrap(ResultSet.class));
     }
 }

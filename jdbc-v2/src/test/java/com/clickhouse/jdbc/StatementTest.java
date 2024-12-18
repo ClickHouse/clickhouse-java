@@ -4,6 +4,8 @@ import com.clickhouse.client.api.query.GenericRecord;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
@@ -402,6 +404,49 @@ public class StatementTest extends JdbcIntegrationTest {
             Array stringArray = rs.getArray("str_array");
             assertEquals(((Object[]) stringArray.getArray()).length, 3);
             assertEquals(Arrays.stream(((Object[]) stringArray.getArray())).toList(), Arrays.asList("val1", "val2", "val3"));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testWithComments() throws Exception {
+        assertEquals(StatementImpl.parseStatementType("    /* INSERT TESTING */\n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("/* SELECT TESTING */\n INSERT INTO test_table VALUES (1)"), StatementImpl.StatementType.INSERT);
+        assertEquals(StatementImpl.parseStatementType("/* INSERT TESTING */\n\n\n UPDATE test_table SET num = 2"), StatementImpl.StatementType.UPDATE);
+        assertEquals(StatementImpl.parseStatementType("-- INSERT TESTING */\n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("     -- SELECT TESTING \n -- SELECT AGAIN \n INSERT INTO test_table VALUES (1)"), StatementImpl.StatementType.INSERT);
+        assertEquals(StatementImpl.parseStatementType(" SELECT 42    -- INSERT TESTING"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("#! INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("#!INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("# INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("#INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("\nINSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.INSERT);
+        assertEquals(StatementImpl.parseStatementType("         \n          INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.INSERT);
+        assertEquals(StatementImpl.parseStatementType("select 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType("insert into test_table values (1)"), StatementImpl.StatementType.INSERT);
+        assertEquals(StatementImpl.parseStatementType("update test_table set num = 2"), StatementImpl.StatementType.UPDATE);
+        assertEquals(StatementImpl.parseStatementType("delete from test_table where num = 2"), StatementImpl.StatementType.DELETE);
+        assertEquals(StatementImpl.parseStatementType("sElEcT 1 AS num"), StatementImpl.StatementType.SELECT);
+        assertEquals(StatementImpl.parseStatementType(null), StatementImpl.StatementType.OTHER);
+        assertEquals(StatementImpl.parseStatementType(""), StatementImpl.StatementType.OTHER);
+        assertEquals(StatementImpl.parseStatementType("      "), StatementImpl.StatementType.OTHER);
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testWithIPs() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT toIPv4('127.0.0.1'), toIPv6('::1'), toIPv6('2001:438:ffff::407d:1bc1')")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "/127.0.0.1");
+                    assertEquals(rs.getObject(1), Inet4Address.getByName("127.0.0.1"));
+                    assertEquals(rs.getString(2), "/0:0:0:0:0:0:0:1");
+                    assertEquals(rs.getObject(2), Inet6Address.getByName("0:0:0:0:0:0:0:1"));
+                    assertEquals(rs.getString(3), "/2001:438:ffff:0:0:0:407d:1bc1");
+                    assertEquals(rs.getObject(3), Inet6Address.getByName("2001:438:ffff:0:0:0:407d:1bc1"));
+                    assertFalse(rs.next());
+                }
+            }
         }
     }
 }

@@ -86,7 +86,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     @Override
     public <T> T readValue(int colIndex) {
-        return (T) currentRecord.get(getSchema().indexToName(colIndex));
+        return (T) currentRecord.get(getSchema().columnIndexToName(colIndex));
     }
 
     @Override

@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.Types;
 import java.sql.DatabaseMetaData;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -96,8 +97,20 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             ResultSet rs = dbmd.getTables("system", null, "numbers", null);
             assertTrue(rs.next());
             assertEquals(rs.getString("TABLE_NAME"), "numbers");
-            assertEquals(rs.getString("TABLE_TYPE"), "SystemNumbers");
+            assertEquals(rs.getString("TABLE_TYPE"), "SYSTEM TABLE");
             assertFalse(rs.next());
+            rs.close();
+
+            rs = dbmd.getTables("system", null, "numbers", new String[] { "SYSTEM TABLE" });
+            assertTrue(rs.next());
+            assertEquals(rs.getString("TABLE_NAME"), "numbers");
+            assertEquals(rs.getString("TABLE_TYPE"), "SYSTEM TABLE");
+            assertFalse(rs.next());
+            rs.close();
+
+            rs = dbmd.getTables("system", null, "numbers", new String[] { "TABLE" });
+            assertFalse(rs.next());
+            rs.close();
         }
     }
 
@@ -168,15 +181,14 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getTableTypes();
-            int count = 0;
-            Set<String> tableTypes = new HashSet<>(Arrays.asList("MergeTree", "Log", "Memory"));
-            while (rs.next()) {
-                tableTypes.remove(rs.getString("TABLE_TYPE"));
-                count++;
+            List<String> sortedTypes = Arrays.asList(com.clickhouse.jdbc.metadata.DatabaseMetaData.TABLE_TYPES);
+            Collections.sort(sortedTypes);
+            for (String type: sortedTypes) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_TYPE"), type);
             }
 
-            assertTrue(count > 10);
-            assertTrue(tableTypes.isEmpty(), "Not all table types are found: " + tableTypes);
+            assertFalse(rs.next());
         }
     }
 
