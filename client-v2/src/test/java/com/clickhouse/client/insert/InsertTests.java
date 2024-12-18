@@ -4,15 +4,13 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataStreamWriter;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.data_formats.AdvancedRowBinaryFormatWriter;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -27,7 +25,6 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.hc.core5.http.HttpHeaders;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -40,13 +37,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -313,8 +308,8 @@ public class InsertTests extends BaseIntegrationTest {
 
         InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
             .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
-            .setQueryId(String.valueOf(UUID.randomUUID()));
-        insertSettings.setDatabase(new_database);
+            .setQueryId(String.valueOf(UUID.randomUUID()))
+            .setDatabase(new_database);
 
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(data);
@@ -421,11 +416,11 @@ public class InsertTests extends BaseIntegrationTest {
         TableSchema schema = client.getTableSchema(tableName);
 
         try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter formatWriter = new RowBinaryFormatWriter(out);
+            RowBinaryFormatSerializer formatWriter = new RowBinaryFormatSerializer(out);
             for (Object[] row : rows) {
                 formatWriter.writeString((String) row[0]);
-                formatWriter.writeFloat((float)row[1]);
-                formatWriter.writeFloat((float)row[2]);
+                formatWriter.writeFloat32((float)row[1]);
+                formatWriter.writeFloat32((float)row[2]);
                 if (row[3] == null) {
                     formatWriter.writeNull();
                 } else {
@@ -439,7 +434,7 @@ public class InsertTests extends BaseIntegrationTest {
                 if (row[5] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeInt((int) row[5]);
+                    formatWriter.writeInt8((byte) row[5]);
                 }
             }
         }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
@@ -477,15 +472,16 @@ public class InsertTests extends BaseIntegrationTest {
 
         TableSchema schema = client.getTableSchema(tableName);
 
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
         try (InsertResponse response = client.insert(tableName, out -> {
-            AdvancedRowBinaryFormatWriter w = new AdvancedRowBinaryFormatWriter(out, schema);
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
             for (Object[] row : rows) {
-//                w.setString(1, row[0]);
-//                w.setString(2, row[0]);
-
-                w.flushRow();
+                for (int i = 0; i < row.length; i++) {
+                    w.setValue(i + 1, row[i]);
+                }
+                w.commitRow();
             }
-        }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+        }, format, new InsertSettings()).get()) {
             System.out.println("Rows written: " + response.getWrittenRows());
         }
 

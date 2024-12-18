@@ -10,6 +10,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -43,7 +44,6 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
@@ -1229,45 +1229,9 @@ public class Client implements AutoCloseable {
                 schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
                     Object value = getterMethod.invoke(obj);
 
-                    if (defaultsSupport) {
-                        if (value != null) {//Because we now support defaults, we have to send nonNull
-                            SerializerUtils.writeNonNull(stream);//Write 0 for no default
-
-                            if (column.isNullable()) {//If the column is nullable
-                                SerializerUtils.writeNonNull(stream);//Write 0 for not null
-                            }
-                        } else {//So if the object is null
-                            if (column.hasDefault()) {
-                                SerializerUtils.writeNull(stream);//Send 1 for default
-                                return;
-                            } else if (column.isNullable()) {//And the column is nullable
-                                SerializerUtils.writeNonNull(stream);
-                                SerializerUtils.writeNull(stream);//Then we send null, write 1
-                                return;//And we're done
-                            } else if (column.getDataType() == ClickHouseDataType.Array) {//If the column is an array
-                                SerializerUtils.writeNonNull(stream);//Then we send nonNull
-                            } else {
-                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
-                            }
-                        }
-                    } else {
-                        if (column.isNullable()) {
-                            if (value == null) {
-                                SerializerUtils.writeNull(stream);
-                                return;
-                            }
-                            SerializerUtils.writeNonNull(stream);
-                        } else if (value == null) {
-                            if (column.getDataType() == ClickHouseDataType.Array) {
-                                SerializerUtils.writeNonNull(stream);
-                            } else {
-                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
-                            }
-                        }
+                    if (RowBinaryFormatSerializer.writeValuePreamble(stream, defaultsSupport, column, value)) {
+                        SerializerUtils.serializeData(stream, value, column);
                     }
-
-                    //Handle the different types
-                    SerializerUtils.serializeData(stream, value, column);
                 });
             } else {
                 LOG.warn("No getter method found for column: {}", propertyName);

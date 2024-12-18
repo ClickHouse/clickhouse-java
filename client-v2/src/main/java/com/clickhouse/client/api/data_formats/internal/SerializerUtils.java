@@ -22,8 +22,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -182,17 +186,21 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
                 break;
             case Date:
-                BinaryStreamUtils.writeDate(stream, (LocalDate) value);
+                writeDate(stream, value, ZoneId.of("UTC")); // TODO: check
                 break;
             case Date32:
-                BinaryStreamUtils.writeDate32(stream, (LocalDate) value);
+                writeDate32(stream, value, ZoneId.of("UTC")); // TODO: check
                 break;
-            case DateTime: //TODO: Discuss LocalDateTime vs ZonedDateTime and time zones (Who uses LocalDateTime?)
-                BinaryStreamUtils.writeDateTime(stream, (LocalDateTime) value, column.getTimeZone());
+            case DateTime: {
+                ZoneId zoneId = column.getTimeZone() == null ? ZoneId.of("UTC") : column.getTimeZone().toZoneId();
+                writeDateTime(stream, value, zoneId);
                 break;
-            case DateTime64:
-                BinaryStreamUtils.writeDateTime64(stream, (LocalDateTime) value, column.getScale(), column.getTimeZone());
+            }
+            case DateTime64: {
+                ZoneId zoneId = column.getTimeZone() == null ? ZoneId.of("UTC") : column.getTimeZone().toZoneId();
+                writeDateTime64(stream, value, column.getScale(), zoneId);
                 break;
+            }
             case UUID:
                 BinaryStreamUtils.writeUuid(stream, (UUID) value);
                 break;
@@ -597,4 +605,85 @@ public class SerializerUtils {
         output.write(value ? 1 : 0);
     }
 
+    public static void writeDate(OutputStream output, Object value, ZoneId targetTz) throws IOException {
+        int epochDays = 0;
+        if (value instanceof LocalDate) {
+            LocalDate d = (LocalDate) value;
+            epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime dt = (ZonedDateTime) value;
+            epochDays = (int)dt.withZoneSameInstant(targetTz).toLocalDate().toEpochDay();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to Long");
+        }
+        BinaryStreamUtils.writeUnsignedInt16(output, epochDays);
+    }
+
+    public static void writeDate32(OutputStream output, Object value, ZoneId targetTz) throws IOException {
+        int epochDays= 0;
+        if (value instanceof LocalDate) {
+            LocalDate d = (LocalDate) value;
+            epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime dt = (ZonedDateTime) value;
+            epochDays =  (int)dt.withZoneSameInstant(targetTz).toLocalDate().toEpochDay();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to Long");
+        }
+
+        BinaryStreamUtils.writeInt32(output, epochDays);
+    }
+
+    public static void writeDateTime32(OutputStream output, Object value, ZoneId targetTz) throws IOException {
+        writeDateTime(output, value, targetTz);
+    }
+
+    public static void writeDateTime(OutputStream output, Object value, ZoneId targetTz) throws IOException {
+        long ts = 0;
+        if (value instanceof LocalDateTime) {
+            LocalDateTime dt = (LocalDateTime) value;
+            ts = dt.atZone(targetTz).toEpochSecond();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime dt = (ZonedDateTime) value;
+            ts = dt.withZoneSameInstant(targetTz).toEpochSecond();
+        } else if (value instanceof Timestamp) {
+            Timestamp t = (Timestamp) value;
+            ts = t.toLocalDateTime().atZone(targetTz).toEpochSecond();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+        }
+
+        BinaryStreamUtils.writeUnsignedInt32(output, ts);
+    }
+
+    public static void writeDateTime64(OutputStream output, Object value, int scale, ZoneId targetTz) throws IOException {
+        if (scale < 0 || scale > 9) {
+            throw new IllegalArgumentException("Invalid scale value '" + scale + "'");
+        }
+
+        long ts = 0;
+        long nano = 0;
+        if (value instanceof LocalDateTime) {
+            ZonedDateTime dt = ((LocalDateTime) value).atZone(targetTz);
+            ts = dt.toEpochSecond();
+            nano = dt.getNano();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime dt = ((ZonedDateTime) value).withZoneSameInstant(targetTz);
+            ts = dt.toEpochSecond();
+            nano = dt.getNano();
+        } else if (value instanceof Timestamp) {
+            ZonedDateTime dt = ((Timestamp) value).toLocalDateTime().atZone(targetTz);
+            ts = dt.toEpochSecond();
+            nano = dt.getNano();
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+        }
+
+        ts *= BinaryStreamReader.BASES[scale];
+        if (nano > 0L) {
+            ts += nano / BinaryStreamReader.BASES[9 - scale];
+        }
+
+        BinaryStreamUtils.writeInt64(output, ts);
+    }
 }
