@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
@@ -483,8 +484,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            // TODO: pass type name
-            return new com.clickhouse.jdbc.types.Array(List.of(elements), Types.OTHER);
+            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)));
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }

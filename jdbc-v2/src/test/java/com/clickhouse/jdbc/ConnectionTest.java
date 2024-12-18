@@ -246,7 +246,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void createArrayOfTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        Array array = localConnection.createArrayOf("type-name", new Object[] { 1, 2, 3 });
+        Array array = localConnection.createArrayOf("Int8", new Object[] { 1, 2, 3 });
         Assert.assertNotNull(array);
         Assert.assertEquals(array.getArray(), new Object[] { 1, 2, 3 });
     }

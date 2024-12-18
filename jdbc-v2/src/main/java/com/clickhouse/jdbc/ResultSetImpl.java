@@ -1302,7 +1302,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         checkClosed();
         try {
             ClickHouseColumn column = reader.getSchema().getColumnByName(columnLabel);
-            return new Array(reader.getList(columnLabel), JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()));
+            return new Array(reader.getList(columnLabel),
+                    column.getArrayBaseColumn().getDataType().name(),
+                    JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()));
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getArray(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
