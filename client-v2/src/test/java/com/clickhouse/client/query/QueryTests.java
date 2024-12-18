@@ -1957,4 +1957,20 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertFalse(reader.hasNext());
         }
     }
+
+
+    @Test(groups = {"integration"})
+    public void testServerTimezone() throws Exception {
+        final String sql = "SELECT now() as t, toDateTime(now(), 'UTC') as utc_time, toDateTime(now(), 'America/New_York') as est_time";
+        try (QueryResponse response = client.query(sql).get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            ZonedDateTime serverTime = reader.getZonedDateTime(1);
+            ZonedDateTime serverUtcTime = reader.getZonedDateTime(2);
+            ZonedDateTime serverEstTime = reader.getZonedDateTime(3);
+            Assert.assertEquals(serverTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTime);
+            Assert.assertEquals(serverTime, serverUtcTime);
+            Assert.assertEquals(serverUtcTime.withZoneSameInstant(ZoneId.of("America/New_York")), serverEstTime);
+        }
+    }
 }
