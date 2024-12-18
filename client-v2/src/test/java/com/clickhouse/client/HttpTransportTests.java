@@ -291,7 +291,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "NoResponseFailureProvider")
     public static Object[][] noResponseFailureProvider() {
 
-        String insertBody = "INSERT INTO table01 FORMAT " + ClickHouseFormat.TSV.name() + " \n1\t2\t3\n";
+        String insertBody = "1\t2\t3\n";
         ThrowingFunction<Client, Void> insertFunction = (client) -> {
             InsertResponse insertResponse = client.insert("table01",
                     new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS);

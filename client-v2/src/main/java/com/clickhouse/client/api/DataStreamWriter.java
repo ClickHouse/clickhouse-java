@@ -3,7 +3,7 @@ package com.clickhouse.client.api;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public interface DataWriter {
+public interface DataStreamWriter {
 
     /**
      * Called by client when output stream is ready for user data.
@@ -18,8 +18,10 @@ public interface DataWriter {
     void onOutput(OutputStream out) throws IOException;
 
     /**
-     * Is called when client is going to perform a retry
+     * Is called when client is going to perform a retry.
+     * It is optional to implement this method because most cases there is nothing to reset.
+     * Useful to reset wrapped stream or throw exception to indicate that retry is not supported for a data source.
      * @throws IOException - when any IO exception happens.
      */
-    void onRetry() throws IOException;
+    default void onRetry() throws IOException {}
 }

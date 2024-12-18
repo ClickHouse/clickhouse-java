@@ -26,10 +26,8 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
-import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -62,14 +60,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.charset.UnsupportedCharsetException;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -94,7 +89,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -1494,7 +1488,7 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        return insert(tableName, new DataWriter() {
+        return insert(tableName, new DataStreamWriter() {
                     @Override
                     public void onOutput(OutputStream out) throws IOException {
                         byte[] buffer = new byte[writeBufferSize];
@@ -1514,16 +1508,16 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Does an insert request to a server. Data is pushed when a {@link DataWriter#onOutput(OutputStream)} is called.
+     * Does an insert request to a server. Data is pushed when a {@link DataStreamWriter#onOutput(OutputStream)} is called.
      *
      * @param tableName - target table name
-     * @param writer - {@link DataWriter} implementation
+     * @param writer - {@link DataStreamWriter} implementation
      * @param format - source format
      * @param settings - operation settings
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName,
-                                     DataWriter writer,
+                                     DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
 
