@@ -118,7 +118,6 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *          ...
  *      }
  *  }
- *
  * }
  *
  *
@@ -132,6 +131,9 @@ public class Client implements AutoCloseable {
 
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
+
+    private final Map<String, String> readOnlyConfig;
+
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
 
     // POJO serializer mapping (class -> (schema -> (format -> serializer)))
@@ -154,10 +156,14 @@ public class Client implements AutoCloseable {
 
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
+    // Server context
+    private String serverVersion;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
         this.configuration = configuration;
+        this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
@@ -179,7 +185,26 @@ public class Client implements AutoCloseable {
             LOG.info("Using old http client implementation");
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
+        updateServerContext();
     }
+
+    private void updateServerContext() {
+        try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
+            try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
+                if (reader.next() != null) {
+                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
+                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                    serverVersion = reader.getString("version");
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to get server info", e);
+        }
+    }
+
+
+
 
     /**
      * Returns default database name that will be used by operations if not specified.
@@ -215,6 +240,7 @@ public class Client implements AutoCloseable {
             httpClientHelper.close();
         }
     }
+
 
     public static class Builder {
         private Set<String> endpoints;
@@ -853,7 +879,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, String value) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), value);
+            this.configuration.put(ClientConfigProperties.httpHeader(key), value);
             return this;
         }
 
@@ -864,7 +890,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, Collection<String> values) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), ClientConfigProperties.commaSeparated(values));
+            this.configuration.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
             return this;
         }
 
@@ -955,6 +981,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Specifies whether to use Bearer Authentication and what token to use.
+         * The token will be sent as is, so it should be encoded before passing to this method.
+         *
+         * @param bearerToken - token to use
+         * @return same instance of the builder
+         */
+        public Builder useBearerTokenAuth(String bearerToken) {
+            // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
+            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -965,8 +1004,9 @@ public class Client implements AutoCloseable {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
-                !MapUtils.getFlag(this.configuration, "ssl_authentication", false)) {
-                throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
+                !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
+                !this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION))) {
+                throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
@@ -1012,8 +1052,10 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
+                this.columnToMethodMatchingStrategy);
         }
+
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
 
@@ -2104,7 +2146,7 @@ public class Client implements AutoCloseable {
      * @return - configuration options
      */
     public Map<String, String> getConfiguration() {
-        return Collections.unmodifiableMap(configuration);
+        return readOnlyConfig;
     }
 
     /** Returns operation timeout in seconds */
@@ -2122,6 +2164,10 @@ public class Client implements AutoCloseable {
 
     public String getUser() {
         return this.configuration.get(ClientConfigProperties.USER.getKey());
+    }
+
+    public String getServerVersion() {
+        return this.serverVersion;
     }
 
     /**
@@ -2149,6 +2195,10 @@ public class Client implements AutoCloseable {
      */
     public Collection<String> getDBRoles() {
         return unmodifiableDbRolesView;
+    }
+
+    public void updateBearerToken(String bearer) {
+        this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
     }
 
     private ClickHouseNode getNextAliveNode() {

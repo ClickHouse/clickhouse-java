@@ -38,6 +38,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
@@ -51,8 +52,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 public class HttpTransportTests extends BaseIntegrationTest {
@@ -66,7 +70,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         int proxyPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + proxyPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(proxyPort)
@@ -154,7 +157,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
     public void testConnectionRequestTimeout() {
 
         int serverPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + serverPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(serverPort)
@@ -793,5 +795,76 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$") },
                 { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")},
                 { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")}};
+    }
+
+    @Test(groups = { "integration" })
+    public void testBearerTokenAuth() throws Exception {
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String jwtToken1 = Arrays.stream(
+                            new String[]{"header", "payload", "signature"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .useBearerTokenAuth(jwtToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 10);
+                } catch (Exception e) {
+                    Assert.fail("Unexpected exception", e);
+                }
+            }
+
+            String jwtToken2 = Arrays.stream(
+                            new String[]{"header2", "payload2", "signature2"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .useBearerTokenAuth(jwtToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try {
+                    client.execute("SELECT 1").get();
+                    fail("Exception expected");
+                } catch (ServerException e) {
+                    Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
+                }
+
+                mockServer.resetAll();
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken2))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+
+                        .build());
+
+                client.updateBearerToken(jwtToken2);
+
+                client.execute("SELECT 1").get();
+            }
+        } finally {
+            mockServer.stop();
+        }
     }
 }
