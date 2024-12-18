@@ -2,8 +2,10 @@ package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import org.apache.hc.core5.http.HttpHeaders;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -136,6 +138,23 @@ public class InsertSettings {
      */
     public InsertSettings compressClientRequest(boolean enabled) {
         this.rawSettings.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), enabled);
+        return this;
+    }
+
+    public InsertSettings useHttpCompression(boolean enabled) {
+        this.rawSettings.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), enabled);
+        return this;
+    }
+
+    /**
+     * Sets flag that indicates if application provides already compressed data
+     *
+     * @param enabled - if application provides compressed data
+     */
+    public InsertSettings appCompressedData(boolean enabled, String compressionMethod) {
+        this.rawSettings.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), enabled);
+        useHttpCompression(true);
+        httpHeader(HttpHeaders.CONTENT_ENCODING, compressionMethod);
         return this;
     }
 
