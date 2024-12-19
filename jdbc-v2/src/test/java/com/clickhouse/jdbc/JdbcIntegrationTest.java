@@ -20,7 +20,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         return getEndpointString(isCloud());
     }
     public String getEndpointString(boolean includeDbName) {
-        return "jdbc:ch:" + (isCloud() ? "https" : "http") + "://" +
+        return "jdbc:ch:" + (isCloud() ? "" : "http://") +
                 ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, false) + "/" + (includeDbName ? ClickHouseServerForTest.getDatabase() : "");
     }
 
