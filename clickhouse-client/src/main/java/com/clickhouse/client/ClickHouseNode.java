@@ -762,6 +762,19 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return non-null node object
      */
     public static ClickHouseNode of(String uri, Map<?, ?> options) {
+        return of(uri, options, null);
+    }
+
+    /**
+     * Creates a node object using given URI. Same as
+     * {@code of(uri, ClickHouseProtocol.ANY)}.
+     *
+     * @param uri     non-empty URI
+     * @param options default options
+     * @param defaultCredentials will be used if not specified in uri (optional)
+     * @return non-null node object
+     */
+    public static ClickHouseNode of(String uri, Map<?, ?> options, ClickHouseCredentials defaultCredentials) {
         URI normalizedUri = normalize(uri, null);
 
         Map<String, String> params = new LinkedHashMap<>();
@@ -791,7 +804,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                 && scheme.equalsIgnoreCase("https")) {
             params.put(ClickHouseClientOption.SSL.getKey(), "true");
         }
-        ClickHouseCredentials credentials = extract(normalizedUri.getRawUserInfo(), params, null);
+        ClickHouseCredentials credentials = extract(normalizedUri.getRawUserInfo(), params, defaultCredentials);
 
         return new ClickHouseNode(normalizedUri.getHost(), protocol, port, credentials, params, tags);
     }

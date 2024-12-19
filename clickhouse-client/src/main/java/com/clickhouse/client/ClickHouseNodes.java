@@ -54,6 +54,19 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      * @return non-null list of nodes
      */
     static ClickHouseNodes create(String endpoints, Map<?, ?> defaultOptions) {
+        return create(endpoints, defaultOptions, null);
+    }
+
+    /**
+     * Creates list of managed {@link ClickHouseNode} for load balancing and
+     * fail-over.
+     *
+     * @param endpoints      non-empty URIs separated by comma
+     * @param defaultOptions default options
+     * @param credentials    will be used for health checking (optional)
+     * @return non-null list of nodes
+     */
+    static ClickHouseNodes create(String endpoints, Map<?, ?> defaultOptions, ClickHouseCredentials credentials) {
         int index = endpoints.indexOf(ClickHouseNode.SCHEME_DELIMITER);
         String defaultProtocol = ((ClickHouseProtocol) ClickHouseDefaults.PROTOCOL
                 .getEffectiveDefaultValue()).name();
@@ -145,7 +158,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         }
 
         ClickHouseNode defaultNode = ClickHouseNode.of(defaultProtocol + "://localhost" + defaultParams,
-                defaultOptions);
+                defaultOptions, credentials);
         List<ClickHouseNode> nodes = new LinkedList<>();
         for (String uri : list) {
             nodes.add(ClickHouseNode.of(uri, defaultNode));
@@ -273,12 +286,37 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      * and fail-over.
      *
      * @param endpoints non-empty URIs separated by comma
+     * @param credentials will be used for health checking (optional)
+     * @return non-null list of nodes
+     */
+    public static ClickHouseNodes of(String endpoints, ClickHouseCredentials credentials) {
+        return of(endpoints, Collections.emptyMap(), credentials);
+    }
+
+    /**
+     * Gets or creates list of managed {@link ClickHouseNode} for load balancing
+     * and fail-over.
+     *
+     * @param endpoints non-empty URIs separated by comma
      * @param options   default options
      * @return non-null list of nodes
      */
     public static ClickHouseNodes of(String endpoints, Map<?, ?> options) {
+        return of(endpoints, options, null);
+    }
+
+    /**
+     * Gets or creates list of managed {@link ClickHouseNode} for load balancing
+     * and fail-over.
+     *
+     * @param endpoints non-empty URIs separated by comma
+     * @param options   default options
+     * @param credentials will be used for health checking (optional)
+     * @return non-null list of nodes
+     */
+    public static ClickHouseNodes of(String endpoints, Map<?, ?> options, ClickHouseCredentials credentials) {
         return cache.computeIfAbsent(buildCacheKey(ClickHouseChecker.nonEmpty(endpoints, "Endpoints"), options),
-                k -> create(endpoints, options));
+                k -> create(endpoints, options, credentials));
     }
 
     /**
