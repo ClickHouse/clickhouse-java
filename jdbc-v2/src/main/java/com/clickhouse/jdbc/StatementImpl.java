@@ -152,6 +152,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
+
+            if (currentResultSet != null) {
+                LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
+                // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
+                try {
+                    currentResultSet.close();
+                } catch (Exception e) {
+                    LOG.error("Failed to close previous result set", e);
+                } finally {
+                    currentResultSet = null;
+                }
+            }
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
@@ -289,6 +301,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
+            executeUpdate(sql, settings);
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {

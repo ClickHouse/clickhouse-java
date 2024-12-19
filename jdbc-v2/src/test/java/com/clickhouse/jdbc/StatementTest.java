@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -16,6 +18,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.*;
 import static org.testng.Assert.assertEquals;
@@ -361,7 +364,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
         try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
             GenericRecord record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).size(), 0);
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role1");
@@ -369,6 +372,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 1);
+            assertEquals(record.getList(1).get(0), "role1");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role2");
@@ -376,13 +380,14 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 1);
+            assertEquals(record.getList(1).get(0), "role2");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE NONE");
             }
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).size(), 0);
         }
     }
 
@@ -445,6 +450,23 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getString(3), "/2001:438:ffff:0:0:0:407d:1bc1");
                     assertEquals(rs.getObject(3), Inet6Address.getByName("2001:438:ffff:0:0:0:407d:1bc1"));
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testConnectionExhaustion() throws Exception {
+
+        int maxNumConnections = 3;
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "" + maxNumConnections);
+        properties.put(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "" + 1000); // 1 sec connection req timeout
+
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                for (int i = 0; i< maxNumConnections * 2; i++) {
+                    stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
                 }
             }
         }
