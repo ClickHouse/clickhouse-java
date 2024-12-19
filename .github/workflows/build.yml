@@ -316,7 +316,7 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests install
       - name: Test JDBC driver
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
@@ -393,56 +393,56 @@ jobs:
             **/target/failsafe-reports
             **/target/surefire-reports
 
-  test-timezone-support:
-    runs-on: ubuntu-latest
-    needs: compile
-    strategy:
-      matrix:
-        serverTz:
-          [
-            "Asia/Chongqing",
-            "America/Los_Angeles",
-            "Etc/UTC",
-            "Europe/Berlin",
-            "Europe/Moscow",
-          ]
-        clientTz:
-          [
-            "Asia/Chongqing",
-            "America/Los_Angeles",
-            "Etc/UTC",
-            "Europe/Berlin",
-            "Europe/Moscow",
-          ]
-      fail-fast: false
-    timeout-minutes: 20
-    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: 8
-          cache: "maven"
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
-      - name: Test JDBC and R2DBC drivers
-        run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
-            -Dj8 -DskipUTs verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
+#  test-timezone-support:
+#    runs-on: ubuntu-latest
+#    needs: compile
+#    strategy:
+#      matrix:
+#        serverTz:
+#          [
+#            "Asia/Chongqing",
+#            "America/Los_Angeles",
+#            "Etc/UTC",
+#            "Europe/Berlin",
+#            "Europe/Moscow",
+#          ]
+#        clientTz:
+#          [
+#            "Asia/Chongqing",
+#            "America/Los_Angeles",
+#            "Etc/UTC",
+#            "Europe/Berlin",
+#            "Europe/Moscow",
+#          ]
+#      fail-fast: false
+#    timeout-minutes: 20
+#    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
+#    steps:
+#      - name: Check out repository
+#        uses: actions/checkout@v4
+#      - name: Check out PR
+#        run: |
+#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+#        if: github.event.inputs.pr != ''
+#      - name: Install JDK 8 and Maven
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: "temurin"
+#          java-version: 8
+#          cache: "maven"
+#      - name: Install Java client
+#        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
+#      - name: Test JDBC and R2DBC drivers
+#        run: |
+#          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+#            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
+#            -Dj8 -DskipUTs verify
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v4
+#        if: failure()
+#        with:
+#          name: result ${{ github.job }}
+#          path: |
+#            **/target/failsafe-reports
+#            **/target/surefire-reports

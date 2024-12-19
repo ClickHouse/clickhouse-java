@@ -4,6 +4,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -32,9 +33,16 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
-        LOGGER.info("Connecting to {}", getEndpointString());
+        if (info.getProperty(ClientConfigProperties.PASSWORD.getKey()).isEmpty()) {
+            LOGGER.error("password is empty!!");
+        }
+        LOGGER.info("Connecting to " + getEndpointString() + " database: " + ClickHouseServerForTest.getDatabase() );
         if (properties != null) {
             info.putAll(properties);
+        }
+
+        if (isCloud()) {
+            info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
         }
 
         return new ConnectionImpl(getEndpointString(), info);
