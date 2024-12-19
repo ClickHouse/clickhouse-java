@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.sql.Types;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +36,10 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Enum8, Types.VARCHAR);
         map.put(ClickHouseDataType.Enum16, Types.VARCHAR);
         map.put(ClickHouseDataType.Date, Types.DATE);
-        map.put(ClickHouseDataType.DateTime, Types.TIMESTAMP);
+        map.put(ClickHouseDataType.Date32, Types.DATE);
+        map.put(ClickHouseDataType.DateTime, Types.TIMESTAMP_WITH_TIMEZONE);
+        map.put(ClickHouseDataType.DateTime32, Types.TIMESTAMP_WITH_TIMEZONE);
+        map.put(ClickHouseDataType.DateTime64, Types.TIMESTAMP_WITH_TIMEZONE);
         map.put(ClickHouseDataType.Array, Types.ARRAY);
         map.put(ClickHouseDataType.Nested, Types.ARRAY);
         map.put(ClickHouseDataType.Map, Types.JAVA_OBJECT);
@@ -120,4 +124,5 @@ public class JdbcUtils {
         sql.append("0)");
         return sql.toString();
     }
+
 }
