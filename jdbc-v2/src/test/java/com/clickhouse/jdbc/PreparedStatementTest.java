@@ -234,6 +234,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(0)).get(0), "a");
+                    assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(1)).get(0), "b");
+                    assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(2)).get(0), "c");
                     assertFalse(rs.next());
                 }
             }
@@ -244,11 +246,13 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testEscapeStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT FALSE OR ? = 'test'")) {
-                stmt.setString(1, "test\\\\' OR 1 = 1 --");
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT FALSE OR ? = 'test', ?")) {
+                stmt.setString(1, "test\\' OR 1 = 1 --");
+                stmt.setString(2, "test\\\\' OR 1 = 1 --");
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(rs.getString(1), "false");
+                    assertEquals(rs.getString(2), "test\\\\' OR 1 = 1 --");
                     assertFalse(rs.next());
                 }
             }
