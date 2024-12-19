@@ -205,7 +205,8 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
-  test-http-client:
+
+  test-with-cloud:
     runs-on: ubuntu-latest
     needs: compile
     strategy:
@@ -213,6 +214,7 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["cloud"]
+        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
       fail-fast: false
     timeout-minutes: 15
     name: Java client (http) + CH ${{ matrix.clickhouse }}
@@ -252,13 +254,13 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests install
       - name: Test http client
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
+          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -273,7 +275,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest", "cloud"]
+        clickhouse: ["23.8", "24.3", "24.6", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
         protocol: ["http", "http_client", "apache_http_client"]
       fail-fast: false
