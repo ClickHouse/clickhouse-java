@@ -3,9 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.sql.Types;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
