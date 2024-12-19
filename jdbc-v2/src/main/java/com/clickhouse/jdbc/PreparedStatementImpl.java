@@ -532,6 +532,20 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     sb.append(new String(buffer, 0, len));
                 }
                 return "'" + escapeString(sb.toString()) + "'";
+            } else if (x instanceof Object[]) {
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.append("[");
+                int i = 0;
+                for (Object item : (Object[]) x) {
+                    if (i > 0) {
+                        arrayString.append(", ");
+                    }
+                    arrayString.append(encodeObject(item));
+                    i++;
+                }
+                arrayString.append("]");
+
+                return arrayString.toString();
             }
 
             return escapeString(x.toString());//Escape single quotes
