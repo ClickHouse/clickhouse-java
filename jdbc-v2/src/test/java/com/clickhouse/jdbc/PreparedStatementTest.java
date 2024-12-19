@@ -239,4 +239,19 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+
+    @Test(groups = { "integration" })
+    public void testEscapeStrings() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT FALSE OR ? = 'test'")) {
+                stmt.setString(1, "test\\\\' OR 1 = 1 --");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "false");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
 }

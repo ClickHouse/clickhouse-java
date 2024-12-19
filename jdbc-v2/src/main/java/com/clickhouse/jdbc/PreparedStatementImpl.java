@@ -556,6 +556,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private static String escapeString(String x) {
-        return x.replace("'", "''");//Escape single quotes
+        return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
     }
 }
