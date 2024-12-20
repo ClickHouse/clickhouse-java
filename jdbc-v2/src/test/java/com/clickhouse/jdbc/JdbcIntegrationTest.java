@@ -33,9 +33,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
-        if (info.getProperty(ClientConfigProperties.PASSWORD.getKey()).isEmpty()) {
-            LOGGER.error("password is empty!!");
-        }
+
         LOGGER.info("Connecting to " + getEndpointString() + " database: " + ClickHouseServerForTest.getDatabase() );
         if (properties != null) {
             info.putAll(properties);

@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
@@ -52,7 +54,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             conn.createStatement().execute(createTableStmt.toString());
 
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getColumns("default", null, tableName, null);
+            ResultSet rs = dbmd.getColumns(ClickHouseServerForTest.getDatabase(), null, tableName, null);
 
             int count = 0;
             while (rs.next()) {
@@ -61,7 +63,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 System.out.println("Column name: " + columnName + " colIndex: " + colIndex);
                 assertTrue(columnNames.contains(columnName));
                 assertEquals(rs.getString("TABLE_CAT"), "");
-                assertEquals(rs.getString("TABLE_SCHEM"), "default");
+                assertEquals(rs.getString("TABLE_SCHEM"), ClickHouseServerForTest.getDatabase());
                 assertEquals(rs.getString("TABLE_NAME"), tableName);
                 assertEquals(rs.getString("TYPE_NAME"), columnTypeNames.get(colIndex));
                 assertEquals(rs.getInt("DATA_TYPE"), columnJDBCDataTypes.get(colIndex));
@@ -86,7 +88,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 }
                 count++;
             }
-            Assert.assertEquals(count, columnNames.size());
+            Assert.assertEquals(count, columnNames.size(), "result set is empty");
         }
     }
 
@@ -239,6 +241,10 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetFunctions() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; //  Illegal column Int8 of argument of function concat. (ILLEGAL_COLUMN)  TODO: fix in JDBC
+        }
+
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getFunctions(null, null, "mapContains")) {

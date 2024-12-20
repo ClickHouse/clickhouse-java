@@ -359,11 +359,11 @@ public class ClickHouseServerForTest {
             clickhouseContainer.stop();
         }
 
-//        if (isCloud) {
-//            if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
-//                LOGGER.warn("Failed to drop database for testing.");
-//            }
-//        }
+        if (isCloud) {
+            if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
+                LOGGER.warn("Failed to drop database for testing.");
+            }
+        }
     }
 
     public static String getDatabase() {
