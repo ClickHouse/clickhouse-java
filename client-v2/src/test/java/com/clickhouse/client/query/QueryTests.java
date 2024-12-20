@@ -608,7 +608,7 @@ public class QueryTests extends BaseIntegrationTest {
             client.queryRecords("SELECT * FROM unknown_table").get(3, TimeUnit.SECONDS);
             Assert.fail("exception is expected");
         } catch (ServerException e) {
-            Assert.assertTrue(e.getMessage().contains("does not exist"), e.getMessage());
+            Assert.assertEquals(e.getCode(), 60);
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ServerException);
         } catch (ClientException e) {
