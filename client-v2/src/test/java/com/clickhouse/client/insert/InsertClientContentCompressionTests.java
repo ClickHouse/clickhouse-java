@@ -25,6 +25,9 @@ public class InsertClientContentCompressionTests extends InsertTests {
 
     @Test(groups = { "integration" })
     public void testInsertAndReadBackWithSecureConnection() {
+        if (isCloud()) {
+            return;
+        }
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
