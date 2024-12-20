@@ -8,7 +8,10 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
@@ -27,22 +30,17 @@ public class MetadataTests extends BaseIntegrationTest {
 
     @BeforeMethod(groups = { "integration" })
     public void setUp() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        client = new Client.Builder()
-                .addEndpoint(node.getBaseUri() + "default")
-                .setUsername("default")
-                .setPassword("")
-                .build();
+        client = newClient().build();
     }
 
     @Test(groups = { "integration" })
     public void testGetTableSchema() {
         prepareDataSet("describe_table");
 
-        TableSchema schema = client.getTableSchema("describe_table", "default");
+        TableSchema schema = client.getTableSchema("describe_table", ClickHouseServerForTest.getDatabase());
 
         Assert.assertEquals(schema.getTableName(), "describe_table");
-        Assert.assertEquals(schema.getDatabaseName(), "default");
+        Assert.assertEquals(schema.getDatabaseName(), ClickHouseServerForTest.getDatabase());
 
         Assert.assertEquals(schema.getColumns().size(), 2);
 
@@ -54,10 +52,10 @@ public class MetadataTests extends BaseIntegrationTest {
     private void prepareDataSet(String tableName) {
 
         try {
-            String sql = "CREATE TABLE IF NOT EXISTS default." + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory";
+            String sql = "CREATE TABLE IF NOT EXISTS " + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory";
             client.execute(sql).get();
 
-            sql = "INSERT INTO default." + tableName + " VALUES (1, 2), (3, 4), (5, 6)";
+            sql = "INSERT INTO " + tableName + " VALUES (1, 2), (3, 4), (5, 6)";
             client.execute(sql).get();
         } catch (Exception e) {
             Assert.fail("Failed to prepare data set", e);
@@ -86,5 +84,17 @@ public class MetadataTests extends BaseIntegrationTest {
                 {"gethas_more", "has_more"},
 
         };
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

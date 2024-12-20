@@ -46,7 +46,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     protected static String getDatabase() {
-        return ClickHouseServerForTest.isCloud() ? ClickHouseServerForTest.getDatabase() : "default";
+        return ClickHouseServerForTest.getDatabase();
     }
 
     protected boolean runQuery(String query) {

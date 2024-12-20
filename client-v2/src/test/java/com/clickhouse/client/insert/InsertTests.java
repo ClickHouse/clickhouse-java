@@ -89,6 +89,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
