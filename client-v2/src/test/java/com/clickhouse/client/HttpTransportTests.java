@@ -911,7 +911,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
         String jwt = System.getenv("CLIENT_JWT");
         try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
