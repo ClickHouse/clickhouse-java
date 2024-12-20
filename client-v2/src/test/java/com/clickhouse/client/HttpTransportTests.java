@@ -12,6 +12,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -908,5 +909,32 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } finally {
             mockServer.stop();
         }
+    }
+
+    @Test
+    public void testJWTWithCloud() throws Exception {
+        String jwt = System.getenv("CLIENT_JWT");
+        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
+            try {
+                List<GenericRecord> response = client.queryAll("SELECT user(), now()");
+                System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw e;
+            }
+        }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+//                .setUsername("default")
+//                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
