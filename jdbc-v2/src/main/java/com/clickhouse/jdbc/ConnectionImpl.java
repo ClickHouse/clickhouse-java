@@ -484,7 +484,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)));
+            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
