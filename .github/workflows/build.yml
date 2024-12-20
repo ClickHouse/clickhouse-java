@@ -184,6 +184,8 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
+      - name: Build and install libraries
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
       - name: Test Java client
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} verify

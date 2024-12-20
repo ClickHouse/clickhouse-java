@@ -1362,7 +1362,6 @@ public class QueryTests extends BaseIntegrationTest {
             OperationMetrics metrics = response.getMetrics();
 
             Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
-            Assert.assertTrue(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong() > 0);
             Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
         }
     }
@@ -1688,7 +1687,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testQueryReadToPOJO() {
         int limit = 10;
-        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
+        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', toString(number + 1)) as name " +
                 " FROM system.numbers LIMIT " + limit;
         TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);

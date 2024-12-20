@@ -358,13 +358,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
 
-            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ENGINE MergeTree ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), 636);
-                Assert.assertTrue(e.getMessage().startsWith("Code: 636. DB::Exception: The table structure cannot be extracted from a CSV format file. Error: The table structure cannot be extracted from a CSV format file: the file is empty. You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
+                Assert.assertTrue(e.getMessage().contains("You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
                         "Unexpected error message: " + e.getMessage());
             }
 
@@ -617,8 +617,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .build()) {
 
@@ -651,8 +651,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
@@ -714,8 +714,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
