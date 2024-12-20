@@ -63,9 +63,9 @@ public class JdbcUtils {
 
     public static List<String> tokenizeSQL(String sql) {
         List<String> tokens = new ArrayList<>();
-        Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(sql);
+        Matcher m = Pattern.compile("(?:\\\".*\\\")|(?:[^\\s,]+)").matcher(sql);
         while (m.find()) {
-            String token = m.group(1).replace("\"", "").trim();
+            String token = sql.substring(m.start(), m.end()).replace("\"", "");
             if (!token.isEmpty() && token.charAt(token.length() - 1) == ',') {
                 token = token.substring(0, token.length() - 1);
             }

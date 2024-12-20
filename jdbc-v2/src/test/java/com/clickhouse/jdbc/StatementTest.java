@@ -455,9 +455,8 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testConnectionExhaustion() throws Exception {
-
         int maxNumConnections = 3;
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "" + maxNumConnections);
@@ -467,6 +466,13 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 for (int i = 0; i< maxNumConnections * 2; i++) {
                     stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
+                }
+
+                String tName = "test_connection_exhaustion";
+                stmt.execute("CREATE TABLE " + tName + " ( id Int32, name String ) ENGINE MergeTree ORDER BY ()");
+
+                for (int i = 0; i< maxNumConnections * 2; i++) {
+                    stmt.executeUpdate("INSERT INTO " + tName + " VALUES (" + i + ", 'name_" + i +"')");
                 }
             }
         }

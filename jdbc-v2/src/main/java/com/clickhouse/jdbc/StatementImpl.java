@@ -154,7 +154,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
 
             if (currentResultSet != null) {
-                LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
+                LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "] closing");
                 // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
                 try {
                     currentResultSet.close();
@@ -304,19 +304,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             executeUpdate(sql, settings);
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
-            if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
+            if (JdbcUtils.indexOfIgnoresCase(tokens, "ROLE") == 1) {
                 List<String> roles = new ArrayList<>();
-                int roleIndex = JdbcUtils.indexOfIgnoresCase(tokens, "ROLE");
-                if (roleIndex == 1) {
-                    for (int i = 2; i < tokens.size(); i++) {
-                        roles.add(tokens.get(i));
-                    }
+                for (int i = 2; i < tokens.size(); i++) {
+                    roles.add(tokens.get(i));
+                }
 
-                    if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {
-                        connection.client.setDBRoles(Collections.emptyList());
-                    } else {
-                        connection.client.setDBRoles(roles);
-                    }
+                if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {
+                    connection.client.setDBRoles(Collections.emptyList());
+                } else {
+                    connection.client.setDBRoles(roles);
                 }
             }
             return false;
