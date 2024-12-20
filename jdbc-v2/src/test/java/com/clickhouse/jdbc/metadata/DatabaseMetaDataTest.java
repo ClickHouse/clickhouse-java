@@ -54,7 +54,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             conn.createStatement().execute(createTableStmt.toString());
 
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getColumns(ClickHouseServerForTest.getDatabase(), null, tableName, null);
+            ResultSet rs = dbmd.getColumns(null, ClickHouseServerForTest.getDatabase(), tableName, null);
 
             int count = 0;
             while (rs.next()) {
@@ -194,8 +194,9 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void testGetColumnsWithEmptyCatalog() throws Exception {
+        // test not relevant until catalogs are implemented
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getColumns("", null, "numbers", null);

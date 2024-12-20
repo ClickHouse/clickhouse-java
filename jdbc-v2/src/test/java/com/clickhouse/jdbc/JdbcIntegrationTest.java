@@ -39,9 +39,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             info.putAll(properties);
         }
 
-        if (isCloud()) {
-            info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
-        }
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
 
         return new ConnectionImpl(getEndpointString(), info);
         //return DriverManager.getConnection(getEndpointString(), "default", ClickHouseServerForTest.getPassword());

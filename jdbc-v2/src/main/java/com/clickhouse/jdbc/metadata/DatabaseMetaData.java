@@ -852,7 +852,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
                 " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND database LIKE '" + (catalog == null ? "%" : catalog) + "'" +
                 " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
                 " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
