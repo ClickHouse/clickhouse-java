@@ -291,7 +291,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT {d '2021-11-01'} AS D, {ts '2021-08-01 12:34:56'} AS TS, " +
                         "toInt32({fn ABS(-1)}) AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
                         "{fn LCASE('HELLO')} AS FNLOWER, {fn LTRIM('  Hello  ')} AS FNLTRIM, {fn RTRIM('  Hello  ')} AS FNRTRIM, " +
-                        "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn LOCATE('l', 'Hello')}) AS FNLOCATE, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
+                        "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn LOCATE('Hello', 'l')}) AS FNLOCATE, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
                         "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
