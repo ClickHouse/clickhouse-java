@@ -89,7 +89,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
@@ -127,6 +128,10 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOWithJSON() throws Exception {
+        if (isCloud()) {
+            return; // not working because of Code: 452. DB::Exception: Setting allow_experimental_json_type should not be changed. (SETTING_CONSTRAINT_VIOLATION)
+            // but without this setting it doesn't let to create a table
+        }
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
             System.out.println("Test is skipped: feature is supported since 24.8");

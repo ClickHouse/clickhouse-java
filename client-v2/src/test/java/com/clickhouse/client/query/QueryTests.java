@@ -1931,6 +1931,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 

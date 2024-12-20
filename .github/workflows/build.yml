@@ -249,7 +249,7 @@ jobs:
         run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests install
       - name: Generate JWT
         env:
-          JWT_K_PEM: ${{ secrets.JWT_K_PEM }}
+          JWT_K_PEM: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_PRIVATE_KEY }}
         run: |
           npm install jsonwebtoken &&
           echo "CLIENT_JWT=$(node jwt-gen.js)" >> "$GITHUB_ENV"
