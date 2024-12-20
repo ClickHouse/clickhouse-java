@@ -34,7 +34,6 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
 
-        LOGGER.info("Connecting to " + getEndpointString() + " database: " + ClickHouseServerForTest.getDatabase() );
         if (properties != null) {
             info.putAll(properties);
         }
@@ -42,7 +41,6 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
 
         return new ConnectionImpl(getEndpointString(), info);
-        //return DriverManager.getConnection(getEndpointString(), "default", ClickHouseServerForTest.getPassword());
     }
 
     protected static String getDatabase() {
