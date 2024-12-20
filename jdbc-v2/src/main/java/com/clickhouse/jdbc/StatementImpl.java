@@ -150,6 +150,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             lastQueryId = UUID.randomUUID().toString();
             settings.setQueryId(lastQueryId);
         }
+        LOG.debug("Query ID: {}", lastQueryId);
 
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
@@ -312,7 +313,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return execute(sql, new QuerySettings().setDatabase(schema));
     }
 
-    private boolean execute(String sql, QuerySettings settings) throws SQLException {
+    public boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         StatementType type = parseStatementType(sql);
 
