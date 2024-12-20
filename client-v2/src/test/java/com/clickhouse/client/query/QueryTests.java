@@ -5,6 +5,8 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
@@ -32,6 +34,7 @@ import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -111,14 +114,8 @@ public class QueryTests extends BaseIntegrationTest {
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .compressClientRequest(false)
-                .compressServerResponse(useServerCompression)
-                .useHttpCompression(useHttpCompression)
-                .build();
+        boolean isSecure = isCloud();
+        client = newClient().build();
 
         delayForProfiler(0);
         System.out.println("Real port: " + node.getPort());
@@ -234,8 +231,8 @@ public class QueryTests extends BaseIntegrationTest {
         for (int i = 0; i < tables; i++) {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
-            client.execute("DROP TABLE IF EXISTS default." + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+            client.execute("DROP TABLE IF EXISTS " + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
         }
 
         Records records = client.queryRecords("SHOW TABLES").get(3, TimeUnit.SECONDS);
@@ -333,8 +330,8 @@ public class QueryTests extends BaseIntegrationTest {
         for (int i = 0; i < tables; i++) {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
-            client.execute("DROP TABLE IF EXISTS default." + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+            client.execute("DROP TABLE IF EXISTS " + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
         }
 
         List<GenericRecord> records = client.queryAll("SHOW TABLES");
@@ -1261,11 +1258,11 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             // Drop table
-            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+            client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
-            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS default.").append(table).append(" (");
+            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
                 createStmtBuilder.append(column).append(", ");
             }
@@ -1276,7 +1273,7 @@ public class QueryTests extends BaseIntegrationTest {
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
-            insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
+            insertStmtBuilder.append("INSERT INTO ").append(table).append(" VALUES ");
             insertStmtBuilder.append("(");
             for (Supplier<String> valueSupplier : valueGenerators) {
                 insertStmtBuilder.append(valueSupplier.get()).append(", ");
@@ -1341,7 +1338,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         StringBuilder insertStmtBuilder = new StringBuilder();
-        insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
+        insertStmtBuilder.append("INSERT INTO ").append(DATASET_TABLE).append(" VALUES ");
         final int rowsToInsert = 5;
         for (int i = 0; i < rowsToInsert; i++) {
             insertStmtBuilder.append("(");
@@ -1403,11 +1400,11 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             // Drop table
-            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+            client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
-            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS default.").append(table).append(" (");
+            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
                 createStmtBuilder.append(column).append(", ");
             }
@@ -1417,7 +1414,7 @@ public class QueryTests extends BaseIntegrationTest {
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
-            insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
+            insertStmtBuilder.append("INSERT INTO ").append(table).append(" VALUES ");
             for (int i = 0; i < rows; i++) {
                 insertStmtBuilder.append("(");
                 Map<String, Object> values = writeValuesRow(insertStmtBuilder, columns, valueGenerators);
@@ -1494,8 +1491,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryParams() throws Exception {
         final String table = "query_params_test_table";
 
-        client.execute("DROP TABLE IF EXISTS default." + table).get();
-        client.execute("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1540,8 +1537,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testGetTableSchema() throws Exception {
 
         final String table = "table_schema_test";
-        client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE default." + table +
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE " + table +
                 " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get(10, TimeUnit.SECONDS);
 
         TableSchema schema = client.getTableSchema(table);
@@ -1769,7 +1766,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        final String password = UUID.randomUUID().toString();
+        String password = "^" + RandomStringUtils.random(12, true, true) + "$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1777,7 +1774,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
         try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
         }
-        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'" ).get()) {
         }
         try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
         }
@@ -1807,7 +1804,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        final String password = UUID.randomUUID().toString();
+        String password = "^" + RandomStringUtils.random(12, true, true) + "$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1922,14 +1919,16 @@ public class QueryTests extends BaseIntegrationTest {
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
         return new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(false)
-                .compressServerResponse(true)
+                .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
@@ -1939,7 +1938,7 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), mp SimpleAggregateFunction(maxMap, Map(UInt8, UInt8))) " +
-                "ENGINE Memory;").get();
+                "ENGINE MergeTree ORDER BY ();").get();
 
 
             try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t{1:2}".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
@@ -1964,7 +1963,7 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, enum1 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum2 Enum16('atch' = 1, 'batch' = 2, 'catch' = 3)) " +
-                "ENGINE Memory").get();
+                "ENGINE MergeTree ORDER BY ()").get();
 
         try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\ta\t2".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);

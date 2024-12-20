@@ -3,6 +3,7 @@ package com.clickhouse.client.insert;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -67,12 +68,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         int bufferSize = (7 * 65500);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .compressClientRequest(useClientCompression)
-                .useHttpCompression(useHttpCompression)
+        client = newClient()
                 .setSocketSndbuf(bufferSize)
                 .setSocketRcvbuf(bufferSize)
                 .setClientNetworkBufferSize(bufferSize)
@@ -81,6 +77,19 @@ public class InsertTests extends BaseIntegrationTest {
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
     @AfterMethod(groups = { "integration" })

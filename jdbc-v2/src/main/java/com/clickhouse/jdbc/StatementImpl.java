@@ -44,6 +44,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.metrics = null;
         this.batch = new ArrayList<>();
         this.schema = connection.getSchema();// remember DB name
+        LOG.info("Statement schema " + schema);
         this.maxRows = 0;
     }
 

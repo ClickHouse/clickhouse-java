@@ -3,8 +3,10 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+import org.testng.util.Strings;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -347,12 +349,13 @@ public class StatementTest extends JdbcIntegrationTest {
 
         List<String> roles = Arrays.asList("role1", "role2");
 
+        String userPass = "^" + RandomStringUtils.random(12, true, true) + "$";
         try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
                 stmt.execute("DROP USER IF EXISTS some_user");
                 stmt.execute("CREATE ROLE " + String.join(", ", roles));
-                stmt.execute("CREATE USER some_user IDENTIFIED WITH no_password");
+                stmt.execute("CREATE USER some_user IDENTIFIED BY '" + userPass + "'");
                 stmt.execute("GRANT " + String.join(", ", roles) + " TO some_user");
                 stmt.execute("SET DEFAULT ROLE NONE TO some_user");
             }
@@ -360,7 +363,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
         Properties info = new Properties();
         info.setProperty("user", "some_user");
-        info.setProperty("password", "");
+        info.setProperty("password", userPass);
 
         try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
             GenericRecord record = conn.client.queryAll("SELECT currentRoles()").get(0);

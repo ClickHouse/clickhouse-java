@@ -155,6 +155,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testConnectionRequestTimeout() {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         int serverPort = new Random().nextInt(1000) + 10000;
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
@@ -197,6 +200,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test
     public void testConnectionReuseStrategy() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -218,6 +225,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSecureConnection() {
+        if (isCloud()) {
+            return; // will fail in other tests
+        }
+
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -240,6 +251,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
     public void testInsertAndNoHttpResponseFailure(String body, int maxRetries, ThrowingFunction<Client, Void> function,
                                                    boolean shouldFail) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         faultyServer.start();
@@ -318,6 +333,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
     public void testServerErrorHandling(ClickHouseFormat format, boolean serverCompression, boolean useHttpCompression) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
@@ -442,6 +461,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorsUncompressedDataProvider")
     public void testServerErrorsUncompressed(int code, String message, String expectedMessage) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -497,6 +520,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testAdditionalHeaders() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -538,6 +565,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testServerSettings() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -733,6 +764,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testErrorWithSendProgressHeaders() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
@@ -760,6 +795,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
@@ -799,6 +837,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
