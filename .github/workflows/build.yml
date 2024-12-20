@@ -146,6 +146,7 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["23.8", "24.3", "24.8", "latest"]
+        project: ["clickhouse-http-client", "client-v2"]
       fail-fast: false
     timeout-minutes: 15
     name: Java client + CH ${{ matrix.clickhouse }}
@@ -185,7 +186,7 @@ jobs:
           EOF
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
