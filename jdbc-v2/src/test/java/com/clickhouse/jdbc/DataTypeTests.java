@@ -868,48 +868,48 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(String.valueOf(rs.getObject(1)), "1");
                     assertEquals(rs.getObject(1, Integer.class), 1);
                     assertEquals(rs.getObject(1, Long.class), 1L);
-                    assertEquals(String.valueOf(rs.getObject(1, new HashMap<>(){{put(JDBCType.INTEGER.getName(), Integer.class);}})), "1");
+                    assertEquals(String.valueOf(rs.getObject(1, new HashMap<String, Class<?>>(){{put(JDBCType.INTEGER.getName(), Integer.class);}})), "1");
 
                     assertTrue(rs.getBoolean(2));
                     assertEquals(String.valueOf(rs.getObject(2)), "true");
                     assertEquals(rs.getObject(2, Boolean.class), true);
-                    assertEquals(String.valueOf(rs.getObject(2, new HashMap<>(){{put(JDBCType.BOOLEAN.getName(), Boolean.class);}})), "true");
+                    assertEquals(String.valueOf(rs.getObject(2, new HashMap<String, Class<?>>(){{put(JDBCType.BOOLEAN.getName(), Boolean.class);}})), "true");
 
                     assertEquals(rs.getFloat(3), 1.0f);
                     assertEquals(String.valueOf(rs.getObject(3)), "1.0");
                     assertEquals(rs.getObject(3, Float.class), 1.0f);
                     assertEquals(rs.getObject(3, Double.class), 1.0);
-                    assertEquals(String.valueOf(rs.getObject(3, new HashMap<>(){{put(JDBCType.FLOAT.getName(), Float.class);}})), "1.0");
+                    assertEquals(String.valueOf(rs.getObject(3, new HashMap<String, Class<?>>(){{put(JDBCType.FLOAT.getName(), Float.class);}})), "1.0");
 
                     assertEquals(rs.getDate(4), Date.valueOf("2024-12-01"));
                     assertTrue(rs.getObject(4) instanceof ZonedDateTime);//ZonedDateTime
                     assertEquals(String.valueOf(rs.getObject(4)), "2024-12-01T00:00Z[UTC]");//ZonedDateTime
                     assertEquals(rs.getObject(4, LocalDate.class), LocalDate.of(2024, 12, 1));
-                    assertEquals(String.valueOf(rs.getObject(4, new HashMap<>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
+                    assertEquals(String.valueOf(rs.getObject(4, new HashMap<String, Class<?>>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
 
                     assertEquals(rs.getTimestamp(5), Timestamp.valueOf("2024-12-01 12:34:56"));
                     assertTrue(rs.getObject(5) instanceof ZonedDateTime);//ZonedDateTime
                     assertEquals(String.valueOf(rs.getObject(5)), "2024-12-01T12:34:56Z[UTC]");//ZonedDateTime
                     assertEquals(rs.getObject(5, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56));
-                    assertEquals(String.valueOf(rs.getObject(5, new HashMap<>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56");
+                    assertEquals(String.valueOf(rs.getObject(5, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56");
 
                     assertEquals(rs.getTimestamp(6), Timestamp.valueOf("2024-12-01 12:34:56.789"));
                     assertTrue(rs.getObject(6) instanceof ZonedDateTime);//ZonedDateTime
                     assertEquals(String.valueOf(rs.getObject(6)), "2024-12-01T12:34:56.789Z[UTC]");//ZonedDateTime
                     assertEquals(rs.getObject(6, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789000000));
-                    assertEquals(String.valueOf(rs.getObject(6, new HashMap<>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56.789");
+                    assertEquals(String.valueOf(rs.getObject(6, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56.789");
 
                     assertEquals(rs.getTimestamp(7), Timestamp.valueOf("2024-12-01 12:34:56.789789"));
                     assertTrue(rs.getObject(7) instanceof ZonedDateTime);//ZonedDateTime
                     assertEquals(String.valueOf(rs.getObject(7)), "2024-12-01T12:34:56.789789Z[UTC]");//ZonedDateTime
                     assertEquals(rs.getObject(7, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789000));
-                    assertEquals(String.valueOf(rs.getObject(7, new HashMap<>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), OffsetDateTime.class);}})), "2024-12-01T12:34:56.789789Z");
+                    assertEquals(String.valueOf(rs.getObject(7, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), OffsetDateTime.class);}})), "2024-12-01T12:34:56.789789Z");
 
                     assertEquals(rs.getTimestamp(8), Timestamp.valueOf("2024-12-01 12:34:56.789789789"));
                     assertTrue(rs.getObject(8) instanceof ZonedDateTime);//ZonedDateTime
                     assertEquals(String.valueOf(rs.getObject(8)), "2024-12-01T12:34:56.789789789Z[UTC]");//ZonedDateTime
                     assertEquals(rs.getObject(8, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789789));
-                    assertEquals(String.valueOf(rs.getObject(8, new HashMap<>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), ZonedDateTime.class);}})), "2024-12-01T12:34:56.789789789Z[UTC]");
+                    assertEquals(String.valueOf(rs.getObject(8, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP_WITH_TIMEZONE.getName(), ZonedDateTime.class);}})), "2024-12-01T12:34:56.789789789Z[UTC]");
 
                 }
             }
