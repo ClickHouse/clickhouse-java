@@ -27,14 +27,14 @@
         </license>
     </licenses>
 
-    <developers>
-        <developer>
-            <id>zhicwu</id>
-            <name>Zhichun Wu</name>
-            <email>zhicwu@gmail.com</email>
-            <timezone>+8</timezone>
-        </developer>
-    </developers>
+<!--    <developers>-->
+<!--        <developer>-->
+<!--            <id></id>-->
+<!--            <name></name>-->
+<!--            <email></email>-->
+<!--            <timezone></timezone>-->
+<!--        </developer>-->
+<!--    </developers>-->
 
     <modules>
         <!-- shared -->
