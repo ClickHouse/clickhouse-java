@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -33,7 +34,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
-
+        info.setProperty(ServerSettings.WAIT_ASYNC_INSERT, "1");
         if (properties != null) {
             info.putAll(properties);
         }
