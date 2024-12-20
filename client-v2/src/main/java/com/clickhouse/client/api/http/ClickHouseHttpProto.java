@@ -59,6 +59,11 @@ public class ClickHouseHttpProto {
 
     public static final String QPARAM_ROLE = "role";
 
+    /**
+     * Query statement string ( ex. {@code INSERT INTO mytable }
+     */
+    public static final String QPARAM_QUERY_STMT = "query";
+
     public static final int DEFAULT_HTTP_PORT = 8123;
 
     public static final int DEFAULT_HTTPS_PORT = 8443;
