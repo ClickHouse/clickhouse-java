@@ -2,6 +2,7 @@ package com.clickhouse.client.insert;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -35,6 +36,7 @@ public class InsertClientContentCompressionTests extends InsertTests {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(true)
                 .build()) {
             final String tableName = "single_pojo_table";
