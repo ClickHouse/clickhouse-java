@@ -43,7 +43,7 @@ public class InsertClientContentCompressionTests extends InsertTests {
 
             initTable(tableName, createSQL);
 
-            client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+            client.register(SamplePOJO.class, client.getTableSchema(tableName));
             InsertSettings settings = new InsertSettings()
                     .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                     .setQueryId(String.valueOf(UUID.randomUUID()));
