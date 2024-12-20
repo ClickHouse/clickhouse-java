@@ -255,8 +255,8 @@ jobs:
           echo "CLIENT_JWT=$(node jwt-gen.js)" >> "$GITHUB_ENV"
       - name: Test http client
         env:
-          CLICKHOUSE_CLOUD_HOST: ${{ secrets.CLOUD_INSTANCE_HOST }}
-          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.CLOUD_INSTANCE_PASSWORD }}
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
       - name: Upload test results

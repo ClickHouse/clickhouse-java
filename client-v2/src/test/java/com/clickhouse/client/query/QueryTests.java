@@ -1930,7 +1930,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
