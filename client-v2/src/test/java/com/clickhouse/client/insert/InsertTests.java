@@ -105,7 +105,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -338,7 +338,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);

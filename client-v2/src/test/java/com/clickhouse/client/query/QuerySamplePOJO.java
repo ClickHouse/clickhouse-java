@@ -575,6 +575,6 @@ public class QuerySamplePOJO {
                 "tupleArray Tuple(Int32, Float64, String, String), " +
                 "map Map(String, Int32), " +
                 "nested Nested (innerInt Int32, innerString String)" +
-                ") ENGINE = Memory";
+                ") ENGINE = MergeTree ORDER BY ()";
     }
 }

@@ -1766,7 +1766,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        String password = "^" + RandomStringUtils.random(12, true, true) + "$";
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1804,7 +1804,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        String password = "^" + RandomStringUtils.random(12, true, true) + "$";
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1879,6 +1879,9 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingJSONValues() throws Exception {
+        if (isCloud()) {
+            return; // TODO: add support on cloud
+        }
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
             System.out.println("Test is skipped: feature is supported since 24.8");

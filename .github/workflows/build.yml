@@ -201,7 +201,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}
+          name: result ${{ github.job }}_${{ matrix.clickhouse }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
