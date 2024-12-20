@@ -3,11 +3,13 @@ package com.clickhouse.client.command;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.internal.ServerSettings;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -21,14 +23,7 @@ public class CommandTests extends BaseIntegrationTest {
 
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .build();
-
-        System.out.println("Real port: " + node.getPort());
+        client = newClient().build();
     }
 
 
@@ -53,5 +48,18 @@ public class CommandTests extends BaseIntegrationTest {
         } catch (ClientException e) {
             // expected
         }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
