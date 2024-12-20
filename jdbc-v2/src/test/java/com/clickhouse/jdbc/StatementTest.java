@@ -388,6 +388,15 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\"");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).get(0), "role1");
+            assertEquals(record.getList(1).get(1), "role2");
         }
     }
 
