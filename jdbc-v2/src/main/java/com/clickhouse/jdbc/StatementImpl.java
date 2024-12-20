@@ -32,7 +32,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private OperationMetrics metrics;
     private List<String> batch;
     private String lastSql;
-    private String lastQueryId;
+    private volatile String lastQueryId;
     private String schema;
     private int maxRows;
 
@@ -207,8 +207,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void close() throws SQLException {
         closed = true;
         if (currentResultSet != null) {
-            currentResultSet.close();
-            currentResultSet = null;
+            try {
+                currentResultSet.close();
+            } catch (Exception e) {
+                LOG.debug("Failed to close current result set", e);
+            } finally {
+                currentResultSet = null;
+            }
         }
     }
 
@@ -262,10 +267,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
-        try {
-            connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
-                    connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
-                    lastQueryId), connection.getDefaultQuerySettings()).get();
+        try (QueryResponse response = connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
+                connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
+                lastQueryId), connection.getDefaultQuerySettings()).get()){
+            LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);
         }

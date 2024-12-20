@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
+import java.net.SocketException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
@@ -68,23 +69,34 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void close() throws SQLException {
         closed = true;
-        if (reader != null) {
-            try {
-                reader.close();
-            } catch (Exception e) {
-                throw ExceptionUtils.toSqlState(e);
-            }
 
-            reader = null;
+        Exception e = null;
+        try {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception re) {
+                    log.debug("Error closing reader", re);
+                    e = re;
+                } finally {
+                    reader = null;
+                }
+            }
+        } finally {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (Exception re) {
+                    log.debug("Error closing response", re);
+                    e = re;
+                } finally {
+                    response = null;
+                }
+            }
         }
 
-        if (response != null) {
-            try {
-                response.close();
-            } catch (Exception e) {
-                throw ExceptionUtils.toSqlState(e);
-            }
-            response = null;
+        if (e != null) {
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
