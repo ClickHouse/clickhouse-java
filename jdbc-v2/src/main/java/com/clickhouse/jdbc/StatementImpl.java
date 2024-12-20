@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -143,6 +144,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
+        if (settings.getQueryId() != null) {
+            lastQueryId = settings.getQueryId();
+        } else {
+            lastQueryId = UUID.randomUUID().toString();
+            settings.setQueryId(lastQueryId);
+        }
+
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
             QueryResponse response;
@@ -166,7 +174,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
-            lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -189,6 +196,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
+
+        if (settings.getQueryId() != null) {
+            lastQueryId = settings.getQueryId();
+        } else {
+            lastQueryId = UUID.randomUUID().toString();
+            settings.setQueryId(lastQueryId);
+        }
 
         lastSql = parseJdbcEscapeSyntax(sql);
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
