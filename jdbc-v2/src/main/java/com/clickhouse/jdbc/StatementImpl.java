@@ -310,10 +310,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 if (roleIndex == 1) {
                     for (int i = 2; i < tokens.size(); i++) {
                         String token = tokens.get(i);
-                        if (token.startsWith(",")) {
-                            token = token.substring(1);
+                        String[] roleTokens = token.split(",");
+                        for (String roleToken : roleTokens) {
+                            roles.add(roleToken.replace("\"", ""));//Remove double quotes
                         }
-                        roles.add(token);
                     }
 
                     if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {

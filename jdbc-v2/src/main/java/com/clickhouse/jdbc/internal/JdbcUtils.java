@@ -63,16 +63,34 @@ public class JdbcUtils {
 
     public static List<String> tokenizeSQL(String sql) {
         List<String> tokens = new ArrayList<>();
-        Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(sql);
-        while (m.find()) {
-            String token = m.group(1).replace("\"", "").trim();
-            if (!token.isEmpty() && token.charAt(token.length() - 1) == ',') {
-                token = token.substring(0, token.length() - 1);
-            }
 
-            if (!isBlank(token)) {
-                tokens.add(token);
+        // Remove SQL comments
+        String withoutComments = sql
+                .replaceAll("--.*?$", "") // Remove single-line comments
+                .replaceAll("/\\*.*?\\*/", ""); // Remove multi-line comments
+
+        StringBuilder currentToken = new StringBuilder();
+        boolean insideQuotes = false;
+
+        for (int i = 0; i < withoutComments.length(); i++) {
+            char c = withoutComments.charAt(i);
+
+            if (c == '"') {
+                insideQuotes = !insideQuotes; // Toggle the insideQuotes flag
+                currentToken.append(c); // Include the quote in the token
+            } else if (Character.isWhitespace(c) && !insideQuotes) {
+                if (currentToken.length() > 0) {
+                    tokens.add(currentToken.toString());
+                    currentToken.setLength(0); // Clear the current token
+                }
+            } else {
+                currentToken.append(c);
             }
+        }
+
+        // Add the last token if it exists
+        if (currentToken.length() > 0) {
+            tokens.add(currentToken.toString());
         }
 
         return tokens;
