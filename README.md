@@ -51,12 +51,10 @@ Old client still be used when:
 
 ## Important
 
-### Upcomming deprecations:
+### Upcoming deprecations:
 | Component                      | Version | Comment                                          |
 |--------------------------------|---------|--------------------------------------------------|
 | ClickHouse Java v1 | TBC | We'll be deprecating Java v1 in 2025 |
-| ClickHouse CLI Client (Java)   | 0.7.0   | Please use `clickhouse-client` (see https://clickhouse.com/docs/en/interfaces/cli#clickhouse-client)                   |
-| ClickHouse GRPC Client         | 0.7.0   | Please use the ClickHouse http client instead. GRPC protos still available https://github.com/ClickHouse/ClickHouse/tree/master/src/Server/grpc_protos   |
 
 
 ## Installation
@@ -77,7 +75,7 @@ Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/
 
 | ClickHouse Version | Client Version | Comment                                                                                                                                          |
 |--------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| Server >= 23.0     | 0.6.2          |                                                                                                                               |
+| Server >= 23.0     | 0.6.2+         |                                                                                                                               |
 
 
 ### Features

@@ -27,14 +27,14 @@
         </license>
     </licenses>
 
-    <developers>
-        <developer>
-            <id>zhicwu</id>
-            <name>Zhichun Wu</name>
-            <email>zhicwu@gmail.com</email>
-            <timezone>+8</timezone>
-        </developer>
-    </developers>
+<!--    <developers>-->
+<!--        <developer>-->
+<!--            <id></id>-->
+<!--            <name></name>-->
+<!--            <email></email>-->
+<!--            <timezone></timezone>-->
+<!--        </developer>-->
+<!--    </developers>-->
 
     <modules>
         <!-- shared -->
@@ -81,7 +81,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.7.1-patch1-SNAPSHOT</revision>
+        <revision>0.7.2-SNAPSHOT</revision>
         <project.current.year>2024</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
