@@ -25,12 +25,14 @@ repositories {
 	maven("https://s01.oss.sonatype.org/content/repositories/snapshots/") // for nightly builds
 }
 
+val ch_java_client_version: String by extra
+
 dependencies {
 
 	// -- clickhouse dependencies
 	// Main dependency
-	implementation("com.clickhouse:client-v2:$ch_java_client_version-SNAPSHOT:all") // local or nightly build
-//	implementation("com.clickhouse:client-v2:$ch_java_client_version:all") // release version
+	implementation("com.clickhouse:client-v2:${ch_java_client_version}-SNAPSHOT:all") // local or nightly build
+//	implementation("com.clickhouse:client-v2:${ch_java_client_version}:all") // release version
 
 	// -- application dependencies
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
