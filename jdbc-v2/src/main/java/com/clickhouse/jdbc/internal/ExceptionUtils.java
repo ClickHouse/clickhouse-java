@@ -61,4 +61,12 @@ public final class ExceptionUtils {
 
         return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);//Default
     }
+
+    public static Throwable getRootCause(Throwable throwable) {
+        Throwable cause = throwable;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause;
+    }
 }
