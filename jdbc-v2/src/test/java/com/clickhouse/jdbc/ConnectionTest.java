@@ -359,6 +359,9 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSelectingDatabase() throws Exception {
+        if (isCloud()) {
+            return; // no need to test in cloud
+        }
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.USER.getKey(), "default");

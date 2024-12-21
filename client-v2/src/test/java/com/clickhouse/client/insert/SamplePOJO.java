@@ -684,6 +684,6 @@ public class SamplePOJO {
                 "innerNullableInt Nullable(Int32)), " +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
                 "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
-                ") ENGINE = Memory";
+                ") ENGINE = MergeTree ORDER BY ()";
     }
 }

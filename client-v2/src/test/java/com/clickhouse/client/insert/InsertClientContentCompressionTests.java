@@ -2,6 +2,7 @@ package com.clickhouse.client.insert;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -25,6 +26,9 @@ public class InsertClientContentCompressionTests extends InsertTests {
 
     @Test(groups = { "integration" })
     public void testInsertAndReadBackWithSecureConnection() {
+        if (isCloud()) {
+            return;
+        }
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -32,6 +36,7 @@ public class InsertClientContentCompressionTests extends InsertTests {
                 .setUsername("default")
                 .setPassword("")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(true)
                 .build()) {
             final String tableName = "single_pojo_table";
@@ -40,7 +45,7 @@ public class InsertClientContentCompressionTests extends InsertTests {
 
             initTable(tableName, createSQL);
 
-            client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+            client.register(SamplePOJO.class, client.getTableSchema(tableName));
             InsertSettings settings = new InsertSettings()
                     .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                     .setQueryId(String.valueOf(UUID.randomUUID()));

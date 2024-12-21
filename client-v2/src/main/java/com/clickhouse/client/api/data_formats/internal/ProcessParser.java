@@ -18,6 +18,9 @@ public class ProcessParser {
             parser.nextToken(); // skip START_OBJECT
             JsonToken t = parser.nextToken();
 
+            for (ServerMetrics m : ServerMetrics.values()) {
+                metrics.updateMetric(m, -1);
+            }
             while (t != null) {
                 if (t == JsonToken.FIELD_NAME) {
                     String fieldName = parser.currentName();

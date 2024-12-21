@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -44,6 +46,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.metrics = null;
         this.batch = new ArrayList<>();
         this.schema = connection.getSchema();// remember DB name
+        LOG.info("Statement schema " + schema);
         this.maxRows = 0;
     }
 
@@ -191,16 +194,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
         lastSql = parseJdbcEscapeSyntax(sql);
+        int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
                 : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
+            updateCount = (int) response.getWrittenRows();
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
 
-        return (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+        return updateCount;
     }
 
     @Override

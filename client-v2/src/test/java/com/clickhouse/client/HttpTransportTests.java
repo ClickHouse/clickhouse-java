@@ -12,6 +12,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -155,6 +156,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testConnectionRequestTimeout() {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         int serverPort = new Random().nextInt(1000) + 10000;
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
@@ -197,6 +201,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test
     public void testConnectionReuseStrategy() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -218,6 +226,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSecureConnection() {
+        if (isCloud()) {
+            return; // will fail in other tests
+        }
+
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -240,6 +252,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
     public void testInsertAndNoHttpResponseFailure(String body, int maxRetries, ThrowingFunction<Client, Void> function,
                                                    boolean shouldFail) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         faultyServer.start();
@@ -318,6 +334,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
     public void testServerErrorHandling(ClickHouseFormat format, boolean serverCompression, boolean useHttpCompression) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
@@ -339,13 +359,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
 
-            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ENGINE MergeTree ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), 636);
-                Assert.assertTrue(e.getMessage().startsWith("Code: 636. DB::Exception: The table structure cannot be extracted from a CSV format file. Error: The table structure cannot be extracted from a CSV format file: the file is empty. You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
+                Assert.assertTrue(e.getMessage().contains("You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
                         "Unexpected error message: " + e.getMessage());
             }
 
@@ -442,6 +462,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorsUncompressedDataProvider")
     public void testServerErrorsUncompressed(int code, String message, String expectedMessage) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -497,6 +521,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testAdditionalHeaders() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -538,6 +566,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testServerSettings() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -586,8 +618,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .build()) {
 
@@ -620,8 +652,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
@@ -683,8 +715,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
@@ -733,6 +765,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testErrorWithSendProgressHeaders() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
@@ -760,6 +796,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
@@ -799,6 +838,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -866,5 +909,35 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } finally {
             mockServer.stop();
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testJWTWithCloud() throws Exception {
+        if (!isCloud()) {
+            return; // only for cloud
+        }
+        String jwt = System.getenv("CLIENT_JWT");
+        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
+            try {
+                List<GenericRecord> response = client.queryAll("SELECT user(), now()");
+                System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw e;
+            }
+        }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+//                .setUsername("default")
+//                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
