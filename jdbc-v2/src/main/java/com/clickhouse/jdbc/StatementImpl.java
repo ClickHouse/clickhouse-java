@@ -144,11 +144,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        if (settings.getQueryId() != null) {
-            lastQueryId = settings.getQueryId();
+        if (mergedSettings.getQueryId() != null) {
+            lastQueryId = mergedSettings.getQueryId();
         } else {
             lastQueryId = UUID.randomUUID().toString();
-            settings.setQueryId(lastQueryId);
+            mergedSettings.setQueryId(lastQueryId);
         }
         LOG.debug("Query ID: {}", lastQueryId);
 
@@ -198,11 +198,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        if (settings.getQueryId() != null) {
-            lastQueryId = settings.getQueryId();
+        if (mergedSettings.getQueryId() != null) {
+            lastQueryId = mergedSettings.getQueryId();
         } else {
             lastQueryId = UUID.randomUUID().toString();
-            settings.setQueryId(lastQueryId);
+            mergedSettings.setQueryId(lastQueryId);
         }
 
         lastSql = parseJdbcEscapeSyntax(sql);
