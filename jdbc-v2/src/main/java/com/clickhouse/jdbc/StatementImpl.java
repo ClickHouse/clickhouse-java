@@ -309,7 +309,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 int roleIndex = JdbcUtils.indexOfIgnoresCase(tokens, "ROLE");
                 if (roleIndex == 1) {
                     for (int i = 2; i < tokens.size(); i++) {
-                        roles.add(tokens.get(i));
+                        String token = tokens.get(i);
+                        String[] roleTokens = token.split(",");
+                        for (String roleToken : roleTokens) {
+                            roles.add(roleToken.replace("\"", ""));//Remove double quotes
+                        }
                     }
 
                     if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {

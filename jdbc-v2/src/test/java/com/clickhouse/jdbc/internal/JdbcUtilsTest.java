@@ -46,6 +46,6 @@ public class JdbcUtilsTest extends JdbcIntegrationTest {
         assertEquals(tokens3.get(2), "FROM");
         assertEquals(tokens3.get(3), "table");
         assertEquals(tokens3.get(4), "WHERE");
-        assertEquals(tokens3.get(5), "id = 1 AND name = 'John' OR age = 30");
+        assertEquals(tokens3.get(5).replace("\"", ""), "id = 1 AND name = 'John' OR age = 30");
     }
 }

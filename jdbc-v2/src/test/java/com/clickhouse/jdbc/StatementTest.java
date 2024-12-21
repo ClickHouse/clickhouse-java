@@ -345,7 +345,7 @@ public class StatementTest extends JdbcIntegrationTest {
             return;
         }
 
-        List<String> roles = Arrays.asList("role1", "role2");
+        List<String> roles = Arrays.asList("role1", "role2", "role3");
 
         try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -388,6 +388,25 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\"");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).get(0), "role1");
+            assertEquals(record.getList(1).get(1), "role2");
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 3);
+            assertEquals(record.getList(1).get(0), "role1");
+            assertEquals(record.getList(1).get(1), "role2");
+            assertEquals(record.getList(1).get(2), "role3");
         }
     }
 
