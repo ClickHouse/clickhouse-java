@@ -480,24 +480,29 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testConcurrentCancel() throws Exception {
+        int maxNumConnections = 3;
+
         try (Connection conn = getJdbcConnection()) {
             try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
                 stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
                 stmt.cancel();
             }
-            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                new Thread(() -> {
-                    try {
-                        ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
-                        rs.next();
-                        log.info(rs.getObject(1).toString());
-                    } catch (SQLException e) {
-                        log.error("Error in thread", e);
-                    }
-                }).start();
+            for (int i = 0; i < maxNumConnections; i++) {
+                try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                    final int threadNum = i;
+                    log.info("Starting thread {}", threadNum);
+                    new Thread(() -> {
+                        try {
+                            ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
+                            rs.next();
+                            log.info(rs.getObject(1).toString());
+                        } catch (SQLException e) {
+                            log.error("Error in thread {}", threadNum, e);
+                        }
+                    }).start();
 
-                Thread.sleep(1000);
-                stmt.cancel();
+                    stmt.cancel();
+                }
             }
         }
     }
