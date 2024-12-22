@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -34,7 +35,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private OperationMetrics metrics;
     private List<String> batch;
     private String lastSql;
-    private String lastQueryId;
+    private volatile String lastQueryId;
     private String schema;
     private int maxRows;
 
@@ -146,6 +147,14 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         checkClosed();
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
+        if (mergedSettings.getQueryId() != null) {
+            lastQueryId = mergedSettings.getQueryId();
+        } else {
+            lastQueryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(lastQueryId);
+        }
+        LOG.debug("Query ID: {}", lastQueryId);
+
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
             QueryResponse response;
@@ -169,7 +178,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
-            lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -193,6 +201,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
+        if (mergedSettings.getQueryId() != null) {
+            lastQueryId = mergedSettings.getQueryId();
+        } else {
+            lastQueryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(lastQueryId);
+        }
+
         lastSql = parseJdbcEscapeSyntax(sql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
@@ -212,8 +227,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void close() throws SQLException {
         closed = true;
         if (currentResultSet != null) {
-            currentResultSet.close();
-            currentResultSet = null;
+            try {
+                currentResultSet.close();
+            } catch (Exception e) {
+                LOG.debug("Failed to close current result set", e);
+            } finally {
+                currentResultSet = null;
+            }
         }
     }
 
@@ -267,10 +287,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
-        try {
-            connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
-                    connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
-                    lastQueryId), connection.getDefaultQuerySettings()).get();
+        try (QueryResponse response = connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
+                connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
+                lastQueryId), connection.getDefaultQuerySettings()).get()){
+            LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -298,7 +318,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return execute(sql, new QuerySettings().setDatabase(schema));
     }
 
-    private boolean execute(String sql, QuerySettings settings) throws SQLException {
+    public boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         StatementType type = parseStatementType(sql);
 

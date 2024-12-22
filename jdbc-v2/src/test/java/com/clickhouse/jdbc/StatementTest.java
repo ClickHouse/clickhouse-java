@@ -2,6 +2,10 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QuerySettings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.Test;
@@ -18,6 +22,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -27,6 +32,8 @@ import static org.testng.Assert.assertTrue;
 
 
 public class StatementTest extends JdbcIntegrationTest {
+    private static final Logger log = LoggerFactory.getLogger(StatementTest.class);
+
     @Test(groups = { "integration" })
     public void testExecuteQuerySimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -488,6 +495,35 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 for (int i = 0; i< maxNumConnections * 2; i++) {
                     stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testConcurrentCancel() throws Exception {
+        int maxNumConnections = 3;
+
+        try (Connection conn = getJdbcConnection()) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
+                stmt.cancel();
+            }
+            for (int i = 0; i < maxNumConnections; i++) {
+                try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                    final int threadNum = i;
+                    log.info("Starting thread {}", threadNum);
+                    new Thread(() -> {
+                        try {
+                            ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
+                            rs.next();
+                            log.info(rs.getObject(1).toString());
+                        } catch (SQLException e) {
+                            log.error("Error in thread {}", threadNum, e);
+                        }
+                    }).start();
+
+                    stmt.cancel();
                 }
             }
         }
