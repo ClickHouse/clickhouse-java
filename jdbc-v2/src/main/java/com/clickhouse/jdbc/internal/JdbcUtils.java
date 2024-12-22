@@ -2,11 +2,13 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.data.ClickHouseDataType;
 
+import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
@@ -163,6 +165,12 @@ public class JdbcUtils {
                 return OffsetDateTime.from((TemporalAccessor) value);
             } else if (type == ZonedDateTime.class && value instanceof TemporalAccessor) {
                 return ZonedDateTime.from((TemporalAccessor) value);
+            } else if (type == Date.class && value instanceof TemporalAccessor) {
+                return Date.valueOf(LocalDate.from((TemporalAccessor) value));
+            } else if (type == java.sql.Timestamp.class && value instanceof TemporalAccessor) {
+                return java.sql.Timestamp.valueOf(LocalDateTime.from((TemporalAccessor) value));
+            } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
+                return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
