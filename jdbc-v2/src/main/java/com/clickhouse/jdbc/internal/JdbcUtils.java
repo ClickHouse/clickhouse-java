@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -53,12 +54,56 @@ public class JdbcUtils {
         return map;
     }
 
+    private static final Map<SQLType, Class<?>> SQL_TYPE_TO_CLASS_MAP = generateClassMap();
+    private static Map<SQLType, Class<?>> generateClassMap() {
+        Map<SQLType, Class<?>> map = new HashMap<>();
+        map.put(JDBCType.CHAR, String.class);
+        map.put(JDBCType.VARCHAR, String.class);
+        map.put(JDBCType.LONGVARCHAR, String.class);
+        map.put(JDBCType.NUMERIC, java.math.BigDecimal.class);
+        map.put(JDBCType.DECIMAL, java.math.BigDecimal.class);
+        map.put(JDBCType.BIT, Boolean.class);
+        map.put(JDBCType.BOOLEAN, Boolean.class);
+        map.put(JDBCType.TINYINT, Integer.class);
+        map.put(JDBCType.SMALLINT, Integer.class);
+        map.put(JDBCType.INTEGER, Integer.class);
+        map.put(JDBCType.BIGINT, Long.class);
+        map.put(JDBCType.REAL, Float.class);
+        map.put(JDBCType.FLOAT, Double.class);
+        map.put(JDBCType.DOUBLE, Double.class);
+        map.put(JDBCType.BINARY, byte[].class);
+        map.put(JDBCType.VARBINARY, byte[].class);
+        map.put(JDBCType.LONGVARBINARY, byte[].class);
+        map.put(JDBCType.DATE, Date.class);
+        map.put(JDBCType.TIME, java.sql.Time.class);
+        map.put(JDBCType.TIMESTAMP, java.sql.Timestamp.class);
+        map.put(JDBCType.TIME_WITH_TIMEZONE, java.sql.Time.class);
+        map.put(JDBCType.TIMESTAMP_WITH_TIMEZONE, java.sql.Timestamp.class);
+        map.put(JDBCType.CLOB, java.sql.Clob.class);
+        map.put(JDBCType.BLOB, java.sql.Blob.class);
+        map.put(JDBCType.ARRAY, java.sql.Array.class);
+        map.put(JDBCType.STRUCT, java.sql.Struct.class);
+        map.put(JDBCType.REF, java.sql.Ref.class);
+        map.put(JDBCType.DATALINK, java.net.URL.class);
+        map.put(JDBCType.ROWID, java.sql.RowId.class);
+        map.put(JDBCType.NCHAR, String.class);
+        map.put(JDBCType.NVARCHAR, String.class);
+        map.put(JDBCType.LONGNVARCHAR, String.class);
+        map.put(JDBCType.NCLOB, java.sql.NClob.class);
+        map.put(JDBCType.SQLXML, java.sql.SQLXML.class);
+        return map;
+    }
+
     public static SQLType convertToSqlType(ClickHouseDataType clickhouseType) {
         if (clickhouseType == null) {
             return JDBCType.NULL;
         }
 
         return CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(clickhouseType, JDBCType.OTHER);
+    }
+
+    public static Class<?> convertToJavaClass(ClickHouseDataType clickhouseType) {
+        return SQL_TYPE_TO_CLASS_MAP.get(convertToSqlType(clickhouseType));
     }
 
 
@@ -157,6 +202,10 @@ public class JdbcUtils {
                 return Float.parseFloat(value.toString());
             } else if (type == Double.class || type == double.class) {
                 return Double.parseDouble(value.toString());
+            } else if (type == java.math.BigDecimal.class) {
+                return new java.math.BigDecimal(value.toString());
+            } else if (type == byte[].class) {
+                return value.toString().getBytes();
             } else if (type == LocalDate.class && value instanceof TemporalAccessor) {
                 return LocalDate.from((TemporalAccessor) value);
             } else if (type == LocalDateTime.class && value instanceof TemporalAccessor) {

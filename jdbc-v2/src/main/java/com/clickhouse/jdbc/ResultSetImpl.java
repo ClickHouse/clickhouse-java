@@ -608,18 +608,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.readValue(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getObject(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getObject(columnLabel, JdbcUtils.convertToJavaClass(getSchema().getColumnByName(columnLabel).getDataType()));
     }
 
     @Override
@@ -1179,11 +1168,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
         checkClosed();
-        log.debug("getObject(columnLabel={}, map={})", columnLabel, map);
-        if (map == null) {
-            return getObject(columnLabel);
-        }
-
         return getObject(columnLabel, map.get(JdbcUtils.convertToSqlType(getSchema().getColumnByName(columnLabel).getDataType()).getName()));
     }
 
@@ -1647,7 +1631,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         checkClosed();
         try {
-            return (T) JdbcUtils.convert(getObject(columnLabel), type);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                if (type == null) {//As a fallback, try to get the value as is
+                    return reader.readValue(columnLabel);
+                }
+
+                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
