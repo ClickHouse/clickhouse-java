@@ -76,7 +76,7 @@ public class ParameterMetaData implements java.sql.ParameterMetaData, JdbcV2Wrap
     public int getParameterType(int param) throws SQLException {
         //TODO: Should we implement .getSQLType()?
         try {
-            return JdbcUtils.convertToSqlType(getParam(param).getDataType());
+            return JdbcUtils.convertToSqlType(getParam(param).getDataType()).getVendorTypeNumber();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
