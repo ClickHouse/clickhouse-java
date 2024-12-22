@@ -8,7 +8,6 @@ import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -18,10 +17,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
