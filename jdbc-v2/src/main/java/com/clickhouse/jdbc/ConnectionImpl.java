@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
@@ -75,7 +76,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setClientName(clientName)
                 .build();
         this.schema = client.getDefaultDatabase();
-        this.defaultQuerySettings = new QuerySettings();
+        this.defaultQuerySettings = new QuerySettings()
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
 
         this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
