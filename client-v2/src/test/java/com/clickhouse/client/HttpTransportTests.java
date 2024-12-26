@@ -928,13 +928,71 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+
+    @Test(dataProvider = "testClientNameDataProvider")
+    public void testClientName(String clientName, boolean setWithUpdate, String userAgentHeader, boolean setForRequest) throws Exception {
+
+        final String initialClientName = setWithUpdate ? "init clientName" : clientName;
+        final String initialUserAgentHeader = setForRequest ? "init userAgentHeader" : userAgentHeader;
+        final String clientReferer = "http://localhost/webpage";
+
+        Client.Builder builder = newClient();
+        if (initialClientName != null) {
+            builder.setClientName(initialClientName);
+        }
+        if (initialUserAgentHeader != null) {
+            builder.httpHeader(HttpHeaders.USER_AGENT, initialUserAgentHeader);
+        }
+        try (Client client = builder.build()) {
+            String expectedClientNameStartsWith = initialClientName == null || initialUserAgentHeader != null ? initialUserAgentHeader : initialClientName;
+
+            if (setWithUpdate) {
+                client.updateClientName(clientName);
+                expectedClientNameStartsWith = initialUserAgentHeader == null ? clientName : initialUserAgentHeader;
+            }
+
+            String qId = UUID.randomUUID().toString();
+            QuerySettings settings = new QuerySettings()
+                    .httpHeader(HttpHeaders.REFERER, clientReferer)
+                    .setQueryId(qId);
+
+            if (setForRequest) {
+                settings.httpHeader(HttpHeaders.USER_AGENT, userAgentHeader);
+                expectedClientNameStartsWith = userAgentHeader;
+            }
+
+            client.query("SELECT 1", settings).get().close();
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                    " FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            final String logUserAgent = logRecords.get(0).getString("http_user_agent");
+            Assert.assertTrue(logUserAgent.startsWith(expectedClientNameStartsWith),
+                    "Expected to start with \"" + expectedClientNameStartsWith + "\" but values was \"" + logUserAgent + "\"" );
+            Assert.assertTrue(logUserAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain client v2 version but value was \"" + logUserAgent + "\"");
+            Assert.assertEquals(logRecords.get(0).getString("http_referer"), clientReferer);
+            Assert.assertEquals(logRecords.get(0).getString("client_name"), ""); // http client can't set this field
+        }
+    }
+
+    @DataProvider(name = "testClientNameDataProvider")
+    public static Object[][] testClientName() {
+        return new Object[][] {
+                {"test-product (app 1.0)", false, null, false}, // only client name set
+                {"test-product (app 1.0)", false, "final product (app 1.1)", false}, // http header set and overrides client name
+                {"test-product (app 1.0)", true, null, false}, // client name set thru Client#updateClientName
+                {"test-product (app 1.0)", true, "final product (app 1.1)", true}, // custom UserAgent header overrides client name
+        };
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
-//                .setUsername("default")
-//                .setPassword(ClickHouseServerForTest.getPassword())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(false)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")

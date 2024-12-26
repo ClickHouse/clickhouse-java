@@ -186,6 +186,7 @@ public class Client implements AutoCloseable {
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
 
+
         updateServerContext();
     }
 
@@ -1147,41 +1148,7 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey())) {
                 useHttpCompression(false);
             }
-
-            String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
-            String clientName = configuration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
-            httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
         }
-
-        private static String buildUserAgent(String customUserAgent) {
-
-            StringBuilder userAgent = new StringBuilder();
-            if (customUserAgent != null && !customUserAgent.isEmpty()) {
-                userAgent.append(customUserAgent).append(" ");
-            }
-
-            userAgent.append(CLIENT_USER_AGENT);
-
-            String clientVersion = Client.class.getPackage().getImplementationVersion();
-            if (clientVersion == null) {
-                clientVersion = LATEST_ARTIFACT_VERSION;
-            }
-            userAgent.append(clientVersion);
-
-            userAgent.append(" (");
-            userAgent.append(System.getProperty("os.name"));
-            userAgent.append("; ");
-            userAgent.append("jvm:").append(System.getProperty("java.version"));
-            userAgent.append("; ");
-
-            userAgent.setLength(userAgent.length() - 2);
-            userAgent.append(')');
-
-            return userAgent.toString();
-        }
-
-        public static final String LATEST_ARTIFACT_VERSION = "0.7.1-patch1";
-        public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
     }
 
     private ClickHouseNode getServerNode() {
@@ -2185,6 +2152,9 @@ public class Client implements AutoCloseable {
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
+
+    public static final String LATEST_ARTIFACT_VERSION = "~0.7.2";
+    public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
 
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
 
