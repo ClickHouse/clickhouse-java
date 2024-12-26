@@ -2,7 +2,7 @@ package com.clickhouse.data;
 
 public class Tuple {
     private final Object[] values;
-
+    private volatile String output;
     public Tuple(Object... values) {
         this.values = values;
     }
@@ -18,9 +18,7 @@ public class Tuple {
     public int size() {
         return values.length;
     }
-
-    @Override
-    public String toString() {
+    private String buildOutput() {
         StringBuilder sb = new StringBuilder();
         sb.append("(");
         for (int i = 0; i < values.length; i++) {
@@ -31,5 +29,12 @@ public class Tuple {
         }
         sb.append(")");
         return sb.toString();
+    }
+    @Override
+    public String toString() {
+        if (output == null) {
+            output = buildOutput();
+        }
+        return output;
     }
 }
