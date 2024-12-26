@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
+import java.net.SocketException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
@@ -68,23 +69,34 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void close() throws SQLException {
         closed = true;
-        if (reader != null) {
-            try {
-                reader.close();
-            } catch (Exception e) {
-                throw ExceptionUtils.toSqlState(e);
-            }
 
-            reader = null;
+        Exception e = null;
+        try {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception re) {
+                    log.debug("Error closing reader", re);
+                    e = re;
+                } finally {
+                    reader = null;
+                }
+            }
+        } finally {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (Exception re) {
+                    log.debug("Error closing response", re);
+                    e = re;
+                } finally {
+                    response = null;
+                }
+            }
         }
 
-        if (response != null) {
-            try {
-                response.close();
-            } catch (Exception e) {
-                throw ExceptionUtils.toSqlState(e);
-            }
-            response = null;
+        if (e != null) {
+            throw ExceptionUtils.toSqlState(e);
         }
     }
 
@@ -603,34 +615,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.readValue(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getObject(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getObject(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.readValue(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getObject(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getObject(columnLabel, JdbcUtils.convertToJavaClass(getSchema().getColumnByName(columnLabel).getDataType()));
     }
 
     @Override
@@ -876,154 +866,97 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNull(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNull(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public void updateBoolean(int columnIndex, boolean x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBoolean(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateByte(int columnIndex, byte x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateByte(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateShort(int columnIndex, short x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateShort(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateInt(int columnIndex, int x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateInt(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateLong(int columnIndex, long x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateLong(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateFloat(int columnIndex, float x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateFloat(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateDouble(int columnIndex, double x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateDouble(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBigDecimal(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateString(int columnIndex, String x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateString(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBytes(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateDate(int columnIndex, Date x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateDate(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateTime(int columnIndex, Time x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateTime(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateTimestamp(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateObject(getSchema().columnIndexToName(columnIndex), x, scaleOrLength);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateObject(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1221,50 +1154,33 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        checkClosed();
-        return getObject(columnIndex);
+        return getObject(getSchema().columnIndexToName(columnIndex), map);
     }
 
     @Override
     public Ref getRef(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getRef(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Blob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getBlob(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public java.sql.Clob getClob(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Clob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getClob(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public java.sql.Array getArray(int columnIndex) throws SQLException {
-        checkClosed();
-        return getArray(reader.getSchema().columnIndexToName(columnIndex));
+        return getArray(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
         checkClosed();
-        return getObject(columnLabel);
+        return getObject(columnLabel, map.get(JdbcUtils.convertToSqlType(getSchema().getColumnByName(columnLabel).getDataType()).getName()));
     }
 
     @Override
@@ -1301,10 +1217,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public java.sql.Array getArray(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            ClickHouseColumn column = reader.getSchema().getColumnByName(columnLabel);
+            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
             return new Array(reader.getList(columnLabel),
                     column.getArrayBaseColumn().getDataType().name(),
-                    JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()));
+                    JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()).getVendorTypeNumber());
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getArray(%s)", parentStatement.getLastSql(), columnLabel), e);
         }
@@ -1312,8 +1228,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        checkClosed();
-        return getDate(columnIndex);
+        return getDate(getSchema().columnIndexToName(columnIndex), cal);
     }
 
     @Override
@@ -1324,8 +1239,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        checkClosed();
-        return getTime(columnIndex);
+        return getTime(getSchema().columnIndexToName(columnIndex), cal);
     }
 
     @Override
@@ -1336,8 +1250,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        checkClosed();
-        return getTimestamp(columnIndex);
+        return getTimestamp(getSchema().columnIndexToName(columnIndex), cal);
     }
 
     @Override
@@ -1348,12 +1261,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public URL getURL(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            return new URL(reader.getString(columnIndex));
-        } catch (MalformedURLException e) {
-            throw new SQLDataException(e);
-        }
+        return getURL(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1368,10 +1276,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRef(int columnIndex, Ref x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateRef(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1384,10 +1289,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, Blob x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBlob(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1400,10 +1302,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Clob x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateClob(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1416,10 +1315,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateArray(int columnIndex, java.sql.Array x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateArray(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1432,8 +1328,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public RowId getRowId(int columnIndex) throws SQLException {
-        checkClosed();
-        return null;
+        return getRowId(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1444,10 +1339,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRowId(int columnIndex, RowId x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateRowId(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1471,10 +1363,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNString(int columnIndex, String nString) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNString(getSchema().columnIndexToName(columnIndex), nString);
     }
 
     @Override
@@ -1487,10 +1376,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNClob(getSchema().columnIndexToName(columnIndex), nClob);
     }
 
     @Override
@@ -1503,12 +1389,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public NClob getNClob(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("NClob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getNClob(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1523,12 +1404,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("SQLXML is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getSQLXML(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1543,10 +1419,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateSQLXML(getSchema().columnIndexToName(columnIndex), xmlObject);
     }
 
     @Override
@@ -1559,8 +1432,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getNString(int columnIndex) throws SQLException {
-        checkClosed();
-        return reader.getString(columnIndex);
+        return getNString(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1571,8 +1443,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        checkClosed();
-        return new CharArrayReader(reader.getString(columnIndex).toCharArray());
+        return getNCharacterStream(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1583,10 +1454,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
@@ -1599,26 +1467,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
     }
 
     @Override
@@ -1647,10 +1506,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBlob(getSchema().columnIndexToName(columnIndex), inputStream, length);
     }
 
     @Override
@@ -1663,10 +1519,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateClob(getSchema().columnIndexToName(columnIndex), reader, length);
     }
 
     @Override
@@ -1679,10 +1532,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNClob(getSchema().columnIndexToName(columnIndex), reader, length);
     }
 
     @Override
@@ -1695,10 +1545,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNCharacterStream(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1711,26 +1558,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1759,10 +1597,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateBlob(getSchema().columnIndexToName(columnIndex), inputStream);
     }
 
     @Override
@@ -1775,10 +1610,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Reader reader) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateClob(getSchema().columnIndexToName(columnIndex), reader);
     }
 
     @Override
@@ -1791,10 +1623,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, Reader reader) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        updateNClob(getSchema().columnIndexToName(columnIndex), reader);
     }
 
     @Override
@@ -1807,19 +1636,24 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        checkClosed();
-        try {
-            return (T) reader.readValue(columnIndex);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getObject(getSchema().columnIndexToName(columnIndex), type);
     }
 
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         checkClosed();
         try {
-            return (T) reader.readValue(columnLabel);
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                if (type == null) {//As a fallback, try to get the value as is
+                    return reader.readValue(columnLabel);
+                }
+
+                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type);
+            } else {
+                wasNull = true;
+                return null;
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1827,8 +1661,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateObject(int columnIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        checkClosed();
-        ResultSet.super.updateObject(columnIndex, x, targetSqlType, scaleOrLength);
+        updateObject(getSchema().columnIndexToName(columnIndex), x, targetSqlType, scaleOrLength);
     }
 
     @Override
@@ -1839,8 +1672,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateObject(int columnIndex, Object x, SQLType targetSqlType) throws SQLException {
-        checkClosed();
-        ResultSet.super.updateObject(columnIndex, x, targetSqlType);
+        updateObject(getSchema().columnIndexToName(columnIndex), x, targetSqlType);
     }
 
     @Override

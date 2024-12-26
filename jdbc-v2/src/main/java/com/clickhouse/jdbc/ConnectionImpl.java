@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
@@ -32,6 +33,7 @@ import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Types;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +77,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setClientName(clientName)
                 .build();
         this.schema = client.getDefaultDatabase();
-        this.defaultQuerySettings = new QuerySettings();
+        this.defaultQuerySettings = new QuerySettings()
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
 
         this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
@@ -484,7 +488,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)));
+            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }

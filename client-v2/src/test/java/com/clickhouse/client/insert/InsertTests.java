@@ -3,6 +3,7 @@ package com.clickhouse.client.insert;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -67,12 +68,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         int bufferSize = (7 * 65500);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .compressClientRequest(useClientCompression)
-                .useHttpCompression(useHttpCompression)
+        client = newClient()
                 .setSocketSndbuf(bufferSize)
                 .setSocketRcvbuf(bufferSize)
                 .setClientNetworkBufferSize(bufferSize)
@@ -81,6 +77,21 @@ public class InsertTests extends BaseIntegrationTest {
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
     @AfterMethod(groups = { "integration" })
@@ -96,7 +107,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -117,6 +128,10 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOWithJSON() throws Exception {
+        if (isCloud()) {
+            return; // not working because of Code: 452. DB::Exception: Setting allow_experimental_json_type should not be changed. (SETTING_CONSTRAINT_VIOLATION)
+            // but without this setting it doesn't let to create a table
+        }
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
             System.out.println("Test is skipped: feature is supported since 24.8");
@@ -329,7 +344,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);

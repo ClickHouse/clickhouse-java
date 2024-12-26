@@ -23,6 +23,9 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(dataProvider = "clientProvider")
     public void testAddSecureEndpoint(Client client) {
+        if (isCloud()) {
+            return; // will fail in other tests
+        }
         try {
             Optional<GenericRecord> genericRecord = client
                     .queryAll("SELECT hostname()").stream().findFirst();
@@ -69,18 +72,14 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testRawSettings() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        Client client = new Client.Builder()
-                .addEndpoint(node.toUri().toString())
-                .setUsername("default")
-                .setPassword("")
+        Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
                 .build();
 
         client.execute("SELECT 1");
 
         QuerySettings querySettings = new QuerySettings();
-        querySettings.setOption("session_timezone", "Europe/Zurich");
+        querySettings.serverSetting("session_timezone", "Europe/Zurich");
 
         try (Records response =
                      client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
@@ -91,7 +90,6 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertEquals("UTC", record.getString(2));
             });
         } catch (Exception e) {
-            e.printStackTrace();
             Assert.fail(e.getMessage());
         } finally {
             client.close();
@@ -100,13 +98,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testPing() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder()
-                .addEndpoint(node.toUri().toString())
-                .setUsername("default")
-                .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .build()) {
+        try (Client client = newClient().build()) {
             Assert.assertTrue(client.ping());
         }
     }
@@ -121,5 +113,16 @@ public class ClientTests extends BaseIntegrationTest {
                 .build()) {
             Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
         }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }
