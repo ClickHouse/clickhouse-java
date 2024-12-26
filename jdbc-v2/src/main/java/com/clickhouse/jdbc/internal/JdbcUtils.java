@@ -238,6 +238,8 @@ public class JdbcUtils {
                 return java.sql.Timestamp.valueOf(LocalDateTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
+            } else if (type == java.sql.Array.class) {
+                return value;
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
