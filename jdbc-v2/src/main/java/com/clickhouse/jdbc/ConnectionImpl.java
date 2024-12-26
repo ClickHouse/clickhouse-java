@@ -33,6 +33,7 @@ import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Types;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.schema = client.getDefaultDatabase();
         this.defaultQuerySettings = new QuerySettings()
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
 
         this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
