@@ -143,9 +143,28 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return executeQuery(sql, new QuerySettings().setDatabase(schema));
     }
 
+    private void closePreviousResultSet() {
+        if (currentResultSet != null) {
+            LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
+            // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
+            try {
+                currentResultSet.close();
+            } catch (Exception e) {
+                LOG.error("Failed to close previous result set", e);
+            } finally {
+                currentResultSet = null;
+            }
+        }
+    }
+
     public ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
+        // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
+        // release before this one completes.
+        closePreviousResultSet();
+        
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
+
 
         if (mergedSettings.getQueryId() != null) {
             lastQueryId = mergedSettings.getQueryId();
@@ -165,17 +184,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
 
-            if (currentResultSet != null) {
-                LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
-                // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
-                try {
-                    currentResultSet.close();
-                } catch (Exception e) {
-                    LOG.error("Failed to close previous result set", e);
-                } finally {
-                    currentResultSet = null;
-                }
-            }
             currentResultSet = new ResultSetImpl(this, response, reader);
             metrics = response.getMetrics();
         } catch (Exception e) {
@@ -198,6 +206,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
             throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
+
+        // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
+        // release before this one completes.
+        closePreviousResultSet();
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
