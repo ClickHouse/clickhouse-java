@@ -646,6 +646,7 @@ public class HttpAPIClientHelper {
 
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
+        //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
@@ -670,10 +671,7 @@ public class HttpAPIClientHelper {
         StringBuilder userAgent = new StringBuilder();
         userAgent.append(Client.CLIENT_USER_AGENT);
 
-        String clientVersion = Client.class.getPackage().getImplementationVersion();
-        if (clientVersion == null) {
-            clientVersion = Client.clientVersion;
-        }
+        String clientVersion = Client.clientVersion;
 
         userAgent.append(clientVersion);
 

@@ -493,21 +493,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
         }
         options = Collections.unmodifiableMap(map);
 
-        // <artifact-id> <version> (revision: <revision>)
-        String tmpVersion = "unknown";
-        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("clickhouse-client-version.properties")) {
-            Properties p = new Properties();
-            p.load(in);
-
-            String tmp = p.getProperty("version");
-            if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
-                tmpVersion = tmp;
-            }
-        } catch (Exception e) {
-           // ignore
-        }
-
-        PRODUCT_VERSION = tmpVersion;
+        PRODUCT_VERSION = readVersionFromResource("clickhouse-client-version.properties");
         PRODUCT_REVISION = UNKNOWN;
 
         CLIENT_OS_INFO = new StringBuilder().append(getSystemConfig("os.name", "O/S")).append('/')
@@ -527,6 +513,23 @@ public enum ClickHouseClientOption implements ClickHouseOption {
             // ignore
         }
         CLIENT_HOST = host == null || host.isEmpty() ? UNKNOWN : host;
+    }
+
+    public static String readVersionFromResource(String resourceFilePath) {
+        // TODO: move to client-v2 when client-v1 is deprecated completely
+        String tmpVersion = "unknown";
+        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceFilePath)) {
+            Properties p = new Properties();
+            p.load(in);
+
+            String tmp = p.getProperty("version");
+            if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
+                tmpVersion = tmp;
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return tmpVersion;
     }
 
     /**

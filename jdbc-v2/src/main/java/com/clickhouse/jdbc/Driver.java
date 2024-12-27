@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
@@ -60,20 +61,7 @@ public class Driver implements java.sql.Driver {
     static {
         log.debug("Initializing ClickHouse JDBC driver V2");
 
-        String tmpDriverVersion = "unknown";
-        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("jdbc-v2-version.properties")) {
-            Properties p = new Properties();
-            p.load(in);
-
-            String tmp = p.getProperty("version");
-            if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
-                tmpDriverVersion = tmp;
-            }
-        } catch (Exception e) {
-            log.error("Failed to load version file", e);
-        }
-
-        driverVersion = tmpDriverVersion;
+        driverVersion = ClickHouseClientOption.readVersionFromResource("jdbc-v2-version.properties");
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
 
         int tmpMajorVersion;

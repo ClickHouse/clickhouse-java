@@ -2160,27 +2160,11 @@ public class Client implements AutoCloseable {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
 
-    public static final String clientVersion = getPackageVersion();
+    public static final String clientVersion =
+            ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
     public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
 
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
-
-    private static String getPackageVersion() {
-        String version = "unknown";
-        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
-            Properties p = new Properties();
-            p.load(in);
-
-            String tmp = p.getProperty("version");
-            if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
-                version = tmp;
-            }
-        } catch (Exception e) {
-            LOG.error("Failed to load version file", e);
-        }
-
-        return version;
-    }
 
     /**
      * Returns list of DB roles that should be applied to each query.
