@@ -35,6 +35,10 @@ public class QuerySettings {
      */
     public QuerySettings setOption(String option, Object value) {
         rawSettings.put(option, value);
+        if (option.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
+            rawSettings.put(ClientConfigProperties.CLIENT_NAME.getKey(), value);
+        }
+
         return this;
     }
 
