@@ -26,10 +26,8 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
-import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -76,7 +74,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -360,6 +357,9 @@ public class Client implements AutoCloseable {
          */
         public Builder setOption(String key, String value) {
             this.configuration.put(key, value);
+            if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
+                setClientName(value);
+            }
             return this;
         }
 
@@ -978,7 +978,9 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder setOptions(Map<String, String> options) {
-            this.configuration.putAll(options);
+            for (Map.Entry<String, String> entry : options.entrySet()) {
+                setOption(entry.getKey(), entry.getValue());
+            }
             return this;
         }
 

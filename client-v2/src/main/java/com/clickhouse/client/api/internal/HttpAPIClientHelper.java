@@ -70,14 +70,10 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
-
-import static com.clickhouse.client.api.ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
@@ -474,7 +470,7 @@ public class HttpAPIClientHelper {
         }
 
         // -- keep last
-        correctUserAgentHeader(req);
+        correctUserAgentHeader(req, requestConfig);
     }
 
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
@@ -649,12 +645,17 @@ public class HttpAPIClientHelper {
     }
 
 
-    private void correctUserAgentHeader(HttpRequest request) {
+    private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
         String clientName = chConfiguration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
-
+        if (requestConfig != null) {
+            String reqClientName = (String) requestConfig.get(ClientConfigProperties.CLIENT_NAME.getKey());
+            if (reqClientName != null && !reqClientName.isEmpty()) {
+                clientName = reqClientName;
+            }
+        }
         String userAgentValue = defaultUserAgent;
         if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
             userAgentValue = clientName + " " + defaultUserAgent;
