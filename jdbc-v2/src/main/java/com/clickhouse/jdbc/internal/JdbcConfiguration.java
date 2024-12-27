@@ -239,7 +239,9 @@ public class JdbcConfiguration {
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties);
-
+        if (clientProperties.containsKey("access_token")) {
+            builder.useBearerTokenAuth(clientProperties.get("access_token"));
+        }
         return builder;
     }
 }

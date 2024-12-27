@@ -1,17 +1,32 @@
 package com.clickhouse.jdbc;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -407,4 +422,61 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Assert.assertEquals(conn.unwrap(JdbcV2Wrapper.class), conn);
         assertThrows(SQLException.class, () -> conn.unwrap(ResultSet.class));
     }
+
+    @Test(groups = { "integration" })
+    public void testBearerTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String jwtToken1 = Arrays.stream(
+                            new String[]{"header", "payload", "signature"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+
+            // WIP
+            ByteBuffer buffer = ByteBuffer.allocate(4);
+            buffer.put((byte) 1);
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .willReturn(
+                            WireMock.ok(buffer.toString())
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            Properties properties = new Properties();
+            properties.put("access_token", jwtToken1);
+            properties.put("compress", "false");
+            String jdbcUrl = "jdbc:clickhouse://" + "localhost" + ":" + mockServer.port();
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) {
+
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+    @Test(groups = { "integration" })
+    public void testJWTWithCloud() throws Exception {
+        if (!isCloud()) {
+            return; // only for cloud
+        }
+
+        String jwt = System.getenv("CLIENT_JWT");
+        Properties properties = new Properties();
+        properties.put("access_token", jwt);
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1")) {
+             Assert.assertTrue(rs.next());
+        }
+    }
+
 }
