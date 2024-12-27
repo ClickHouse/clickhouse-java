@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -14,7 +15,9 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.net.ConnectException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -23,6 +26,9 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(dataProvider = "clientProvider")
     public void testAddSecureEndpoint(Client client) {
+        if (isCloud()) {
+            return; // will fail in other tests
+        }
         try {
             Optional<GenericRecord> genericRecord = client
                     .queryAll("SELECT hostname()").stream().findFirst();
@@ -69,18 +75,14 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testRawSettings() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        Client client = new Client.Builder()
-                .addEndpoint(node.toUri().toString())
-                .setUsername("default")
-                .setPassword("")
+        Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
                 .build();
 
         client.execute("SELECT 1");
 
         QuerySettings querySettings = new QuerySettings();
-        querySettings.setOption("session_timezone", "Europe/Zurich");
+        querySettings.serverSetting("session_timezone", "Europe/Zurich");
 
         try (Records response =
                      client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
@@ -91,7 +93,6 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertEquals("UTC", record.getString(2));
             });
         } catch (Exception e) {
-            e.printStackTrace();
             Assert.fail(e.getMessage());
         } finally {
             client.close();
@@ -100,13 +101,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testPing() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder()
-                .addEndpoint(node.toUri().toString())
-                .setUsername("default")
-                .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
-                .build()) {
+        try (Client client = newClient().build()) {
             Assert.assertTrue(client.ping());
         }
     }
@@ -121,5 +116,28 @@ public class ClientTests extends BaseIntegrationTest {
                 .build()) {
             Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
         }
+    }
+
+    @Test
+    public void testSetOptions() {
+        Map<String, String> options = new HashMap<>();
+        String productName = "my product_name (version 1.0)";
+        options.put(ClickHouseClientOption.PRODUCT_NAME.getKey(), productName);
+        try (Client client = newClient()
+                .setOptions(options).build()) {
+
+            Assert.assertEquals(client.getConfiguration().get(ClickHouseClientOption.PRODUCT_NAME.getKey()), productName);
+        }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

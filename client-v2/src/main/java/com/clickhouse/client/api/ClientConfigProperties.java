@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -117,6 +118,12 @@ public enum ClientConfigProperties {
     CLIENT_NAME("client_name"),
 
     /**
+     * An old alias to {@link ClientConfigProperties#CLIENT_NAME}. Using the last one is preferred.
+     */
+    @Deprecated
+    PRODUCT_NAME("product_name"),
+
+    /**
      * Indicates that data provided for write operation is compressed by application.
      */
     APP_COMPRESSED_DATA("app_compressed_data"),
@@ -162,6 +169,10 @@ public enum ClientConfigProperties {
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
+    }
+
+    public static String httpHeader(String key) {
+        return HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US);
     }
 
     public static String commaSeparated(Collection<?> values) {

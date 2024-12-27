@@ -689,7 +689,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "0 AS FUNCTION_TYPE, " +
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
-        log.info("getProcedures: {}", sql);
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
@@ -853,12 +852,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
                 " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND database LIKE '" + (catalog == null ? "%" : catalog) + "'" +
                 " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
                 " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
-        log.info("getColumns: {}", sql);
-
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
@@ -1294,8 +1290,6 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "name AS SPECIFIC_NAME " +
                 "FROM system.functions " +
                 "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
-        log.info("getFunctions: " + sql);
-
         try {
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {

@@ -1,9 +1,17 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QuerySettings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.Test;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
@@ -14,8 +22,8 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 
-import static org.testng.Assert.*;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
@@ -24,6 +32,8 @@ import static org.testng.Assert.assertTrue;
 
 
 public class StatementTest extends JdbcIntegrationTest {
+    private static final Logger log = LoggerFactory.getLogger(StatementTest.class);
+
     @Test(groups = { "integration" })
     public void testExecuteQuerySimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -136,7 +146,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateSimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleNumbers (num UInt8) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleNumbers (num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleNumbers VALUES (1), (2), (3)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleNumbers ORDER BY num")) {
                     assertTrue(rs.next());
@@ -155,7 +165,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateSimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleFloats ORDER BY num")) {
                     assertTrue(rs.next());
@@ -174,7 +184,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateBooleans() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".booleans (id UInt8, flag Boolean) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".booleans (id UInt8, flag Boolean) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".booleans VALUES (0, true), (1, false), (2, true)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT flag FROM " + getDatabase() + ".booleans ORDER BY id")) {
                     assertTrue(rs.next());
@@ -193,7 +203,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".strings (id UInt8, words String) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".strings (id UInt8, words String) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".strings VALUES (0, 'Hello'), (1, 'World'), (2, 'ClickHouse')"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT words FROM " + getDatabase() + ".strings ORDER BY id")) {
                     assertTrue(rs.next());
@@ -212,7 +222,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateNulls() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".nulls (id UInt8, nothing Nullable(String)) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".nulls (id UInt8, nothing Nullable(String)) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".nulls VALUES (0, 'Hello'), (1, NULL), (2, 'ClickHouse')"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT nothing FROM " + getDatabase() + ".nulls ORDER BY id")) {
                     assertTrue(rs.next());
@@ -231,7 +241,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".dates (id UInt8, date Nullable(Date), datetime Nullable(DateTime)) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".dates (id UInt8, date Nullable(Date), datetime Nullable(DateTime)) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".dates VALUES (0, '2020-01-01', '2020-01-01 10:11:12'), (1, NULL, '2020-01-01 12:10:07'), (2, '2020-01-01', NULL)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT date, datetime FROM " + getDatabase() + ".dates ORDER BY id")) {
                     assertTrue(rs.next());
@@ -254,7 +264,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateBatch() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".batch (id UInt8, num UInt8) ENGINE = Memory"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".batch (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (0, 1)");
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (1, 2)");
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (2, 3), (3, 4)");
@@ -280,12 +290,15 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testJdbcEscapeSyntax() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; // there is no `timestamp` function TODO: fix in JDBC
+        }
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT {d '2021-11-01'} AS D, {ts '2021-08-01 12:34:56'} AS TS, " +
                         "toInt32({fn ABS(-1)}) AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
                         "{fn LCASE('HELLO')} AS FNLOWER, {fn LTRIM('  Hello  ')} AS FNLTRIM, {fn RTRIM('  Hello  ')} AS FNRTRIM, " +
-                        "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn LOCATE('l', 'Hello')}) AS FNLOCATE, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
+                        "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn POSITION('Hello', 'l')}) AS FNPOSITION, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
                         "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
@@ -305,7 +318,7 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getInt(9), 5);
                     assertEquals(rs.getInt("FNLENGTH"), 5);
                     assertEquals(rs.getInt(10), 3);
-                    assertEquals(rs.getInt("FNLOCATE"), 3);
+                    assertEquals(rs.getInt("FNPOSITION"), 3);
                     assertEquals(rs.getInt(11), 1);
                     assertEquals(rs.getInt("FNMOD"), 1);
                     assertEquals(rs.getDouble(12), 3);
@@ -340,14 +353,15 @@ public class StatementTest extends JdbcIntegrationTest {
             return;
         }
 
-        List<String> roles = Arrays.asList("role1", "role2");
+        List<String> roles = Arrays.asList("role1", "role2", "role3");
 
+        String userPass = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
                 stmt.execute("DROP USER IF EXISTS some_user");
                 stmt.execute("CREATE ROLE " + String.join(", ", roles));
-                stmt.execute("CREATE USER some_user IDENTIFIED WITH no_password");
+                stmt.execute("CREATE USER some_user IDENTIFIED BY '" + userPass + "'");
                 stmt.execute("GRANT " + String.join(", ", roles) + " TO some_user");
                 stmt.execute("SET DEFAULT ROLE NONE TO some_user");
             }
@@ -355,11 +369,11 @@ public class StatementTest extends JdbcIntegrationTest {
 
         Properties info = new Properties();
         info.setProperty("user", "some_user");
-        info.setProperty("password", "");
+        info.setProperty("password", userPass);
 
         try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
             GenericRecord record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).size(), 0);
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role1");
@@ -367,6 +381,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 1);
+            assertEquals(record.getList(1).get(0), "role1");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role2");
@@ -374,13 +389,33 @@ public class StatementTest extends JdbcIntegrationTest {
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 1);
+            assertEquals(record.getList(1).get(0), "role2");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE NONE");
             }
 
             record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\"");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
             assertEquals(record.getList(1).size(), 2);
+            assertEquals(record.getList(1).get(0), "role1");
+            assertEquals(record.getList(1).get(1), "role2");
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
+            }
+
+            record = conn.client.queryAll("SELECT currentRoles()").get(0);
+            assertEquals(record.getList(1).size(), 3);
+            assertEquals(record.getList(1).get(0), "role1");
+            assertEquals(record.getList(1).get(1), "role2");
+            assertEquals(record.getList(1).get(2), "role3");
         }
     }
 
@@ -427,5 +462,70 @@ public class StatementTest extends JdbcIntegrationTest {
         assertEquals(StatementImpl.parseStatementType(null), StatementImpl.StatementType.OTHER);
         assertEquals(StatementImpl.parseStatementType(""), StatementImpl.StatementType.OTHER);
         assertEquals(StatementImpl.parseStatementType("      "), StatementImpl.StatementType.OTHER);
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testWithIPs() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT toIPv4('127.0.0.1'), toIPv6('::1'), toIPv6('2001:438:ffff::407d:1bc1')")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "/127.0.0.1");
+                    assertEquals(rs.getObject(1), Inet4Address.getByName("127.0.0.1"));
+                    assertEquals(rs.getString(2), "/0:0:0:0:0:0:0:1");
+                    assertEquals(rs.getObject(2), Inet6Address.getByName("0:0:0:0:0:0:0:1"));
+                    assertEquals(rs.getString(3), "/2001:438:ffff:0:0:0:407d:1bc1");
+                    assertEquals(rs.getObject(3), Inet6Address.getByName("2001:438:ffff:0:0:0:407d:1bc1"));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testConnectionExhaustion() throws Exception {
+
+        int maxNumConnections = 3;
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "" + maxNumConnections);
+        properties.put(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "" + 1000); // 1 sec connection req timeout
+
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                for (int i = 0; i< maxNumConnections * 2; i++) {
+                    stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testConcurrentCancel() throws Exception {
+        int maxNumConnections = 3;
+
+        try (Connection conn = getJdbcConnection()) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
+                stmt.cancel();
+            }
+            for (int i = 0; i < maxNumConnections; i++) {
+                try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                    final int threadNum = i;
+                    log.info("Starting thread {}", threadNum);
+                    new Thread(() -> {
+                        try {
+                            ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000000");
+                            rs.next();
+                            log.info(rs.getObject(1).toString());
+                        } catch (SQLException e) {
+                            log.error("Error in thread {}", threadNum, e);
+                        }
+                    }).start();
+
+                    stmt.cancel();
+                }
+            }
+        }
     }
 }

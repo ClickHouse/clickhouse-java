@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -235,7 +236,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
         checkClosed();
-        throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!connection.config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -455,6 +458,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private static String encodeObject(Object x) throws SQLException {
+        LOG.trace("Encoding object: {}", x);
+
         try {
             if (x == null) {
                 return "NULL";
@@ -505,7 +510,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 for (Object key : tmpMap.keySet()) {
                     mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
                 }
-                mapString.delete(mapString.length() - 2, mapString.length());
+                if (!tmpMap.isEmpty())
+                    mapString.delete(mapString.length() - 2, mapString.length());
                 mapString.append("}");
 
                 return mapString.toString();
@@ -527,6 +533,35 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     sb.append(new String(buffer, 0, len));
                 }
                 return "'" + escapeString(sb.toString()) + "'";
+            } else if (x instanceof Object[]) {
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.append("[");
+                int i = 0;
+                for (Object item : (Object[]) x) {
+                    if (i > 0) {
+                        arrayString.append(", ");
+                    }
+                    arrayString.append(encodeObject(item));
+                    i++;
+                }
+                arrayString.append("]");
+
+                return arrayString.toString();
+            } else if (x instanceof Tuple) {
+                StringBuilder tupleString = new StringBuilder();
+                tupleString.append("(");
+                Tuple t = (Tuple) x;
+                Object [] values = t.getValues();
+                int i = 0;
+                for (Object item : values) {
+                    if (i > 0) {
+                        tupleString.append(", ");
+                    }
+                    tupleString.append(encodeObject(item));
+                    i++;
+                }
+                tupleString.append(")");
+                return tupleString.toString();
             }
 
             return escapeString(x.toString());//Escape single quotes
@@ -537,6 +572,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private static String escapeString(String x) {
-        return x.replace("'", "''");//Escape single quotes
+        return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
     }
 }

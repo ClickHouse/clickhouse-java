@@ -133,7 +133,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
     @Override
     public int getColumnType(int column) throws SQLException {
         try {
-            return JdbcUtils.convertToSqlType(getColumn(column).getDataType());
+            return JdbcUtils.convertToSqlType(getColumn(column).getDataType()).getVendorTypeNumber();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -142,7 +142,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
     @Override
     public String getColumnTypeName(int column) throws SQLException {
         try {
-            return getColumn(column).getDataType().name();
+            return getColumn(column).getOriginalTypeName();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

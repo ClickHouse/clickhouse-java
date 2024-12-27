@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
@@ -12,6 +13,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -38,6 +40,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
@@ -51,8 +54,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 public class HttpTransportTests extends BaseIntegrationTest {
@@ -66,7 +72,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         int proxyPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + proxyPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(proxyPort)
@@ -152,9 +157,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testConnectionRequestTimeout() {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         int serverPort = new Random().nextInt(1000) + 10000;
-        System.out.println("proxyPort: " + serverPort);
         ConnectionCounterListener connectionCounter = new ConnectionCounterListener();
         WireMockServer proxy = new WireMockServer(WireMockConfiguration
                 .options().port(serverPort)
@@ -195,6 +202,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test
     public void testConnectionReuseStrategy() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -216,6 +227,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSecureConnection() {
+        if (isCloud()) {
+            return; // will fail in other tests
+        }
+
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder()
@@ -238,6 +253,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
     public void testInsertAndNoHttpResponseFailure(String body, int maxRetries, ThrowingFunction<Client, Void> function,
                                                    boolean shouldFail) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         faultyServer.start();
@@ -316,6 +335,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorHandlingDataProvider")
     public void testServerErrorHandling(ClickHouseFormat format, boolean serverCompression, boolean useHttpCompression) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
@@ -337,13 +360,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
 
-            try (QueryResponse response = client.query("CREATE TABLE table_from_csv AS SELECT * FROM file('empty.csv')", querySettings)
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ENGINE MergeTree ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), 636);
-                Assert.assertTrue(e.getMessage().startsWith("Code: 636. DB::Exception: The table structure cannot be extracted from a CSV format file. Error: The table structure cannot be extracted from a CSV format file: the file is empty. You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
+                Assert.assertTrue(e.getMessage().contains("You can specify the structure manually: (in file/uri /var/lib/clickhouse/user_files/empty.csv). (CANNOT_EXTRACT_TABLE_STRUCTURE)"),
                         "Unexpected error message: " + e.getMessage());
             }
 
@@ -440,6 +463,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testServerErrorsUncompressedDataProvider")
     public void testServerErrorsUncompressed(int code, String message, String expectedMessage) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -495,6 +522,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testAdditionalHeaders() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -536,6 +567,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testServerSettings() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
                 .options().port(9090).notifier(new ConsoleNotifier(false)));
         mockServer.start();
@@ -584,8 +619,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .build()) {
 
@@ -618,8 +653,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
@@ -681,8 +716,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
+                .setUsername("dba")
+                .setPassword("dba")
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
@@ -731,6 +766,10 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testErrorWithSendProgressHeaders() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
@@ -758,6 +797,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder()
@@ -777,7 +819,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             for (GenericRecord record : logRecords) {
-
+                System.out.println(record.getString("http_user_agent"));
                 Assert.assertTrue(userAgentPattern.matcher(record.getString("http_user_agent")).matches(),
                         record.getString("http_user_agent") + " doesn't match \"" +
                                   userAgentPattern.pattern() + "\"");
@@ -790,8 +832,209 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
     public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
         return new Object[][] {
-                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$") },
-                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")},
-                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache HttpClient\\/[\\d\\.]+$")}};
+                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")},
+                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")}};
+    }
+
+    @Test(dataProvider = "testClientNameDataProvider")
+    public void testClientName(String clientName, boolean setWithUpdate, String userAgentHeader, boolean setForRequest) throws Exception {
+
+        final String initialClientName = setWithUpdate ? "init clientName" : clientName;
+        final String initialUserAgentHeader = setForRequest ? "init userAgentHeader" : userAgentHeader;
+        final String clientReferer = "http://localhost/webpage";
+
+        Client.Builder builder = newClient();
+        if (initialClientName != null) {
+            builder.setClientName(initialClientName);
+        }
+        if (initialUserAgentHeader != null) {
+            builder.httpHeader(HttpHeaders.USER_AGENT, initialUserAgentHeader);
+        }
+        try (Client client = builder.build()) {
+            String expectedClientNameStartsWith = initialClientName == null || initialUserAgentHeader != null ? initialUserAgentHeader : initialClientName;
+
+            if (setWithUpdate) {
+                client.updateClientName(clientName);
+                expectedClientNameStartsWith = initialUserAgentHeader == null ? clientName : initialUserAgentHeader;
+            }
+
+            String qId = UUID.randomUUID().toString();
+            QuerySettings settings = new QuerySettings()
+                    .httpHeader(HttpHeaders.REFERER, clientReferer)
+                    .setQueryId(qId);
+
+            if (setForRequest) {
+                settings.httpHeader(HttpHeaders.USER_AGENT, userAgentHeader);
+                expectedClientNameStartsWith = userAgentHeader;
+            }
+
+            client.query("SELECT 1", settings).get().close();
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                    " FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            final String logUserAgent = logRecords.get(0).getString("http_user_agent");
+            Assert.assertTrue(logUserAgent.startsWith(expectedClientNameStartsWith),
+                    "Expected to start with \"" + expectedClientNameStartsWith + "\" but values was \"" + logUserAgent + "\"" );
+            Assert.assertTrue(logUserAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain client v2 version but value was \"" + logUserAgent + "\"");
+            Assert.assertEquals(logRecords.get(0).getString("http_referer"), clientReferer);
+            Assert.assertEquals(logRecords.get(0).getString("client_name"), ""); // http client can't set this field
+        }
+    }
+
+    @DataProvider(name = "testClientNameDataProvider")
+    public static Object[][] testClientName() {
+        return new Object[][] {
+                {"test-product (app 1.0)", false, null, false}, // only client name set
+                {"test-product (app 1.0)", false, "final product (app 1.1)", false}, // http header set and overrides client name
+                {"test-product (app 1.0)", true, null, false}, // client name set thru Client#updateClientName
+                {"test-product (app 1.0)", true, "final product (app 1.1)", true}, // custom UserAgent header overrides client name
+        };
+    }
+
+    @Test(dataProvider = "testClientNameThruRawOptionsDataProvider")
+    public void testClientNameThruRawOptions(String property, String value, boolean setInClient) throws Exception {
+        Client.Builder builder = newClient();
+        if (setInClient) {
+            builder.setOption(property, value);
+        }
+        try (Client client = builder.build()) {
+
+            String qId = UUID.randomUUID().toString();
+            QuerySettings settings = new QuerySettings()
+                    .setQueryId(qId);
+
+            if (!setInClient) {
+                settings.setOption(property, value);
+            }
+
+            client.query("SELECT 1", settings).get().close();
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                    " FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            final String logUserAgent = logRecords.get(0).getString("http_user_agent");
+            Assert.assertTrue(logUserAgent.startsWith(value),
+                    "Expected to start with \"" + value + "\" but values was \"" + logUserAgent + "\"" );
+            Assert.assertTrue(logUserAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain client v2 version but value was \"" + logUserAgent + "\"");
+        }
+    }
+
+    @DataProvider(name = "testClientNameThruRawOptionsDataProvider")
+    public Object[][] testClientNameThruRawOptionsDataProvider() {
+        return new Object[][] {
+                {ClientConfigProperties.PRODUCT_NAME.getKey(), "my product 1", true},
+                {ClientConfigProperties.CLIENT_NAME.getKey(), "my product 2", true},
+                {ClientConfigProperties.PRODUCT_NAME.getKey(), "my product 1", false},
+                {ClientConfigProperties.CLIENT_NAME.getKey(), "my product 2", false},
+        };
+    }
+
+    @Test(groups = { "integration" })
+    public void testBearerTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String jwtToken1 = Arrays.stream(
+                            new String[]{"header", "payload", "signature"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .useBearerTokenAuth(jwtToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 10);
+                } catch (Exception e) {
+                    Assert.fail("Unexpected exception", e);
+                }
+            }
+
+            String jwtToken2 = Arrays.stream(
+                            new String[]{"header2", "payload2", "signature2"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .useBearerTokenAuth(jwtToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try {
+                    client.execute("SELECT 1").get();
+                    fail("Exception expected");
+                } catch (ServerException e) {
+                    Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
+                }
+
+                mockServer.resetAll();
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken2))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+
+                        .build());
+
+                client.updateBearerToken(jwtToken2);
+
+                client.execute("SELECT 1").get();
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testJWTWithCloud() throws Exception {
+        if (!isCloud()) {
+            return; // only for cloud
+        }
+        String jwt = System.getenv("CLIENT_JWT");
+        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
+            try {
+                List<GenericRecord> response = client.queryAll("SELECT user(), now()");
+                System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw e;
+            }
+        }
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 }

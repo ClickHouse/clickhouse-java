@@ -43,12 +43,20 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @AfterMethod(groups = { "integration" })
     public void teardown() {
+        if (isCloud()) {
+            return; // nothing to stop
+        }
+
         proxy.get().stop();
         client.get().close();
     }
 
     @Test(groups = { "integration" })
     public void testSimpleQuery() throws Exception {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
+
         client.set(clientBuilder(initProxy(), false).build());
         addProxyStub();
 
@@ -58,6 +66,9 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" })
     public void testInsert() throws Exception {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
         String tableName = "simple_pojo_disable_proxy_table";
         String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         client.set(clientBuilder(initProxy(), false).build());
@@ -81,6 +92,10 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" })
     public void testPrivateProxyWithoutAuth() {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
+
         client.set(clientBuilder(initProxy(), true).build());
         addPrivateProxyStub();
 
@@ -98,6 +113,10 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" })
     public void testPrivateProxyWithCredentials() {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
+
         client.set(clientBuilder(initProxy(), true)
                 .setProxyCredentials("user", "pass").build());
         addPrivateProxyStub();
@@ -112,6 +131,10 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" })
     public void testProxyWithCookies() {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
+
         client.set(clientBuilder(initProxy(), true).build());
         final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
 
@@ -137,6 +160,10 @@ public class ProxyTests extends BaseIntegrationTest{
 
     @Test(groups = { "integration" })
     public void testProxyWithDisabledCookies() {
+        if (isCloud()) {
+            return; // to specific setup for cloud, may be later
+        }
+
         client.set(clientBuilder(initProxy(), true).setHttpCookiesEnabled(false).build());
         final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
 

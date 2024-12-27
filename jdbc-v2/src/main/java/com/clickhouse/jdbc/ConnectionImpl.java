@@ -2,8 +2,10 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
@@ -31,6 +33,7 @@ import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Types;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +77,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 .setClientName(clientName)
                 .build();
         this.schema = client.getDefaultDatabase();
-        this.defaultQuerySettings = new QuerySettings();
+        this.defaultQuerySettings = new QuerySettings()
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
 
         this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
@@ -118,14 +123,22 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
         checkOpen();
         /// TODO: this is not implemented according to JDBC spec and may not be used.
-        throw new SQLFeatureNotSupportedException("nativeSQL not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("nativeSQL not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -181,7 +194,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
         checkOpen();
-        if (readOnly) {
+        if (!config.isIgnoreUnsupportedRequests() && readOnly) {
             throw new SQLFeatureNotSupportedException("read-only=true unsupported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
     }
@@ -206,7 +219,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
         checkOpen();
-        if (TRANSACTION_NONE != level) {
+        if (!config.isIgnoreUnsupportedRequests() && TRANSACTION_NONE != level) {
             throw new SQLFeatureNotSupportedException("setTransactionIsolation not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
     }
@@ -243,19 +256,29 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Map<String, Class<?>> getTypeMap() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("getTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("getTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("setTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("setTypeMap not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -273,13 +296,21 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Savepoint setSavepoint() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Savepoint setSavepoint(String name) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -293,7 +324,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Savepoint not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
@@ -311,7 +344,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("CallableStatement not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -350,25 +387,41 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Clob createClob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Clob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Clob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public Blob createBlob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("Blob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("Blob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public NClob createNClob() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("NClob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("NClob not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
     public SQLXML createSQLXML() throws SQLException {
         checkOpen();
-        throw new SQLFeatureNotSupportedException("SQLXML not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("SQLXML not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -382,10 +435,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         return true;
     }
 
+    private String appName = "";
+
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
-            client.updateClientName(value);
+            config.updateUserClient(value, client);
+            appName = value;
         }
         // TODO: generate warning for unknown properties
     }
@@ -418,7 +474,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
         if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
-            return client.getConfiguration().get(ClientConfigProperties.CLIENT_NAME.getKey());
+            return appName;
         } else {
             return null;
         }
@@ -435,8 +491,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            // TODO: pass type name
-            return new com.clickhouse.jdbc.types.Array(List.of(elements), Types.OTHER);
+            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -445,7 +500,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return null;
     }
 
     @Override
@@ -462,19 +521,27 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void abort(Executor executor) throws SQLException {
-        throw new SQLFeatureNotSupportedException("abort not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("abort not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("setNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("setNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
         //TODO: Should this be supported?
-        throw new SQLFeatureNotSupportedException("getNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (!config.isIgnoreUnsupportedRequests()) {
+            throw new SQLFeatureNotSupportedException("getNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        }
+
+        return -1;
     }
 
     @Override

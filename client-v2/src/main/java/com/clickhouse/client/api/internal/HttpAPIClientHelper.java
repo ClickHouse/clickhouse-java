@@ -34,6 +34,7 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.config.CharCodingConfig;
@@ -89,13 +90,11 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private String httpClientUserAgentPart;
+    private String defaultUserAgent;
 
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
-
-        this.httpClientUserAgentPart = this.httpClient.getClass().getPackage().getImplementationTitle() + "/" + this.httpClient.getClass().getPackage().getImplementationVersion();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -113,6 +112,8 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
+
+        this.defaultUserAgent = buildDefaultUserAgent();
     }
 
     /**
@@ -333,10 +334,13 @@ public class HttpAPIClientHelper {
 
             String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
                     .replaceAll("\\\\/", "/");
-            return new ServerException(serverCode, msg);
+            if (msg.trim().isEmpty()) {
+                msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            }
+            return new ServerException(serverCode, msg, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
         }
     }
 
@@ -450,12 +454,12 @@ public class HttpAPIClientHelper {
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
             }
         }
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
         }
 
@@ -468,9 +472,9 @@ public class HttpAPIClientHelper {
         }
 
         // -- keep last
-        Header userAgent = req.getFirstHeader(HttpHeaders.USER_AGENT);
-        req.setHeader(HttpHeaders.USER_AGENT, userAgent == null ? httpClientUserAgentPart : userAgent.getValue() + " " + httpClientUserAgentPart);
+        correctUserAgentHeader(req, requestConfig);
     }
+
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
@@ -641,6 +645,54 @@ public class HttpAPIClientHelper {
         }
 
         return params;
+    }
+
+
+    private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
+        //TODO: implement cache for user-agent
+        Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
+        request.removeHeaders(HttpHeaders.USER_AGENT);
+
+        String clientName = chConfiguration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
+        if (requestConfig != null) {
+            String reqClientName = (String) requestConfig.get(ClientConfigProperties.CLIENT_NAME.getKey());
+            if (reqClientName != null && !reqClientName.isEmpty()) {
+                clientName = reqClientName;
+            }
+        }
+        String userAgentValue = defaultUserAgent;
+        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
+            userAgentValue = clientName + " " + defaultUserAgent;
+        } else if (userAgentHeader != null) {
+            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
+        }
+
+        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
+    }
+
+    private  String buildDefaultUserAgent() {
+        StringBuilder userAgent = new StringBuilder();
+        userAgent.append(Client.CLIENT_USER_AGENT);
+
+        String clientVersion = Client.clientVersion;
+
+        userAgent.append(clientVersion);
+
+        userAgent.append(" (");
+        userAgent.append(System.getProperty("os.name"));
+        userAgent.append("; ");
+        userAgent.append("jvm:").append(System.getProperty("java.version"));
+        userAgent.append("; ");
+
+        userAgent.setLength(userAgent.length() - 2);
+        userAgent.append(')');
+
+        userAgent.append(" ")
+                .append(this.httpClient.getClass().getPackage().getImplementationTitle().replaceAll(" ", "-"))
+                .append('/')
+                .append(this.httpClient.getClass().getPackage().getImplementationVersion());
+
+        return userAgent.toString();
     }
 
     public void close() {
