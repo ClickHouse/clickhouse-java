@@ -818,7 +818,7 @@ public class Client implements AutoCloseable {
         /**
          * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
          * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
-         * Default is 8192 bytes.
+         * Default is 300,000 bytes.
          *
          * @param size - size in bytes
          * @return
