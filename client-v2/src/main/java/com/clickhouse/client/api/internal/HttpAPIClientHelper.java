@@ -685,7 +685,7 @@ public class HttpAPIClientHelper {
         userAgent.append(')');
 
         userAgent.append(" ")
-                .append(this.httpClient.getClass().getPackage().getImplementationTitle())
+                .append(this.httpClient.getClass().getPackage().getImplementationTitle().replaceAll(" ", "-"))
                 .append('/')
                 .append(this.httpClient.getClass().getPackage().getImplementationVersion());
 
