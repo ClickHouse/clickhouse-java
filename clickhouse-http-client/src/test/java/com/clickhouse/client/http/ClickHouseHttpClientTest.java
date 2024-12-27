@@ -174,6 +174,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                          .executeAndWait()) {
                 if (response.records().iterator().hasNext()) {
                     String result = response.firstRecord().getValue(0).asString();
+                    System.out.println(result);
                     Assert.assertTrue(result.startsWith(optionValue + " ClickHouse-JavaClient/"));
                     Assert.assertTrue(result.indexOf("Http") > 0);
                     break;

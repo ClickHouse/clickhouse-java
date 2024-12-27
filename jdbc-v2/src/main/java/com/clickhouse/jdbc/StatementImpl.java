@@ -162,7 +162,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
         closePreviousResultSet();
-        
+
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
 

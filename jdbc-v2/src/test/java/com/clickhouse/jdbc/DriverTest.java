@@ -1,13 +1,12 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
-
-import com.clickhouse.client.api.ClientConfigProperties;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.annotation.JsonAppend;
-import org.testng.Assert;
-import org.testng.annotations.Test;
 
 
 public class DriverTest extends JdbcIntegrationTest {

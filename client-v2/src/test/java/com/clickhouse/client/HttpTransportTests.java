@@ -819,7 +819,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             for (GenericRecord record : logRecords) {
-
+                System.out.println(record.getString("http_user_agent"));
                 Assert.assertTrue(userAgentPattern.matcher(record.getString("http_user_agent")).matches(),
                         record.getString("http_user_agent") + " doesn't match \"" +
                                   userAgentPattern.pattern() + "\"");

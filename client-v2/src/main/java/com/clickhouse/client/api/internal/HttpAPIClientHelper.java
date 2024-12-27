@@ -672,8 +672,9 @@ public class HttpAPIClientHelper {
 
         String clientVersion = Client.class.getPackage().getImplementationVersion();
         if (clientVersion == null) {
-            clientVersion = Client.LATEST_ARTIFACT_VERSION;
+            clientVersion = Client.clientVersion;
         }
+
         userAgent.append(clientVersion);
 
         userAgent.append(" (");
