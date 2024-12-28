@@ -10,6 +10,7 @@ import java.util.Properties;
 
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -27,7 +28,9 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.apache.hc.core5.http.HttpStatus;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -248,15 +251,44 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Assert.assertTrue(localConnection.isValid(0));
     }
 
-    @Test(groups = { "integration" })
-    public void setAndGetClientInfoTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.setClientInfo("custom-property", "client-name");
-        Assert.assertNull(localConnection.getClientInfo("custom-property"));
-        localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "client-name");
-        Assert.assertEquals(localConnection.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()), "client-name");
+    @Test(groups = { "integration" }, dataProvider = "setAndGetClientInfoTestDataProvider")
+    public void setAndGetClientInfoTest(String clientName) throws SQLException {
+        final String unsupportedProperty = "custom-unsupported-property";
+        try (Connection localConnection = this.getJdbcConnection();
+                Statement stmt = localConnection.createStatement()) {
+            localConnection.setClientInfo(unsupportedProperty, "i-am-unsupported-property");
+            Assert.assertNull(localConnection.getClientInfo("custom-property"));
+            localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), clientName);
+            Assert.assertEquals(localConnection.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()), clientName);
+            Assert.assertNull(localConnection.getClientInfo(unsupportedProperty));
+
+            final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
+            stmt.execute(testQuery);
+            stmt.execute("SYSTEM FLUSH LOGS");
+
+            final String logQuery ="SELECT http_user_agent " +
+                    " FROM system.query_log WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
+            try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                Assert.assertTrue(rs.next());
+                String userAgent = rs.getString("http_user_agent");
+                System.out.println(userAgent);
+                if (clientName != null && !clientName.isEmpty()) {
+                    Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+                }
+                Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
+                Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+            }
+        }
     }
 
+    @DataProvider(name = "setAndGetClientInfoTestDataProvider")
+    public static Object[][] setAndGetClientInfoTestDataProvider() {
+        return new Object[][] {
+                {"product (version 1.0)"},
+                {null},
+                {""}
+        };
+    }
 
     @Test(groups = { "integration" })
     public void createArrayOfTest() throws SQLException {

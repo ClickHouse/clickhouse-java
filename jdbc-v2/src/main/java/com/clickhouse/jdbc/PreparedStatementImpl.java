@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -546,6 +547,21 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 arrayString.append("]");
 
                 return arrayString.toString();
+            } else if (x instanceof Tuple) {
+                StringBuilder tupleString = new StringBuilder();
+                tupleString.append("(");
+                Tuple t = (Tuple) x;
+                Object [] values = t.getValues();
+                int i = 0;
+                for (Object item : values) {
+                    if (i > 0) {
+                        tupleString.append(", ");
+                    }
+                    tupleString.append(encodeObject(item));
+                    i++;
+                }
+                tupleString.append(")");
+                return tupleString.toString();
             }
 
             return escapeString(x.toString());//Escape single quotes

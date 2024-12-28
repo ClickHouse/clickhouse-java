@@ -435,10 +435,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         return true;
     }
 
+    private String appName = "";
+
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
-            client.updateClientName(value);
+            config.updateUserClient(value, client);
+            appName = value;
         }
         // TODO: generate warning for unknown properties
     }
@@ -471,7 +474,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public String getClientInfo(String name) throws SQLException {
         checkOpen();
         if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
-            return client.getConfiguration().get(ClientConfigProperties.CLIENT_NAME.getKey());
+            return appName;
         } else {
             return null;
         }

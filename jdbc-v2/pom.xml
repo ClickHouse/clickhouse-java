@@ -12,7 +12,7 @@
     <artifactId>jdbc-v2</artifactId>
     <packaging>jar</packaging>
 
-    <name>ClickHouse JDBC Driver</name>
+    <name>JDBC Driver V2</name>
     <description>JDBC driver for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/jdbc-v2</url>
 
@@ -102,6 +102,12 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

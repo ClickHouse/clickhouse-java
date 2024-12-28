@@ -1,11 +1,13 @@
 package com.clickhouse.client.config;
 
+import java.io.InputStream;
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
@@ -491,19 +493,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
         }
         options = Collections.unmodifiableMap(map);
 
-        // <artifact-id> <version> (revision: <revision>)
-        String ver = ClickHouseClientOption.class.getPackage().getImplementationVersion();
-        String[] parts = ver == null || ver.isEmpty() ? null : ver.split("\\s");
-        if (parts != null && parts.length == 4 && parts[1].length() > 0 && parts[3].length() > 1
-                && ver.charAt(ver.length() - 1) == ')') {
-            PRODUCT_VERSION = parts[1];
-            ver = parts[3];
-            PRODUCT_REVISION = ver.substring(0, ver.length() - 1);
-        } else { // perhaps try harder by checking version from pom.xml?
-            PRODUCT_VERSION = LATEST_KNOWN_VERSION;
-            PRODUCT_REVISION = UNKNOWN;
-        }
-
+        PRODUCT_VERSION = readVersionFromResource("clickhouse-client-version.properties");
+        PRODUCT_REVISION = UNKNOWN;
 
         CLIENT_OS_INFO = new StringBuilder().append(getSystemConfig("os.name", "O/S")).append('/')
                 .append(getSystemConfig("os.version", UNKNOWN)).toString();
@@ -514,12 +505,31 @@ public enum ClickHouseClientOption implements ClickHouseOption {
         CLIENT_JVM_INFO = new StringBuilder().append(getSystemConfig("java.vm.name", "Java")).append('/')
                 .append(javaVersion).toString();
         CLIENT_USER = getSystemConfig("user.name", UNKNOWN);
+
+        String host = null;
         try {
-            ver = InetAddress.getLocalHost().getHostName();
+            host = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e1) {
             // ignore
         }
-        CLIENT_HOST = ver == null || ver.isEmpty() ? UNKNOWN : ver;
+        CLIENT_HOST = host == null || host.isEmpty() ? UNKNOWN : host;
+    }
+
+    public static String readVersionFromResource(String resourceFilePath) {
+        // TODO: move to client-v2 when client-v1 is deprecated completely
+        String tmpVersion = "unknown";
+        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceFilePath)) {
+            Properties p = new Properties();
+            p.load(in);
+
+            String tmp = p.getProperty("version");
+            if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
+                tmpVersion = tmp;
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return tmpVersion;
     }
 
     /**
