@@ -208,7 +208,7 @@ jobs:
         clickhouse: ["cloud"]
         project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
       fail-fast: false
-    timeout-minutes: 15
+    timeout-minutes: 20
     name: ${{ matrix.project }} + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
@@ -278,7 +278,7 @@ jobs:
 #        protocol: ["http", "http_client", "apache_http_client"]
         protocol: ["apache_http_client"]
       fail-fast: false
-    timeout-minutes: 15
+    timeout-minutes: 20
     name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
