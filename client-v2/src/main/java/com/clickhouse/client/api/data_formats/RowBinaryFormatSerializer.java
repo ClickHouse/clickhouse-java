@@ -12,11 +12,14 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 /**
  * This class is intended to be used for very precise data serializations.
  * It is an auxiliary class to handle only low level write operations.
+ * <p>
+ * Experimental API
  */
 public class RowBinaryFormatSerializer {
 
@@ -127,19 +130,19 @@ public class RowBinaryFormatSerializer {
     }
 
     public void writeDate(ZonedDateTime value) throws IOException {
-
+        SerializerUtils.writeDate(out, value, ZoneId.of("UTC"));
     }
 
-    public void writeDate32(ZonedDateTime value) throws IOException {
-
+    public void writeDate32(ZonedDateTime value, ZoneId targetTz) throws IOException {
+        SerializerUtils.writeDate32(out, value, targetTz);
     }
 
-    public void writeDateTime(ZonedDateTime value) throws IOException {
-
+    public void writeDateTime(ZonedDateTime value, ZoneId targetTz) throws IOException {
+        SerializerUtils.writeDateTime(out, value, targetTz);
     }
 
-    public void writeDateTime64(ZonedDateTime value) throws IOException {
-
+    public void writeDateTime64(ZonedDateTime value, int scale, ZoneId targetTz) throws IOException {
+        SerializerUtils.writeDateTime64(out, value, scale, targetTz);
     }
 
     public void writeEnum8(byte value) throws IOException {
@@ -162,54 +165,6 @@ public class RowBinaryFormatSerializer {
 
     public void writeIPV6Address(Inet6Address value) throws IOException {
         BinaryStreamUtils.writeInet6Address(out, value);
-    }
-
-    public void writeArray() throws IOException {
-
-    }
-
-    public void writeTuple() throws IOException {
-
-    }
-
-    public void writeMap() throws IOException {
-
-    }
-
-    public void writeAggregationFunction() throws IOException {
-
-    }
-
-    public void writeSimpleFunction() throws IOException {
-
-    }
-
-    public void writeGeoPoint() throws IOException {
-
-    }
-
-    public void writeGeoRing() throws IOException {
-
-    }
-
-    public void writeGeoLineString() throws IOException {
-
-    }
-
-    public void writeGeoMultiLineString() throws IOException {
-
-    }
-
-    public void writeGeoPolygon() throws IOException {
-
-    }
-
-    public void writeGeoMultiPolygon() throws IOException {
-
-    }
-
-    public void writeNested() throws IOException {
-
     }
 
     public static boolean writeValuePreamble(OutputStream out, boolean defaultsSupport, ClickHouseColumn column, Object value) throws IOException {
@@ -255,5 +210,9 @@ public class RowBinaryFormatSerializer {
         }
 
         return true;
+    }
+
+    public static void writeSize(OutputStream out, long size) throws IOException {
+        SerializerUtils.writeVarInt(out, size);
     }
 }

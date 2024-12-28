@@ -18,6 +18,8 @@ import java.util.List;
  * It handles Nullable and Defaults.
  * It implements record and commit approach row-by-row. It means that data is not written immediately but it is stored
  * until {@link #commitRow()} is called.
+ * <p>
+ * Experimental API
  */
 public class RowBinaryFormatWriter {
 
