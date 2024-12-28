@@ -439,16 +439,37 @@ public class ConnectionTest extends JdbcIntegrationTest {
                     .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
                     .reduce((s1, s2) -> s1 + "." + s2).get();
 
-            // WIP
-            ByteBuffer buffer = ByteBuffer.allocate(4);
-            buffer.put((byte) 1);
+            // From wireshark dump as C Array
+            char select_server_info[] = { /* Packet 11901 */
+                    0x03, 0x04, 0x75, 0x73, 0x65, 0x72, 0x08, 0x74,
+                    0x69, 0x6d, 0x65, 0x7a, 0x6f, 0x6e, 0x65, 0x07,
+                    0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x06,
+                    0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53,
+                    0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53, 0x74,
+                    0x72, 0x69, 0x6e, 0x67, 0x07, 0x64, 0x65, 0x66,
+                    0x61, 0x75, 0x6c, 0x74, 0x03, 0x55, 0x54, 0x43,
+                    0x0b, 0x32, 0x34, 0x2e, 0x33, 0x2e, 0x31, 0x2e,
+                    0x32, 0x36, 0x37, 0x32 };
+
+            char select1_res[] = { /* Packet 11909 */
+                    0x01, 0x01, 0x31, 0x05, 0x55, 0x49, 0x6e, 0x74,
+                    0x38, 0x01 };
 
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                     .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .withRequestBody(WireMock.matching(".*SELECT 1.*"))
                     .willReturn(
-                            WireMock.ok(buffer.toString())
+                            WireMock.ok(new String(select1_res))
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .withRequestBody(WireMock.equalTo("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1"))
+                    .willReturn(
+                            WireMock.ok(new String(select_server_info))
+                                    .withHeader("X-ClickHouse-Summary",
+                                            "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
 
             Properties properties = new Properties();
             properties.put("access_token", jwtToken1);
@@ -457,7 +478,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
             try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
                  Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery("SELECT 1")) {
-
+                 Assert.assertTrue(rs.next());
+                 Assert.assertEquals(rs.getInt(1), 1);
             }
         } finally {
             mockServer.stop();
