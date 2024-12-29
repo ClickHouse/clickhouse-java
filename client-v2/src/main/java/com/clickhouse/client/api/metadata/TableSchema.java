@@ -116,6 +116,10 @@ public class TableSchema {
         return indexToName(index - 1);
     }
 
+    public int nameToColumnIndex(String name) {
+        return nameToIndex(name) + 1;
+    }
+
     public int nameToIndex(String name) {
         Integer index = colIndex.get(name);
         if (index == null) {

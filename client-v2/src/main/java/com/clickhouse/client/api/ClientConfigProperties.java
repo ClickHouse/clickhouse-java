@@ -104,8 +104,7 @@ public enum ClientConfigProperties {
 
     QUERY_ID("query_id"), // actually a server setting, but has client effect too
 
-    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size"),
-
+    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", String.valueOf(Client.Builder.DEFAULT_BUFFER_SIZE)),
 
     ACCESS_TOKEN("access_token"), SSL_AUTH("ssl_authentication"),
 
@@ -123,7 +122,12 @@ public enum ClientConfigProperties {
     @Deprecated
     PRODUCT_NAME("product_name"),
 
-    BEARERTOKEN_AUTH ("bearer_token")
+    BEARERTOKEN_AUTH ("bearer_token"),
+    /**
+     * Indicates that data provided for write operation is compressed by application.
+     */
+    APP_COMPRESSED_DATA("app_compressed_data"),
+
     ;
 
     private String key;

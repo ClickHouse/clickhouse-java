@@ -363,12 +363,13 @@ public class HttpAPIClientHelper {
 
         boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
 
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig).build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression));
+                clientCompression, useHttpCompression, appCompressedData));
 
         HttpClientContext context = HttpClientContext.create();
 
@@ -440,12 +441,13 @@ public class HttpAPIClientHelper {
         boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
         boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
 
         if (useHttpCompression) {
             if (serverCompression) {
                 req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
             }
-            if (clientCompression) {
+            if (clientCompression && !appCompressedData) {
                 req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
@@ -522,10 +524,11 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression) {
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression,
+                                         boolean appControlledCompression) {
         LOG.debug("client compression: {}, http compression: {}", clientCompression, useHttpCompression);
 
-        if (clientCompression) {
+        if (clientCompression && !appControlledCompression) {
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
                     MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false);
         } else  {
