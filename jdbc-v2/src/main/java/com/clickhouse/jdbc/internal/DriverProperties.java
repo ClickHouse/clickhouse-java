@@ -22,8 +22,7 @@ public enum DriverProperties {
      * query settings to be passed along with query operation.
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */
-    DEFAULT_QUERY_SETTINGS("default_query_settings", null),
-    BEARER_TOKEN("jdbc_bearer_token", null);
+    DEFAULT_QUERY_SETTINGS("default_query_settings", null);
     private final String key;
 
     private final String defaultValue;

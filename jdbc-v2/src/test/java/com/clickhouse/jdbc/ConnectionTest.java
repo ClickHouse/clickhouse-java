@@ -504,7 +504,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                                             "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
 
             Properties properties = new Properties();
-            properties.put(DriverProperties.BEARER_TOKEN.getKey(), jwtToken1);
+            properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwtToken1);
             properties.put("compress", "false");
             String jdbcUrl = "jdbc:clickhouse://" + "localhost" + ":" + mockServer.port();
             try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
