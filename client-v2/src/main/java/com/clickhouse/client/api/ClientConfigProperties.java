@@ -123,7 +123,7 @@ public enum ClientConfigProperties {
     @Deprecated
     PRODUCT_NAME("product_name"),
 
-
+    BEARERTOKEN_AUTH ("bearer_token")
     ;
 
     private String key;
