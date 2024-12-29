@@ -1,13 +1,12 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
-
-import com.clickhouse.client.api.ClientConfigProperties;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.annotation.JsonAppend;
-import org.testng.Assert;
-import org.testng.annotations.Test;
 
 
 public class DriverTest extends JdbcIntegrationTest {
@@ -63,13 +62,13 @@ public class DriverTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetMajorVersion() {
         Driver driver = new Driver();
-        Assert.assertEquals(driver.getMajorVersion(), 1);
+        Assert.assertEquals(driver.getMajorVersion(), 0);
     }
 
     @Test(groups = { "integration" })
     public void testGetMinorVersion() {
         Driver driver = new Driver();
-        Assert.assertEquals(driver.getMinorVersion(), 0);
+        Assert.assertEquals(driver.getMinorVersion(), 7);
     }
 
     @Test(groups = { "integration" })

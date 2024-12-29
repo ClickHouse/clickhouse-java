@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.jdbc.Driver;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
@@ -56,7 +57,11 @@ public class JdbcConfiguration {
         initProperties(urlProperties, info);
 
         // after initializing all properties - set final connection URL
-        boolean useSSL = Boolean.parseBoolean(info.getProperty("ssl", "false"));
+        boolean useSSL = Boolean.parseBoolean(info.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        String bearerToken = info.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
+        if (bearerToken != null) {
+            clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
+        }
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
         this.isIgnoreUnsupportedRequests= Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
@@ -239,7 +244,19 @@ public class JdbcConfiguration {
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties);
-
         return builder;
     }
+
+    public void updateUserClient(String clientName, Client client) {
+        client.updateClientName((clientName == null || clientName.isEmpty() ? "" : clientName) + ' ' + getDefaultClientName());
+    }
+
+    public static String getDefaultClientName() {
+        StringBuilder jdbcName = new StringBuilder();
+        jdbcName.append(Driver.DRIVER_CLIENT_NAME)
+                        .append(Driver.driverVersion);
+
+        return jdbcName.toString();
+    }
+
 }

@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;

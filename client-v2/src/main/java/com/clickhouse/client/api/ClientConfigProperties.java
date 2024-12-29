@@ -115,7 +115,16 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures"),
 
-    CLIENT_NAME("client_name");
+    CLIENT_NAME("client_name"),
+
+    /**
+     * An old alias to {@link ClientConfigProperties#CLIENT_NAME}. Using the last one is preferred.
+     */
+    @Deprecated
+    PRODUCT_NAME("product_name"),
+
+    BEARERTOKEN_AUTH ("bearer_token")
+    ;
 
     private String key;
 

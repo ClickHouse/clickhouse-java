@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -14,7 +15,9 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.net.ConnectException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -112,6 +115,18 @@ public class ClientTests extends BaseIntegrationTest {
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build()) {
             Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
+        }
+    }
+
+    @Test
+    public void testSetOptions() {
+        Map<String, String> options = new HashMap<>();
+        String productName = "my product_name (version 1.0)";
+        options.put(ClickHouseClientOption.PRODUCT_NAME.getKey(), productName);
+        try (Client client = newClient()
+                .setOptions(options).build()) {
+
+            Assert.assertEquals(client.getConfiguration().get(ClickHouseClientOption.PRODUCT_NAME.getKey()), productName);
         }
     }
 

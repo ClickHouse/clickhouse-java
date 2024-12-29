@@ -48,8 +48,12 @@ public class InsertSettings {
      * @param option - configuration option name
      * @param value  - configuration option value
      */
-    public void setOption(String option, Object value) {
+    public InsertSettings setOption(String option, Object value) {
         rawSettings.put(option, value);
+        if (option.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
+            rawSettings.put(ClientConfigProperties.CLIENT_NAME.getKey(), value);
+        }
+        return this;
     }
 
     /**

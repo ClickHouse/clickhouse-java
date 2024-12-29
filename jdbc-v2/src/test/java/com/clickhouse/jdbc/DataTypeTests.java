@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeClass;
@@ -455,7 +456,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
-                + "array Array(Int8), arraystr Array(String)"
+                + "array Array(Int8), arraystr Array(String), arraytuple Array(Tuple(Int8, String))"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
@@ -473,11 +474,17 @@ public class DataTypeTests extends JdbcIntegrationTest {
             arraystr[i] = "string" + rand.nextInt(1000);
         }
 
+        Tuple[] arraytuple = new Tuple[rand.nextInt(10) + 1];
+        for (int i = 0; i < arraytuple.length; i++) {
+            arraytuple[i] = new Tuple(rand.nextInt(256) - 128, "string" + rand.nextInt(1000));
+        }
+
         // Insert random (valid) values
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
+                stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
                 stmt.executeUpdate();
             }
         }
@@ -498,7 +505,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     for (int i = 0; i < arraystr.length; i++) {
                         assertEquals(arraystrResult[i], arraystr[i]);
                     }
-
+                    Object[] arraytupleResult = (Object[]) rs.getArray("arraytuple").getArray();
+                    assertEquals(arraytupleResult.length, arraytuple.length);
+                    for (int i = 0; i < arraytuple.length; i++) {
+                        Tuple tuple = arraytuple[i];
+                        Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
+                        assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
+                        assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                    }
                     assertFalse(rs.next());
                 }
             }

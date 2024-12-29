@@ -2,11 +2,13 @@ package com.clickhouse.jdbc;
 
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -54,16 +56,12 @@ public class Driver implements java.sql.Driver {
         }
     }
 
+    public static final String DRIVER_CLIENT_NAME = "jdbc-v2/";
+
     static {
         log.debug("Initializing ClickHouse JDBC driver V2");
-        String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
-        //If the version is not available, set it to 1.0
-        if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
-            log.warn("ClickHouse JDBC driver version is not available");
-            tempDriverVersion = "1.0.0";
-        }
 
-        driverVersion = tempDriverVersion;
+        driverVersion = ClickHouseClientOption.readVersionFromResource("jdbc-v2-version.properties");
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
 
         int tmpMajorVersion;

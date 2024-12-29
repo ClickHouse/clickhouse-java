@@ -26,10 +26,8 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
-import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -76,8 +74,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TimeZone;
@@ -185,6 +183,7 @@ public class Client implements AutoCloseable {
             LOG.info("Using old http client implementation");
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
 
         updateServerContext();
     }
@@ -359,6 +358,12 @@ public class Client implements AutoCloseable {
          */
         public Builder setOption(String key, String value) {
             this.configuration.put(key, value);
+            if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
+                setClientName(value);
+            }
+            if (key.equals(ClientConfigProperties.BEARERTOKEN_AUTH.getKey())) {
+                useBearerTokenAuth(value);
+            }
             return this;
         }
 
@@ -817,7 +822,7 @@ public class Client implements AutoCloseable {
         /**
          * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
          * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
-         * Default is 8192 bytes.
+         * Default is 300,000 bytes.
          *
          * @param size - size in bytes
          * @return
@@ -977,7 +982,9 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder setOptions(Map<String, String> options) {
-            this.configuration.putAll(options);
+            for (Map.Entry<String, String> entry : options.entrySet()) {
+                setOption(entry.getKey(), entry.getValue());
+            }
             return this;
         }
 
@@ -1147,41 +1154,7 @@ public class Client implements AutoCloseable {
             if (!configuration.containsKey(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey())) {
                 useHttpCompression(false);
             }
-
-            String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
-            String clientName = configuration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
-            httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
         }
-
-        private static String buildUserAgent(String customUserAgent) {
-
-            StringBuilder userAgent = new StringBuilder();
-            if (customUserAgent != null && !customUserAgent.isEmpty()) {
-                userAgent.append(customUserAgent).append(" ");
-            }
-
-            userAgent.append(CLIENT_USER_AGENT);
-
-            String clientVersion = Client.class.getPackage().getImplementationVersion();
-            if (clientVersion == null) {
-                clientVersion = LATEST_ARTIFACT_VERSION;
-            }
-            userAgent.append(clientVersion);
-
-            userAgent.append(" (");
-            userAgent.append(System.getProperty("os.name"));
-            userAgent.append("; ");
-            userAgent.append("jvm:").append(System.getProperty("java.version"));
-            userAgent.append("; ");
-
-            userAgent.setLength(userAgent.length() - 2);
-            userAgent.append(')');
-
-            return userAgent.toString();
-        }
-
-        public static final String LATEST_ARTIFACT_VERSION = "0.7.1-patch1";
-        public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
     }
 
     private ClickHouseNode getServerNode() {
@@ -2170,6 +2143,10 @@ public class Client implements AutoCloseable {
         return this.serverVersion;
     }
 
+    public String getClientVersion() {
+        return clientVersion;
+    }
+
     /**
      * Sets list of DB roles that should be applied to each query.
      *
@@ -2185,6 +2162,10 @@ public class Client implements AutoCloseable {
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
+
+    public static final String clientVersion =
+            ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
+    public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
 
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
 
