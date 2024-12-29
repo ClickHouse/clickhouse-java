@@ -123,6 +123,7 @@ public enum ClientConfigProperties {
     @Deprecated
     PRODUCT_NAME("product_name"),
 
+    BEARERTOKEN_AUTH ("bearer_token"),
     /**
      * Indicates that data provided for write operation is compressed by application.
      */

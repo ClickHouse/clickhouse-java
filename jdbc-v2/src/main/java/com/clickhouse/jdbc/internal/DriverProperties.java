@@ -23,7 +23,6 @@ public enum DriverProperties {
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */
     DEFAULT_QUERY_SETTINGS("default_query_settings", null);
-
     private final String key;
 
     private final String defaultValue;

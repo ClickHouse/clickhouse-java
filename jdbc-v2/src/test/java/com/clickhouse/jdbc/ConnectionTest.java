@@ -1,9 +1,15 @@
 package com.clickhouse.jdbc;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseNode;
@@ -11,9 +17,17 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import org.apache.hc.core5.http.HttpStatus;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -440,4 +454,83 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Assert.assertEquals(conn.unwrap(JdbcV2Wrapper.class), conn);
         assertThrows(SQLException.class, () -> conn.unwrap(ResultSet.class));
     }
+
+    @Test(groups = { "integration" })
+    public void testBearerTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String jwtToken1 = Arrays.stream(
+                            new String[]{"header", "payload", "signature"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+
+            // From wireshark dump as C Array
+            char select_server_info[] = { /* Packet 11901 */
+                    0x03, 0x04, 0x75, 0x73, 0x65, 0x72, 0x08, 0x74,
+                    0x69, 0x6d, 0x65, 0x7a, 0x6f, 0x6e, 0x65, 0x07,
+                    0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x06,
+                    0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53,
+                    0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53, 0x74,
+                    0x72, 0x69, 0x6e, 0x67, 0x07, 0x64, 0x65, 0x66,
+                    0x61, 0x75, 0x6c, 0x74, 0x03, 0x55, 0x54, 0x43,
+                    0x0b, 0x32, 0x34, 0x2e, 0x33, 0x2e, 0x31, 0x2e,
+                    0x32, 0x36, 0x37, 0x32 };
+
+            char select1_res[] = { /* Packet 11909 */
+                    0x01, 0x01, 0x31, 0x05, 0x55, 0x49, 0x6e, 0x74,
+                    0x38, 0x01 };
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .withRequestBody(WireMock.matching(".*SELECT 1.*"))
+                    .willReturn(
+                            WireMock.ok(new String(select1_res))
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo("Bearer " + jwtToken1))
+                    .withRequestBody(WireMock.equalTo("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1"))
+                    .willReturn(
+                            WireMock.ok(new String(select_server_info))
+                                    .withHeader("X-ClickHouse-Summary",
+                                            "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwtToken1);
+            properties.put("compress", "false");
+            String jdbcUrl = "jdbc:clickhouse://" + "localhost" + ":" + mockServer.port();
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                 Assert.assertTrue(rs.next());
+                 Assert.assertEquals(rs.getInt(1), 1);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+    @Test(groups = { "integration" })
+    public void testJWTWithCloud() throws Exception {
+        if (!isCloud()) {
+            return; // only for cloud
+        }
+
+        String jwt = System.getenv("CLIENT_JWT");
+        Properties properties = new Properties();
+        properties.put("access_token", jwt);
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1")) {
+             Assert.assertTrue(rs.next());
+        }
+    }
+
 }

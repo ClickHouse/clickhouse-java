@@ -362,6 +362,9 @@ public class Client implements AutoCloseable {
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
             }
+            if (key.equals(ClientConfigProperties.BEARERTOKEN_AUTH.getKey())) {
+                useBearerTokenAuth(value);
+            }
             return this;
         }
 
