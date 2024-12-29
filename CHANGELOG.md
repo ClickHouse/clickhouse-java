@@ -7,8 +7,11 @@
 More information will be available after its release
 
 ### Highlights
-- [repo] Added shaded packages with requires set of dependencies. Use `all` classified for `client-v2` full package. 
+- [repo] Added shaded packages with requires a set of dependencies. Use `all` classified for `client-v2` full package. 
 Use `shaded-all` for old jdbc driver.
+- [client-v2] New Data Writer API was added. It allows to gain a control over writing data to low-level output stream. 
+This API makes it possible to write compressed data directly to server. See `com.clickhouse.client.api.Client#insert(java.lang.String, com.clickhouse.client.api.DataStreamWriter, com.clickhouse.data.ClickHouseFormat, com.clickhouse.client.api.insert.InsertSettings)`
+(https://github.com/ClickHouse/clickhouse-java/pull/2034)
 
 
 ### New Features
