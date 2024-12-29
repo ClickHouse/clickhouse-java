@@ -104,8 +104,7 @@ public enum ClientConfigProperties {
 
     QUERY_ID("query_id"), // actually a server setting, but has client effect too
 
-    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", "8192"),
-
+    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", String.valueOf(Client.Builder.DEFAULT_BUFFER_SIZE)),
 
     ACCESS_TOKEN("access_token"), SSL_AUTH("ssl_authentication"),
 

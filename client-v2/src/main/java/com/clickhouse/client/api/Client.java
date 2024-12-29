@@ -1072,6 +1072,11 @@ public class Client implements AutoCloseable {
 
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
 
+        /**
+         * Default size for a buffers used in networking.
+         */
+        public static final int DEFAULT_BUFFER_SIZE = 8192;
+
         private void setDefaults() {
 
             // set default database name if not specified
