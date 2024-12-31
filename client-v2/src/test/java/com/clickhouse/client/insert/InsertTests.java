@@ -254,12 +254,9 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(records.size(), 1000);
     }
 
-    @Test(groups = { "integration" }, enabled = true)
-    public void insertRawDataSimple() throws Exception {
-        insertRawDataSimple(1000);
-    }
-    public void insertRawDataSimple(int numberOfRecords) throws Exception {
-        final String tableName = "raw_data_table";
+    @Test(groups = { "integration" }, dataProvider = "insertRawDataSimpleDataProvider", dataProviderClass = InsertTests.class)
+    public void insertRawDataSimple(String tableName) throws Exception {
+//        final String tableName = "raw_data_table";
         final String createSql = String.format("CREATE TABLE IF NOT EXISTS %s " +
                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()", tableName);
 
@@ -271,6 +268,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .setInputStreamCopyBufferSize(8198 * 2);
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(data);
+        int numberOfRecords = 1000;
         for (int i = 0; i < numberOfRecords; i++) {
             writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
         }
@@ -279,6 +277,15 @@ public class InsertTests extends BaseIntegrationTest {
                 ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
         OperationMetrics metrics = response.getMetrics();
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
+    }
+
+    @DataProvider(name = "insertRawDataSimpleDataProvider")
+    public static Object[][] insertRawDataSimpleDataProvider() {
+        return new Object[][] {
+            {"raw_data_table"},
+            {"`raw_data_table`"},
+            {"`" + ClickHouseServerForTest.getDatabase() + ".raw_data_table`"},
+        };
     }
 
     @Test(groups = { "integration" })
