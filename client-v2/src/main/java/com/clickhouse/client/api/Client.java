@@ -1534,7 +1534,7 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
-            final String sqlStmt = "INSERT INTO \"" + tableName + "\" FORMAT " + format.name();
+            final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
             finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
             responseSupplier = () -> {
                 // Selecting some node
