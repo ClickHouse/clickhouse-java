@@ -396,8 +396,8 @@ public class HttpAPIClientHelper {
             LOG.warn("Host '{}' unknown", server.getHost());
             throw new ClientException("Unknown host", e);
         } catch (ConnectException | NoRouteToHostException e) {
-            LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
-            throw new ClientException("Failed to connect", e);
+            LOG.warn("Failed to connect to '{}': ", server.getHost(), e);
+            throw e;
         } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException e) {
             throw e;
         } catch (Exception e) {
