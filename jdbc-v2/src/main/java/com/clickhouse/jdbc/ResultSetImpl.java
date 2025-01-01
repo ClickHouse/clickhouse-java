@@ -13,7 +13,9 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.Map;
+import java.util.TimeZone;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -33,6 +35,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private boolean closed;
     private final StatementImpl parentStatement;
     private boolean wasNull;
+    private final Calendar defaultCalendar;
 
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.parentStatement = parentStatement;
@@ -41,6 +44,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
+        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
     }
 
     private void checkClosed() throws SQLException {
@@ -1234,7 +1238,15 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return getDate(columnLabel);
+        Date date = getDate(columnLabel);
+        if (date == null) {
+            return null;
+        }
+        LocalDate d = date.toLocalDate();
+        Calendar c = (Calendar)( cal != null ? cal : defaultCalendar).clone();
+        c.clear();
+        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
+        return new Date(c.getTimeInMillis());
     }
 
     @Override
