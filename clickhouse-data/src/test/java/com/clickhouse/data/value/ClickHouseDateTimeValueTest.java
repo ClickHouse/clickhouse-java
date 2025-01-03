@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import org.testng.Assert;
@@ -29,6 +30,9 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                 LocalDateTime.ofEpochSecond(-1L, 999000000, ZoneOffset.UTC));
         Assert.assertEquals(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(-1.1F).getValue(),
                 LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC));
+        TimeZone customTimeZone = TimeZone.getTimeZone("Asia/Shanghai");
+        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(0, customTimeZone).update(-1L).getValue(),
+                LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.ofHours(8)));
 
         Assert.assertEquals(
                 ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE)
@@ -38,6 +42,10 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                 ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE)
                         .update(new BigDecimal(BigInteger.valueOf(-1L), 9)).getValue(),
                 LocalDateTime.ofEpochSecond(-1L, 999999999, ZoneOffset.UTC));
+        Assert.assertEquals(
+                ClickHouseDateTimeValue.ofNull(9, customTimeZone)
+                        .update(new BigDecimal(BigInteger.valueOf(-1L), 9)).getValue(),
+                LocalDateTime.ofEpochSecond(-1L, 999999999, ZoneOffset.ofHours(8)));
     }
 
     @Test(groups = { "unit" })
