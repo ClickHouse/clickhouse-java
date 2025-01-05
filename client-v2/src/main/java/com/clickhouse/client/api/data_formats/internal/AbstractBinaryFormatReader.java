@@ -51,14 +51,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected BinaryStreamReader binaryStreamReader;
 
     private TableSchema schema;
-
     private ClickHouseColumn[] columns;
-
     private Map[] convertions;
-
     private volatile boolean hasNext = true;
-
-    private DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private volatile boolean initialState = true; // reader is in initial state, no records have been read yet
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
@@ -284,7 +279,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
             ZonedDateTime zdt = (ZonedDateTime) value;
             if (dataType == ClickHouseDataType.Date) {
-                return zdt.format(dateTimeFormatter).toString();
+                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
             }
             return value.toString();
         } else {
