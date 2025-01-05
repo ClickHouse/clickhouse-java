@@ -131,8 +131,8 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getDate("date").toLocalDate().toString(), "2020-01-01");
                     assertEquals(rs.getDate(1, null).toLocalDate().toString(), "2020-01-01");
                     assertEquals(rs.getDate("date", null).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getString(1), "2020-01-01T00:00Z[UTC]");
-                    assertEquals(rs.getString("date"), "2020-01-01T00:00Z[UTC]");
+                    assertEquals(rs.getString(1), "2020-01-01");
+                    assertEquals(rs.getString("date"), "2020-01-01");
                     assertEquals(rs.getDate(2).toString(), "2020-01-01");
                     assertEquals(rs.getDate("datetime").toString(), "2020-01-01");
                     assertEquals(rs.getDate(2).toLocalDate().toString(), "2020-01-01");

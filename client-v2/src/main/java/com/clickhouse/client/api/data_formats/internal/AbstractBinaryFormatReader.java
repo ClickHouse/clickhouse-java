@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,14 +51,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected BinaryStreamReader binaryStreamReader;
 
     private TableSchema schema;
-
     private ClickHouseColumn[] columns;
-
     private Map[] convertions;
-
     private volatile boolean hasNext = true;
-
-
     private volatile boolean initialState = true; // reader is in initial state, no records have been read yet
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
@@ -279,6 +275,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         } else if (value instanceof String) {
             return (String) value;
+        } else if (value instanceof ZonedDateTime) {
+            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            ZonedDateTime zdt = (ZonedDateTime) value;
+            if (dataType == ClickHouseDataType.Date) {
+                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
+            }
+            return value.toString();
         } else {
             ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
             if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
