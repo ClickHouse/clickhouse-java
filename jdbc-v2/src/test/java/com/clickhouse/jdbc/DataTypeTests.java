@@ -888,7 +888,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getDate(4), Date.valueOf("2024-12-01"));
                     assertTrue(rs.getObject(4) instanceof Date);
                     assertEquals(rs.getObject(4), Date.valueOf("2024-12-01"));
-                    assertEquals(rs.getString(4), "2024-12-01T00:00Z[UTC]");//Underlying object is ZonedDateTime
+                    assertEquals(rs.getString(4), "2024-12-01");//Underlying object is ZonedDateTime
                     assertEquals(rs.getObject(4, LocalDate.class), LocalDate.of(2024, 12, 1));
                     assertEquals(rs.getObject(4, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 0, 0, 0, 0, ZoneId.of("UTC")));
                     assertEquals(String.valueOf(rs.getObject(4, new HashMap<String, Class<?>>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
