@@ -35,6 +35,7 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.UInt64, JDBCType.BIGINT);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
+        map.put(ClickHouseDataType.Bool, JDBCType.BOOLEAN);
         map.put(ClickHouseDataType.Decimal, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal32, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal64, JDBCType.DECIMAL);
