@@ -95,6 +95,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dclient.tests.useNewImplementation=true \
+          mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true
