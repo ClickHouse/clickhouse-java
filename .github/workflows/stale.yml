@@ -15,7 +15,6 @@ jobs:
       - uses: actions/stale@v9
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          debug-only: true
           operations-per-run: 500
           # oldest first https://github.com/marketplace/actions/close-stale-issues#ascending
           ascending: true
