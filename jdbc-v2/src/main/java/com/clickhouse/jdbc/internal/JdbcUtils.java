@@ -41,7 +41,7 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Decimal64, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal128, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.String, JDBCType.VARCHAR);
-        map.put(ClickHouseDataType.FixedString, JDBCType.CHAR);
+        map.put(ClickHouseDataType.FixedString, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum8, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum16, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Date, JDBCType.DATE);
