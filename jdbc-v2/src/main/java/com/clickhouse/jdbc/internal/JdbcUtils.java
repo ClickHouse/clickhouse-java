@@ -174,6 +174,19 @@ public class JdbcUtils {
         return -1;
     }
 
+    public static String generateSqlTypeSizes(String columnName) {
+        StringBuilder sql = new StringBuilder("multiIf(");
+        sql.append("character_octet_length IS NOT NULL, character_octet_length, ");
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            if (type.getByteLength() > 0) {
+                sql.append(columnName).append(" == '").append(type.name()).append("', ").append(type.getByteLength()).append(", ");
+            }
+        }
+        sql.append("numeric_precision IS NOT NULL, numeric_precision, ");
+        sql.append("0)");
+        return sql.toString();
+    }
+
 
     public static Object convert(Object value, Class<?> type) throws SQLException {
         if (value == null || type == null) {

@@ -834,7 +834,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "name AS COLUMN_NAME, " +
                 "system.columns.type AS DATA_TYPE, " +
                 "type AS TYPE_NAME, " +
-                "system.columns.type AS COLUMN_SIZE, " +
+                JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
                 "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
                 "toInt32(numeric_precision_radix) AS NUM_PREC_RADIX, " +

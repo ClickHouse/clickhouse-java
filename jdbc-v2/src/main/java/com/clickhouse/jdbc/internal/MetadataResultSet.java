@@ -21,10 +21,6 @@ public class MetadataResultSet extends ResultSetImpl {
             if ("DATA_TYPE".equalsIgnoreCase(columnLabel)) {
                 value = String.valueOf(JdbcUtils.convertToSqlType(ClickHouseColumn.parse("DATA_TYPE " + value).get(0).getDataType()).getVendorTypeNumber());
             }
-
-            if ("COLUMN_SIZE".equalsIgnoreCase(columnLabel)) {
-                value = String.valueOf(ClickHouseColumn.parse("COLUMN_SIZE " + value).get(0).getDataType().getByteLength());
-            }
         }
 
         return value;
