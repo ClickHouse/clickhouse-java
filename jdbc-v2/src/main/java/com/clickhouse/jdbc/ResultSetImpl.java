@@ -47,6 +47,16 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
     }
 
+    protected ResultSetImpl(ResultSetImpl resultSet) {
+        this.parentStatement = resultSet.parentStatement;
+        this.response = resultSet.response;
+        this.reader = resultSet.reader;
+        this.metaData = resultSet.metaData;
+        this.closed = false;
+        this.wasNull = false;
+        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+    }
+
     private void checkClosed() throws SQLException {
         if (closed) {
             throw new SQLException("ResultSet is closed.", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
@@ -112,246 +122,82 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getString(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getString(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getString(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBoolean(columnIndex);
-            } else {
-                wasNull = true;
-                return false;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBoolean(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBoolean(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getByte(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getByte(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getByte(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getShort(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getShort(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getShort(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getInteger(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getInt(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getInt(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getLong(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getLong(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getLong(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getFloat(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getFloat(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getFloat(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getDouble(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDouble(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getDouble(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBigDecimal(getSchema().columnIndexToName(columnIndex), scale);
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getByteArray(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBytes(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBytes(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            //TODO: Add this to ClickHouseBinaryFormatReader
-            LocalDate localDate = reader.getLocalDate(columnIndex);
-            if (localDate == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Date.valueOf(localDate);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getDate(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Time.valueOf(localDateTime.toLocalTime());
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getTime(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Timestamp.valueOf(localDateTime);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getTimestamp(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
-        checkClosed();
-        //TODO: Add this to ClickHouseBinaryFormatReader
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getAsciiStream(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            return new ByteArrayInputStream(reader.getString(columnIndex).getBytes(StandardCharsets.UTF_8));
-        }
-
-        return null;
+        return getUnicodeStream(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        checkClosed();
-        //TODO: implement
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getBinaryStream(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override
@@ -659,18 +505,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBigDecimal(getSchema().columnIndexToName(columnIndex));
     }
 
     @Override

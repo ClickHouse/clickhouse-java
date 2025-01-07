@@ -107,16 +107,6 @@ public class JdbcUtils {
         return SQL_TYPE_TO_CLASS_MAP.get(convertToSqlType(clickhouseType));
     }
 
-
-    public static String generateSqlTypeEnum(String columnName) {
-        StringBuilder sql = new StringBuilder("multiIf(");
-        for (ClickHouseDataType type : CLICKHOUSE_TO_SQL_TYPE_MAP.keySet()) {
-            sql.append("position(").append(columnName).append(", '").append(type.name()).append("') > 0, ").append(CLICKHOUSE_TO_SQL_TYPE_MAP.get(type).getVendorTypeNumber()).append(", ");
-        }
-        sql.append(JDBCType.OTHER.getVendorTypeNumber()).append(")");
-        return sql.toString();
-    }
-
     public static List<String> tokenizeSQL(String sql) {
         List<String> tokens = new ArrayList<>();
 
@@ -182,19 +172,6 @@ public class JdbcUtils {
         }
 
         return -1;
-    }
-
-    public static String generateSqlTypeSizes(String columnName) {
-        StringBuilder sql = new StringBuilder("multiIf(");
-        sql.append("character_octet_length IS NOT NULL, character_octet_length, ");
-        for (ClickHouseDataType type : ClickHouseDataType.values()) {
-            if (type.getByteLength() > 0) {
-                sql.append(columnName).append(" == '").append(type.name()).append("', ").append(type.getByteLength()).append(", ");
-            }
-        }
-        sql.append("numeric_precision IS NOT NULL, numeric_precision, ");
-        sql.append("0)");
-        return sql.toString();
     }
 
 

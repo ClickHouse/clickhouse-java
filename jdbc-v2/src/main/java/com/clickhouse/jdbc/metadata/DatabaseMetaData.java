@@ -4,10 +4,12 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
+import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.MetadataResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -830,9 +832,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "database AS TABLE_SCHEM, " +
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
-                JdbcUtils.generateSqlTypeEnum("system.columns.type") + " AS DATA_TYPE, " +
+                "system.columns.type AS DATA_TYPE, " +
                 "type AS TYPE_NAME, " +
-                JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
+                "system.columns.type AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
                 "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
                 "toInt32(numeric_precision_radix) AS NUM_PREC_RADIX, " +
@@ -856,7 +858,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
-            return connection.createStatement().executeQuery(sql);
+            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql));
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -977,7 +979,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     @Override
     public ResultSet getTypeInfo() throws SQLException {
         try {
-            return connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
+            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL));
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -988,7 +990,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     private static String getDataTypeInfoSql() {
         StringBuilder sql = new StringBuilder("SELECT " +
                 "name AS TYPE_NAME, " +
-                JdbcUtils.generateSqlTypeEnum("name") +" AS DATA_TYPE, " +
+                "name AS DATA_TYPE, " +
                 "attrs.c2 AS PRECISION, " +
                 "NULL AS LITERAL_PREFIX, " +
                 "NULL AS LITERAL_SUFFIX, " +
