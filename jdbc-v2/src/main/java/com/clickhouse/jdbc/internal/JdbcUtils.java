@@ -46,9 +46,9 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Enum16, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Date, JDBCType.DATE);
         map.put(ClickHouseDataType.Date32, JDBCType.DATE);
-        map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP_WITH_TIMEZONE);
-        map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP_WITH_TIMEZONE);
-        map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP_WITH_TIMEZONE);
+        map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
