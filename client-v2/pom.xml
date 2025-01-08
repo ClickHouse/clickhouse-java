@@ -18,6 +18,7 @@
 
     <properties>
         <apache.httpclient.version>5.3.1</apache.httpclient.version>
+        <shade.base>${project.groupId}.shaded</shade.base>
     </properties>
 
     <dependencies>
@@ -137,6 +138,12 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -157,29 +164,54 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>shade</id>
+                        <id>shade-all</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
                         </goals>
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <shadedClassifierName>shaded</shadedClassifierName>
+                            <shadedClassifierName>all</shadedClassifierName>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                            <artifactSet>
-                                <includes>
-                                    <include>com.clickhouse:clickhouse-data</include>
-                                    <include>com.clickhouse:clickhouse-client</include>
-                                    <include>org.lz4:lz4-pure-java</include>
-                                </includes>
-                            </artifactSet>
                             <relocations>
                                 <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                                    <pattern>org.slf4j</pattern>
+                                    <shadedPattern>${shade.base}.org.slf4j</shadedPattern>
                                 </relocation>
+
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.org.apache</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <!-- lz4 -->
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.net.jpountz.lz4</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.ow2</pattern>
+                                    <shadedPattern>${shade.base}.org.ow2</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>com.fasterxml</pattern>
+                                    <shadedPattern>${shade.base}.com.fasterxml</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.roaringbitmap</pattern>
+                                    <shadedPattern>${shade.base}.org.roaringbitmap</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.objectweb</pattern>
+                                    <shadedPattern>${shade.base}.org.objectweb</shadedPattern>
+                                </relocation>
+
                             </relocations>
                             <transformers>
                                 <transformer
@@ -199,6 +231,7 @@
                             </filters>
                         </configuration>
                     </execution>
+
                 </executions>
             </plugin>
             <plugin>

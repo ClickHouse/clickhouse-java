@@ -1,17 +1,21 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Arrays;
 import java.util.Calendar;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
@@ -217,6 +221,45 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(java.math.BigDecimal.valueOf(1.0), rs.getBigDecimal(1));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testPrimitiveArrays() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setObject(1, new String[][] {new String[]{"a"}, new String[]{"b"}, new String[]{"c"}});
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array a1 = rs.getArray(1);
+                    assertNotNull(a1);
+                    assertEquals(Arrays.deepToString((Object[]) a1.getArray()), "[[a], [b], [c]]");
+                    Array a2 = rs.getObject(1, Array.class);
+                    assertNotNull(a2);
+                    assertEquals(Arrays.deepToString((Object[]) a2.getArray()), "[[a], [b], [c]]");
+                    Array a3 = rs.getObject(1) instanceof Array ? (Array) rs.getObject(1) : null;
+                    assertNotNull(a3);
+                    assertEquals(Arrays.deepToString((Object[]) a3.getArray()), "[[a], [b], [c]]");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testEscapeStrings() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT FALSE OR ? = 'test', ?")) {
+                stmt.setString(1, "test\\' OR 1 = 1 --");
+                stmt.setString(2, "test\\\\' OR 1 = 1 --");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "false");
+                    assertEquals(rs.getString(2), "test\\\\' OR 1 = 1 --");
                     assertFalse(rs.next());
                 }
             }

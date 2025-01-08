@@ -580,10 +580,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                                         .content(new ByteArrayInputStream("32\t1\n43\t2\n54\t3\n65\t4".getBytes()))
                                         .build())
                         .query("select x.* from x inner join y on x.i = y.i where i in (select i from " + tableName
-                                + ")")
+                                + ") ORDER BY 1")
                         .set("select_sequential_consistency", isCloud() ? 1 : null)
                         .executeAndWait()) {
                     int j = 0;
+
                     for (ClickHouseRecord r : response.records()) {
                         Assert.assertEquals(r.getValue(0).asInteger(), j == 0 ? 1 : 4);
                         Assert.assertEquals(r.getValue(1).asInteger(), j == 0 ? 23 : 56);

@@ -1,10 +1,14 @@
 package com.clickhouse.jdbc;
 
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -52,16 +56,12 @@ public class Driver implements java.sql.Driver {
         }
     }
 
+    public static final String DRIVER_CLIENT_NAME = "jdbc-v2/";
+
     static {
         log.debug("Initializing ClickHouse JDBC driver V2");
-        String tempDriverVersion = Driver.class.getPackage().getImplementationVersion();
-        //If the version is not available, set it to 1.0
-        if (tempDriverVersion == null || tempDriverVersion.isEmpty()) {
-            log.warn("ClickHouse JDBC driver version is not available");
-            tempDriverVersion = "1.0.0";
-        }
 
-        driverVersion = tempDriverVersion;
+        driverVersion = ClickHouseClientOption.readVersionFromResource("jdbc-v2-version.properties");
         log.info("ClickHouse JDBC driver version: {}", driverVersion);
 
         int tmpMajorVersion;
@@ -129,7 +129,7 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        return JdbcConfiguration.getDriverPropertyInfo(info).toArray(new DriverPropertyInfo[0]);
+        return new JdbcConfiguration(url, info).getDriverPropertyInfo().toArray(new DriverPropertyInfo[0]);
     }
 
     public static int getDriverMajorVersion() {
@@ -155,8 +155,12 @@ public class Driver implements java.sql.Driver {
         return false;
     }
 
+    public static String chSettingKey(String key) {
+        return ClientConfigProperties.serverSetting(key);
+    }
+
     @Override
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException("Method not supported");
+        throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 }

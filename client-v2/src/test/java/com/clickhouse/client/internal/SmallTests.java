@@ -7,6 +7,8 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 public class SmallTests {
 
@@ -31,5 +33,15 @@ public class SmallTests {
                 "\"total_rows_to_read\":\"" + totalRowsToRead + "\"," +
                 "\"elapsed_ns\":\"" + elapsedNs + "\"}";
 
+    }
+
+    @Test
+    public void testTimezoneConvertion() {
+        ZonedDateTime dt = ZonedDateTime.now();
+        System.out.println(" now: " + dt);
+        ZonedDateTime utcSameInstantDt = dt.withZoneSameInstant(ZoneId.of("UTC"));
+        System.out.println("withZoneSameInstant: " + utcSameInstantDt);
+        ZonedDateTime utcSameLocalDt = dt.withZoneSameLocal(ZoneId.of("UTC"));
+        System.out.println("withZoneSameLocal: " + utcSameLocalDt);
     }
 }

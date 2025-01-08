@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeClass;
@@ -7,15 +9,23 @@ import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
 
@@ -33,12 +43,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     private Connection getConnection() throws SQLException {
-        try {
-            return DriverManager.getConnection(getEndpointString(isCloud()));
-        } catch (SQLException e) {
-            Driver.load();
-            return DriverManager.getConnection(getEndpointString(isCloud()));
-        }
+        return getJdbcConnection();
     }
 
     private int insertData(String sql) throws SQLException {
@@ -54,7 +59,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_integers (order Int8, "
                 + "int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256, "
                 + "uint8 UInt8, uint16 UInt16, uint32 UInt32, uint64 UInt64, uint128 UInt128, uint256 UInt256"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_integers VALUES ( 1, "
@@ -160,7 +165,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testDecimalTypes() throws SQLException {
         runQuery("CREATE TABLE test_decimals (order Int8, "
                 + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_decimals VALUES ( 1, -9999999.99, -99999.9999, -9999999999.99999999, -99999999999999999999.999999999999999999, " +
@@ -230,7 +235,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 + "date Date, date32 Date32, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
                 "dateTime643 DateTime64(3), dateTime646 DateTime64(6), dateTime649 DateTime64(9)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_dates VALUES ( 1, '1970-01-01', '1970-01-01', " +
@@ -312,7 +317,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 + "str String, fixed FixedString(6), "
                 + "enum Enum8('a' = 6, 'b' = 7, 'c' = 8), enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3), "
                 + "uuid UUID, ipv4 IPv4, ipv6 IPv6"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -349,9 +354,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getString("str"), str);
                     assertEquals(rs.getString("fixed"), fixed);
-                    assertEquals(rs.getString("enum"), "6");
-                    assertEquals(rs.getString("enum8"), "1");
-                    assertEquals(rs.getString("enum16"), "2");
+                    assertEquals(rs.getString("enum"), "a");
+                    assertEquals(rs.getInt("enum"), 6);
+                    assertEquals(rs.getString("enum8"), "a");
+                    assertEquals(rs.getInt("enum8"), 1);
+                    assertEquals(rs.getString("enum16"), "b");
+                    assertEquals(rs.getInt("enum16"), 2);
                     assertEquals(rs.getString("uuid"), uuid);
                     assertEquals(rs.getString("ipv4"), "/" + ipv4);
                     assertEquals(rs.getString("ipv6"), "/" + ipv6);
@@ -366,7 +374,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testFloatTypes() throws SQLException {
         runQuery("CREATE TABLE test_floats (order Int8, "
                 + "float32 Float32, float64 Float64"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_floats VALUES ( 1, -3.4028233E38, -1.7976931348623157E308 )");
@@ -416,7 +424,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testBooleanTypes() throws SQLException {
         runQuery("CREATE TABLE test_booleans (order Int8, "
                 + "bool Boolean"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -448,8 +456,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
-                + "array Array(Int8), arraystr Array(String)"
-                + ") ENGINE = Memory");
+                + "array Array(Int8), arraystr Array(String), arraytuple Array(Tuple(Int8, String))"
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -466,11 +474,17 @@ public class DataTypeTests extends JdbcIntegrationTest {
             arraystr[i] = "string" + rand.nextInt(1000);
         }
 
+        Tuple[] arraytuple = new Tuple[rand.nextInt(10) + 1];
+        for (int i = 0; i < arraytuple.length; i++) {
+            arraytuple[i] = new Tuple(rand.nextInt(256) - 128, "string" + rand.nextInt(1000));
+        }
+
         // Insert random (valid) values
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
+                stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
                 stmt.executeUpdate();
             }
         }
@@ -491,7 +505,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     for (int i = 0; i < arraystr.length; i++) {
                         assertEquals(arraystrResult[i], arraystr[i]);
                     }
-
+                    Object[] arraytupleResult = (Object[]) rs.getArray("arraytuple").getArray();
+                    assertEquals(arraytupleResult.length, arraytuple.length);
+                    for (int i = 0; i < arraytuple.length; i++) {
+                        Tuple tuple = arraytuple[i];
+                        Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
+                        assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
+                        assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                    }
                     assertFalse(rs.next());
                 }
             }
@@ -502,7 +523,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -563,7 +584,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 + "enum Nullable(Enum8('a' = 6, 'b' = 7, 'c' = 8)), enum8 Nullable(Enum8('a' = 1, 'b' = 2, 'c' = 3)), enum16 Nullable(Enum16('a' = 1, 'b' = 2, 'c' = 3)), "
                 + "uuid Nullable(UUID), ipv4 Nullable(IPv4), ipv6 Nullable(IPv6), "
                 + "float32 Nullable(Float32), float64 Nullable(Float64), "
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert null values
         insertData("INSERT INTO test_nullable VALUES ( 1, "
@@ -591,7 +612,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testLowCardinalityTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_low_cardinality (order Int8, "
                 + "lowcardinality LowCardinality(String)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -620,7 +641,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testSimpleAggregateFunction() throws SQLException {
         runQuery("CREATE TABLE test_aggregate (order Int8, "
                 + "int8 Int8"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -648,7 +669,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testNestedTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_nested (order Int8, "
                 + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -689,7 +710,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testTupleTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_tuple (order Int8, "
                 + "tuple Tuple(int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -731,7 +752,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testJSONTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_json (order Int8, "
                 + "json JSON"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -760,7 +781,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testGeometricTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_geometric (order Int8, "
                 + "point Point, ring Ring, linestring LineString, multilinestring MultiLineString, polygon Polygon, multipolygon MultiPolygon"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -800,7 +821,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     public void testDynamicTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_dynamic (order Int8, "
                 + "dynamic Dynamic"
-                + ") ENGINE = Memory");
+                + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -834,6 +855,72 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getDouble("dynamic"), dynamic3);
 
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testTypeConversions() throws Exception {
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1, 'true', '1.0', " +
+                        "toDate('2024-12-01'), toDateTime('2024-12-01 12:34:56'), toDateTime64('2024-12-01 12:34:56.789', 3), toDateTime64('2024-12-01 12:34:56.789789', 6), toDateTime64('2024-12-01 12:34:56.789789789', 9)")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 1);
+                    assertEquals(String.valueOf(rs.getObject(1)), "1");
+                    assertEquals(rs.getObject(1, Integer.class), 1);
+                    assertEquals(rs.getObject(1, Long.class), 1L);
+                    assertEquals(String.valueOf(rs.getObject(1, new HashMap<String, Class<?>>(){{put(JDBCType.INTEGER.getName(), Integer.class);}})), "1");
+
+                    assertTrue(rs.getBoolean(2));
+                    assertEquals(String.valueOf(rs.getObject(2)), "true");
+                    assertEquals(rs.getObject(2, Boolean.class), true);
+                    assertEquals(String.valueOf(rs.getObject(2, new HashMap<String, Class<?>>(){{put(JDBCType.BOOLEAN.getName(), Boolean.class);}})), "true");
+
+                    assertEquals(rs.getFloat(3), 1.0f);
+                    assertEquals(String.valueOf(rs.getObject(3)), "1.0");
+                    assertEquals(rs.getObject(3, Float.class), 1.0f);
+                    assertEquals(rs.getObject(3, Double.class), 1.0);
+                    assertEquals(String.valueOf(rs.getObject(3, new HashMap<String, Class<?>>(){{put(JDBCType.FLOAT.getName(), Float.class);}})), "1.0");
+
+                    assertEquals(rs.getDate(4), Date.valueOf("2024-12-01"));
+                    assertTrue(rs.getObject(4) instanceof Date);
+                    assertEquals(rs.getObject(4), Date.valueOf("2024-12-01"));
+                    assertEquals(rs.getString(4), "2024-12-01");//Underlying object is ZonedDateTime
+                    assertEquals(rs.getObject(4, LocalDate.class), LocalDate.of(2024, 12, 1));
+                    assertEquals(rs.getObject(4, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 0, 0, 0, 0, ZoneId.of("UTC")));
+                    assertEquals(String.valueOf(rs.getObject(4, new HashMap<String, Class<?>>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
+
+                    assertEquals(rs.getTimestamp(5), Timestamp.valueOf("2024-12-01 12:34:56"));
+                    assertTrue(rs.getObject(5) instanceof Timestamp);
+                    assertEquals(rs.getObject(5), Timestamp.valueOf("2024-12-01 12:34:56"));
+                    assertEquals(rs.getString(5), "2024-12-01T12:34:56Z[UTC]");
+                    assertEquals(rs.getObject(5, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56));
+                    assertEquals(rs.getObject(5, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 12, 34, 56, 0, ZoneId.of("UTC")));
+                    assertEquals(String.valueOf(rs.getObject(5, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56");
+
+                    assertEquals(rs.getTimestamp(6), Timestamp.valueOf("2024-12-01 12:34:56.789"));
+                    assertTrue(rs.getObject(6) instanceof Timestamp);
+                    assertEquals(rs.getObject(6), Timestamp.valueOf("2024-12-01 12:34:56.789"));
+                    assertEquals(rs.getString(6), "2024-12-01T12:34:56.789Z[UTC]");
+                    assertEquals(rs.getObject(6, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789000000));
+                    assertEquals(String.valueOf(rs.getObject(6, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56.789");
+
+                    assertEquals(rs.getTimestamp(7), Timestamp.valueOf("2024-12-01 12:34:56.789789"));
+                    assertTrue(rs.getObject(7) instanceof Timestamp);
+                    assertEquals(rs.getObject(7), Timestamp.valueOf("2024-12-01 12:34:56.789789"));
+                    assertEquals(rs.getString(7), "2024-12-01T12:34:56.789789Z[UTC]");
+                    assertEquals(rs.getObject(7, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789000));
+                    assertEquals(String.valueOf(rs.getObject(7, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), OffsetDateTime.class);}})), "2024-12-01T12:34:56.789789Z");
+
+                    assertEquals(rs.getTimestamp(8), Timestamp.valueOf("2024-12-01 12:34:56.789789789"));
+                    assertTrue(rs.getObject(8) instanceof Timestamp);
+                    assertEquals(rs.getObject(8), Timestamp.valueOf("2024-12-01 12:34:56.789789789"));
+                    assertEquals(rs.getString(8), "2024-12-01T12:34:56.789789789Z[UTC]");
+                    assertEquals(rs.getObject(8, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789789));
+                    assertEquals(String.valueOf(rs.getObject(8, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), ZonedDateTime.class);}})), "2024-12-01T12:34:56.789789789Z[UTC]");
                 }
             }
         }

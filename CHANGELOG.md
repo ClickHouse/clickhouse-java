@@ -1,7 +1,34 @@
 ## Latest
 
+## 0.7.2 
+
+### New Components 
+- `jdbc-v2` - pre-release version of upcoming `clickhouse-jdbc` replacement. Supports basic functionality, works only with `client-v2`.
+More information will be available after its release
+
+### Highlights
+- [repo] Added shaded packages with requires a set of dependencies. Use `all` classified for `client-v2` full package. 
+Use `shaded-all` for old jdbc driver.
+- [client-v2] New Data Writer API was added. It allows to gain a control over writing data to low-level output stream. 
+This API makes it possible to write compressed data directly to server. See `com.clickhouse.client.api.Client#insert(java.lang.String, com.clickhouse.client.api.DataStreamWriter, com.clickhouse.data.ClickHouseFormat, com.clickhouse.client.api.insert.InsertSettings)`
+(https://github.com/ClickHouse/clickhouse-java/pull/2034)
+
+
 ### New Features
-- Added basic auth support for proxies. Now you can specify username/password when connecting via a proxy that requires it with HttpURLConnection and Apache HttpClient.
+- [client-v2] Added ability to specify client name. It means `User-Agent` will be filled with proper information (https://github.com/ClickHouse/clickhouse-java/pull/1948)
+- [client-v2] Implemented statement parameters for `queryAll` and `queryRecords` API methods. (https://github.com/ClickHouse/clickhouse-java/pull/1979) 
+- [client-v2] Implemented string to number conversion. (https://github.com/ClickHouse/clickhouse-java/pull/2014) 
+- [client-v1] Added basic auth support for proxies. Now you can specify username/password when connecting via a proxy that requires it with HttpURLConnection and Apache HttpClient.
+- [client-v2] Enum columns can be read as string and number. Previously only as number. Now number matching string constant is returned when get as string. (https://github.com/ClickHouse/clickhouse-java/pull/2028)
+- [client-v2] Client will load some server context (timezone, user) right after build. (https://github.com/ClickHouse/clickhouse-java/pull/2029)
+
+### Bug Fixes
+- [jdbc] Fixed default value for `result_overflow_mode` setting. (https://github.com/ClickHouse/clickhouse-java/issues/1932)
+- [client-v2] Fixed reading float/double values. Previously was prevented by incorrect overflow check. (https://github.com/ClickHouse/clickhouse-java/issues/1954)
+- [client-v2] Fixed issue with enabling client compression. Previously flag was ignore in some cases. (https://github.com/ClickHouse/clickhouse-java/issues/1958)
+- [client-v2] Fixed issue with reading `Array(UInt64)` because of incorrect class used to create internal array. (https://github.com/ClickHouse/clickhouse-java/issues/1990)
+- [client-v2] Fixed ClickHouseLZ4OutputStream issue of sending empty frame when no data left in uncompressed buffer. (https://github.com/ClickHouse/clickhouse-java/issues/1993)
+- [client-v2] Fix handling `ConnectTimeoutException` in retry and wrapping logic. (https://github.com/ClickHouse/clickhouse-java/pull/2015)
 
 ## 0.7.1-patch1
 

@@ -81,7 +81,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.7.1-patch1-SNAPSHOT</revision>
+        <revision>0.7.2-SNAPSHOT</revision>
         <project.current.year>2024</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -143,6 +143,7 @@
         <surefire-plugin.version>3.2.5</surefire-plugin.version>
         <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
         <versions-plugin.version>2.16.0</versions-plugin.version>
+        <resource-plugin.version>3.3.1</resource-plugin.version>
         <jmh.version>1.37</jmh.version>
 
         <minJdk>1.8</minJdk>
@@ -156,6 +157,9 @@
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectVersion>0.6.2</sonar.projectVersion>
         <sonar.cpd.exclusions>**/*0*.java,**/data/*Value.java,**/data/array/*Value.java,**/stream/*Stream.java</sonar.cpd.exclusions>
+
+        <build_timestamp>${maven.build.timestamp}</build_timestamp>
+        <maven.build.timestamp.format>MM-dd-yyyy HH:mm</maven.build.timestamp.format>
     </properties>
 
     <dependencyManagement>
@@ -560,6 +564,11 @@
                         <offline>true</offline>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>${resource-plugin.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
@@ -640,6 +649,11 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

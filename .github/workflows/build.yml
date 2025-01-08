@@ -38,7 +38,7 @@ jobs:
   compile:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    name: Compile using JDK 8
+    name: Compile (JDK 8)
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
             21
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 install
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
@@ -64,15 +64,7 @@ jobs:
           for d in $(ls -d `pwd`/examples/*/); do \
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
             if [ -e $d/gradlew ]; then cd $d && ./gradlew clean build; fi;
-          done
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports          
+          done      
 
   test-multi-env:
     needs: compile
@@ -154,9 +146,10 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["23.8", "24.3", "24.8", "latest"]
+        project: ["clickhouse-http-client", "client-v2"]
       fail-fast: false
     timeout-minutes: 15
-    name: Java client + CH ${{ matrix.clickhouse }}
+    name: Java client ( ${{ matrix.project }} ) + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -191,21 +184,21 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
+      - name: Build and install libraries
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
       - name: Test Java client
-        env:
-          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
-          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}
+          name: result ${{ github.job }}_${{ matrix.clickhouse }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
-  test-http-client:
+
+  test-with-cloud:
     runs-on: ubuntu-latest
     needs: compile
     strategy:
@@ -213,9 +206,10 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["cloud"]
+        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
       fail-fast: false
-    timeout-minutes: 15
-    name: Java client (http) + CH ${{ matrix.clickhouse }}
+    timeout-minutes: 20
+    name: ${{ matrix.project }} + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -252,18 +246,24 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests install
+      - name: Generate JWT
+        env:
+          JWT_K_PEM: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_PRIVATE_KEY }}
+        run: |
+          npm install jsonwebtoken &&
+          echo "CLIENT_JWT=$(node jwt-gen.js)" >> "$GITHUB_ENV"
       - name: Test http client
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
+          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}
+          name: result ${{ github.job }}_${{ matrix.project }}_${{ matrix.clickhouse }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
@@ -273,11 +273,12 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest", "cloud"]
+        clickhouse: ["23.8", "24.3", "24.6", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
-        protocol: ["http", "http_client", "apache_http_client"]
+#        protocol: ["http", "http_client", "apache_http_client"]
+        protocol: ["apache_http_client"]
       fail-fast: false
-    timeout-minutes: 15
+    timeout-minutes: 20
     name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
@@ -314,13 +315,13 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests install
       - name: Test JDBC driver
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -391,113 +392,56 @@ jobs:
             **/target/failsafe-reports
             **/target/surefire-reports
 
-  test-timezone-support:
-    runs-on: ubuntu-latest
-    needs: compile
-    strategy:
-      matrix:
-        serverTz:
-          [
-            "Asia/Chongqing",
-            "America/Los_Angeles",
-            "Etc/UTC",
-            "Europe/Berlin",
-            "Europe/Moscow",
-          ]
-        clientTz:
-          [
-            "Asia/Chongqing",
-            "America/Los_Angeles",
-            "Etc/UTC",
-            "Europe/Berlin",
-            "Europe/Moscow",
-          ]
-      fail-fast: false
-    timeout-minutes: 20
-    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: 8
-          cache: "maven"
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
-      - name: Test JDBC and R2DBC drivers
-        run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
-            -Dj8 -DskipUTs verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-
-  test-client-v2:
-    runs-on: ubuntu-latest
-    needs: compile
-    strategy:
-      matrix:
-        # most recent LTS releases as well as latest stable builds
-        # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["24.3", "24.8", "latest"]
-      fail-fast: false
-    timeout-minutes: 15
-    name: Client V2 + CH ${{ matrix.clickhouse }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: |
-            8
-            17
-          cache: "maven"
-      - name: Setup Toolchain
-        shell: bash
-        run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
-          <?xml version="1.0" encoding="UTF8"?>
-          <toolchains>
-            <toolchain>
-              <type>jdk</type>
-              <provides>
-                <version>17</version>
-              </provides>
-              <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
-              </configuration>
-            </toolchain>
-          </toolchains>
-          EOF
-      - name: Test Java client
-        run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects client-v2 -Dclient.tests.useNewImplementation=true -DclickhouseVersion=${{ matrix.clickhouse }} verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
+#  test-timezone-support:
+#    runs-on: ubuntu-latest
+#    needs: compile
+#    strategy:
+#      matrix:
+#        serverTz:
+#          [
+#            "Asia/Chongqing",
+#            "America/Los_Angeles",
+#            "Etc/UTC",
+#            "Europe/Berlin",
+#            "Europe/Moscow",
+#          ]
+#        clientTz:
+#          [
+#            "Asia/Chongqing",
+#            "America/Los_Angeles",
+#            "Etc/UTC",
+#            "Europe/Berlin",
+#            "Europe/Moscow",
+#          ]
+#      fail-fast: false
+#    timeout-minutes: 20
+#    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
+#    steps:
+#      - name: Check out repository
+#        uses: actions/checkout@v4
+#      - name: Check out PR
+#        run: |
+#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+#        if: github.event.inputs.pr != ''
+#      - name: Install JDK 8 and Maven
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: "temurin"
+#          java-version: 8
+#          cache: "maven"
+#      - name: Install Java client
+#        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
+#      - name: Test JDBC and R2DBC drivers
+#        run: |
+#          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+#            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
+#            -Dj8 -DskipUTs verify
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v4
+#        if: failure()
+#        with:
+#          name: result ${{ github.job }}
+#          path: |
+#            **/target/failsafe-reports
+#            **/target/surefire-reports

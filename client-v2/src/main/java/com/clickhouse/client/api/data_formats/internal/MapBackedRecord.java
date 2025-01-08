@@ -5,23 +5,13 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.ClickHouseArrayValue;
-import com.clickhouse.data.value.ClickHouseBitmap;
-import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoPointValue;
-import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.clickhouse.data.value.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +23,7 @@ public class MapBackedRecord implements GenericRecord {
 
     private final Map<String, Object> record;
 
-    private TableSchema schema;
+    private final TableSchema schema;
 
     private Map[] columnConverters;
 
@@ -47,8 +37,8 @@ public class MapBackedRecord implements GenericRecord {
         if (colIndex < 1 || colIndex > schema.getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        colIndex = colIndex - 1;
-        return (T) record.get(schema.indexToName(colIndex));
+
+        return (T) record.get(schema.columnIndexToName(colIndex));
     }
 
     public <T> T readValue(String colName) {
@@ -91,8 +81,8 @@ public class MapBackedRecord implements GenericRecord {
             return (T) converter.apply(value);
         } else {
             String columnTypeName = schema.getColumnByName(colName).getDataType().name();
-            throw new ClientException("Column " + colName + " " + columnTypeName +
-                    " cannot be converted to " + targetType.getTypeName());
+            throw new ClientException("Column '" + colName + "' of type " + columnTypeName +
+                    " cannot be converted to '" + targetType.getTypeName() + "' value");
         }
     }
 
@@ -143,8 +133,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Instant getInstant(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column =  schema.getColumnByName(colName);
         switch (column.getDataType()) {
             case Date:
             case Date32:
@@ -154,15 +143,13 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
                 LocalDateTime dateTime = readValue(colName);
                 return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-
         }
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column = schema.getColumnByName(colName);
         switch (column.getDataType()) {
             case DateTime:
             case DateTime64:
@@ -176,8 +163,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Duration getDuration(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
+        ClickHouseColumn column = schema.getColumnByName(colName);
         BigInteger value = readValue(colName);
         try {
             switch (column.getDataType()) {
@@ -248,7 +234,12 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(String colName) {
-        return getList(schema.nameToIndex(colName));
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else {
+            throw new ClientException("Column is not of array type");
+        }
     }
 
 
@@ -293,7 +284,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public boolean hasValue(int colIndex) {
-        return record.containsKey(schema.indexToName(colIndex));
+        return record.containsKey(schema.columnIndexToName(colIndex));
     }
 
     @Override
@@ -303,37 +294,37 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.indexToName(index));
+        return getByte(schema.columnIndexToName(index));
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.indexToName(index));
+        return getShort(schema.columnIndexToName(index));
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.indexToName(index));
+        return getInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.indexToName(index));
+        return getLong(schema.columnIndexToName(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.indexToName(index));
+        return getFloat(schema.columnIndexToName(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.indexToName(index));
+        return getDouble(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.indexToName(index));
+        return getBoolean(schema.columnIndexToName(index));
     }
 
     @Override
@@ -398,42 +389,37 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public <T> List<T> getList(int index) {
-        Object value = readValue(index);
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).asList();
-        } else {
-            throw new ClientException("Column is not of array type");
-        }
+        return getList(schema.columnIndexToName(index));
     }
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
@@ -514,6 +500,11 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
+    public TableSchema getSchema() {
+        return this.schema;
+    }
+
+    @Override
     public Object getObject(String colName) {
         return readValue(colName);
     }
@@ -521,5 +512,10 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public Object getObject(int index) {
         return readValue(index);
+    }
+
+    @Override
+    public Map<String, Object> getValues() {
+        return this.record;
     }
 }

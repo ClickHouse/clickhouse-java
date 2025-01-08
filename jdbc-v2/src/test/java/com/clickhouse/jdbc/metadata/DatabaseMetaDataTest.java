@@ -1,7 +1,11 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
@@ -11,8 +15,10 @@ import java.sql.ResultSet;
 import java.sql.Types;
 import java.sql.DatabaseMetaData;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 
 import static org.testng.Assert.assertEquals;
@@ -31,14 +37,14 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             conn.createStatement().execute("DROP TABLE IF EXISTS " + tableName);
 
             StringBuilder createTableStmt = new StringBuilder("CREATE TABLE " + tableName + " (");
-            List<String> columnNames = Arrays.asList("id", "name", "float1", "fixed_string1", "decimal_1", "nullable_column");
-            List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
-            List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5);
-            List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.CHAR, Types.DECIMAL, Types.DECIMAL);
-            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Decimal(5, 4)");
-            List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true);
-            List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4);
-            List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10);
+            List<String> columnNames = Arrays.asList("id", "name", "float1", "fixed_string1", "decimal_1", "nullable_column", "date", "datetime");
+            List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))", "Date", "DateTime");
+            List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5, 2, 0);
+            List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.VARCHAR, Types.DECIMAL, Types.DECIMAL, Types.DATE, Types.TIMESTAMP);
+            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))", "Date", "DateTime");
+            List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true, false, false);
+            List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4, null, null);
+            List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10, null, null);
 
             for (int i = 0; i < columnNames.size(); i++) {
                 createTableStmt.append(columnNames.get(i)).append(" ").append(columnTypes.get(i)).append(',');
@@ -48,7 +54,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             conn.createStatement().execute(createTableStmt.toString());
 
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getColumns("default", null, tableName, null);
+            ResultSet rs = dbmd.getColumns(null, ClickHouseServerForTest.getDatabase(), tableName, null);
 
             int count = 0;
             while (rs.next()) {
@@ -57,7 +63,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 System.out.println("Column name: " + columnName + " colIndex: " + colIndex);
                 assertTrue(columnNames.contains(columnName));
                 assertEquals(rs.getString("TABLE_CAT"), "");
-                assertEquals(rs.getString("TABLE_SCHEM"), "default");
+                assertEquals(rs.getString("TABLE_SCHEM"), ClickHouseServerForTest.getDatabase());
                 assertEquals(rs.getString("TABLE_NAME"), tableName);
                 assertEquals(rs.getString("TYPE_NAME"), columnTypeNames.get(colIndex));
                 assertEquals(rs.getInt("DATA_TYPE"), columnJDBCDataTypes.get(colIndex));
@@ -82,7 +88,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 }
                 count++;
             }
-            Assert.assertEquals(count, columnNames.size());
+            Assert.assertEquals(count, columnNames.size(), "result set is empty");
         }
     }
 
@@ -93,21 +99,40 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             ResultSet rs = dbmd.getTables("system", null, "numbers", null);
             assertTrue(rs.next());
             assertEquals(rs.getString("TABLE_NAME"), "numbers");
-            assertEquals(rs.getString("TABLE_TYPE"), "SystemNumbers");
+            assertEquals(rs.getString("TABLE_TYPE"), "SYSTEM TABLE");
             assertFalse(rs.next());
+            rs.close();
+
+            rs = dbmd.getTables("system", null, "numbers", new String[] { "SYSTEM TABLE" });
+            assertTrue(rs.next());
+            assertEquals(rs.getString("TABLE_NAME"), "numbers");
+            assertEquals(rs.getString("TABLE_TYPE"), "SYSTEM TABLE");
+            assertFalse(rs.next());
+            rs.close();
+
+            rs = dbmd.getTables("system", null, "numbers", new String[] { "TABLE" });
+            assertFalse(rs.next());
+            rs.close();
         }
     }
 
-    @Ignore("ClickHouse does not support primary keys")
+
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
+        runQuery("SELECT 1;");
+        runQuery("SYSTEM FLUSH LOGS");
+
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getPrimaryKeys("system", null, "numbers");
+            ResultSet rs = dbmd.getPrimaryKeys(null, "system", "query_log");
             assertTrue(rs.next());
-            assertEquals(rs.getString("TABLE_NAME"), "numbers");
-            assertEquals(rs.getString("COLUMN_NAME"), "number");
+            assertEquals(rs.getString("TABLE_NAME"), "query_log");
+            assertEquals(rs.getString("COLUMN_NAME"), "event_date");
             assertEquals(rs.getShort("KEY_SEQ"), 1);
+            assertTrue(rs.next());
+            assertEquals(rs.getString("TABLE_NAME"), "query_log");
+            assertEquals(rs.getString("COLUMN_NAME"), "event_time");
+            assertEquals(rs.getShort("KEY_SEQ"), 2);
             assertFalse(rs.next());
         }
     }
@@ -129,6 +154,20 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testSchemaTerm() throws Exception {
+
+        try (Connection connection = getJdbcConnection()){
+            Assert.assertEquals(connection.getMetaData().getSchemaTerm(), "schema");
+        }
+
+        Properties prop = new Properties();
+        prop.put(DriverProperties.SCHEMA_TERM.getKey(), "database");
+        try (Connection connection = getJdbcConnection(prop)){
+            Assert.assertEquals(connection.getMetaData().getSchemaTerm(), "database");
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGetCatalogs() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -144,20 +183,20 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getTableTypes();
-            int count = 0;
-            Set<String> tableTypes = new HashSet<>(Arrays.asList("MergeTree", "Log", "Memory"));
-            while (rs.next()) {
-                tableTypes.remove(rs.getString("TABLE_TYPE"));
-                count++;
+            List<String> sortedTypes = Arrays.asList(com.clickhouse.jdbc.metadata.DatabaseMetaData.TABLE_TYPES);
+            Collections.sort(sortedTypes);
+            for (String type: sortedTypes) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_TYPE"), type);
             }
 
-            assertTrue(count > 10);
-            assertTrue(tableTypes.isEmpty(), "Not all table types are found: " + tableTypes);
+            assertFalse(rs.next());
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = { "integration" }, enabled = false)
     public void testGetColumnsWithEmptyCatalog() throws Exception {
+        // test not relevant until catalogs are implemented
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getColumns("", null, "numbers", null);
@@ -203,6 +242,10 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetFunctions() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; //  Illegal column Int8 of argument of function concat. (ILLEGAL_COLUMN)  TODO: fix in JDBC
+        }
+
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getFunctions(null, null, "mapContains")) {

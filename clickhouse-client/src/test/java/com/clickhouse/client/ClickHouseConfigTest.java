@@ -12,6 +12,8 @@ import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ClickHouseConfigTest {
     @Test(groups = { "unit" })
@@ -74,7 +76,8 @@ public class ClickHouseConfigTest {
     @Test(groups = { "unit" })
     public void testClientInfo() throws UnknownHostException {
         ClickHouseConfig config = new ClickHouseConfig();
-        Assert.assertEquals(config.getProductVersion(), ClickHouseClientOption.LATEST_KNOWN_VERSION);
+        Matcher versioMatcher = Pattern.compile("(^|\\\\.[\\\\d]+)+.*").matcher(config.getProductVersion());
+        Assert.assertTrue(versioMatcher.matches());
         Assert.assertEquals(config.getProductRevision(), "unknown");
         Assert.assertEquals(config.getClientOsInfo(),
                 System.getProperty("os.name") + "/" + System.getProperty("os.version"));

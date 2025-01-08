@@ -4,6 +4,8 @@ import com.clickhouse.client.ClickHouseServerForTest;
 
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -20,22 +22,30 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         return getEndpointString(isCloud());
     }
     public String getEndpointString(boolean includeDbName) {
-        return "jdbc:ch:" + (isCloud() ? "https" : "http") + "://" +
+        return "jdbc:ch:" + (isCloud() ? "" : "http://") +
                 ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, false) + "/" + (includeDbName ? ClickHouseServerForTest.getDatabase() : "");
     }
 
     public Connection getJdbcConnection() throws SQLException {
+        return getJdbcConnection(null);
+    }
+
+    public Connection getJdbcConnection(Properties properties) throws SQLException {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
-        LOGGER.info("Connecting to {}", getEndpointString());
+
+        if (properties != null) {
+            info.putAll(properties);
+        }
+
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
 
         return new ConnectionImpl(getEndpointString(), info);
-        //return DriverManager.getConnection(getEndpointString(), "default", ClickHouseServerForTest.getPassword());
     }
 
     protected static String getDatabase() {
-        return ClickHouseServerForTest.isCloud() ? ClickHouseServerForTest.getDatabase() : "default";
+        return ClickHouseServerForTest.getDatabase();
     }
 
     protected boolean runQuery(String query) {

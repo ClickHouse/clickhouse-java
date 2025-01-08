@@ -11,7 +11,7 @@ public interface JdbcV2Wrapper extends Wrapper {
     @SuppressWarnings("unchecked")
     default <T> T unwrap(Class<T> iface) throws SQLException {
         if (isWrapperFor(iface)) {
-            iface.cast(this);
+            return iface.cast(this);
         }
         throw new SQLException("Cannot unwrap to " + iface.getName());
     }

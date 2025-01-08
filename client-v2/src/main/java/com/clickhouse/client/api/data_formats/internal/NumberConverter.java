@@ -153,7 +153,6 @@ public class NumberConverter {
         }
     }
 
-
     static Map<NumberType, Function<Object, ?>> getNumberConverters() {
         Map<NumberType, Function<Object, ?>> converters = new HashMap<>();
         converters.put(NumberType.Byte, NumberConverter::toByte);

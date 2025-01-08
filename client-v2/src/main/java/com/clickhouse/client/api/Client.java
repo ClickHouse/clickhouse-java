@@ -10,6 +10,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -26,10 +27,8 @@ import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
-import com.clickhouse.client.api.internal.EnvUtils;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -45,7 +44,6 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
@@ -61,8 +59,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -75,8 +75,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TimeZone;
@@ -117,7 +117,6 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  *          ...
  *      }
  *  }
- *
  * }
  *
  *
@@ -131,6 +130,9 @@ public class Client implements AutoCloseable {
 
     private final Set<String> endpoints;
     private final Map<String, String> configuration;
+
+    private final Map<String, String> readOnlyConfig;
+
     private final List<ClickHouseNode> serverNodes = new ArrayList<>();
 
     // POJO serializer mapping (class -> (schema -> (format -> serializer)))
@@ -153,10 +155,14 @@ public class Client implements AutoCloseable {
 
     private final ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
 
+    // Server context
+    private String serverVersion;
+
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this.endpoints = endpoints;
         this.configuration = configuration;
+        this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
@@ -178,7 +184,27 @@ public class Client implements AutoCloseable {
             LOG.info("Using old http client implementation");
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
+
+        updateServerContext();
     }
+
+    private void updateServerContext() {
+        try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
+            try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
+                if (reader.next() != null) {
+                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
+                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                    serverVersion = reader.getString("version");
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to get server info", e);
+        }
+    }
+
+
+
 
     /**
      * Returns default database name that will be used by operations if not specified.
@@ -209,7 +235,12 @@ public class Client implements AutoCloseable {
         if (oldClient != null) {
             oldClient.close();
         }
+
+        if (httpClientHelper != null) {
+            httpClientHelper.close();
+        }
     }
+
 
     public static class Builder {
         private Set<String> endpoints;
@@ -290,7 +321,7 @@ public class Client implements AutoCloseable {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
             } catch (java.net.MalformedURLException e) {
-                throw new IllegalArgumentException("Endpoint should be a valid URL string", e);
+                throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
             return this;
         }
@@ -328,6 +359,12 @@ public class Client implements AutoCloseable {
          */
         public Builder setOption(String key, String value) {
             this.configuration.put(key, value);
+            if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
+                setClientName(value);
+            }
+            if (key.equals(ClientConfigProperties.BEARERTOKEN_AUTH.getKey())) {
+                useBearerTokenAuth(value);
+            }
             return this;
         }
 
@@ -587,6 +624,11 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        public Builder appCompressedData(boolean enabled) {
+            this.configuration.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), String.valueOf(enabled));
+            return this;
+        }
+
         /**
          * Sets buffer size for uncompressed data in LZ4 compression.
          * For outgoing data it is the size of a buffer that will be compressed.
@@ -786,7 +828,7 @@ public class Client implements AutoCloseable {
         /**
          * Set size of a buffers that are used to read/write data from the server. It is mainly used to copy data from
          * a socket to application memory and visa-versa. Setting is applied for both read and write operations.
-         * Default is 8192 bytes.
+         * Default is 300,000 bytes.
          *
          * @param size - size in bytes
          * @return
@@ -848,7 +890,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, String value) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), value);
+            this.configuration.put(ClientConfigProperties.httpHeader(key), value);
             return this;
         }
 
@@ -859,7 +901,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder httpHeader(String key, Collection<String> values) {
-            this.configuration.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US), ClientConfigProperties.commaSeparated(values));
+            this.configuration.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
             return this;
         }
 
@@ -940,6 +982,31 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets client options from provided map. Values are copied as is
+         * @param options - map of client options
+         * @return same instance of the builder
+         */
+        public Builder setOptions(Map<String, String> options) {
+            for (Map.Entry<String, String> entry : options.entrySet()) {
+                setOption(entry.getKey(), entry.getValue());
+            }
+            return this;
+        }
+
+        /**
+         * Specifies whether to use Bearer Authentication and what token to use.
+         * The token will be sent as is, so it should be encoded before passing to this method.
+         *
+         * @param bearerToken - token to use
+         * @return same instance of the builder
+         */
+        public Builder useBearerTokenAuth(String bearerToken) {
+            // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
+            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -950,8 +1017,9 @@ public class Client implements AutoCloseable {
             // check if username and password are empty. so can not initiate client?
             if (!this.configuration.containsKey("access_token") &&
                 (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
-                !MapUtils.getFlag(this.configuration, "ssl_authentication")) {
-                throw new IllegalArgumentException("Username and password (or access token, or SSL authentication) are required");
+                !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
+                !this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION))) {
+                throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
 
             if (this.configuration.containsKey("ssl_authentication") &&
@@ -997,10 +1065,17 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor, this.columnToMethodMatchingStrategy);
+            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
+                this.columnToMethodMatchingStrategy);
         }
 
+
         private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
+
+        /**
+         * Default size for a buffers used in networking.
+         */
+        public static final int DEFAULT_BUFFER_SIZE = 8192;
 
         private void setDefaults() {
 
@@ -1091,40 +1166,10 @@ public class Client implements AutoCloseable {
                 useHttpCompression(false);
             }
 
-            String userAgent = configuration.getOrDefault(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.USER_AGENT.toUpperCase(Locale.US), "");
-            String clientName = configuration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
-            httpHeader(HttpHeaders.USER_AGENT, buildUserAgent(userAgent.isEmpty() ? clientName : userAgent));
-        }
-
-        private static String buildUserAgent(String customUserAgent) {
-
-            StringBuilder userAgent = new StringBuilder();
-            if (customUserAgent != null && !customUserAgent.isEmpty()) {
-                userAgent.append(customUserAgent).append(" ");
+            if (!configuration.containsKey(ClientConfigProperties.APP_COMPRESSED_DATA.getKey())) {
+                appCompressedData(false);
             }
-
-            userAgent.append(CLIENT_USER_AGENT);
-
-            String clientVersion = Client.class.getPackage().getImplementationVersion();
-            if (clientVersion == null) {
-                clientVersion = LATEST_ARTIFACT_VERSION;
-            }
-            userAgent.append(clientVersion);
-
-            userAgent.append(" (");
-            userAgent.append(System.getProperty("os.name"));
-            userAgent.append("; ");
-            userAgent.append("jvm:").append(System.getProperty("java.version"));
-            userAgent.append("; ");
-
-            userAgent.setLength(userAgent.length() - 2);
-            userAgent.append(')');
-
-            return userAgent.toString();
         }
-
-        public static final String LATEST_ARTIFACT_VERSION = "0.7.1-patch1";
-        public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
     }
 
     private ClickHouseNode getServerNode() {
@@ -1206,45 +1251,9 @@ public class Client implements AutoCloseable {
                 schemaSerializers.put(column.getColumnName(), (obj, stream) -> {
                     Object value = getterMethod.invoke(obj);
 
-                    if (defaultsSupport) {
-                        if (value != null) {//Because we now support defaults, we have to send nonNull
-                            SerializerUtils.writeNonNull(stream);//Write 0 for no default
-
-                            if (column.isNullable()) {//If the column is nullable
-                                SerializerUtils.writeNonNull(stream);//Write 0 for not null
-                            }
-                        } else {//So if the object is null
-                            if (column.hasDefault()) {
-                                SerializerUtils.writeNull(stream);//Send 1 for default
-                                return;
-                            } else if (column.isNullable()) {//And the column is nullable
-                                SerializerUtils.writeNonNull(stream);
-                                SerializerUtils.writeNull(stream);//Then we send null, write 1
-                                return;//And we're done
-                            } else if (column.getDataType() == ClickHouseDataType.Array) {//If the column is an array
-                                SerializerUtils.writeNonNull(stream);//Then we send nonNull
-                            } else {
-                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
-                            }
-                        }
-                    } else {
-                        if (column.isNullable()) {
-                            if (value == null) {
-                                SerializerUtils.writeNull(stream);
-                                return;
-                            }
-                            SerializerUtils.writeNonNull(stream);
-                        } else if (value == null) {
-                            if (column.getDataType() == ClickHouseDataType.Array) {
-                                SerializerUtils.writeNonNull(stream);
-                            } else {
-                                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column.getColumnName()));
-                            }
-                        }
+                    if (RowBinaryFormatSerializer.writeValuePreamble(stream, defaultsSupport, column, value)) {
+                        SerializerUtils.serializeData(stream, value, column);
                     }
-
-                    //Handle the different types
-                    SerializerUtils.serializeData(stream, value, column);
                 });
             } else {
                 LOG.warn("No getter method found for column: {}", propertyName);
@@ -1394,7 +1403,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1443,7 +1452,7 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * <p>Sends write request to database. Input data is read from the input stream.</p>
+     * Sends write request to database. Input data is read from the input stream.
      *
      * @param tableName - destination table name
      * @param data  - data stream to insert
@@ -1452,7 +1461,49 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName,
-                                     InputStream data,
+                                                    InputStream data,
+                                                    ClickHouseFormat format,
+                                                    InsertSettings settings) {
+
+        final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
+                Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(),
+                        ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getDefaultValue())) :
+                settings.getInputStreamCopyBufferSize();
+
+        if (writeBufferSize <= 0) {
+            throw new IllegalArgumentException("Buffer size must be greater than 0");
+        }
+
+        return insert(tableName, new DataStreamWriter() {
+                    @Override
+                    public void onOutput(OutputStream out) throws IOException {
+                        byte[] buffer = new byte[writeBufferSize];
+                        int bytesRead;
+                        while ((bytesRead = data.read(buffer)) > 0) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                        out.close();
+                    }
+
+                    @Override
+                    public void onRetry() throws IOException {
+                        data.reset();
+                    }
+                },
+                format, settings);
+    }
+
+    /**
+     * Does an insert request to a server. Data is pushed when a {@link DataStreamWriter#onOutput(OutputStream)} is called.
+     *
+     * @param tableName - target table name
+     * @param writer - {@link DataStreamWriter} implementation
+     * @param format - source format
+     * @param settings - operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName,
+                                     DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
 
@@ -1483,6 +1534,8 @@ public class Client implements AutoCloseable {
 
             settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
             final InsertSettings finalSettings = settings;
+            final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
+            finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
             responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
@@ -1493,17 +1546,7 @@ public class Client implements AutoCloseable {
                     try (ClassicHttpResponse httpResponse =
                                  httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
                                          out -> {
-                                             out.write("INSERT INTO ".getBytes());
-                                             out.write(tableName.getBytes());
-                                             out.write(" FORMAT ".getBytes());
-                                             out.write(format.name().getBytes());
-                                             out.write(" \n".getBytes());
-
-                                             byte[] buffer = new byte[writeBufferSize];
-                                             int bytesRead;
-                                             while ((bytesRead = data.read(buffer)) != -1) {
-                                                 out.write(buffer, 0, bytesRead);
-                                             }
+                                             writer.onOutput(out);
                                              out.close();
                                          })) {
 
@@ -1522,7 +1565,7 @@ public class Client implements AutoCloseable {
                         metrics.operationComplete();
                         metrics.setQueryId(queryId);
                         return new InsertResponse(metrics);
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying", e);
@@ -1536,7 +1579,7 @@ public class Client implements AutoCloseable {
 
                     if (i < maxRetries) {
                         try {
-                            data.reset();
+                            writer.onRetry();
                         } catch (IOException ioe) {
                             throw new ClientException("Failed to reset stream before next attempt", ioe);
                         }
@@ -1551,12 +1594,7 @@ public class Client implements AutoCloseable {
 
                 CompletableFuture<ClickHouseResponse> future = null;
                 future = request.data(output -> {
-                    //Copy the data from the input stream to the output stream
-                    byte[] buffer = new byte[settings.getInputStreamCopyBufferSize()];
-                    int bytesRead;
-                    while ((bytesRead = data.read(buffer)) != -1) {
-                        output.write(buffer, 0, bytesRead);
-                    }
+                    writer.onOutput(output);
                     output.close();
                 }).option(ClickHouseClientOption.ASYNC, false).execute();
 
@@ -1688,7 +1726,7 @@ public class Client implements AutoCloseable {
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
 
-                    } catch ( NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException e) {
+                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
                         lastException = httpClientHelper.wrapException("Query request initiation failed", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
@@ -2089,7 +2127,7 @@ public class Client implements AutoCloseable {
      * @return - configuration options
      */
     public Map<String, String> getConfiguration() {
-        return Collections.unmodifiableMap(configuration);
+        return readOnlyConfig;
     }
 
     /** Returns operation timeout in seconds */
@@ -2103,6 +2141,18 @@ public class Client implements AutoCloseable {
      */
     public Set<String> getEndpoints() {
         return Collections.unmodifiableSet(endpoints);
+    }
+
+    public String getUser() {
+        return this.configuration.get(ClientConfigProperties.USER.getKey());
+    }
+
+    public String getServerVersion() {
+        return this.serverVersion;
+    }
+
+    public String getClientVersion() {
+        return clientVersion;
     }
 
     /**
@@ -2121,6 +2171,10 @@ public class Client implements AutoCloseable {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
 
+    public static final String clientVersion =
+            ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
+    public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
+
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
 
     /**
@@ -2130,6 +2184,10 @@ public class Client implements AutoCloseable {
      */
     public Collection<String> getDBRoles() {
         return unmodifiableDbRolesView;
+    }
+
+    public void updateBearerToken(String bearer) {
+        this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
     }
 
     private ClickHouseNode getNextAliveNode() {

@@ -18,15 +18,6 @@ To run simplified example:
  mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
 ```
 
-To run example with jdbc-all packaging (fat-jar):
-```shell
- mvn -Pfatjar exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
-```
-
-To run example with jdbc-shaded packaging:
-```shell
- mvn -Pshaded exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
-```
-
 Addition options can be passed to the application:
 - `-DchUrl` - ClickHouse JDBC URL. Default is `jdbc:clickhouse://localhost:8123/default`
+- `-Dclickhouse.jdbc.v2=true` - Use JDBC V2 implementation

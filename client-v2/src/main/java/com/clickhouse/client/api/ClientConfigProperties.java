@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -17,14 +18,14 @@ public enum ClientConfigProperties {
 
     HTTP_USE_BASIC_AUTH("http_use_basic_auth"),
 
-    USER("user"),
+    USER("user", "default"),
 
-    PASSWORD("password"),
+    PASSWORD("password", ""),
 
     /**
      * Maximum number of active connection in internal connection pool.
      */
-    HTTP_MAX_OPEN_CONNECTIONS("max_open_connections"),
+    HTTP_MAX_OPEN_CONNECTIONS("max_open_connections", "10"),
 
     /**
      * HTTP keep-alive timeout override.
@@ -59,7 +60,7 @@ public enum ClientConfigProperties {
 
     SOCKET_LINGER_OPT("socket_linger"),
 
-    DATABASE("database"),
+    DATABASE("database", "default"),
 
     COMPRESS_SERVER_RESPONSE("compress"), // actually a server setting, but has client effect too
 
@@ -103,8 +104,7 @@ public enum ClientConfigProperties {
 
     QUERY_ID("query_id"), // actually a server setting, but has client effect too
 
-    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size"),
-
+    CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", String.valueOf(Client.Builder.DEFAULT_BUFFER_SIZE)),
 
     ACCESS_TOKEN("access_token"), SSL_AUTH("ssl_authentication"),
 
@@ -114,16 +114,53 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures"),
 
-    CLIENT_NAME("client_name");
+    CLIENT_NAME("client_name"),
+
+    /**
+     * An old alias to {@link ClientConfigProperties#CLIENT_NAME}. Using the last one is preferred.
+     */
+    @Deprecated
+    PRODUCT_NAME("product_name"),
+
+    BEARERTOKEN_AUTH ("bearer_token"),
+    /**
+     * Indicates that data provided for write operation is compressed by application.
+     */
+    APP_COMPRESSED_DATA("app_compressed_data"),
+
+    ;
 
     private String key;
 
+    private String defaultValue;
+
+    private List<String> choices;
+
+
     ClientConfigProperties(String key) {
+        this(key, null, Collections.emptyList());
+    }
+
+    ClientConfigProperties(String key, String defaultValue) {
+        this(key, defaultValue, Collections.emptyList());
+    }
+
+    ClientConfigProperties(String key, String defaultValue, List<String> choices) {
         this.key = key;
+        this.defaultValue = defaultValue;
+        this.choices = Collections.unmodifiableList(choices);
     }
 
     public String getKey() {
         return key;
+    }
+
+    public List<String> getChoices() {
+        return choices;
+    }
+
+    public String getDefaultValue() {
+        return defaultValue;
     }
 
     public static final String HTTP_HEADER_PREFIX = "http_header_";
@@ -132,6 +169,10 @@ public enum ClientConfigProperties {
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
+    }
+
+    public static String httpHeader(String key) {
+        return HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US);
     }
 
     public static String commaSeparated(Collection<?> values) {

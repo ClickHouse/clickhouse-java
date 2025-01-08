@@ -3,15 +3,20 @@ package com.clickhouse.client.insert;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
@@ -34,12 +39,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -66,17 +76,31 @@ public class InsertTests extends BaseIntegrationTest {
     @BeforeMethod(groups = { "integration" })
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
-                .compressClientRequest(useClientCompression)
-                .useHttpCompression(useHttpCompression)
+        int bufferSize = (7 * 65500);
+        client = newClient()
+                .setSocketSndbuf(bufferSize)
+                .setSocketRcvbuf(bufferSize)
+                .setClientNetworkBufferSize(bufferSize)
                 .build();
+
         settings = new InsertSettings()
                 .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
                 .setQueryId(String.valueOf(UUID.randomUUID()));
+    }
+
+    protected Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
     }
 
     @AfterMethod(groups = { "integration" })
@@ -92,7 +116,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -113,6 +137,10 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOWithJSON() throws Exception {
+        if (isCloud()) {
+            return; // not working because of Code: 452. DB::Exception: Setting allow_experimental_json_type should not be changed. (SETTING_CONSTRAINT_VIOLATION)
+            // but without this setting it doesn't let to create a table
+        }
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
             System.out.println("Test is skipped: feature is supported since 24.8");
@@ -226,13 +254,9 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(records.size(), 1000);
     }
 
-
-    @Test(groups = { "integration" }, enabled = true)
-    public void insertRawDataSimple() throws Exception {
-        insertRawDataSimple(1000);
-    }
-    public void insertRawDataSimple(int numberOfRecords) throws Exception {
-        final String tableName = "raw_data_table";
+    @Test(groups = { "integration" }, dataProvider = "insertRawDataSimpleDataProvider", dataProviderClass = InsertTests.class)
+    public void insertRawDataSimple(String tableName) throws Exception {
+//        final String tableName = "raw_data_table";
         final String createSql = String.format("CREATE TABLE IF NOT EXISTS %s " +
                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()", tableName);
 
@@ -244,6 +268,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .setInputStreamCopyBufferSize(8198 * 2);
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(data);
+        int numberOfRecords = 1000;
         for (int i = 0; i < numberOfRecords; i++) {
             writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
         }
@@ -252,6 +277,15 @@ public class InsertTests extends BaseIntegrationTest {
                 ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
         OperationMetrics metrics = response.getMetrics();
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
+    }
+
+    @DataProvider(name = "insertRawDataSimpleDataProvider")
+    public static Object[][] insertRawDataSimpleDataProvider() {
+        return new Object[][] {
+            {"raw_data_table"},
+            {"`raw_data_table`"},
+            {"`" + ClickHouseServerForTest.getDatabase() + ".raw_data_table`"},
+        };
     }
 
     @Test(groups = { "integration" })
@@ -296,8 +330,8 @@ public class InsertTests extends BaseIntegrationTest {
 
         InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
             .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
-            .setQueryId(String.valueOf(UUID.randomUUID()));
-        insertSettings.setDatabase(new_database);
+            .setQueryId(String.valueOf(UUID.randomUUID()))
+            .setDatabase(new_database);
 
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(data);
@@ -326,7 +360,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);
@@ -379,7 +413,199 @@ public class InsertTests extends BaseIntegrationTest {
         };
     }
 
-    private void initTable(String tableName, String createTableSQL) throws Exception {
+    @Test
+    public void testWriter() throws Exception {
+        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1)" +
+                "  Engine = MergeTree ORDER by ()";
+
+        initTable(tableName, tableCreate);
+
+        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
+        Object[][] rows = new Object[][] {
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
+                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null},
+                {"foo4", 0.8f, 0.5f, null, null, null},
+        };
+
+        TableSchema schema = client.getTableSchema(tableName);
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatSerializer formatWriter = new RowBinaryFormatSerializer(out);
+            for (Object[] row : rows) {
+                formatWriter.writeString((String) row[0]);
+                formatWriter.writeFloat32((float)row[1]);
+                formatWriter.writeFloat32((float)row[2]);
+                if (row[3] == null) {
+                    formatWriter.writeNull();
+                } else {
+                    formatWriter.writeString((String) row[3]);
+                }
+                if (row[4] == null) {
+                    formatWriter.writeDefault();
+                } else {
+                    formatWriter.writeString((String) row[4]);
+                }
+                if (row[5] == null) {
+                    formatWriter.writeDefault();
+                } else {
+                    formatWriter.writeInt8((byte) row[5]);
+                }
+            }
+        }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    @Test
+    public void testAdvancedWriter() throws Exception {
+        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1)" +
+                "  Engine = MergeTree ORDER by ()";
+
+        initTable(tableName, tableCreate);
+
+        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
+        Object[][] rows = new Object[][] {
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
+                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null},
+                {"foo4", 0.8f, 0.5f, null, null, null},
+        };
+
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            for (Object[] row : rows) {
+                for (int i = 0; i < row.length; i++) {
+                    w.setValue(i + 1, row[i]);
+                }
+                w.commitRow();
+            }
+        }, format, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    @Test
+    public void testCollectionInsert() throws Exception {
+        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1)" +
+                "  Engine = MergeTree ORDER by ()";
+
+        initTable(tableName, tableCreate);
+
+        String correctedTime = Instant.now().atZone(ZoneId.of("UTC")).format(DataTypeUtils.DATETIME_FORMATTER);
+        String[] rows = new String[] {
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\", \"corrected_time\": \"" + correctedTime + "\", \"special_attr\": 10}",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\", \"corrected_time\": \"" + correctedTime + "\"}",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\" }",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6 }",
+        };
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            for (String row : rows) {
+                out.write(row.getBytes());
+            }
+        }, ClickHouseFormat.JSONEachRow, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
+
+    @Test
+    public void testAppCompression() throws Exception {
+        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1)" +
+                "  Engine = MergeTree ORDER by ()";
+
+        initTable(tableName, tableCreate);
+
+        String correctedTime = Instant.now().atZone(ZoneId.of("UTC")).format(DataTypeUtils.DATETIME_FORMATTER);
+        String[] data = new String[] {
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\", \"corrected_time\": \"" + correctedTime + "\", \"special_attr\": 10}",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\", \"corrected_time\": \"" + correctedTime + "\"}",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6, \"attrs\": \"a=1,b=2,c=5\" }",
+                "{ \"name\": \"foo1\", \"v1\": 0.3, \"v2\": 0.6 }",
+        };
+
+        byte[][] compressedData = new byte[data.length][];
+        for (int i = 0 ; i < data.length; i++) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            GZIPOutputStream gz = new GZIPOutputStream(baos);
+            gz.write(data[i].getBytes(StandardCharsets.UTF_8));
+            gz.finish();
+            System.out.println("Compressed size " + baos.size() + ", uncompressed size: " + data[i].length());
+            compressedData[i] = baos.toByteArray();
+        }
+
+        InsertSettings insertSettings = new InsertSettings()
+                .appCompressedData(true, "gzip");
+        try (InsertResponse response = client.insert(tableName, out -> {
+            for (byte[] row : compressedData) {
+                out.write(row);
+            }
+        }, ClickHouseFormat.JSONEachRow, insertSettings).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    protected void initTable(String tableName, String createTableSQL) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + tableName).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
     }

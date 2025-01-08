@@ -39,11 +39,8 @@ public class Basic {
 
     static int dropAndCreateTable(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            // multi-statement query is supported by default
-            // session will be created automatically during execution
-            stmt.execute(String.format(
-                    "drop table if exists %1$s; create table %1$s(a String, b Nullable(String)) engine=Memory",
-                    TABLE_NAME));
+            stmt.execute(String.format("DROP TABLE IF EXISTS %1$s",TABLE_NAME));
+            stmt.execute(String.format("CREATE TABLE %1$s(a String, b Nullable(String)) ENGINE=MergeTree ORDER BY ()", TABLE_NAME));
             return stmt.getUpdateCount();
         }
     }
@@ -51,17 +48,16 @@ public class Basic {
     static int batchInsert(Connection conn) throws SQLException {
         // 1. NOT recommended when inserting lots of rows, because it's based on a large
         // statement
-        String sql = String.format("insert into %s values(? || ' - 1', ?)", TABLE_NAME);
+        String sql = String.format("INSERT INTO %s VALUES(? || ' - 1', ?)", TABLE_NAME);
         int count = 0;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, "a");
             ps.setString(2, "b");
             ps.addBatch();
             ps.setString(1, "c");
-            // ps.setNull(2, Types.VARCHAR);
-            // ps.setObject(2, null);
             ps.setString(2, null);
             ps.addBatch();
+
             // same as below query:
             // insert into <table> values ('a' || ' - 1', 'b'), ('c' || ' - 1', null)
             for (int i : ps.executeBatch()) {
@@ -69,71 +65,6 @@ public class Basic {
                     count += i;
                 }
             }
-        }
-
-        // 2. faster and ease of use, with additional query for getting table structure
-        // sql = String.format("insert into %s (a)", TABLE_NAME);
-        // sql = String.format("insert into %s (a) values (?)", TABLE_NAME);
-        sql = String.format("insert into %s (* except b)", TABLE_NAME);
-        // Note: below query will be issued to get table structure:
-        // select * except b from <table> where 0
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            // implicit type conversion: int -> String
-            ps.setInt(1, 1);
-            ps.addBatch();
-            // implicit type conversion: LocalDateTime -> string
-            ps.setObject(1, LocalDateTime.now());
-            ps.addBatch();
-            // same as below query:
-            // insert into <table> format RowBinary <binary data>
-            for (int i : ps.executeBatch()) {
-                if (i > 0) {
-                    count += i;
-                }
-            }
-        }
-
-        // 3. faster than above but inconvenient and NOT portable(as it's limited to
-        // ClickHouse)
-        // see https://clickhouse.com/docs/en/sql-reference/table-functions/input/
-        sql = String.format("insert into %s select a, b from input('a String, b Nullable(String)')", TABLE_NAME);
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, "a");
-            ps.setString(2, "b");
-            ps.addBatch();
-            ps.setString(1, "c");
-            ps.setString(2, null);
-            ps.addBatch();
-            // same as below query:
-            // insert into <table> format RowBinary <binary data>
-            for (int i : ps.executeBatch()) {
-                if (i > 0) {
-                    count += i;
-                }
-            }
-        }
-
-        // 4. fastest(close to Java client) but requires manual serialization and it's
-        // NOT portable(as it's limited to ClickHouse)
-        // 'format RowBinary' is the hint to use streaming mode, you may use different
-        // format like JSONEachRow as needed
-        sql = String.format("insert into %s format RowBinary", TABLE_NAME);
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            // it's streaming so there's only one parameter(could be one of String, byte[],
-            // InputStream, File, ClickHouseWriter), and you don't have to process batch by
-            // batch
-            ps.setObject(1, new ClickHouseWriter() {
-                @Override
-                public void write(ClickHouseOutputStream output) throws IOException {
-                    // this will be executed in a separate thread
-                    for (int i = 0; i < 1_000_000; i++) {
-                        output.writeUnicodeString("a-" + i);
-                        output.writeBoolean(false); // non-null
-                        output.writeUnicodeString("b-" + i);
-                    }
-                }
-            });
-            ps.executeUpdate();
         }
 
         return count;
@@ -171,8 +102,8 @@ public class Basic {
 
     static void insertByteArray(Connection conn) throws SQLException {
         try (Statement s = conn.createStatement()) {
-            s.execute("drop table if exists t_map;"
-                    + "CREATE TABLE t_map"
+            s.execute("DROP TABLE IF EXISTS t_map");
+            s.execute("CREATE TABLE t_map"
                     + "("
                     + "    `audit_seq` Int64 CODEC(Delta(8), LZ4),"
                     + "`timestamp` Int64 CODEC(Delta(8), LZ4),"
@@ -198,7 +129,8 @@ public class Basic {
                     + "ORDER BY (resource_container, event_type, event_subtype) "
                     + "SETTINGS index_granularity = 8192");
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO t_map SETTINGS async_insert=1,wait_for_async_insert=1 VALUES (8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?)")) {
+                    "INSERT INTO t_map SETTINGS async_insert=1,wait_for_async_insert=1 VALUES " +
+                            "(8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?)")) {
                 stmt.setObject(1, Collections.singletonMap("key1", "value1"));
                 stmt.execute();
 
@@ -234,7 +166,6 @@ public class Basic {
         // jdbc:ch:https://explorer@play.clickhouse.com:443
         // jdbc:ch:https://demo:demo@github.demo.trial.altinity.cloud
         String url = System.getProperty("chUrl", "jdbc:ch://localhost");
-        System.setProperty("clickhouse.jdbc.v2", "true");
 
         try {
             usedPooledConnection(url);

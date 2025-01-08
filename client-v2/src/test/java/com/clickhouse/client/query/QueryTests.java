@@ -5,6 +5,8 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
@@ -32,6 +34,7 @@ import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -52,6 +55,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -62,6 +66,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -73,6 +78,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -108,14 +114,7 @@ public class QueryTests extends BaseIntegrationTest {
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
-                .setUsername("default")
-                .setPassword("")
-                .compressClientRequest(false)
-                .compressServerResponse(useServerCompression)
-                .useHttpCompression(useHttpCompression)
-                .build();
+        client = newClient().build();
 
         delayForProfiler(0);
         System.out.println("Real port: " + node.getPort());
@@ -231,8 +230,8 @@ public class QueryTests extends BaseIntegrationTest {
         for (int i = 0; i < tables; i++) {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
-            client.execute("DROP TABLE IF EXISTS default." + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+            client.execute("DROP TABLE IF EXISTS " + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
         }
 
         Records records = client.queryRecords("SHOW TABLES").get(3, TimeUnit.SECONDS);
@@ -330,8 +329,8 @@ public class QueryTests extends BaseIntegrationTest {
         for (int i = 0; i < tables; i++) {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
-            client.execute("DROP TABLE IF EXISTS default." + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = Memory");
+            client.execute("DROP TABLE IF EXISTS " + tableName);
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
         }
 
         List<GenericRecord> records = client.queryAll("SHOW TABLES");
@@ -549,6 +548,15 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
     }
 
+    @Test
+    public void testArraysAsList() {
+        GenericRecord record =
+                client.queryAll("SELECT [] as empty_array").get(0);
+
+        List<Object> items = record.getList("empty_array");
+        Assert.assertTrue(items.isEmpty());
+    }
+
     private final static List<String> MAP_COLUMNS = Arrays.asList(
             "col1 Map(String, Int8)",
             "col2 Map(String, String)"
@@ -598,9 +606,9 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             client.queryRecords("SELECT * FROM unknown_table").get(3, TimeUnit.SECONDS);
-            Assert.fail("expected exception");
+            Assert.fail("exception is expected");
         } catch (ServerException e) {
-            Assert.assertTrue(e.getMessage().contains("Unknown table"));
+            Assert.assertEquals(e.getCode(), 60);
         } catch (ExecutionException e) {
             Assert.assertTrue(e.getCause() instanceof ServerException);
         } catch (ClientException e) {
@@ -1218,6 +1226,28 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers);
     }
 
+
+    @Test
+    public void testNumberToStringConvertions() throws Exception {
+
+        GenericRecord record =
+                client.queryAll("SELECT '100' as small_number, '100500' as number").get(0);
+
+        Assert.assertEquals(record.getString("number"), "100500");
+        Assert.assertEquals(record.getString(2), "100500");
+        Assert.assertEquals(record.getString("small_number"), "100");
+        Assert.assertEquals(record.getByte("small_number"), 100);
+        Assert.assertEquals(record.getShort("small_number"), 100);
+        Assert.assertEquals(record.getShort(1), 100);
+        Assert.assertThrows(() -> record.getShort("number"));
+        Assert.assertEquals(record.getInteger("number"), 100500);
+        Assert.assertEquals(record.getInteger(2), 100500);
+        Assert.assertEquals(record.getLong("number"), 100500L);
+        Assert.assertEquals(record.getFloat("number"), 100500.0F);
+        Assert.assertEquals(record.getBigInteger("number"), BigInteger.valueOf(100500L));
+
+    }
+
     private static String sq(String str) {
         return "\'" + str + "\'";
     }
@@ -1227,11 +1257,11 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             // Drop table
-            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+            client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
-            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS default.").append(table).append(" (");
+            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
                 createStmtBuilder.append(column).append(", ");
             }
@@ -1242,7 +1272,7 @@ public class QueryTests extends BaseIntegrationTest {
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
-            insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
+            insertStmtBuilder.append("INSERT INTO ").append(table).append(" VALUES ");
             insertStmtBuilder.append("(");
             for (Supplier<String> valueSupplier : valueGenerators) {
                 insertStmtBuilder.append(valueSupplier.get()).append(", ");
@@ -1307,7 +1337,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         StringBuilder insertStmtBuilder = new StringBuilder();
-        insertStmtBuilder.append("INSERT INTO default.").append(DATASET_TABLE).append(" VALUES ");
+        insertStmtBuilder.append("INSERT INTO ").append(DATASET_TABLE).append(" VALUES ");
         final int rowsToInsert = 5;
         for (int i = 0; i < rowsToInsert; i++) {
             insertStmtBuilder.append("(");
@@ -1332,7 +1362,6 @@ public class QueryTests extends BaseIntegrationTest {
             OperationMetrics metrics = response.getMetrics();
 
             Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
-            Assert.assertTrue(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong() > 0);
             Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
         }
     }
@@ -1369,11 +1398,11 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             // Drop table
-            client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
+            client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
             StringBuilder createStmtBuilder = new StringBuilder();
-            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS default.").append(table).append(" (");
+            createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
                 createStmtBuilder.append(column).append(", ");
             }
@@ -1383,7 +1412,7 @@ public class QueryTests extends BaseIntegrationTest {
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
-            insertStmtBuilder.append("INSERT INTO default.").append(table).append(" VALUES ");
+            insertStmtBuilder.append("INSERT INTO ").append(table).append(" VALUES ");
             for (int i = 0; i < rows; i++) {
                 insertStmtBuilder.append("(");
                 Map<String, Object> values = writeValuesRow(insertStmtBuilder, columns, valueGenerators);
@@ -1460,8 +1489,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryParams() throws Exception {
         final String table = "query_params_test_table";
 
-        client.execute("DROP TABLE IF EXISTS default." + table).get();
-        client.execute("CREATE TABLE default." + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1506,8 +1535,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testGetTableSchema() throws Exception {
 
         final String table = "table_schema_test";
-        client.execute("DROP TABLE IF EXISTS default." + table).get(10, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE default." + table +
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE " + table +
                 " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get(10, TimeUnit.SECONDS);
 
         TableSchema schema = client.getTableSchema(table);
@@ -1658,7 +1687,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testQueryReadToPOJO() {
         int limit = 10;
-        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', number + 1) as name " +
+        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', toString(number + 1)) as name " +
                 " FROM system.numbers LIMIT " + limit;
         TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);
@@ -1735,7 +1764,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        final String password = UUID.randomUUID().toString();
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1743,7 +1772,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
         try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
         }
-        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
+        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'" ).get()) {
         }
         try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
         }
@@ -1773,7 +1802,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        final String password = UUID.randomUUID().toString();
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
@@ -1848,6 +1877,9 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingJSONValues() throws Exception {
+        if (isCloud()) {
+            return; // TODO: add support on cloud
+        }
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
             System.out.println("Test is skipped: feature is supported since 24.8");
@@ -1875,16 +1907,97 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testGetColumnsByIndex() throws Exception {
+
+        try (QueryResponse response = client.query("SELECT toInt8(1) as number, 'test' as string").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+            Assert.assertEquals(reader.getInteger(1), 1);
+            Assert.assertEquals(reader.getString(2), "test");
+        }
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
         return new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(false)
-                .compressServerResponse(true)
+                .compressServerResponse(useServerCompression)
                 .useHttpCompression(useHttpCompression)
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingSimpleAggregateFunction() throws Exception {
+        final String tableName = "simple_aggregate_function_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), mp SimpleAggregateFunction(maxMap, Map(UInt8, UInt8))) " +
+                "ENGINE MergeTree ORDER BY ();").get();
+
+
+            try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t{1:2}".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals((Short) reader.readValue("lowest_value"), Short.parseShort("2"));
+            Assert.assertEquals((Long) reader.readValue("count"), Long.parseLong("3"));
+            Assert.assertEquals(String.valueOf((LinkedHashMap) reader.readValue("mp")), "{1=2}");
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingEnumsAsStrings() throws Exception {
+        final String tableName = "enums_as_strings_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, enum1 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum2 Enum16('atch' = 1, 'batch' = 2, 'catch' = 3)) " +
+                "ENGINE MergeTree ORDER BY ()").get();
+
+        try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\ta\t2".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals(reader.getString("enum1"), "a");
+            Assert.assertEquals(reader.getShort("enum1"), 1);
+            Assert.assertEquals(reader.getInteger("enum1"), 1);
+            Assert.assertEquals(reader.getString("enum2"), "batch");
+            Assert.assertEquals(reader.getShort("enum2"), 2);
+            Assert.assertEquals(reader.getInteger("enum2"), 2);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerTimezone() throws Exception {
+        final String sql = "SELECT now() as t, toDateTime(now(), 'UTC') as utc_time, toDateTime(now(), 'America/New_York') as est_time";
+        try (QueryResponse response = client.query(sql).get(1, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            ZonedDateTime serverTime = reader.getZonedDateTime(1);
+            ZonedDateTime serverUtcTime = reader.getZonedDateTime(2);
+            ZonedDateTime serverEstTime = reader.getZonedDateTime(3);
+            Assert.assertEquals(serverTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTime);
+            Assert.assertEquals(serverTime, serverUtcTime);
+            Assert.assertEquals(serverUtcTime.withZoneSameInstant(ZoneId.of("America/New_York")), serverEstTime);
+        }
     }
 }

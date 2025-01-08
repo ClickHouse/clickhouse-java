@@ -10,6 +10,8 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseEnum;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -31,13 +33,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -53,14 +51,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected BinaryStreamReader binaryStreamReader;
 
     private TableSchema schema;
-
     private ClickHouseColumn[] columns;
-
     private Map[] convertions;
-
     private volatile boolean hasNext = true;
-
-
     private volatile boolean initialState = true; // reader is in initial state, no records have been read yet
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
@@ -160,8 +153,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        colIndex = colIndex - 1;
-        return (T) currentRecord.get(getSchema().indexToName(colIndex));
+        return (T) currentRecord.get(getSchema().columnIndexToName(colIndex));
     }
 
     @Override
@@ -256,6 +248,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Decimal128:
                 case Decimal256:
                 case Bool:
+                case String:
+                case Enum8:
+                case Enum16:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -280,20 +275,26 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         } else if (value instanceof String) {
             return (String) value;
+        } else if (value instanceof ZonedDateTime) {
+            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            ZonedDateTime zdt = (ZonedDateTime) value;
+            if (dataType == ClickHouseDataType.Date) {
+                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
+            }
+            return value.toString();
+        } else {
+            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
+                ClickHouseEnum clickHouseEnum = schema.getColumnByName(colName).getEnumConstants();
+                return clickHouseEnum.name(Integer.parseInt(value.toString()));
+            }
         }
         return value.toString();
     }
 
     @Override
     public String getString(int index) {
-        // TODO: it may be incorrect to call .toString() on some objects
-        Object value = readValue(index);
-        if (value == null) {
-            return null;
-        } else if (value instanceof String) {
-            return (String) value;
-        }
-        return value.toString();
+        return getString(schema.columnIndexToName(index));
     }
 
     private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
@@ -518,57 +519,58 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().indexToName(colIndex - 1));
+        return currentRecord.containsKey(getSchema().columnIndexToName(colIndex));
     }
 
     @Override
     public boolean hasValue(String colName) {
+        getSchema().getColumnByName(colName);
         return currentRecord.containsKey(colName);
     }
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.indexToName(index - 1 ));
+        return getByte(schema.columnIndexToName(index));
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.indexToName(index - 1));
+        return getShort(schema.columnIndexToName(index));
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.indexToName(index - 1));
+        return getInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.indexToName(index - 1));
+        return getLong(schema.columnIndexToName(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.indexToName(index - 1));
+        return getFloat(schema.columnIndexToName(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.indexToName(index - 1));
+        return getDouble(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.indexToName(index - 1));
+        return getBoolean(schema.columnIndexToName(index));
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return getBigInteger(schema.indexToName(index - 1));
+        return getBigInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return getBigDecimal(schema.indexToName(index - 1));
+        return getBigDecimal(schema.columnIndexToName(index));
     }
 
     @Override
@@ -623,37 +625,37 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(int index) {
-        return readValue(index);
+        return getList(schema.columnIndexToName(index));
     }
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getPrimitiveArray(schema.indexToName(index));
+        return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
     @Override

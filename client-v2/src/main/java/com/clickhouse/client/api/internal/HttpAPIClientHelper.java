@@ -34,6 +34,7 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.config.CharCodingConfig;
@@ -42,6 +43,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -88,13 +90,11 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private String httpClientUserAgentPart;
+    private String defaultUserAgent;
 
     public HttpAPIClientHelper(Map<String, String> configuration) {
         this.chConfiguration = configuration;
         this.httpClient = createHttpClient();
-
-        this.httpClientUserAgentPart = this.httpClient.getClass().getPackage().getImplementationTitle() + "/" + this.httpClient.getClass().getPackage().getImplementationVersion();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -112,6 +112,8 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
+
+        this.defaultUserAgent = buildDefaultUserAgent();
     }
 
     /**
@@ -235,6 +237,9 @@ public class HttpAPIClientHelper {
                 soCfgBuilder::setSndBufSize);
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_LINGER_OPT.getKey(),
                     (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
+        if (MapUtils.getFlag(chConfiguration, ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT.getKey(), false)) {
+            soCfgBuilder.setTcpNoDelay(true);
+        }
 
         // Proxy
         String proxyHost = chConfiguration.get(ClientConfigProperties.PROXY_HOST.getKey());
@@ -329,10 +334,13 @@ public class HttpAPIClientHelper {
 
             String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
                     .replaceAll("\\\\/", "/");
-            return new ServerException(serverCode, msg);
+            if (msg.trim().isEmpty()) {
+                msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            }
+            return new ServerException(serverCode, msg, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message>");
+            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
         }
     }
 
@@ -355,12 +363,13 @@ public class HttpAPIClientHelper {
 
         boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
 
         RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig).build();
         req.setConfig(httpReqConfig);
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression));
+                clientCompression, useHttpCompression, appCompressedData));
 
         HttpClientContext context = HttpClientContext.create();
 
@@ -432,24 +441,25 @@ public class HttpAPIClientHelper {
         boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
         boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
 
         if (useHttpCompression) {
             if (serverCompression) {
                 req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
             }
-            if (clientCompression) {
+            if (clientCompression && !appCompressedData) {
                 req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
 
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
             }
         }
         for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.addHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
             }
         }
 
@@ -462,9 +472,9 @@ public class HttpAPIClientHelper {
         }
 
         // -- keep last
-        Header userAgent = req.getFirstHeader(HttpHeaders.USER_AGENT);
-        req.setHeader(HttpHeaders.USER_AGENT, userAgent == null ? httpClientUserAgentPart : userAgent.getValue() + " " + httpClientUserAgentPart);
+        correctUserAgentHeader(req, requestConfig);
     }
+
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
         for (Map.Entry<String, String> entry : chConfig.entrySet()) {
             if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
@@ -514,10 +524,11 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression) {
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression,
+                                         boolean appControlledCompression) {
         LOG.debug("client compression: {}, http compression: {}", clientCompression, useHttpCompression);
 
-        if (clientCompression) {
+        if (clientCompression && !appControlledCompression) {
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
                     MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false);
         } else  {
@@ -577,7 +588,7 @@ public class HttpAPIClientHelper {
             return retryCauses.contains(ClientFaultCause.NoHttpResponse);
         }
 
-        if (ex instanceof ConnectException) {
+        if (ex instanceof ConnectException || ex instanceof ConnectTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectTimeout);
         }
 
@@ -592,6 +603,7 @@ public class HttpAPIClientHelper {
     // ClientException will be also wrapped
     public ClientException wrapException(String message, Exception cause) {
         if (cause instanceof ConnectionRequestTimeoutException ||
+                cause instanceof NoHttpResponseException ||
                 cause instanceof ConnectTimeoutException ||
                 cause instanceof ConnectException) {
             return new ConnectionInitiationException(message, cause);
@@ -633,5 +645,57 @@ public class HttpAPIClientHelper {
         }
 
         return params;
+    }
+
+
+    private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
+        //TODO: implement cache for user-agent
+        Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
+        request.removeHeaders(HttpHeaders.USER_AGENT);
+
+        String clientName = chConfiguration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
+        if (requestConfig != null) {
+            String reqClientName = (String) requestConfig.get(ClientConfigProperties.CLIENT_NAME.getKey());
+            if (reqClientName != null && !reqClientName.isEmpty()) {
+                clientName = reqClientName;
+            }
+        }
+        String userAgentValue = defaultUserAgent;
+        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
+            userAgentValue = clientName + " " + defaultUserAgent;
+        } else if (userAgentHeader != null) {
+            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
+        }
+
+        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
+    }
+
+    private  String buildDefaultUserAgent() {
+        StringBuilder userAgent = new StringBuilder();
+        userAgent.append(Client.CLIENT_USER_AGENT);
+
+        String clientVersion = Client.clientVersion;
+
+        userAgent.append(clientVersion);
+
+        userAgent.append(" (");
+        userAgent.append(System.getProperty("os.name"));
+        userAgent.append("; ");
+        userAgent.append("jvm:").append(System.getProperty("java.version"));
+        userAgent.append("; ");
+
+        userAgent.setLength(userAgent.length() - 2);
+        userAgent.append(')');
+
+        userAgent.append(" ")
+                .append(this.httpClient.getClass().getPackage().getImplementationTitle().replaceAll(" ", "-"))
+                .append('/')
+                .append(this.httpClient.getClass().getPackage().getImplementationVersion());
+
+        return userAgent.toString();
+    }
+
+    public void close() {
+        httpClient.close(CloseMode.IMMEDIATE);
     }
 }

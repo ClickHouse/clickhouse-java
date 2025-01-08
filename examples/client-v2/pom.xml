@@ -34,16 +34,6 @@
         <tag>HEAD</tag>
     </scm>
 
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-java/issues</url>
-    </issueManagement>
-
-    <ciManagement>
-        <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-java/actions</url>
-    </ciManagement>
-
     <repositories>
         <repository>
             <id>central</id>
@@ -64,8 +54,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.7.1-patch1-SNAPSHOT</clickhouse-java.version>
-        <apache-httpclient.version>5.3.1</apache-httpclient.version>
+        <clickhouse-java.version>0.7.2-SNAPSHOT</clickhouse-java.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
@@ -77,15 +66,8 @@
             <groupId>com.clickhouse</groupId>
             <artifactId>client-v2</artifactId>
             <version>${clickhouse-java.version}</version>
+            <classifier>all</classifier>
         </dependency>
-
-        <!-- If Old implementation needed -->
-<!--        <dependency>-->
-<!--            <groupId>com.clickhouse</groupId>-->
-<!--            <artifactId>clickhouse-http-client</artifactId>-->
-<!--            <version>${clickhouse-java.version}</version>-->
-<!--        </dependency>-->
-
 
         <!-- Recommended for JSON parsing -->
         <dependency>

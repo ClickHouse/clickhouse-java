@@ -27,31 +27,12 @@
         </license>
     </licenses>
 
-    <developers>
-        <developer>
-            <id>zhicwu</id>
-            <name>Zhichun Wu</name>
-            <email>zhicwu@gmail.com</email>
-            <timezone>+8</timezone>
-        </developer>
-    </developers>
-
     <scm>
         <url>https://github.com/ClickHouse/clickhouse-java</url>
         <connection>scm:git@github.com:ClickHouse/clickhouse-java.git</connection>
         <developerConnection>scm:git@github.com:ClickHouse/clickhouse-java.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
-
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-java/issues</url>
-    </issueManagement>
-
-    <ciManagement>
-        <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-java/actions</url>
-    </ciManagement>
 
     <repositories>
         <repository>
@@ -66,62 +47,35 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.7.1-patch1-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.7.2-SNAPSHOT</clickhouse-java.version>
         <hikaricp.version>4.0.3</hikaricp.version>
         <apache-httpclient.version>5.2.1</apache-httpclient.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
         <minJdk>1.8</minJdk>
+        <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
     </properties>
-
-    <profiles>
-        <profile>
-            <id>http</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <dependencies>
-                <dependency>
-                    <groupId>com.clickhouse</groupId>
-                    <artifactId>clickhouse-jdbc</artifactId>
-                    <version>${clickhouse-java.version}</version>
-                    <classifier>http</classifier>
-                </dependency>
-            </dependencies>
-        </profile>
-
-        <profile>
-            <id>shaded</id>
-            <dependencies>
-                <dependency>
-                    <groupId>com.clickhouse</groupId>
-                    <artifactId>clickhouse-jdbc</artifactId>
-                    <version>${clickhouse-java.version}</version>
-                    <classifier>shaded</classifier>
-                </dependency>
-            </dependencies>
-        </profile>
-
-        <profile>
-            <id>fatjar</id>
-            <dependencies>
-                <dependency>
-                    <groupId>com.clickhouse</groupId>
-                    <artifactId>clickhouse-jdbc</artifactId>
-                    <version>${clickhouse-java.version}</version>
-                    <classifier>all</classifier>
-                </dependency>
-            </dependencies>
-        </profile>
-
-    </profiles>
 
     <dependencies>
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>${hikaricp.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>${clickhouse-java.version}</version>
+            <classifier>${clickhouse-packages.classifier}</classifier>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.13</version>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 
