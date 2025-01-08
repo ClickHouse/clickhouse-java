@@ -43,14 +43,14 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Decimal64, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal128, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.String, JDBCType.VARCHAR);
-        map.put(ClickHouseDataType.FixedString, JDBCType.CHAR);
+        map.put(ClickHouseDataType.FixedString, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum8, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum16, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Date, JDBCType.DATE);
         map.put(ClickHouseDataType.Date32, JDBCType.DATE);
-        map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP_WITH_TIMEZONE);
-        map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP_WITH_TIMEZONE);
-        map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP_WITH_TIMEZONE);
+        map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
@@ -107,16 +107,6 @@ public class JdbcUtils {
 
     public static Class<?> convertToJavaClass(ClickHouseDataType clickhouseType) {
         return SQL_TYPE_TO_CLASS_MAP.get(convertToSqlType(clickhouseType));
-    }
-
-
-    public static String generateSqlTypeEnum(String columnName) {
-        StringBuilder sql = new StringBuilder("multiIf(");
-        for (ClickHouseDataType type : CLICKHOUSE_TO_SQL_TYPE_MAP.keySet()) {
-            sql.append("position(").append(columnName).append(", '").append(type.name()).append("') > 0, ").append(CLICKHOUSE_TO_SQL_TYPE_MAP.get(type).getVendorTypeNumber()).append(", ");
-        }
-        sql.append(JDBCType.OTHER.getVendorTypeNumber()).append(")");
-        return sql.toString();
     }
 
     public static List<String> tokenizeSQL(String sql) {

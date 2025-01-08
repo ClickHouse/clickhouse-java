@@ -91,7 +91,7 @@ public class ResultSetMetaDataTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery("SELECT toDate('2021-01-01') AS a, toDateTime('2021-01-01 00:00:00') AS b");
                 ResultSetMetaData rsmd = rs.getMetaData();
                 assertEquals(rsmd.getColumnType(1), Types.DATE);
-                assertEquals(rsmd.getColumnType(2), Types.TIMESTAMP_WITH_TIMEZONE);
+                assertEquals(rsmd.getColumnType(2), Types.TIMESTAMP);
             }
         }
     }

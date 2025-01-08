@@ -37,14 +37,14 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             conn.createStatement().execute("DROP TABLE IF EXISTS " + tableName);
 
             StringBuilder createTableStmt = new StringBuilder("CREATE TABLE " + tableName + " (");
-            List<String> columnNames = Arrays.asList("id", "name", "float1", "fixed_string1", "decimal_1", "nullable_column");
-            List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
-            List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5);
-            List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.CHAR, Types.DECIMAL, Types.DECIMAL);
-            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))");
-            List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true);
-            List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4);
-            List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10);
+            List<String> columnNames = Arrays.asList("id", "name", "float1", "fixed_string1", "decimal_1", "nullable_column", "date", "datetime");
+            List<String> columnTypes = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))", "Date", "DateTime");
+            List<Integer> columnSizes = Arrays.asList(8, 0, 4, 10, 10, 5, 2, 0);
+            List<Integer> columnJDBCDataTypes = Arrays.asList(Types.BIGINT, Types.VARCHAR, Types.FLOAT, Types.VARCHAR, Types.DECIMAL, Types.DECIMAL, Types.DATE, Types.TIMESTAMP);
+            List<String> columnTypeNames = Arrays.asList("UInt64", "String", "Float32", "FixedString(10)", "Decimal(10, 2)", "Nullable(Decimal(5, 4))", "Date", "DateTime");
+            List<Boolean> columnNullable = Arrays.asList(false, false, false, false, false, true, false, false);
+            List<Integer> columnDecimalDigits = Arrays.asList(null, null, null, null, 2, 4, null, null);
+            List<Integer> columnRadix = Arrays.asList(2, null, null, null, 10, 10, null, null);
 
             for (int i = 0; i < columnNames.size(); i++) {
                 createTableStmt.append(columnNames.get(i)).append(" ").append(columnTypes.get(i)).append(',');

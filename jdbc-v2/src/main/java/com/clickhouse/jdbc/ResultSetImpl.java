@@ -6,7 +6,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
-import java.net.SocketException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
@@ -47,6 +46,16 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
     }
 
+    protected ResultSetImpl(ResultSetImpl resultSet) {
+        this.parentStatement = resultSet.parentStatement;
+        this.response = resultSet.response;
+        this.reader = resultSet.reader;
+        this.metaData = resultSet.metaData;
+        this.closed = false;
+        this.wasNull = false;
+        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+    }
+
     private void checkClosed() throws SQLException {
         if (closed) {
             throw new SQLException("ResultSet is closed.", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
@@ -55,6 +64,14 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     public TableSchema getSchema() {
         return reader.getSchema();
+    }
+
+    private String columnIndexToName(int index) throws SQLException {
+        try {
+            return getSchema().columnIndexToName(index);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: columnIndexToName(%s)", parentStatement.getLastSql(), index), e);
+        }
     }
 
 
@@ -112,246 +129,82 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getString(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getString(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getString(columnIndexToName(columnIndex));
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBoolean(columnIndex);
-            } else {
-                wasNull = true;
-                return false;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBoolean(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBoolean(columnIndexToName(columnIndex));
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getByte(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getByte(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getByte(columnIndexToName(columnIndex));
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getShort(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getShort(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getShort(columnIndexToName(columnIndex));
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getInteger(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getInt(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getInt(columnIndexToName(columnIndex));
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getLong(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getLong(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getLong(columnIndexToName(columnIndex));
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getFloat(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getFloat(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getFloat(columnIndexToName(columnIndex));
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getDouble(columnIndex);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDouble(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getDouble(columnIndexToName(columnIndex));
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBigDecimal(columnIndexToName(columnIndex), scale);
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getByteArray(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBytes(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBytes(columnIndexToName(columnIndex));
     }
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            //TODO: Add this to ClickHouseBinaryFormatReader
-            LocalDate localDate = reader.getLocalDate(columnIndex);
-            if (localDate == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Date.valueOf(localDate);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getDate(columnIndexToName(columnIndex));
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Time.valueOf(localDateTime.toLocalTime());
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getTime(columnIndexToName(columnIndex));
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Timestamp.valueOf(localDateTime);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getTimestamp(columnIndex, null);
     }
 
     @Override
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
-        checkClosed();
-        //TODO: Add this to ClickHouseBinaryFormatReader
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getAsciiStream(columnIndexToName(columnIndex));
     }
 
     @Override
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            return new ByteArrayInputStream(reader.getString(columnIndex).getBytes(StandardCharsets.UTF_8));
-        }
-
-        return null;
+        return getUnicodeStream(columnIndexToName(columnIndex));
     }
 
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        checkClosed();
-        //TODO: implement
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return null;
+        return getBinaryStream(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -551,19 +404,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Timestamp.valueOf(localDateTime);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getTimestamp(columnLabel, null);
     }
 
     @Override
@@ -619,7 +460,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return getObject(getSchema().columnIndexToName(columnIndex));
+        return getObject(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -659,18 +500,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnIndex)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getBigDecimal(%s)", parentStatement.getLastSql(), columnIndex), e);
-        }
+        return getBigDecimal(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -870,97 +700,97 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNull(int columnIndex) throws SQLException {
-        updateNull(getSchema().columnIndexToName(columnIndex));
+        updateNull(columnIndexToName(columnIndex));
     }
 
     @Override
     public void updateBoolean(int columnIndex, boolean x) throws SQLException {
-        updateBoolean(getSchema().columnIndexToName(columnIndex), x);
+        updateBoolean(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateByte(int columnIndex, byte x) throws SQLException {
-        updateByte(getSchema().columnIndexToName(columnIndex), x);
+        updateByte(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateShort(int columnIndex, short x) throws SQLException {
-        updateShort(getSchema().columnIndexToName(columnIndex), x);
+        updateShort(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateInt(int columnIndex, int x) throws SQLException {
-        updateInt(getSchema().columnIndexToName(columnIndex), x);
+        updateInt(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateLong(int columnIndex, long x) throws SQLException {
-        updateLong(getSchema().columnIndexToName(columnIndex), x);
+        updateLong(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateFloat(int columnIndex, float x) throws SQLException {
-        updateFloat(getSchema().columnIndexToName(columnIndex), x);
+        updateFloat(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateDouble(int columnIndex, double x) throws SQLException {
-        updateDouble(getSchema().columnIndexToName(columnIndex), x);
+        updateDouble(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
-        updateBigDecimal(getSchema().columnIndexToName(columnIndex), x);
+        updateBigDecimal(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateString(int columnIndex, String x) throws SQLException {
-        updateString(getSchema().columnIndexToName(columnIndex), x);
+        updateString(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-        updateBytes(getSchema().columnIndexToName(columnIndex), x);
+        updateBytes(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateDate(int columnIndex, Date x) throws SQLException {
-        updateDate(getSchema().columnIndexToName(columnIndex), x);
+        updateDate(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateTime(int columnIndex, Time x) throws SQLException {
-        updateTime(getSchema().columnIndexToName(columnIndex), x);
+        updateTime(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
-        updateTimestamp(getSchema().columnIndexToName(columnIndex), x);
+        updateTimestamp(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
-        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateAsciiStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
-        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateBinaryStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
-        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateCharacterStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
-        updateObject(getSchema().columnIndexToName(columnIndex), x, scaleOrLength);
+        updateObject(columnIndexToName(columnIndex), x, scaleOrLength);
     }
 
     @Override
     public void updateObject(int columnIndex, Object x) throws SQLException {
-        updateObject(getSchema().columnIndexToName(columnIndex), x);
+        updateObject(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1158,27 +988,27 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return getObject(getSchema().columnIndexToName(columnIndex), map);
+        return getObject(columnIndexToName(columnIndex), map);
     }
 
     @Override
     public Ref getRef(int columnIndex) throws SQLException {
-        return getRef(getSchema().columnIndexToName(columnIndex));
+        return getRef(columnIndexToName(columnIndex));
     }
 
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
-        return getBlob(getSchema().columnIndexToName(columnIndex));
+        return getBlob(columnIndexToName(columnIndex));
     }
 
     @Override
     public java.sql.Clob getClob(int columnIndex) throws SQLException {
-        return getClob(getSchema().columnIndexToName(columnIndex));
+        return getClob(columnIndexToName(columnIndex));
     }
 
     @Override
     public java.sql.Array getArray(int columnIndex) throws SQLException {
-        return getArray(getSchema().columnIndexToName(columnIndex));
+        return getArray(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1232,7 +1062,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        return getDate(getSchema().columnIndexToName(columnIndex), cal);
+        return getDate(columnIndexToName(columnIndex), cal);
     }
 
     @Override
@@ -1251,7 +1081,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        return getTime(getSchema().columnIndexToName(columnIndex), cal);
+        return getTime(columnIndexToName(columnIndex), cal);
     }
 
     @Override
@@ -1262,18 +1092,34 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return getTimestamp(getSchema().columnIndexToName(columnIndex), cal);
+        return getTimestamp(columnIndexToName(columnIndex), cal);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return getTimestamp(columnLabel);
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+            if (localDateTime == null) {
+                wasNull = true;
+                return null;
+            }
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
+                    localDateTime.getSecond());
+            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
+            timestamp.setNanos(localDateTime.getNano());
+            wasNull = false;
+            return timestamp;
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
+        }
+
     }
 
     @Override
     public URL getURL(int columnIndex) throws SQLException {
-        return getURL(getSchema().columnIndexToName(columnIndex));
+        return getURL(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1288,7 +1134,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRef(int columnIndex, Ref x) throws SQLException {
-        updateRef(getSchema().columnIndexToName(columnIndex), x);
+        updateRef(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1301,7 +1147,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, Blob x) throws SQLException {
-        updateBlob(getSchema().columnIndexToName(columnIndex), x);
+        updateBlob(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1314,7 +1160,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Clob x) throws SQLException {
-        updateClob(getSchema().columnIndexToName(columnIndex), x);
+        updateClob(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1327,7 +1173,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateArray(int columnIndex, java.sql.Array x) throws SQLException {
-        updateArray(getSchema().columnIndexToName(columnIndex), x);
+        updateArray(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1340,7 +1186,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public RowId getRowId(int columnIndex) throws SQLException {
-        return getRowId(getSchema().columnIndexToName(columnIndex));
+        return getRowId(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1351,7 +1197,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRowId(int columnIndex, RowId x) throws SQLException {
-        updateRowId(getSchema().columnIndexToName(columnIndex), x);
+        updateRowId(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1375,7 +1221,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNString(int columnIndex, String nString) throws SQLException {
-        updateNString(getSchema().columnIndexToName(columnIndex), nString);
+        updateNString(columnIndexToName(columnIndex), nString);
     }
 
     @Override
@@ -1388,7 +1234,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
-        updateNClob(getSchema().columnIndexToName(columnIndex), nClob);
+        updateNClob(columnIndexToName(columnIndex), nClob);
     }
 
     @Override
@@ -1401,7 +1247,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public NClob getNClob(int columnIndex) throws SQLException {
-        return getNClob(getSchema().columnIndexToName(columnIndex));
+        return getNClob(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1416,7 +1262,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        return getSQLXML(getSchema().columnIndexToName(columnIndex));
+        return getSQLXML(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1431,7 +1277,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
-        updateSQLXML(getSchema().columnIndexToName(columnIndex), xmlObject);
+        updateSQLXML(columnIndexToName(columnIndex), xmlObject);
     }
 
     @Override
@@ -1444,7 +1290,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getNString(int columnIndex) throws SQLException {
-        return getNString(getSchema().columnIndexToName(columnIndex));
+        return getNString(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1455,7 +1301,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        return getNCharacterStream(getSchema().columnIndexToName(columnIndex));
+        return getNCharacterStream(columnIndexToName(columnIndex));
     }
 
     @Override
@@ -1466,7 +1312,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        updateNCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateNCharacterStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
@@ -1479,17 +1325,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
-        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateAsciiStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
-        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateBinaryStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x, length);
+        updateCharacterStream(columnIndexToName(columnIndex), x, length);
     }
 
     @Override
@@ -1518,7 +1364,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
-        updateBlob(getSchema().columnIndexToName(columnIndex), inputStream, length);
+        updateBlob(columnIndexToName(columnIndex), inputStream, length);
     }
 
     @Override
@@ -1531,7 +1377,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
-        updateClob(getSchema().columnIndexToName(columnIndex), reader, length);
+        updateClob(columnIndexToName(columnIndex), reader, length);
     }
 
     @Override
@@ -1544,7 +1390,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
-        updateNClob(getSchema().columnIndexToName(columnIndex), reader, length);
+        updateNClob(columnIndexToName(columnIndex), reader, length);
     }
 
     @Override
@@ -1557,7 +1403,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
-        updateNCharacterStream(getSchema().columnIndexToName(columnIndex), x);
+        updateNCharacterStream(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1570,17 +1416,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
-        updateAsciiStream(getSchema().columnIndexToName(columnIndex), x);
+        updateAsciiStream(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
-        updateBinaryStream(getSchema().columnIndexToName(columnIndex), x);
+        updateBinaryStream(columnIndexToName(columnIndex), x);
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
-        updateCharacterStream(getSchema().columnIndexToName(columnIndex), x);
+        updateCharacterStream(columnIndexToName(columnIndex), x);
     }
 
     @Override
@@ -1609,7 +1455,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
-        updateBlob(getSchema().columnIndexToName(columnIndex), inputStream);
+        updateBlob(columnIndexToName(columnIndex), inputStream);
     }
 
     @Override
@@ -1622,7 +1468,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateClob(int columnIndex, Reader reader) throws SQLException {
-        updateClob(getSchema().columnIndexToName(columnIndex), reader);
+        updateClob(columnIndexToName(columnIndex), reader);
     }
 
     @Override
@@ -1635,7 +1481,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNClob(int columnIndex, Reader reader) throws SQLException {
-        updateNClob(getSchema().columnIndexToName(columnIndex), reader);
+        updateNClob(columnIndexToName(columnIndex), reader);
     }
 
     @Override
@@ -1648,7 +1494,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        return getObject(getSchema().columnIndexToName(columnIndex), type);
+        return getObject(columnIndexToName(columnIndex), type);
     }
 
     @Override
@@ -1673,7 +1519,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateObject(int columnIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        updateObject(getSchema().columnIndexToName(columnIndex), x, targetSqlType, scaleOrLength);
+        updateObject(columnIndexToName(columnIndex), x, targetSqlType, scaleOrLength);
     }
 
     @Override
@@ -1684,7 +1530,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateObject(int columnIndex, Object x, SQLType targetSqlType) throws SQLException {
-        updateObject(getSchema().columnIndexToName(columnIndex), x, targetSqlType);
+        updateObject(columnIndexToName(columnIndex), x, targetSqlType);
     }
 
     @Override
