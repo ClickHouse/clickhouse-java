@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -233,9 +234,15 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(1, new String[][] {new String[]{"a"}, new String[]{"b"}, new String[]{"c"}});
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(0)).get(0), "a");
-                    assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(1)).get(0), "b");
-                    assertEquals(((BinaryStreamReader.ArrayValue)((BinaryStreamReader.ArrayValue)rs.getObject(1)).get(2)).get(0), "c");
+                    Array a1 = rs.getArray(1);
+                    assertNotNull(a1);
+                    assertEquals(Arrays.deepToString((Object[]) a1.getArray()), "[[a], [b], [c]]");
+                    Array a2 = rs.getObject(1, Array.class);
+                    assertNotNull(a2);
+                    assertEquals(Arrays.deepToString((Object[]) a2.getArray()), "[[a], [b], [c]]");
+                    Array a3 = rs.getObject(1) instanceof Array ? (Array) rs.getObject(1) : null;
+                    assertNotNull(a3);
+                    assertEquals(Arrays.deepToString((Object[]) a3.getArray()), "[[a], [b], [c]]");
                     assertFalse(rs.next());
                 }
             }

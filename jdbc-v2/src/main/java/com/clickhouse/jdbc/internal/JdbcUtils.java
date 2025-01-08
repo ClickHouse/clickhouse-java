@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.types.Array;
 
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -239,8 +241,8 @@ public class JdbcUtils {
                 return java.sql.Timestamp.valueOf(LocalDateTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
-            } else if (type == java.sql.Array.class) {
-                return value;
+            } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
+                return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
