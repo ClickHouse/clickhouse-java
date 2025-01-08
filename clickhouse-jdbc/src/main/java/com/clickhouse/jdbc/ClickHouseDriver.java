@@ -48,32 +48,31 @@ public class ClickHouseDriver implements java.sql.Driver {
         return new ClickHouseDriver().isV2(null);
     }
     public boolean isV2(String url) {
-        log.debug("Checking if V2 driver is requested");
-        boolean v2Flag = Boolean.parseBoolean(System.getProperty("clickhouse.jdbc.v2", "false"));
-        if (v2Flag) {
-            log.info("V2 driver is requested through system property.");
-            return true;
+        log.debug("Checking if V1 driver is requested. V2 is the default driver.");
+        boolean v1Flag = Boolean.parseBoolean(System.getProperty("clickhouse.jdbc.v1", "false"));
+        if (v1Flag) {
+            log.info("V1 driver is requested through system property.");
+            return false;
         }
 
-        if (url != null && url.contains("clickhouse.jdbc.v2")) {
+        if (url != null && url.contains("clickhouse.jdbc.v1")) {
             urlFlagSent = true;
 
-            if (url.contains("clickhouse.jdbc.v2=true")) {
-                log.info("V2 driver is requested through URL.");
-                return true;
-            } else {
+            if (url.contains("clickhouse.jdbc.v1=true")) {
                 log.info("V1 driver is requested through URL.");
                 return false;
+            } else {
+                log.info("V2 driver is requested through URL.");
+                return true;
             }
         }
 
-        return false;
+        return true;
     }
 
 
     private java.sql.Driver getDriver(String url) {
         if (urlFlagSent && driver != null) {// if the URL flag was sent, we don't need to check the URL again
-
             return driver;
         }
 
