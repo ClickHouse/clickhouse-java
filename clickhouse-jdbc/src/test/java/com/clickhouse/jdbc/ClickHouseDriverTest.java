@@ -28,4 +28,16 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
         Connection conn = driver.connect("jdbc:clickhouse://" + address, null);
         conn.close();
     }
+    @Test(groups = "integration")
+    public void testV2Driver() {
+        ClickHouseDriver driver = new ClickHouseDriver();
+        Boolean V1 = false;
+        Boolean V2 = true;
+        Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123"), V2);
+        Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v1=true"), V1);
+        Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v1=false"), V2);
+        Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v2=true"), V2);
+        Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v2=false"), V1);
+
+    }
 }

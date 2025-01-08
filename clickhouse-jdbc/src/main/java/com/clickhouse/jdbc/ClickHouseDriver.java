@@ -55,10 +55,13 @@ public class ClickHouseDriver implements java.sql.Driver {
             return false;
         }
 
-        if (url != null && url.contains("clickhouse.jdbc.v1")) {
+        if (url != null && url.contains("clickhouse.jdbc.v")) {
             urlFlagSent = true;
 
             if (url.contains("clickhouse.jdbc.v1=true")) {
+                log.info("V1 driver is requested through URL.");
+                return false;
+            } if (url.contains("clickhouse.jdbc.v2=false")) {
                 log.info("V1 driver is requested through URL.");
                 return false;
             } else {
