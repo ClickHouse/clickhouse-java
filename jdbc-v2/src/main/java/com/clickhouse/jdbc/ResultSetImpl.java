@@ -189,7 +189,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(columnIndexToName(columnIndex));
+        return getTimestamp(columnIndex, null);
     }
 
     @Override
@@ -404,19 +404,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-            if (localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Timestamp.valueOf(localDateTime);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getTimestamp(columnLabel, null);
     }
 
     @Override
@@ -1104,13 +1092,45 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return getTimestamp(columnIndexToName(columnIndex), cal);
+        checkClosed();
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnIndex);
+            if (localDateTime == null) {
+                wasNull = true;
+                return null;
+            }
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
+                    localDateTime.getSecond());
+            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
+            timestamp.setNanos(localDateTime.getNano());
+            wasNull = false;
+            return timestamp;
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnIndex), e);
+        }
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return getTimestamp(columnLabel);
+        try {
+            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
+            if (localDateTime == null) {
+                wasNull = true;
+                return null;
+            }
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
+                    localDateTime.getSecond());
+            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
+            timestamp.setNanos(localDateTime.getNano());
+            wasNull = false;
+            return timestamp;
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
+        }
+
     }
 
     @Override
