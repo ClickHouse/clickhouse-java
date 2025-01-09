@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -219,6 +220,15 @@ public class SerializerUtils {
             case JSON:
                 serializeJSON(stream, value);
                 break;
+            case Tuple:
+                serializeTuple(stream, column, (Object[]) value);
+                break;
+            case Point:
+                serializeTuple(stream, GEO_POINT_TUPLE, (Object[]) value);
+                break;
+            case Variant:
+                serializerVariant(stream, column, value);
+                break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
         }
@@ -231,6 +241,31 @@ public class SerializerUtils {
             throw new UnsupportedOperationException("Serialization of Java object to JSON is not supported yet.");
         }
     }
+
+    private static void serializeTuple(OutputStream out, ClickHouseColumn column, Object[] tupleValues) throws IOException {
+        if (column.getNestedColumns().size() != tupleValues.length) {
+            throw new IllegalArgumentException("Column " + column.getColumnName() + " defines as Tuple with "
+                    + column.getNestedColumns().size() +" elements, but only " + tupleValues.length + " provided");
+        }
+
+        List<ClickHouseColumn> nested = column.getNestedColumns();
+        for (int i = 0; i < nested.size() ; i++) {
+            serializeData(out, tupleValues[i], nested.get(i));
+        }
+    }
+
+
+    private static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
+        int typeOrdNum = column.getVariantOrdNum(value);
+        if (typeOrdNum != -1) {
+            BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
+            serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
+        } else {
+            throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with variant type " + column.getOriginalTypeName());
+        }
+    }
+
+    private static final ClickHouseColumn GEO_POINT_TUPLE = ClickHouseColumn.parse("geopoint Tuple(Float64, Float64)").get(0);
 
     private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {

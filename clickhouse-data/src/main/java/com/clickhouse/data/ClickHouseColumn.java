@@ -37,13 +37,16 @@ import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 
@@ -93,6 +96,8 @@ public final class ClickHouseColumn implements Serializable {
     private int estimatedByteLength;
 
     private ClickHouseValue template;
+
+    private Map<Class<?>, Integer> classToVariantOrdNumMap;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
@@ -423,9 +428,14 @@ public final class ClickHouseColumn implements Serializable {
             if (nestedColumns.isEmpty()) {
                 throw new IllegalArgumentException("Tuple should have at least one nested column");
             }
+
+            List<ClickHouseDataType> variantDataTypes = new ArrayList<>();
             if (matchedKeyword.equals(KEYWORD_VARIANT)) {
                 nestedColumns.sort(Comparator.comparing(o -> o.getDataType().name()));
-                nestedColumns.forEach(c -> c.columnName = "v." + c.getDataType().name());
+                nestedColumns.forEach(c -> {
+                    c.columnName = "v." + c.getDataType().name();
+                    variantDataTypes.add(c.dataType);
+                });
             }
             column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
                     args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
@@ -435,6 +445,7 @@ public final class ClickHouseColumn implements Serializable {
                     fixedLength = false;
                 }
             }
+            column.classToVariantOrdNumMap = ClickHouseDataType.buildVariantMapping(variantDataTypes);
         }
 
         if (column == null) {
@@ -636,6 +647,10 @@ public final class ClickHouseColumn implements Serializable {
     public boolean isAggregateFunction() {
         return dataType == ClickHouseDataType.AggregateFunction;
 
+    }
+
+    public int getVariantOrdNum(Object value) {
+        return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
     }
 
     public boolean isArray() {

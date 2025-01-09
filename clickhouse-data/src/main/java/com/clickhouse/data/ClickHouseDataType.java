@@ -8,12 +8,16 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 
@@ -102,7 +106,75 @@ public enum ClickHouseDataType {
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     // implementation-defined intermediate state
     AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Variant(List.class, true, true, false, 0, 0, 0, 0, 0, true);
+    Variant(List.class, true, true, false, 0, 0, 0, 0, 0, true),
+
+    ;
+
+    public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =
+            Collections.unmodifiableList(Arrays.asList(
+                    Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Int256, UInt256
+            ));
+
+    public static final List<ClickHouseDataType> ORDERED_BY_RANGE_DECIMAL_TYPES =
+            Collections.unmodifiableList(Arrays.asList(
+                    Float32, Float64, Decimal32, Decimal64, Decimal128, Decimal256, Decimal
+            ));
+
+    public static Map<Class<?>, Integer> buildVariantMapping(List<ClickHouseDataType> variantDataTypes) {
+        Map<Class<?>, Integer> variantMapping = new HashMap<>();
+
+        TreeMap<ClickHouseDataType, Integer> intTypesMappings = new TreeMap<>(Comparator.comparingInt(ORDERED_BY_RANGE_INT_TYPES::indexOf));
+        TreeMap<ClickHouseDataType, Integer> decTypesMappings = new TreeMap<>(Comparator.comparingInt(ORDERED_BY_RANGE_DECIMAL_TYPES::indexOf));
+
+        for (int ordNum = 0; ordNum < variantDataTypes.size(); ordNum++) {
+            ClickHouseDataType dataType = variantDataTypes.get(ordNum);
+            Set<Class<?>> classSet = DATA_TYPE_TO_CLASS.get(dataType);
+
+            final int finalOrdNum = ordNum;
+            if (classSet != null) {
+                if (ORDERED_BY_RANGE_INT_TYPES.contains(dataType)) {
+                    intTypesMappings.put(dataType, ordNum);
+                } else if (ORDERED_BY_RANGE_DECIMAL_TYPES.contains(dataType)) {
+                    decTypesMappings.put(dataType, ordNum);
+                } else {
+                    classSet.forEach(c -> variantMapping.put(c, finalOrdNum));
+                }
+            }
+        }
+
+        // add numbers mappings
+        for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : intTypesMappings.entrySet()) {
+            DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
+        }
+        for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : decTypesMappings.entrySet()) {
+            DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
+        }
+
+
+        return variantMapping;
+    }
+
+    static final Map<ClickHouseDataType, Set<Class<?>>> DATA_TYPE_TO_CLASS = dataTypeClassMap();
+    static Map<ClickHouseDataType, Set<Class<?>>> dataTypeClassMap() {
+        Map<ClickHouseDataType, Set<Class<?>>> map = new HashMap<>();
+
+        map.put(UInt256, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
+        map.put(Int256, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
+        map.put(UInt128, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
+        map.put(Int128, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
+        map.put(UInt64, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class))));
+        map.put(Int64, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class))));
+        map.put(UInt32, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class ))));
+        map.put(Int32, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class))));
+        map.put(UInt16, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class))));
+        map.put(Int16, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class))));
+        map.put(UInt8, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class))));
+        map.put(Int8, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class))));
+
+        map.put(String, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(String.class))));
+
+        return map;
+    }
 
 
     /**

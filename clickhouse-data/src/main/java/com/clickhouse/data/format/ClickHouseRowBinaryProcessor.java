@@ -301,6 +301,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             List<Object> tupleValues = value.asTuple();
+            // TODO: variant index
             for (int i = 0, len = serializers.length; i < len; i++) {
                 serializers[i].serialize(values[i].update(tupleValues.get(i)), output);
             }

@@ -251,6 +251,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case String:
                 case Enum8:
                 case Enum16:
+                case Variant:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
