@@ -5,9 +5,15 @@ import java.util.Arrays;
 import com.clickhouse.client.ClickHouseConfig;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class JdbcParameterizedQueryTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     private final ClickHouseConfig config = new ClickHouseConfig();
 
     @Test(groups = "unit")

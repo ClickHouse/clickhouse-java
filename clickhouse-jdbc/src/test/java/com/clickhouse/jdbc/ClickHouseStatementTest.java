@@ -17,6 +17,7 @@ import com.clickhouse.data.value.UnsignedShort;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
 import org.testng.SkipException;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -59,6 +60,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @DataProvider(name = "timeZoneTestOptions")
     private Object[][] getTimeZoneTestOptions() {
         return new Object[][] {

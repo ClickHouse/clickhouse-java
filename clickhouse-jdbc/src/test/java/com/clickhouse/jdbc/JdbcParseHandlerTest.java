@@ -9,9 +9,15 @@ import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.StatementType;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class JdbcParseHandlerTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @Test(groups = "unit")
     public void testInsertFromInFileStatement() {
         JdbcParseHandler handler = JdbcParseHandler.getInstance(false, false, true);

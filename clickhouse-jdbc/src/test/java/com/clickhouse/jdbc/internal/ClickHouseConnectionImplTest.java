@@ -11,9 +11,15 @@ import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @Test(groups = "integration")
     public void testManualCommit() throws SQLException {
         if (isCloud()) return; //TODO: testManualCommit - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747

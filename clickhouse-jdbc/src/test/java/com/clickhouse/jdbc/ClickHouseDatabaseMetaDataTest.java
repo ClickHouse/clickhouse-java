@@ -16,10 +16,15 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaDataTest.class);
     @DataProvider(name = "selectedColumns")

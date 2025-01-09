@@ -13,10 +13,16 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseJdbcUrlParserTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @Test(groups = "unit")
     public void testParseInvalidUri() {
         Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse(null, null));

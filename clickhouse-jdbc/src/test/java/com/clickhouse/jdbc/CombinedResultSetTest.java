@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -15,6 +16,11 @@ import com.clickhouse.client.ClickHouseSimpleResponse;
 import com.clickhouse.data.ClickHouseColumn;
 
 public class CombinedResultSetTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @DataProvider(name = "multipleResultSetsProvider")
     private Object[][] getMultipleResultSets() {
         ClickHouseConfig config = new ClickHouseConfig();

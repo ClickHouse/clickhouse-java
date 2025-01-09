@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -11,6 +12,11 @@ import java.sql.Statement;
 import java.util.Properties;
 
 public class JdbcIssuesTest extends JdbcIntegrationTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
+
     @Test(groups = "integration")
     public void test01Decompress() throws SQLException {
         String TABLE_NAME = "decompress_issue_01";

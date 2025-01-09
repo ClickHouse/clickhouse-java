@@ -60,11 +60,16 @@ import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
 
 import org.testng.Assert;
 import org.testng.SkipException;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
+    @BeforeClass
+    public void setUp() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
     @DataProvider(name = "columnsWithDefaultValue")
     private Object[][] getColumnsWithDefaultValue() {
         return new Object[][] {
