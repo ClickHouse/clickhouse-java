@@ -60,11 +60,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @DataProvider(name = "timeZoneTestOptions")
     private Object[][] getTimeZoneTestOptions() {
         return new Object[][] {

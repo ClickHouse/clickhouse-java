@@ -9,11 +9,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class JdbcTransactionTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @Test(groups = "unit")
     public void testQuery() {
         JdbcTransaction tx = new JdbcTransaction();

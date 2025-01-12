@@ -39,10 +39,6 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseResultSetTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
     @DataProvider(name = "nullableTypes")
     private Object[][] getNullableTypes() {
         return new Object[][] {

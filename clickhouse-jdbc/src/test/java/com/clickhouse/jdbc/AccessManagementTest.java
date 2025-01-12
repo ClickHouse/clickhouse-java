@@ -17,11 +17,6 @@ import java.util.Arrays;
 import java.util.Properties;
 
 public class AccessManagementTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @Test(groups = "integration", dataProvider = "setRolesArgsForTestSetRole")
     public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles,
                                                 String connectionProvider) throws SQLException {

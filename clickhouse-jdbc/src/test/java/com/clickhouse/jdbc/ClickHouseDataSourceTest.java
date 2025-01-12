@@ -20,10 +20,6 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
     @Test(groups = "integration")
     public void testHighAvailabilityConfig() throws SQLException {
         if (isCloud() || ClickHouseDriver.isV2()) return; //TODO: testHighAvailabilityConfig - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747

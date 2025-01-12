@@ -16,11 +16,6 @@ import com.clickhouse.client.ClickHouseSimpleResponse;
 import com.clickhouse.data.ClickHouseColumn;
 
 public class CombinedResultSetTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @DataProvider(name = "multipleResultSetsProvider")
     private Object[][] getMultipleResultSets() {
         ClickHouseConfig config = new ClickHouseConfig();

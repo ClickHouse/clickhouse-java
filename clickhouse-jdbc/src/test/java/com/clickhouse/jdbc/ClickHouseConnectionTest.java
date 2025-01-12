@@ -22,10 +22,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
     @Override
     public ClickHouseConnection newConnection(Properties properties) throws SQLException {
         return (ClickHouseConnection) newDataSource(properties).getConnection();

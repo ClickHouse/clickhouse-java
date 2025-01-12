@@ -10,11 +10,6 @@ import java.util.Properties;
 import static org.testng.Assert.assertThrows;
 
 public class GenericJDBCTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     public Connection getConnection(Properties properties) throws SQLException {
         if (properties == null) {
             properties = new Properties();

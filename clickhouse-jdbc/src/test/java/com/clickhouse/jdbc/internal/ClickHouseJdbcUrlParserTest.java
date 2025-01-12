@@ -18,11 +18,6 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseJdbcUrlParserTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @Test(groups = "unit")
     public void testParseInvalidUri() {
         Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse(null, null));

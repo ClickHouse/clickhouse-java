@@ -31,6 +31,7 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
     }
     @Test(groups = "integration")
     public void testV2Driver() {
+        System.setProperty("clickhouse.jdbc.v1","false");
         ClickHouseDriver driver = new ClickHouseDriver();
         Boolean V1 = false;
         Boolean V2 = true;
@@ -39,6 +40,6 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
         Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v1=false"), V2);
         Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v2=true"), V2);
         Assert.assertEquals(driver.isV2("jdbc:clickhouse://localhost:8123?clickhouse.jdbc.v2=false"), V1);
-
+        System.setProperty("clickhouse.jdbc.v1","true");
     }
 }

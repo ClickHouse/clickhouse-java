@@ -12,11 +12,6 @@ import java.sql.Statement;
 import java.util.Properties;
 
 public class JdbcIssuesTest extends JdbcIntegrationTest {
-    @BeforeClass
-    public void setUp() {
-        System.setProperty("clickhouse.jdbc.v1","true");
-    }
-
     @Test(groups = "integration")
     public void test01Decompress() throws SQLException {
         String TABLE_NAME = "decompress_issue_01";
