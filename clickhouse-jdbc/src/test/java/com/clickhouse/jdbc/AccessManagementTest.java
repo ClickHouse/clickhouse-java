@@ -6,6 +6,7 @@ import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -17,6 +18,10 @@ import java.util.Arrays;
 import java.util.Properties;
 
 public class AccessManagementTest extends JdbcIntegrationTest {
+    @BeforeMethod(groups = "integration")
+    public void setV1() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
     @Test(groups = "integration", dataProvider = "setRolesArgsForTestSetRole")
     public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles,
                                                 String connectionProvider) throws SQLException {
