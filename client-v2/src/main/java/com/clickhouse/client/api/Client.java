@@ -479,6 +479,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
+         * Default is 0.
          *
          * @param timeout - socket timeout value
          * @param unit - time unit
