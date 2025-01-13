@@ -21,7 +21,7 @@ public class Basic {
         properties.setProperty("user", System.getProperty("chUser", "default"));
         properties.setProperty("password", System.getProperty("chPassword", ""));
 
-        try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection
+        try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection using the jdbc DriverManager
             try (Statement stmt = conn.createStatement()) {//Create a statement
                 stmt.execute("DROP TABLE IF EXISTS " + TABLE_NAME);//Execute a query to drop the table if it exists
                 stmt.execute("CREATE TABLE " + TABLE_NAME + " (date Date, id UInt32, name String) ENGINE = Memory");
