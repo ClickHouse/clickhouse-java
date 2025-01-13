@@ -39,6 +39,7 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
@@ -52,6 +53,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.function.Supplier;
@@ -1022,6 +1024,38 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 e.printStackTrace();
                 throw e;
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testWithDefaultTimeouts() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int proxyPort = new Random().nextInt(1000) + 10000;
+        WireMockServer proxy = new WireMockServer(WireMockConfiguration
+                .options().port(proxyPort)
+                .notifier(new Slf4jNotifier(true)));
+        proxy.start();
+        proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse().withFixedDelay(5000)
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", proxyPort, false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                .build()) {
+            int startTime = (int) System.currentTimeMillis();
+            try {
+                client.query("SELECT 1").get();
+            } catch (Exception e) {
+                Assert.fail("Elapsed Time: " + (System.currentTimeMillis() - startTime), e);
+            }
+        } finally {
+            proxy.stop();
         }
     }
 
