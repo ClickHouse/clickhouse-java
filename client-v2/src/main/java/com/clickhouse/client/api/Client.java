@@ -255,47 +255,6 @@ public class Client implements AutoCloseable {
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
-            // TODO: set defaults configuration values
-            this.setConnectTimeout(30, SECONDS)
-                    .setSocketTimeout(2, SECONDS)
-                    .setSocketRcvbuf(804800)
-                    .setSocketSndbuf(804800)
-                    .compressServerResponse(true)
-                    .compressClientRequest(false);
-        }
-
-        /**
-         * Builds a client object with the provided configuration through URL parameters.
-         *  (e.g. http://localhost:8123/someDatabase?user=default)
-         * @param urlString - URL formatted string with protocol, host, port, and client configuration settings.
-         * @return Client - a client object
-         */
-        public Builder fromUrl(String urlString) {
-            try {
-                URL url = new URL(urlString);
-                Map<String, String> urlProperties = HttpAPIClientHelper.parseUrlParameters(url);
-
-                // Add the endpoint
-                boolean secure = url.getProtocol().equalsIgnoreCase("https");
-                int port = url.getPort();
-                if (port == -1) {
-                    port = secure ? ClickHouseHttpProto.DEFAULT_HTTPS_PORT : ClickHouseHttpProto.DEFAULT_HTTP_PORT;
-                }
-                this.addEndpoint(Protocol.HTTP, url.getHost(), port, secure);
-
-                for (ClientConfigProperties properties: ClientConfigProperties.values()) {
-                    String value = urlProperties.get(properties.getKey());
-                    if (value != null) {
-                        this.configuration.put(properties.getKey(), value);
-                    }
-                }
-
-                // Set the database
-            } catch (java.net.MalformedURLException e) {
-                throw new IllegalArgumentException("Configuration via URL should be done with a valid URL string", e);
-            }
-
-            return this;
         }
 
         /**
@@ -520,6 +479,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Default socket timeout in milliseconds. Timeout is applied to read and write operations.
+         * Default is 0.
          *
          * @param timeout - socket timeout value
          * @param unit - time unit
@@ -1076,6 +1036,7 @@ public class Client implements AutoCloseable {
          * Default size for a buffers used in networking.
          */
         public static final int DEFAULT_BUFFER_SIZE = 8192;
+        public static final int DEFAULT_SOCKET_BUFFER_SIZE = 804800;
 
         private void setDefaults() {
 
@@ -1168,6 +1129,18 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey(ClientConfigProperties.APP_COMPRESSED_DATA.getKey())) {
                 appCompressedData(false);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey())) {
+                setSocketTimeout(0, SECONDS);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey())) {
+                setSocketRcvbuf(DEFAULT_SOCKET_BUFFER_SIZE);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey())) {
+                setSocketSndbuf(DEFAULT_SOCKET_BUFFER_SIZE);
             }
         }
     }
