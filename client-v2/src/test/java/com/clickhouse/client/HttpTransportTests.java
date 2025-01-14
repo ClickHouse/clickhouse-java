@@ -58,6 +58,7 @@ import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
@@ -1014,6 +1015,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // only for cloud
         }
         String jwt = System.getenv("INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43");
+        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
+        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
         try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
             try {
                 List<GenericRecord> response = client.queryAll("SELECT user(), now()");
