@@ -60,6 +60,7 @@ import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -108,7 +109,7 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
 
-        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get("client_retry_on_failures"), ClientFaultCause.class);
+        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey()), ClientFaultCause.class);
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
@@ -398,7 +399,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException e) {
+        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
@@ -576,24 +577,34 @@ public class HttpAPIClientHelper {
         return converter.apply(header.getValue());
     }
 
-    public boolean shouldRetry(Exception ex, Map<String, Object> requestSettings) {
+    public boolean shouldRetry(Throwable ex, Map<String, Object> requestSettings) {
         Set<ClientFaultCause> retryCauses = (Set<ClientFaultCause>)
-                requestSettings.getOrDefault("retry_on_failures", defaultRetryCauses);
+                requestSettings.getOrDefault(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), defaultRetryCauses);
 
         if (retryCauses.contains(ClientFaultCause.None)) {
             return false;
         }
 
-        if (ex instanceof NoHttpResponseException ) {
+        if (ex instanceof NoHttpResponseException
+                || ex.getCause() instanceof NoHttpResponseException) {
             return retryCauses.contains(ClientFaultCause.NoHttpResponse);
         }
 
-        if (ex instanceof ConnectException || ex instanceof ConnectTimeoutException) {
+        if (ex instanceof ConnectException
+                || ex instanceof ConnectTimeoutException
+                || ex.getCause() instanceof ConnectException
+                || ex.getCause() instanceof ConnectTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectTimeout);
         }
 
-        if (ex instanceof ConnectionRequestTimeoutException) {
+        if (ex instanceof ConnectionRequestTimeoutException
+                || ex.getCause() instanceof ConnectionRequestTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectionRequestTimeout);
+        }
+
+        if (ex instanceof SocketTimeoutException
+                || ex.getCause() instanceof SocketTimeoutException) {
+            return retryCauses.contains(ClientFaultCause.SocketTimeout);
         }
 
         return false;
@@ -601,7 +612,11 @@ public class HttpAPIClientHelper {
 
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
-    public ClientException wrapException(String message, Exception cause) {
+    public RuntimeException wrapException(String message, Exception cause) {
+        if (cause instanceof ClientException || cause instanceof ServerException) {
+            return (RuntimeException) cause;
+        }
+
         if (cause instanceof ConnectionRequestTimeoutException ||
                 cause instanceof NoHttpResponseException ||
                 cause instanceof ConnectTimeoutException ||

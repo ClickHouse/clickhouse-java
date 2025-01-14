@@ -7,4 +7,5 @@ public enum ClientFaultCause {
     NoHttpResponse,
     ConnectTimeout,
     ConnectionRequestTimeout,
+    SocketTimeout,
 }
