@@ -1014,7 +1014,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         if (!isCloud()) {
             return; // only for cloud
         }
-        String jwt = System.getenv("INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43");
+        String jwt = System.getenv("CLIENT_JWT");
         Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
         Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
         try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
