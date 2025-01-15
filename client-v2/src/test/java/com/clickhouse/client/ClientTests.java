@@ -130,11 +130,10 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testLoadingServerContext() throws Exception {
-
         long start = System.nanoTime();
         try (Client client = newClient().build()) {
-            long initTime = System.nanoTime() - start;
-            System.out.println("init time " + (initTime / 1_000_000));
+            long initTime = (System.nanoTime() - start) / 1_000_000;
+            Assert.assertTrue(initTime < 100);
             Assert.assertNull(client.getServerVersion());
             client.loadServerInfo();
             Assert.assertNotNull(client.getServerVersion());
