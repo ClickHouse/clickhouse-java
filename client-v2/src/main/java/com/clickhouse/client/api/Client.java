@@ -55,6 +55,7 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -1302,7 +1303,7 @@ public class Client implements AutoCloseable {
             // Selecting some node
             ClickHouseNode selectedNode = getNextAliveNode();
 
-            ClientException lastException = null;
+            RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
@@ -1342,19 +1343,17 @@ public class Client implements AutoCloseable {
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
-                } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
-                    lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                } catch (Exception e) {
+                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
-                        LOG.warn("Retrying", e);
+                        LOG.warn("Retrying.", e);
                         selectedNode = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
-                } catch (IOException e) {
-                    throw new ClientException("Insert request failed", e);
                 }
             }
-            throw new ClientException("Insert request failed after retries", lastException);
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
         };
 
         return runAsyncOperation(supplier, settings.getAllSettings());
@@ -1462,7 +1461,7 @@ public class Client implements AutoCloseable {
             // Selecting some node
             ClickHouseNode selectedNode = getNextAliveNode();
 
-            ClientException lastException = null;
+            RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
@@ -1487,16 +1486,14 @@ public class Client implements AutoCloseable {
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
-                } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
-                    lastException = httpClientHelper.wrapException("Insert request initiation failed", e);
+                } catch (Exception e) {
+                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
-                        LOG.warn("Retrying", e);
+                        LOG.warn("Retrying.", e);
                         selectedNode = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
-                } catch (IOException e) {
-                    throw new ClientException("Insert request failed", e);
                 }
 
                 if (i < maxRetries) {
@@ -1507,7 +1504,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after retries", lastException);
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1588,7 +1585,7 @@ public class Client implements AutoCloseable {
             responseSupplier = () -> {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
-                ClientException lastException = null;
+                RuntimeException lastException = null;
                 for (int i = 0; i <= maxRetries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
@@ -1615,22 +1612,18 @@ public class Client implements AutoCloseable {
 
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
 
-                    } catch (NoHttpResponseException | ConnectionRequestTimeoutException | ConnectTimeoutException | ConnectException e) {
-                        lastException = httpClientHelper.wrapException("Query request initiation failed", e);
+                    } catch (Exception e) {
+                        lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedNode = getNextAliveNode();
                         } else {
                             throw lastException;
                         }
-                    } catch (ClientException | ServerException e) {
-                        throw e;
-                    } catch (Exception e) {
-                        throw new ClientException("Query request failed", e);
                     }
                 }
 
-                throw new ClientException("Query request failed after retries", lastException);
+                throw new ClientException("Query request failed after attempts: " + (maxRetries + 1), lastException);
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());

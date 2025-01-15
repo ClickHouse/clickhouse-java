@@ -607,6 +607,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
+            } finally {
+                mockServer.stop();
             }
         }
     }
@@ -1061,6 +1063,59 @@ public class HttpTransportTests extends BaseIntegrationTest {
             proxy.stop();
         }
     }
+
+
+    @Test(groups = { "integration" })
+    public void testTimeoutsWithRetry() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        faultyServer.start();
+
+        // First request gets no response
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .withRequestBody(WireMock.containing("SELECT 1"))
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Failed")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withFixedDelay(5000)
+                        .withHeader("X-ClickHouse-Summary",
+                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        // Second request gets a response (retry)
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .withRequestBody(WireMock.containing("SELECT 1"))
+                .whenScenarioStateIs("Failed")
+                .willSetStateTo("Done")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withFixedDelay(1000)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .setSocketTimeout(3000)
+                .retryOnFailures(ClientFaultCause.SocketTimeout)
+                .build()) {
+            int startTime = (int) System.currentTimeMillis();
+            try {
+                client.query("SELECT 1").get();
+            } catch (Exception e) {
+                Assert.fail("Elapsed Time: " + (System.currentTimeMillis() - startTime), e);
+            }
+        } finally {
+            faultyServer.stop();
+        }
+    }
+
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
