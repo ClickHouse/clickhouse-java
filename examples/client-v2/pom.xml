@@ -59,6 +59,7 @@
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
         <minJdk>1.8</minJdk>
+        <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
     </properties>
 
     <dependencies>
@@ -66,7 +67,7 @@
             <groupId>com.clickhouse</groupId>
             <artifactId>client-v2</artifactId>
             <version>${clickhouse-java.version}</version>
-            <classifier>all</classifier>
+            <classifier>${clickhouse-packages.classifier}</classifier>
         </dependency>
 
         <!-- Recommended for JSON parsing -->
