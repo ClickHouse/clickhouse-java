@@ -145,6 +145,8 @@ public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
+    private final boolean isSharedOpExecuterorOwned;
+
     private final Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
     private boolean useNewImplementation = false;
@@ -172,8 +174,10 @@ public class Client implements AutoCloseable {
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
+            this.isSharedOpExecuterorOwned = true;
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
         } else {
+            this.isSharedOpExecuterorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
         this.useNewImplementation = useNewImplementation;
@@ -225,12 +229,16 @@ public class Client implements AutoCloseable {
      */
     @Override
     public void close() {
-        try {
-            if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
-                this.sharedOperationExecutor.shutdownNow();
+        if (isSharedOpExecuterorOwned) {
+            try {
+                if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
+                    this.sharedOperationExecutor.shutdownNow();
+                }
+            } catch (Exception e) {
+                LOG.error("Failed to close shared operation executor", e);
             }
-        } catch (Exception e) {
-            LOG.error("Failed to close shared operation executor", e);
+        } else {
+            LOG.debug("Skip closing operation executor because not owned by client");
         }
 
         if (oldClient != null) {
@@ -777,9 +785,10 @@ public class Client implements AutoCloseable {
         /**
          * Sets an executor for running operations. If async operations are enabled and no executor is specified
          * client will create a default executor.
-         *
+         * Executor will stay running after {@code Client#close() } is called. It is application responsibility to close
+         * the executor.
          * @param executorService - executor service for async operations
-         * @return
+         * @return 
          */
         public Builder setSharedOperationExecutor(ExecutorService executorService) {
             this.sharedOperationExecutor = executorService;
