@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -19,7 +20,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientTests extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientTests.class);
@@ -128,6 +132,25 @@ public class ClientTests extends BaseIntegrationTest {
 
             Assert.assertEquals(client.getConfiguration().get(ClickHouseClientOption.PRODUCT_NAME.getKey()), productName);
         }
+    }
+
+    @Test
+    public void testProvidedExecutor() throws Exception {
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        try (Client client = newClient().useAsyncRequests(true).setSharedOperationExecutor(executorService).build()) {
+            QueryResponse response = client.query("SELECT 1").get();
+            response.getMetrics();
+        } catch (Exception e) {
+            Assert.fail("unexpected exception", e);
+        }
+
+        AtomicBoolean flag = new AtomicBoolean(true);
+        executorService.submit(() -> flag.compareAndSet(true, false));
+        executorService.shutdown();
+        executorService.awaitTermination(10, TimeUnit.SECONDS);
+
+        Assert.assertFalse(flag.get());
     }
 
     protected Client.Builder newClient() {
