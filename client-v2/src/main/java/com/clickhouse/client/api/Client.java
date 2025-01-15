@@ -172,7 +172,8 @@ public class Client implements AutoCloseable {
         }
         this.useNewImplementation = useNewImplementation;
         if (useNewImplementation) {
-            this.httpClientHelper = new HttpAPIClientHelper(configuration);
+            boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
+            this.httpClientHelper = new HttpAPIClientHelper(configuration, initSslContext);
             LOG.info("Using new http client implementation");
         } else {
             this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
@@ -183,9 +184,9 @@ public class Client implements AutoCloseable {
 
     /**
      * Loads essential information about a server. Should be called after client creation.
-     * 
+     *
      */
-    public void updateServerContext() {
+    public void loadServerInfo() {
         try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
             try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
                 if (reader.next() != null) {

@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -16,7 +15,6 @@ import org.testng.annotations.Test;
 
 import java.net.ConnectException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -131,10 +129,14 @@ public class ClientTests extends BaseIntegrationTest {
     }
 
     @Test
-    public void testSkipServerLoadInfo() throws Exception {
+    public void testLoadingServerContext() throws Exception {
+
+        long start = System.nanoTime();
         try (Client client = newClient().build()) {
+            long initTime = System.nanoTime() - start;
+            System.out.println("init time " + (initTime / 1_000_000));
             Assert.assertNull(client.getServerVersion());
-            client.updateServerContext();
+            client.loadServerInfo();
             Assert.assertNotNull(client.getServerVersion());
         }
     }
