@@ -45,13 +45,10 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
-import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +59,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -77,7 +72,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TimeZone;
@@ -185,12 +179,13 @@ public class Client implements AutoCloseable {
             LOG.info("Using old http client implementation");
         }
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
-
-
-        updateServerContext();
     }
 
-    private void updateServerContext() {
+    /**
+     * Loads essential information about a server. Should be called after client creation.
+     * 
+     */
+    public void updateServerContext() {
         try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
             try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
                 if (reader.next() != null) {
@@ -200,12 +195,9 @@ public class Client implements AutoCloseable {
                 }
             }
         } catch (Exception e) {
-            LOG.error("Failed to get server info", e);
+            throw new ClientException("Failed to get server info", e);
         }
     }
-
-
-
 
     /**
      * Returns default database name that will be used by operations if not specified.

@@ -76,6 +76,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.client =  this.config.applyClientProperties(new Client.Builder())
                 .setClientName(clientName)
                 .build();
+        this.client.updateServerContext();
         this.schema = client.getDefaultDatabase();
         this.defaultQuerySettings = new QuerySettings()
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")

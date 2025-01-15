@@ -130,6 +130,15 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testSkipServerLoadInfo() throws Exception {
+        try (Client client = newClient().build()) {
+            Assert.assertNull(client.getServerVersion());
+            client.updateServerContext();
+            Assert.assertNotNull(client.getServerVersion());
+        }
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
