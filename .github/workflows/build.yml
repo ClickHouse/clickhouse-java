@@ -247,12 +247,6 @@ jobs:
           EOF
       - name: Install Java client
         run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests install
-#      - name: Generate JWT
-#        env:
-#          JWT_K_PEM: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_PRIVATE_KEY }}
-#        run: |
-#          npm install jsonwebtoken &&
-#          echo "CLIENT_JWT=$(node jwt-gen.js)" >> "$GITHUB_ENV"
       - name: Test http client
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
