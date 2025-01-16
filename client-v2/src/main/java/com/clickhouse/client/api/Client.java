@@ -1,10 +1,6 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -26,10 +22,8 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
-import com.clickhouse.client.api.internal.ClientV1AdaptorHelper;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
@@ -52,8 +46,6 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -77,7 +69,6 @@ import java.util.StringJoiner;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -139,11 +130,9 @@ public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
+    private final boolean isSharedOpExecuterorOwned;
+
     private final Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
-
-    private boolean useNewImplementation = false;
-
-    private ClickHouseClient oldClient = null;
 
     private Map<String, TableSchema> tableSchemaCache = new ConcurrentHashMap<>();
     private Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
@@ -166,19 +155,14 @@ public class Client implements AutoCloseable {
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
+            this.isSharedOpExecuterorOwned = true;
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
         } else {
+            this.isSharedOpExecuterorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
-        this.useNewImplementation = useNewImplementation;
-        if (useNewImplementation) {
-            boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
-            this.httpClientHelper = new HttpAPIClientHelper(configuration, initSslContext);
-            LOG.info("Using new http client implementation");
-        } else {
-            this.oldClient = ClientV1AdaptorHelper.createClient(configuration);
-            LOG.info("Using old http client implementation");
-        }
+        boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
+        this.httpClientHelper = new HttpAPIClientHelper(configuration, initSslContext);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
     }
 
@@ -218,16 +202,16 @@ public class Client implements AutoCloseable {
      */
     @Override
     public void close() {
-        try {
-            if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
-                this.sharedOperationExecutor.shutdownNow();
+        if (isSharedOpExecuterorOwned) {
+            try {
+                if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
+                    this.sharedOperationExecutor.shutdownNow();
+                }
+            } catch (Exception e) {
+                LOG.error("Failed to close shared operation executor", e);
             }
-        } catch (Exception e) {
-            LOG.error("Failed to close shared operation executor", e);
-        }
-
-        if (oldClient != null) {
-            oldClient.close();
+        } else {
+            LOG.debug("Skip closing operation executor because not owned by client");
         }
 
         if (httpClientHelper != null) {
@@ -292,10 +276,7 @@ public class Client implements AutoCloseable {
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
             if (secure) {
-                // For some reason com.clickhouse.client.http.ApacheHttpConnectionImpl.newConnection checks only client config
-                // for SSL, so we need to set it here. But it actually should be set for each node separately.
-                // TODO: remove when v1 is deprecated
-                this.configuration.put(SettingsConverter.OldClientOptions.SSL.getKey(), "true");
+                // TODO: if secure init SSL context
             }
             String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
             this.endpoints.add(endpoint);
@@ -635,10 +616,13 @@ public class Client implements AutoCloseable {
 
         /**
          * Switches to new implementation of the client. Default is true.
+         * Throws exception if {@code useNewImplementation == false}
          * @deprecated
          */
         public Builder useNewImplementation(boolean useNewImplementation) {
-            this.useNewImplementation = useNewImplementation;
+            if (!useNewImplementation) {
+                throw new ClientException("switch between new and old version is remove because old version is deprecated.");
+            }
             return this;
         }
 
@@ -770,7 +754,8 @@ public class Client implements AutoCloseable {
         /**
          * Sets an executor for running operations. If async operations are enabled and no executor is specified
          * client will create a default executor.
-         *
+         * Executor will stay running after {@code Client#close() } is called. It is application responsibility to close
+         * the executor.
          * @param executorService - executor service for async operations
          * @return
          */
@@ -1159,15 +1144,11 @@ public class Client implements AutoCloseable {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
-        if (useNewImplementation) {
-            try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
-                return true;
-            } catch (Exception e) {
-                LOG.debug("Failed to connect to the server", e);
-                return false;
-            }
-        } else {
-            return oldClient.ping(getServerNode(), Math.toIntExact(timeout));
+        try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
+            return true;
+        } catch (Exception e) {
+            LOG.debug("Failed to connect to the server", e);
+            return false;
         }
     }
 
@@ -1291,9 +1272,7 @@ public class Client implements AutoCloseable {
 
         String operationId = registerOperationMetrics();
         settings.setOperationId(operationId);
-        if (useNewImplementation) {
-            globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
-        }
+        globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
         //Add format to the settings
@@ -1320,88 +1299,70 @@ public class Client implements AutoCloseable {
         }
 
 
-        if (useNewImplementation) {
-            String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
+        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
+        final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
 
-            settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
-            final InsertSettings finalSettings = settings;
-            Supplier<InsertResponse> supplier = () -> {
-                // Selecting some node
-                ClickHouseNode selectedNode = getNextAliveNode();
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
+        final InsertSettings finalSettings = settings;
+        Supplier<InsertResponse> supplier = () -> {
+            // Selecting some node
+            ClickHouseNode selectedNode = getNextAliveNode();
 
-                RuntimeException lastException = null;
-                for (int i = 0; i <= maxRetries; i++) {
-                    // Execute request
-                    try (ClassicHttpResponse httpResponse =
-                            httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
-                                    out -> {
-                                        out.write("INSERT INTO ".getBytes());
-                                        out.write(tableName.getBytes());
-                                        out.write(" \n FORMAT ".getBytes());
-                                        out.write(format.name().getBytes());
-                                        out.write(" \n".getBytes());
-                                        for (Object obj : data) {
+            RuntimeException lastException = null;
+            for (int i = 0; i <= maxRetries; i++) {
+                // Execute request
+                try (ClassicHttpResponse httpResponse =
+                        httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
+                                out -> {
+                                    out.write("INSERT INTO ".getBytes());
+                                    out.write(tableName.getBytes());
+                                    out.write(" \n FORMAT ".getBytes());
+                                    out.write(format.name().getBytes());
+                                    out.write(" \n".getBytes());
+                                    for (Object obj : data) {
 
-                                            for (POJOSerializer serializer : serializersForTable) {
-                                                try {
-                                                    serializer.serialize(obj, out);
-                                                } catch (InvocationTargetException | IllegalAccessException | IOException e) {
-                                                    throw new DataSerializationException(obj, serializer, e);
-                                                }
+                                        for (POJOSerializer serializer : serializersForTable) {
+                                            try {
+                                                serializer.serialize(obj, out);
+                                            } catch (InvocationTargetException | IllegalAccessException | IOException e) {
+                                                throw new DataSerializationException(obj, serializer, e);
                                             }
                                         }
-                                        out.close();
-                                    })) {
+                                    }
+                                    out.close();
+                                })) {
 
 
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
-                            selectedNode = getNextAliveNode();
-                            continue;
-                        }
-
-                        ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                        OperationMetrics metrics = new OperationMetrics(clientStats);
-                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                        ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
-                        metrics.operationComplete();
-                        metrics.setQueryId(queryId);
-                        return new InsertResponse(metrics);
-                    } catch (Exception e) {
-                        lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
-                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
-                            LOG.warn("Retrying.", e);
-                            selectedNode = getNextAliveNode();
-                        } else {
-                            throw lastException;
-                        }
+                    // Check response
+                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                        LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                        selectedNode = getNextAliveNode();
+                        continue;
                     }
-                }
-                throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
-            };
 
-            return runAsyncOperation(supplier, settings.getAllSettings());
-        } else {
-            //Create an output stream to write the data to
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-
-            //Call the static .serialize method on the POJOSerializer for each object in the list
-            for (Object obj : data) {
-                for (POJOSerializer serializer : serializersForTable) {
-                    try {
-                        serializer.serialize(obj, stream);
-                    } catch (InvocationTargetException | IllegalAccessException | IOException e) {
-                        throw new DataSerializationException(obj, serializer, e);
+                    ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
+                    OperationMetrics metrics = new OperationMetrics(clientStats);
+                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+                    ProcessParser.parseSummary(summary, metrics);
+                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                    metrics.operationComplete();
+                    metrics.setQueryId(queryId);
+                    return new InsertResponse(metrics);
+                } catch (Exception e) {
+                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
+                    if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                        LOG.warn("Retrying.", e);
+                        selectedNode = getNextAliveNode();
+                    } else {
+                        throw lastException;
                     }
                 }
             }
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
+        };
 
-            globalClientStats.get(operationId).stop(ClientMetrics.OP_SERIALIZATION);
-            return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), format, settings);
-        }
+        return runAsyncOperation(supplier, settings.getAllSettings());
+
     }
 
     /**
@@ -1485,103 +1446,71 @@ public class Client implements AutoCloseable {
         final ClientStatisticsHolder finalClientStats = clientStats;
 
         Supplier<InsertResponse> responseSupplier;
-        if (useNewImplementation) {
-
-            String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
-            final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
-                    Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), "8192")) :
-                    settings.getInputStreamCopyBufferSize();
-
-            if (writeBufferSize <= 0) {
-                throw new IllegalArgumentException("Buffer size must be greater than 0");
-            }
-
-            settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
-            final InsertSettings finalSettings = settings;
-            final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
-            finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
-            responseSupplier = () -> {
-                // Selecting some node
-                ClickHouseNode selectedNode = getNextAliveNode();
-
-                RuntimeException lastException = null;
-                for (int i = 0; i <= maxRetries; i++) {
-                    // Execute request
-                    try (ClassicHttpResponse httpResponse =
-                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
-                                         out -> {
-                                             writer.onOutput(out);
-                                             out.close();
-                                         })) {
 
 
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
-                            selectedNode = getNextAliveNode();
-                            continue;
-                        }
+        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
+        final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
+        final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
+                Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), "8192")) :
+                settings.getInputStreamCopyBufferSize();
 
-                        OperationMetrics metrics = new OperationMetrics(finalClientStats);
-                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                        ProcessParser.parseSummary(summary, metrics);
-                        String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
-                        metrics.operationComplete();
-                        metrics.setQueryId(queryId);
-                        return new InsertResponse(metrics);
-                    } catch (Exception e) {
-                        lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
-                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
-                            LOG.warn("Retrying.", e);
-                            selectedNode = getNextAliveNode();
-                        } else {
-                            throw lastException;
-                        }
-                    }
-
-                    if (i < maxRetries) {
-                        try {
-                            writer.onRetry();
-                        } catch (IOException ioe) {
-                            throw new ClientException("Failed to reset stream before next attempt", ioe);
-                        }
-                    }
-                }
-                throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
-            };
-        } else {
-            responseSupplier = () -> {
-                ClickHouseRequest.Mutation request = ClientV1AdaptorHelper
-                        .createMutationRequest(oldClient.write(getServerNode()), tableName, settings, configuration).format(format);
-
-                CompletableFuture<ClickHouseResponse> future = null;
-                future = request.data(output -> {
-                    writer.onOutput(output);
-                    output.close();
-                }).option(ClickHouseClientOption.ASYNC, false).execute();
-
-                try {
-                    int operationTimeout = getOperationTimeout();
-                    ClickHouseResponse clickHouseResponse;
-                    if (operationTimeout > 0) {
-                        clickHouseResponse = future.get(operationTimeout, TimeUnit.MILLISECONDS);
-                    } else {
-                        clickHouseResponse = future.get();
-                    }
-                    return new InsertResponse(clickHouseResponse, finalClientStats);
-                } catch (ExecutionException e) {
-                    throw  new ClientException("Failed to get insert response", e.getCause());
-                } catch (CompletionException e) {
-                    if (e.getCause() instanceof ClickHouseException) {
-                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
-                    }
-                    throw new ClientException("Failed to get query response", e.getCause());
-                } catch (InterruptedException | TimeoutException e) {
-                    throw  new ClientException("Operation has likely timed out.", e);
-                }
-            };
+        if (writeBufferSize <= 0) {
+            throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
+
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
+        final InsertSettings finalSettings = settings;
+        final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
+        finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
+        responseSupplier = () -> {
+            // Selecting some node
+            ClickHouseNode selectedNode = getNextAliveNode();
+
+            RuntimeException lastException = null;
+            for (int i = 0; i <= maxRetries; i++) {
+                // Execute request
+                try (ClassicHttpResponse httpResponse =
+                             httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
+                                     out -> {
+                                         writer.onOutput(out);
+                                         out.close();
+                                     })) {
+
+
+                    // Check response
+                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                        LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                        selectedNode = getNextAliveNode();
+                        continue;
+                    }
+
+                    OperationMetrics metrics = new OperationMetrics(finalClientStats);
+                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+                    ProcessParser.parseSummary(summary, metrics);
+                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                    metrics.operationComplete();
+                    metrics.setQueryId(queryId);
+                    return new InsertResponse(metrics);
+                } catch (Exception e) {
+                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
+                    if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                        LOG.warn("Retrying.", e);
+                        selectedNode = getNextAliveNode();
+                    } else {
+                        throw lastException;
+                    }
+                }
+
+                if (i < maxRetries) {
+                    try {
+                        writer.onRetry();
+                    } catch (IOException ioe) {
+                        throw new ClientException("Failed to reset stream before next attempt", ioe);
+                    }
+                }
+            }
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
+        };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
     }
@@ -1651,7 +1580,6 @@ public class Client implements AutoCloseable {
 
         Supplier<QueryResponse> responseSupplier;
 
-        if (useNewImplementation) {
             String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
             final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
 
@@ -1702,41 +1630,6 @@ public class Client implements AutoCloseable {
 
                 throw new ClientException("Query request failed after attempts: " + (maxRetries + 1), lastException);
             };
-        } else {
-            ClickHouseRequest<?> request = oldClient.read(getServerNode());
-            request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
-            request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings(), queryParams));
-            request.option(ClickHouseClientOption.ASYNC, false); // we have own async handling
-            request.query(sqlQuery, settings.getQueryId());
-            final ClickHouseFormat format = settings.getFormat();
-            request.format(format);
-
-            final QuerySettings finalSettings = settings;
-            responseSupplier = () -> {
-                LOG.trace("Executing request: {}", request);
-                try {
-
-                    int operationTimeout = getOperationTimeout();
-                    ClickHouseResponse clickHouseResponse;
-                    if (operationTimeout > 0) {
-                        clickHouseResponse = request.execute().get(operationTimeout, TimeUnit.MILLISECONDS);
-                    } else {
-                        clickHouseResponse = request.execute().get();
-                    }
-
-                    return new QueryResponse(clickHouseResponse, format, clientStats, finalSettings);
-                } catch (ClientException e) {
-                    throw e;
-                } catch (CompletionException e) {
-                    if (e.getCause() instanceof ClickHouseException) {
-                        throw new ServerException(((ClickHouseException)e.getCause()).getErrorCode(), e.getCause().getMessage().trim());
-                    }
-                    throw new ClientException("Failed to get query response", e.getCause());
-                } catch (Exception e) {
-                    throw new ClientException("Failed to get query response", e);
-                }
-            };
-        }
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
     }
