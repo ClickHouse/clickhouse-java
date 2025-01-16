@@ -13,8 +13,8 @@
     <packaging>jar</packaging>
 
     <name>ClickHouse Client API</name>
-    <description>New client api for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-client-api</url>
+    <description>ClickHouse Client Library</description>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/client-v2</url>
 
     <properties>
         <apache.httpclient.version>5.3.1</apache.httpclient.version>
@@ -157,6 +157,22 @@
                         </path>
                     </annotationProcessorPaths>
                     <release>8</release>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
             <plugin>

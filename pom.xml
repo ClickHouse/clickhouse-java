@@ -1049,6 +1049,33 @@
                             <argLine>${failsafeArgLine}</argLine>
                         </configuration>
                     </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jar</id>
+                                <configuration>
+                                    <archive>
+                                        <addMavenDescriptor>false</addMavenDescriptor>
+                                        <manifest>
+                                            <addDefaultEntries>true</addDefaultEntries>
+                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
+                                        </manifest>
+                                        <manifestEntries>
+                                            <Multi-Release>true</Multi-Release>
+                                            <Implementation-URL>${project.url}</Implementation-URL>
+                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
+                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
+                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
+                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
+                                        </manifestEntries>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
