@@ -39,7 +39,6 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -954,19 +953,15 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Registers http client metrics with MeterRegistry. 
+         * Registers http client metrics with MeterRegistry.
          *
          * @param registry - metrics registry
          * @param name - name of metrics group
          * @return same instance of the builder
          */
         public Builder registerClientMetrics(Object registry, String name) {
-            if (registry instanceof MeterRegistry) {
-                this.metric = registry;
-                this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
-            } else {
-                throw new IllegalArgumentException("Unsupported registry type." + registry.getClass());
-            }
+            this.metric = registry;
+            this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
             return this;
         }
 

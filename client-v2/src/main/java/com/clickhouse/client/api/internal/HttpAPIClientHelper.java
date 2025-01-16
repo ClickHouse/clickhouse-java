@@ -13,8 +13,6 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.binder.httpcomponents.hc5.PoolingHttpClientConnectionManagerMetricsBinder;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -60,6 +58,7 @@ import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
@@ -97,10 +96,10 @@ public class HttpAPIClientHelper {
     private final Set<ClientFaultCause> defaultRetryCauses;
 
     private String defaultUserAgent;
-    private Object metric;
-    public HttpAPIClientHelper(Map<String, String> configuration, Object metric) {
+    private Object metricsRegistry;
+    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry) {
         this.chConfiguration = configuration;
-        this.metric = metric;
+        this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
@@ -225,9 +224,16 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
-        if (metric != null && metric instanceof MeterRegistry) {
-            String name = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), "http-pool");
-            new PoolingHttpClientConnectionManagerMetricsBinder(phccm, name).bindTo((MeterRegistry) metric);
+        if (metricsRegistry != null ) {
+            try {
+                String mGroupName = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(),
+                        "ch-http-pool");
+                Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
+                Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
+            } catch (Exception e) {
+                LOG.error("Failed to register metrics", e);
+            }
         }
         return phccm;
     }
