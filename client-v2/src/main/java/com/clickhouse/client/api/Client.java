@@ -39,13 +39,10 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
-import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,8 +51,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -146,15 +141,22 @@ public class Client implements AutoCloseable {
 
     // Server context
     private String serverVersion;
+    private Object metrics;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
+        this(endpoints, configuration, useNewImplementation, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
+    }
+
+    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metrics) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
+        this.metrics = metrics;
         this.serializers = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
 
@@ -166,7 +168,7 @@ public class Client implements AutoCloseable {
             this.isSharedOpExecuterorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
-        this.httpClientHelper = new HttpAPIClientHelper(configuration);
+        this.httpClientHelper = new HttpAPIClientHelper(configuration, metrics);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
         updateServerContext();
     }
@@ -233,7 +235,7 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
-
+        private Object metric = null;
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
@@ -761,7 +763,7 @@ public class Client implements AutoCloseable {
          * Executor will stay running after {@code Client#close() } is called. It is application responsibility to close
          * the executor.
          * @param executorService - executor service for async operations
-         * @return 
+         * @return
          */
         public Builder setSharedOperationExecutor(ExecutorService executorService) {
             this.sharedOperationExecutor = executorService;
@@ -950,6 +952,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Registers http client metrics with MeterRegistry.
+         *
+         * @param registry - metrics registry
+         * @param name - name of metrics group
+         * @return same instance of the builder
+         */
+        public Builder registerClientMetrics(Object registry, String name) {
+            this.metric = registry;
+            this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -1009,7 +1024,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy);
+                this.columnToMethodMatchingStrategy, this.metric);
         }
 
 

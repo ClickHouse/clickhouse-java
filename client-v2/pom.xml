@@ -74,6 +74,14 @@
             <artifactId>jackson-core</artifactId>
             <version>2.17.2</version>
         </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>1.14.3</version>
+            <optional>true</optional>
+            <scope>compile</scope>
+        </dependency>
+
 
         <!-- Test Dependencies -->
         <dependency>
@@ -191,6 +199,11 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>io.micrometer:*</exclude>
+                                </excludes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.slf4j</pattern>
