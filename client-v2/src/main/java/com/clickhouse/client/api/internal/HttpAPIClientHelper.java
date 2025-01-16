@@ -3,10 +3,10 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -75,6 +75,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -710,11 +712,30 @@ public class HttpAPIClientHelper {
         userAgent.setLength(userAgent.length() - 2);
         userAgent.append(')');
 
-        userAgent.append(" ")
-                .append(this.httpClient.getClass().getPackage().getImplementationTitle().replaceAll(" ", "-"))
-                .append('/')
-                .append(this.httpClient.getClass().getPackage().getImplementationVersion());
+        try {
+            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
+            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
+                // shaded jar - all packages have same implementation title
+                httpClientVersion = "unknown";
+                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
+                    Properties p = new Properties();
+                    p.load(in);
 
+                    String tmp = p.getProperty("apache.http.client.version");
+                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
+                        httpClientVersion = tmp;
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            userAgent.append(" ")
+                    .append("Apache-HttpClient")
+                    .append('/')
+                    .append(httpClientVersion);
+        } catch (Exception e) {
+            LOG.info("failed to construct http client version string");
+        }
         return userAgent.toString();
     }
 
