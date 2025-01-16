@@ -34,7 +34,6 @@ public class Stream2DbWriter {
                 .setUsername(user)
                 .setPassword(password)
                 .compressServerResponse(true)
-                .registerClientMetrics("test not a registry", "test")
                 .setDefaultDatabase(database);
 
         this.client = clientBuilder.build();
