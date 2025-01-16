@@ -141,7 +141,7 @@ public class Client implements AutoCloseable {
 
     // Server context
     private String serverVersion;
-    private Object metrics;
+    private Object metricsRegistry;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
@@ -149,14 +149,14 @@ public class Client implements AutoCloseable {
     }
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metrics) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
-        this.metrics = metrics;
+        this.metricsRegistry = metricsRegistry;
         this.serializers = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
 
@@ -169,7 +169,7 @@ public class Client implements AutoCloseable {
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
         boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
-        this.httpClientHelper = new HttpAPIClientHelper(configuration, metrics, initSslContext);
+        this.httpClientHelper = new HttpAPIClientHelper(configuration, metricsRegistry, initSslContext);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
     }
 
@@ -236,7 +236,7 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
-        private Object metric = null;
+        private Object metricRegistry = null;
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
@@ -961,7 +961,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder registerClientMetrics(Object registry, String name) {
-            this.metric = registry;
+            this.metricRegistry = registry;
             this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
             return this;
         }
@@ -1025,7 +1025,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metric);
+                this.columnToMethodMatchingStrategy, this.metricRegistry);
         }
 
 
