@@ -20,9 +20,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -123,22 +127,24 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteQueryDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT toDate('2020-01-01 12:10:07') AS date, toDateTime('2020-01-01 10:11:12', 'Asia/Istanbul') AS datetime")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT toDate('2020-01-01 12:10:07', 'UTC') AS date, toDateTime('2020-01-01 10:11:12', 'Asia/Istanbul') AS datetime")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1).toString(), "2020-01-01");
                     assertEquals(rs.getDate("date").toString(), "2020-01-01");
                     assertEquals(rs.getDate(1).toLocalDate().toString(), "2020-01-01");
                     assertEquals(rs.getDate("date").toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate(1, null).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("date", null).toLocalDate().toString(), "2020-01-01");
+                    assertEquals(rs.getDate(1, null).toString(), "2020-01-01");
+                    assertEquals(rs.getDate("date", null).toString(), "2020-01-01");
+                    assertEquals(rs.getDate(1, new GregorianCalendar(TimeZone.getTimeZone("America/New_York"))).toString(), "2019-12-31");
+                    assertEquals(rs.getDate("date", new GregorianCalendar(TimeZone.getTimeZone("America/New_York"))).toString(), "2019-12-31");
                     assertEquals(rs.getString(1), "2020-01-01");
                     assertEquals(rs.getString("date"), "2020-01-01");
                     assertEquals(rs.getDate(2).toString(), "2020-01-01");
                     assertEquals(rs.getDate("datetime").toString(), "2020-01-01");
-                    assertEquals(rs.getDate(2).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("datetime").toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate(2, null).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("datetime", null).toLocalDate().toString(), "2020-01-01");
+                    assertEquals(rs.getDate(2).toString(), "2020-01-01");
+                    assertEquals(rs.getDate("datetime").toString(), "2020-01-01");
+                    assertEquals(rs.getDate(2, null).toString(), "2020-01-01");
+                    assertEquals(rs.getDate("datetime", new GregorianCalendar(TimeZone.getTimeZone("Asia/Istanbul"))).toString(), "2020-01-01");
                     assertEquals(rs.getString(2), "2020-01-01T10:11:12+03:00[Asia/Istanbul]");
                     assertEquals(rs.getString("datetime"), "2020-01-01T10:11:12+03:00[Asia/Istanbul]");
                     assertFalse(rs.next());

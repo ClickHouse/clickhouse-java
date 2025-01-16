@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Map;
@@ -179,12 +181,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        return getDate(columnIndexToName(columnIndex));
+        return getDate(columnIndex, null);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return getTime(columnIndexToName(columnIndex));
+        return getTime(columnIndex, null);
     }
 
     @Override
@@ -369,37 +371,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            //TODO: Add this to ClickHouseBinaryFormatReader
-            LocalDate localDate = reader.getLocalDate(columnLabel);
-            if (localDate == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Date.valueOf(localDate);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getDate(columnLabel, null);
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-            if(localDateTime == null) {
-                wasNull = true;
-                return null;
-            }
-
-            wasNull = false;
-            return Time.valueOf(localDateTime.toLocalTime());
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s)", parentStatement.getLastSql(), columnLabel), e);
-        }
+        return getTime(columnLabel, null);
     }
 
     @Override
@@ -1068,15 +1045,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        Date date = getDate(columnLabel);
-        if (date == null) {
-            return null;
+        try {
+            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            if (zdt == null) {
+                wasNull = true;
+                return null;
+            }
+            wasNull = false;
+            ZoneId zoneId = cal != null ? cal.getTimeZone().toZoneId() : zdt.getZone();
+            return Date.valueOf(zdt.withZoneSameInstant(zoneId).toLocalDate());
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getDate(%s, %s)", parentStatement.getLastSql(), columnLabel, cal), e);
         }
-        LocalDate d = date.toLocalDate();
-        Calendar c = (Calendar)( cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-        return new Date(c.getTimeInMillis());
     }
 
     @Override
@@ -1087,7 +1067,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        return getTime(columnLabel);
+        try {
+            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            if (zdt == null) {
+                wasNull = true;
+                return null;
+            }
+            wasNull = false;
+            ZoneId zoneId = cal != null ? cal.getTimeZone().toZoneId() : zdt.getZone();
+            return Time.valueOf(zdt.withZoneSameInstant(zoneId).toLocalTime());
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTime(%s, %s)", parentStatement.getLastSql(), columnLabel, cal), e);
+        }
     }
 
     @Override
@@ -1099,20 +1090,16 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-            if (localDateTime == null) {
+            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            ZoneId zoneId = cal != null ? cal.getTimeZone().toZoneId() : zdt.getZone();
+            if (zdt == null) {
                 wasNull = true;
                 return null;
             }
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
-                    localDateTime.getSecond());
-            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
-            timestamp.setNanos(localDateTime.getNano());
             wasNull = false;
-            return timestamp;
+            return Timestamp.valueOf(zdt.withZoneSameInstant(zoneId).toLocalDateTime());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
+            throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s, %s)", parentStatement.getLastSql(), columnLabel, cal), e);
         }
 
     }
