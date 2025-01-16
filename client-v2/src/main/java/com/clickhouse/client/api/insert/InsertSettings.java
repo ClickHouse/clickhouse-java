@@ -1,10 +1,10 @@
 package com.clickhouse.client.api.insert;
 
+import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ValidationUtils;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import org.apache.hc.core5.http.HttpHeaders;
 
 import java.util.Collection;
@@ -79,14 +79,14 @@ public class InsertSettings {
     }
 
     public String getQueryId() {
-        return (String) rawSettings.get(ClickHouseClientOption.QUERY_ID.getKey());
+        return (String) rawSettings.get(ClientConfigProperties.QUERY_ID.getKey());
     }
 
     /**
      * Sets the query id. This id will be sent to the server and can be used to identify the query.
      */
     public InsertSettings setQueryId(String queryId) {
-        rawSettings.put(ClickHouseClientOption.QUERY_ID.getKey(), queryId);
+        rawSettings.put(ClientConfigProperties.QUERY_ID.getKey(), queryId);
         return this;
     }
 
