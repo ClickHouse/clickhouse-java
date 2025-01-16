@@ -13,6 +13,8 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.httpcomponents.hc5.PoolingHttpClientConnectionManagerMetricsBinder;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -21,6 +23,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -92,9 +95,10 @@ public class HttpAPIClientHelper {
     private final Set<ClientFaultCause> defaultRetryCauses;
 
     private String defaultUserAgent;
-
-    public HttpAPIClientHelper(Map<String, String> configuration) {
+    private Object metric;
+    public HttpAPIClientHelper(Map<String, String> configuration, Object metric) {
         this.chConfiguration = configuration;
+        this.metric = metric;
         this.httpClient = createHttpClient();
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
@@ -187,7 +191,6 @@ public class HttpAPIClientHelper {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
-
         ConnectionReuseStrategy connectionReuseStrategy =
                 ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
         switch (connectionReuseStrategy) {
@@ -219,7 +222,12 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
-        return connMgrBuilder.build();
+        PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
+        if (metric != null && metric instanceof MeterRegistry) {
+            String name = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_NAME.getKey(), "http-pool");
+            new PoolingHttpClientConnectionManagerMetricsBinder(phccm, name).bindTo((MeterRegistry) metric);
+        }
+        return phccm;
     }
 
     public CloseableHttpClient createHttpClient() {

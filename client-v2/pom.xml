@@ -74,6 +74,12 @@
             <artifactId>jackson-core</artifactId>
             <version>2.17.2</version>
         </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>1.14.3</version>
+        </dependency>
+
 
         <!-- Test Dependencies -->
         <dependency>
@@ -135,6 +141,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/io.micrometer/micrometer-observation -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-observation</artifactId>
+            <version>1.14.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
