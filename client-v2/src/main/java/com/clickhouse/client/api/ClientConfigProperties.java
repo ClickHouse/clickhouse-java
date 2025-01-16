@@ -127,7 +127,10 @@ public enum ClientConfigProperties {
      * Indicates that data provided for write operation is compressed by application.
      */
     APP_COMPRESSED_DATA("app_compressed_data"),
-
+    /**
+     *
+     */
+    METRICS_GROUP_NAME("metrics_name"),
     ;
 
     private String key;

@@ -21,6 +21,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -59,6 +60,7 @@ import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
@@ -97,9 +99,10 @@ public class HttpAPIClientHelper {
     private final Set<ClientFaultCause> defaultRetryCauses;
 
     private String defaultUserAgent;
-
-    public HttpAPIClientHelper(Map<String, String> configuration, boolean initSslContext) {
+    private Object metricsRegistry;
+    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
         this.chConfiguration = configuration;
+        this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext);
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
@@ -191,7 +194,6 @@ public class HttpAPIClientHelper {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
-
         ConnectionReuseStrategy connectionReuseStrategy =
                 ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
         switch (connectionReuseStrategy) {
@@ -223,7 +225,19 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
-        return connMgrBuilder.build();
+        PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
+        if (metricsRegistry != null ) {
+            try {
+                String mGroupName = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(),
+                        "ch-http-pool");
+                Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
+                Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
+            } catch (Exception e) {
+                LOG.error("Failed to register metrics", e);
+            }
+        }
+        return phccm;
     }
 
     public CloseableHttpClient createHttpClient(boolean initSslContext) {

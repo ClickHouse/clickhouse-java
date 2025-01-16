@@ -141,15 +141,22 @@ public class Client implements AutoCloseable {
 
     // Server context
     private String serverVersion;
+    private Object metrics;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
+        this(endpoints, configuration, useNewImplementation, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
+    }
+
+    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metrics) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
+        this.metrics = metrics;
         this.serializers = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
 
@@ -162,7 +169,7 @@ public class Client implements AutoCloseable {
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
         boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
-        this.httpClientHelper = new HttpAPIClientHelper(configuration, initSslContext);
+        this.httpClientHelper = new HttpAPIClientHelper(configuration, metrics, initSslContext);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
     }
 
@@ -229,7 +236,7 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
-
+        private Object metric = null;
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
@@ -946,6 +953,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Registers http client metrics with MeterRegistry.
+         *
+         * @param registry - metrics registry
+         * @param name - name of metrics group
+         * @return same instance of the builder
+         */
+        public Builder registerClientMetrics(Object registry, String name) {
+            this.metric = registry;
+            this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
+            return this;
+        }
+
         public Client build() {
             setDefaults();
 
@@ -1005,7 +1025,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy);
+                this.columnToMethodMatchingStrategy, this.metric);
         }
 
 
