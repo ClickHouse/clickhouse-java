@@ -130,7 +130,7 @@ public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
-    private final boolean isSharedOpExecuterorOwned;
+    private final boolean isSharedOpExecutorOwned;
 
     private final Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
@@ -155,10 +155,10 @@ public class Client implements AutoCloseable {
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
-            this.isSharedOpExecuterorOwned = true;
+            this.isSharedOpExecutorOwned = true;
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
         } else {
-            this.isSharedOpExecuterorOwned = false;
+            this.isSharedOpExecutorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
         boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
@@ -202,7 +202,7 @@ public class Client implements AutoCloseable {
      */
     @Override
     public void close() {
-        if (isSharedOpExecuterorOwned) {
+        if (isSharedOpExecutorOwned) {
             try {
                 if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
                     this.sharedOperationExecutor.shutdownNow();
