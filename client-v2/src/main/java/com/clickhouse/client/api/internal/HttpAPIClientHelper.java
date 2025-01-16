@@ -226,7 +226,7 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
         if (metric != null && metric instanceof MeterRegistry) {
-            String name = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_NAME.getKey(), "http-pool");
+            String name = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), "http-pool");
             new PoolingHttpClientConnectionManagerMetricsBinder(phccm, name).bindTo((MeterRegistry) metric);
         }
         return phccm;

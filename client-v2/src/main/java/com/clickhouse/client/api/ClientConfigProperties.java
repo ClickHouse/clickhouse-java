@@ -130,7 +130,7 @@ public enum ClientConfigProperties {
     /**
      *
      */
-    METRICS_NAME("metrics_name"),
+    METRICS_GROUP_NAME("metrics_name"),
     ;
 
     private String key;

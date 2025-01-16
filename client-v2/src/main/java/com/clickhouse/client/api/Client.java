@@ -40,13 +40,10 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,8 +52,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -957,12 +952,20 @@ public class Client implements AutoCloseable {
             this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
             return this;
         }
-        public Builder addMetric(Object metric, String name) {
-            if (metric instanceof MeterRegistry) {
-                this.metric = metric;
-                this.configuration.put(ClientConfigProperties.METRICS_NAME.getKey(), name);
+
+        /**
+         * Registers http client metrics with MeterRegistry. 
+         *
+         * @param registry - metrics registry
+         * @param name - name of metrics group
+         * @return same instance of the builder
+         */
+        public Builder registerClientMetrics(Object registry, String name) {
+            if (registry instanceof MeterRegistry) {
+                this.metric = registry;
+                this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
             } else {
-                throw new IllegalArgumentException("Unsupported metric type. Only MeterRegistry is supported");
+                throw new IllegalArgumentException("Unsupported registry type." + registry.getClass());
             }
             return this;
         }
