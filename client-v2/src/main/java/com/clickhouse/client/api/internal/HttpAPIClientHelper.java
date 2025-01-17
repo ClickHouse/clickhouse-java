@@ -3,10 +3,10 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -21,10 +21,12 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -43,6 +45,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -57,9 +60,12 @@ import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -71,6 +77,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -91,10 +99,11 @@ public class HttpAPIClientHelper {
     private final Set<ClientFaultCause> defaultRetryCauses;
 
     private String defaultUserAgent;
-
-    public HttpAPIClientHelper(Map<String, String> configuration) {
+    private Object metricsRegistry;
+    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
         this.chConfiguration = configuration;
-        this.httpClient = createHttpClient();
+        this.metricsRegistry = metricsRegistry;
+        this.httpClient = createHttpClient(initSslContext);
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -108,7 +117,7 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
         LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
 
-        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get("client_retry_on_failures"), ClientFaultCause.class);
+        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey()), ClientFaultCause.class);
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
@@ -169,11 +178,10 @@ public class HttpAPIClientHelper {
         return connConfig.build();
     }
 
-    private HttpClientConnectionManager basicConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+    private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
         RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
         registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
-        registryBuilder.register("https", new SSLConnectionSocketFactory(sslContext));
-
+        registryBuilder.register("https", sslConnectionSocketFactory);
 
         BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
         connManager.setConnectionConfig(createConnectionConfig());
@@ -182,10 +190,9 @@ public class HttpAPIClientHelper {
         return connManager;
     }
 
-    private HttpClientConnectionManager poolConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+    private HttpClientConnectionManager poolConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
-
 
         ConnectionReuseStrategy connectionReuseStrategy =
                 ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
@@ -216,17 +223,29 @@ public class HttpAPIClientHelper {
                 DefaultHttpResponseParserFactory.INSTANCE);
 
         connMgrBuilder.setConnectionFactory(connectionFactory);
-        connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
+        connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
-        return connMgrBuilder.build();
+        PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
+        if (metricsRegistry != null ) {
+            try {
+                String mGroupName = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(),
+                        "ch-http-pool");
+                Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
+                Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
+            } catch (Exception e) {
+                LOG.error("Failed to register metrics", e);
+            }
+        }
+        return phccm;
     }
 
-    public CloseableHttpClient createHttpClient() {
-
+    public CloseableHttpClient createHttpClient(boolean initSslContext) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = createSSLContext();
-
+        SSLContext sslContext = initSslContext ? createSSLContext() : null;
+        LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
+                : new SSLConnectionSocketFactory(sslContext);
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
@@ -270,9 +289,9 @@ public class HttpAPIClientHelper {
         // Connection manager
         boolean isConnectionPooling = MapUtils.getFlag(chConfiguration, "connection_pool_enabled");
         if (isConnectionPooling) {
-            clientBuilder.setConnectionManager(poolConnectionManager(sslContext, socketConfig));
+            clientBuilder.setConnectionManager(poolConnectionManager(sslConnectionSocketFactory, socketConfig));
         } else {
-            clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
+            clientBuilder.setConnectionManager(basicConnectionManager(sslConnectionSocketFactory, socketConfig));
         }
         long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientConfigProperties.HTTP_KEEP_ALIVE_TIMEOUT.getKey());
         if (keepAliveTimeout > 0) {
@@ -398,7 +417,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException e) {
+        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
@@ -576,24 +595,34 @@ public class HttpAPIClientHelper {
         return converter.apply(header.getValue());
     }
 
-    public boolean shouldRetry(Exception ex, Map<String, Object> requestSettings) {
+    public boolean shouldRetry(Throwable ex, Map<String, Object> requestSettings) {
         Set<ClientFaultCause> retryCauses = (Set<ClientFaultCause>)
-                requestSettings.getOrDefault("retry_on_failures", defaultRetryCauses);
+                requestSettings.getOrDefault(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), defaultRetryCauses);
 
         if (retryCauses.contains(ClientFaultCause.None)) {
             return false;
         }
 
-        if (ex instanceof NoHttpResponseException ) {
+        if (ex instanceof NoHttpResponseException
+                || ex.getCause() instanceof NoHttpResponseException) {
             return retryCauses.contains(ClientFaultCause.NoHttpResponse);
         }
 
-        if (ex instanceof ConnectException || ex instanceof ConnectTimeoutException) {
+        if (ex instanceof ConnectException
+                || ex instanceof ConnectTimeoutException
+                || ex.getCause() instanceof ConnectException
+                || ex.getCause() instanceof ConnectTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectTimeout);
         }
 
-        if (ex instanceof ConnectionRequestTimeoutException) {
+        if (ex instanceof ConnectionRequestTimeoutException
+                || ex.getCause() instanceof ConnectionRequestTimeoutException) {
             return retryCauses.contains(ClientFaultCause.ConnectionRequestTimeout);
+        }
+
+        if (ex instanceof SocketTimeoutException
+                || ex.getCause() instanceof SocketTimeoutException) {
+            return retryCauses.contains(ClientFaultCause.SocketTimeout);
         }
 
         return false;
@@ -601,7 +630,11 @@ public class HttpAPIClientHelper {
 
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
-    public ClientException wrapException(String message, Exception cause) {
+    public RuntimeException wrapException(String message, Exception cause) {
+        if (cause instanceof ClientException || cause instanceof ServerException) {
+            return (RuntimeException) cause;
+        }
+
         if (cause instanceof ConnectionRequestTimeoutException ||
                 cause instanceof NoHttpResponseException ||
                 cause instanceof ConnectTimeoutException ||
@@ -687,15 +720,56 @@ public class HttpAPIClientHelper {
         userAgent.setLength(userAgent.length() - 2);
         userAgent.append(')');
 
-        userAgent.append(" ")
-                .append(this.httpClient.getClass().getPackage().getImplementationTitle().replaceAll(" ", "-"))
-                .append('/')
-                .append(this.httpClient.getClass().getPackage().getImplementationVersion());
+        try {
+            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
+            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
+                // shaded jar - all packages have same implementation title
+                httpClientVersion = "unknown";
+                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
+                    Properties p = new Properties();
+                    p.load(in);
 
+                    String tmp = p.getProperty("apache.http.client.version");
+                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
+                        httpClientVersion = tmp;
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            userAgent.append(" ")
+                    .append("Apache-HttpClient")
+                    .append('/')
+                    .append(httpClientVersion);
+        } catch (Exception e) {
+            LOG.info("failed to construct http client version string");
+        }
         return userAgent.toString();
     }
 
     public void close() {
         httpClient.close(CloseMode.IMMEDIATE);
+    }
+
+
+    /**
+     * This factory is used only when no ssl connections are required (no https endpoints).
+     * Internally http client would create factory and spend time if no supplied.
+     */
+    private static class DummySSLConnectionSocketFactory implements LayeredConnectionSocketFactory {
+        @Override
+        public Socket createLayeredSocket(Socket socket, String target, int port, HttpContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Socket createSocket(HttpContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Socket connectSocket(TimeValue connectTimeout, Socket socket, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
+            return null;
+        }
     }
 }

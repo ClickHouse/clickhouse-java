@@ -39,6 +39,7 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
@@ -52,12 +53,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.function.Supplier;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
@@ -604,6 +607,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
+            } finally {
+                mockServer.stop();
             }
         }
     }
@@ -1014,6 +1019,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // only for cloud
         }
         String jwt = System.getenv("CLIENT_JWT");
+        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
+        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
         try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
             try {
                 List<GenericRecord> response = client.queryAll("SELECT user(), now()");
@@ -1024,6 +1031,91 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testWithDefaultTimeouts() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int proxyPort = new Random().nextInt(1000) + 10000;
+        WireMockServer proxy = new WireMockServer(WireMockConfiguration
+                .options().port(proxyPort)
+                .notifier(new Slf4jNotifier(true)));
+        proxy.start();
+        proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse().withFixedDelay(5000)
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", proxyPort, false)
+                .setUsername("default")
+                .setPassword("")
+                .useNewImplementation(true)
+                .build()) {
+            int startTime = (int) System.currentTimeMillis();
+            try {
+                client.query("SELECT 1").get();
+            } catch (Exception e) {
+                Assert.fail("Elapsed Time: " + (System.currentTimeMillis() - startTime), e);
+            }
+        } finally {
+            proxy.stop();
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testTimeoutsWithRetry() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer faultyServer = new WireMockServer( WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        faultyServer.start();
+
+        // First request gets no response
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .withRequestBody(WireMock.containing("SELECT 1"))
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Failed")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withFixedDelay(5000)
+                        .withHeader("X-ClickHouse-Summary",
+                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        // Second request gets a response (retry)
+        faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .withRequestBody(WireMock.containing("SELECT 1"))
+                .whenScenarioStateIs("Failed")
+                .willSetStateTo("Done")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withFixedDelay(1000)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .setSocketTimeout(3000)
+                .retryOnFailures(ClientFaultCause.SocketTimeout)
+                .build()) {
+            int startTime = (int) System.currentTimeMillis();
+            try {
+                client.query("SELECT 1").get();
+            } catch (Exception e) {
+                Assert.fail("Elapsed Time: " + (System.currentTimeMillis() - startTime), e);
+            }
+        } finally {
+            faultyServer.stop();
+        }
+    }
+
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

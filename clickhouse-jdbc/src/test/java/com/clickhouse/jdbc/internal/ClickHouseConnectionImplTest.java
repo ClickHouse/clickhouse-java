@@ -11,6 +11,7 @@ import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {

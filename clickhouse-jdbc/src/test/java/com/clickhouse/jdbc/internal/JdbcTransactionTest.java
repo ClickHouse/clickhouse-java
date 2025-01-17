@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public class JdbcTransactionTest {

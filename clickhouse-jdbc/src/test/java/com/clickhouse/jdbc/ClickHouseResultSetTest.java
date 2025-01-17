@@ -34,10 +34,16 @@ import com.clickhouse.data.value.UnsignedInteger;
 
 import org.testng.Assert;
 import org.testng.SkipException;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseResultSetTest extends JdbcIntegrationTest {
+    @BeforeMethod(groups = "integration")
+    public void setV1() {
+        System.setProperty("clickhouse.jdbc.v1","true");
+    }
     @DataProvider(name = "nullableTypes")
     private Object[][] getNullableTypes() {
         return new Object[][] {

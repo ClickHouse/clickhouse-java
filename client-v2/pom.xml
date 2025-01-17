@@ -13,8 +13,8 @@
     <packaging>jar</packaging>
 
     <name>ClickHouse Client API</name>
-    <description>New client api for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-client-api</url>
+    <description>ClickHouse Client Library</description>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/client-v2</url>
 
     <properties>
         <apache.httpclient.version>5.3.1</apache.httpclient.version>
@@ -74,6 +74,14 @@
             <artifactId>jackson-core</artifactId>
             <version>2.17.2</version>
         </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>1.14.3</version>
+            <optional>true</optional>
+            <scope>compile</scope>
+        </dependency>
+
 
         <!-- Test Dependencies -->
         <dependency>
@@ -167,6 +175,22 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
@@ -181,6 +205,11 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>io.micrometer:*</exclude>
+                                </excludes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.slf4j</pattern>

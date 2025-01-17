@@ -131,7 +131,7 @@
         <git-plugin.version>6.0.0</git-plugin.version>
         <gpg-plugin.version>3.1.0</gpg-plugin.version>
         <helper-plugin.version>3.4.0</helper-plugin.version>
-        <jacoco-plugin.version>0.8.10</jacoco-plugin.version>
+        <jacoco-plugin.version>0.8.12</jacoco-plugin.version>
         <jar-plugin.version>3.3.0</jar-plugin.version>
         <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
         <native-plugin.version>0.9.23</native-plugin.version>
@@ -151,12 +151,16 @@
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
 
-        <sonar.projectKey>zhicwu_clickhouse-jdbc</sonar.projectKey>
+        <sonar.projectKey>ClickHouse_clickhouse-jdbc</sonar.projectKey>
         <sonar.moduleKey>${project.artifactId}</sonar.moduleKey>
-        <sonar.organization>zhicwu</sonar.organization>
+        <sonar.organization>clickhouse-java</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectVersion>0.6.2</sonar.projectVersion>
+        <sonar.projectVersion>${project.version}</sonar.projectVersion>
         <sonar.cpd.exclusions>**/*0*.java,**/data/*Value.java,**/data/array/*Value.java,**/stream/*Stream.java</sonar.cpd.exclusions>
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
+        <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.language>java</sonar.language>
 
         <build_timestamp>${maven.build.timestamp}</build_timestamp>
         <maven.build.timestamp.format>MM-dd-yyyy HH:mm</maven.build.timestamp.format>
@@ -1048,6 +1052,33 @@
                             <jvm>${env.JAVA_HOME}/bin/java</jvm>
                             <argLine>${failsafeArgLine}</argLine>
                         </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jar</id>
+                                <configuration>
+                                    <archive>
+                                        <addMavenDescriptor>false</addMavenDescriptor>
+                                        <manifest>
+                                            <addDefaultEntries>true</addDefaultEntries>
+                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
+                                        </manifest>
+                                        <manifestEntries>
+                                            <Multi-Release>true</Multi-Release>
+                                            <Implementation-URL>${project.url}</Implementation-URL>
+                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
+                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
+                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
+                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
+                                        </manifestEntries>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
