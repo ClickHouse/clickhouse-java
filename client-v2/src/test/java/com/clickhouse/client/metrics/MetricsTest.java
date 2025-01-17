@@ -49,6 +49,7 @@ public class MetricsTest extends BaseIntegrationTest {
                 .registerClientMetrics(meterRegistry, "pool-test")
                 .build()) {
 
+            client.ping();
             Gauge totalMax = meterRegistry.get("httpcomponents.httpclient.pool.total.max").gauge();
             Gauge available = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "available").gauge();
             Gauge leased = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "leased").gauge();

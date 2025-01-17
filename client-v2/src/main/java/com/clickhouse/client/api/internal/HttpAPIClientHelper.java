@@ -26,6 +26,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -44,6 +45,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -62,6 +64,7 @@ import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -97,10 +100,10 @@ public class HttpAPIClientHelper {
 
     private String defaultUserAgent;
     private Object metricsRegistry;
-    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry) {
+    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
         this.chConfiguration = configuration;
         this.metricsRegistry = metricsRegistry;
-        this.httpClient = createHttpClient();
+        this.httpClient = createHttpClient(initSslContext);
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
         MapUtils.applyLong(chConfiguration, "connection_request_timeout",
@@ -175,11 +178,10 @@ public class HttpAPIClientHelper {
         return connConfig.build();
     }
 
-    private HttpClientConnectionManager basicConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+    private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
         RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
         registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
-        registryBuilder.register("https", new SSLConnectionSocketFactory(sslContext));
-
+        registryBuilder.register("https", sslConnectionSocketFactory);
 
         BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
         connManager.setConnectionConfig(createConnectionConfig());
@@ -188,7 +190,7 @@ public class HttpAPIClientHelper {
         return connManager;
     }
 
-    private HttpClientConnectionManager poolConnectionManager(SSLContext sslContext, SocketConfig socketConfig) {
+    private HttpClientConnectionManager poolConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
@@ -221,7 +223,7 @@ public class HttpAPIClientHelper {
                 DefaultHttpResponseParserFactory.INSTANCE);
 
         connMgrBuilder.setConnectionFactory(connectionFactory);
-        connMgrBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
+        connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
         if (metricsRegistry != null ) {
@@ -238,12 +240,12 @@ public class HttpAPIClientHelper {
         return phccm;
     }
 
-    public CloseableHttpClient createHttpClient() {
-
+    public CloseableHttpClient createHttpClient(boolean initSslContext) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = createSSLContext();
-
+        SSLContext sslContext = initSslContext ? createSSLContext() : null;
+        LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
+                : new SSLConnectionSocketFactory(sslContext);
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
@@ -287,9 +289,9 @@ public class HttpAPIClientHelper {
         // Connection manager
         boolean isConnectionPooling = MapUtils.getFlag(chConfiguration, "connection_pool_enabled");
         if (isConnectionPooling) {
-            clientBuilder.setConnectionManager(poolConnectionManager(sslContext, socketConfig));
+            clientBuilder.setConnectionManager(poolConnectionManager(sslConnectionSocketFactory, socketConfig));
         } else {
-            clientBuilder.setConnectionManager(basicConnectionManager(sslContext, socketConfig));
+            clientBuilder.setConnectionManager(basicConnectionManager(sslConnectionSocketFactory, socketConfig));
         }
         long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientConfigProperties.HTTP_KEEP_ALIVE_TIMEOUT.getKey());
         if (keepAliveTimeout > 0) {
@@ -747,5 +749,27 @@ public class HttpAPIClientHelper {
 
     public void close() {
         httpClient.close(CloseMode.IMMEDIATE);
+    }
+
+
+    /**
+     * This factory is used only when no ssl connections are required (no https endpoints).
+     * Internally http client would create factory and spend time if no supplied.
+     */
+    private static class DummySSLConnectionSocketFactory implements LayeredConnectionSocketFactory {
+        @Override
+        public Socket createLayeredSocket(Socket socket, String target, int port, HttpContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Socket createSocket(HttpContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Socket connectSocket(TimeValue connectTimeout, Socket socket, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
+            return null;
+        }
     }
 }

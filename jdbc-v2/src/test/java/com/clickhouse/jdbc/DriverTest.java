@@ -25,7 +25,7 @@ public class DriverTest extends JdbcIntegrationTest {
             Driver driver = new Driver();
             Properties props = new Properties();
             props.put(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefaultValue());
-            props.put(ClientConfigProperties.PASSWORD.getKey(), ClientConfigProperties.PASSWORD.getDefaultValue());
+            props.put(ClientConfigProperties.PASSWORD.getKey(), getPassword());
             Assert.assertNotNull(driver.connect(getEndpointString(), props));
         } catch (SQLException e) {
             Assert.fail("Failed to connect to ClickHouse", e);

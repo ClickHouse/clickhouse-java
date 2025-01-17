@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -9,7 +8,6 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +30,6 @@ import java.sql.Savepoint;
 import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
-import java.sql.Types;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +72,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.client =  this.config.applyClientProperties(new Client.Builder())
                 .setClientName(clientName)
                 .build();
+        this.client.loadServerInfo();
         this.schema = client.getDefaultDatabase();
         this.defaultQuerySettings = new QuerySettings()
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")

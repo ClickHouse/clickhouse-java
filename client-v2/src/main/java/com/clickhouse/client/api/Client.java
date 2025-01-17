@@ -130,7 +130,7 @@ public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     private final ExecutorService sharedOperationExecutor;
 
-    private final boolean isSharedOpExecuterorOwned;
+    private final boolean isSharedOpExecutorOwned;
 
     private final Map<String, ClientStatisticsHolder> globalClientStats = new ConcurrentHashMap<>();
 
@@ -141,7 +141,7 @@ public class Client implements AutoCloseable {
 
     // Server context
     private String serverVersion;
-    private Object metrics;
+    private Object metricsRegistry;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
@@ -149,31 +149,35 @@ public class Client implements AutoCloseable {
     }
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metrics) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         this.endpoints = endpoints;
         this.configuration = configuration;
         this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
-        this.metrics = metrics;
+        this.metricsRegistry = metricsRegistry;
         this.serializers = new ConcurrentHashMap<>();
         this.deserializers = new ConcurrentHashMap<>();
 
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
-            this.isSharedOpExecuterorOwned = true;
+            this.isSharedOpExecutorOwned = true;
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
         } else {
-            this.isSharedOpExecuterorOwned = false;
+            this.isSharedOpExecutorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
-        this.httpClientHelper = new HttpAPIClientHelper(configuration, metrics);
+        boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
+        this.httpClientHelper = new HttpAPIClientHelper(configuration, metricsRegistry, initSslContext);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
-        updateServerContext();
     }
 
-    private void updateServerContext() {
+    /**
+     * Loads essential information about a server. Should be called after client creation.
+     *
+     */
+    public void loadServerInfo() {
         try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
             try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
                 if (reader.next() != null) {
@@ -183,12 +187,9 @@ public class Client implements AutoCloseable {
                 }
             }
         } catch (Exception e) {
-            LOG.error("Failed to get server info", e);
+            throw new ClientException("Failed to get server info", e);
         }
     }
-
-
-
 
     /**
      * Returns default database name that will be used by operations if not specified.
@@ -208,7 +209,7 @@ public class Client implements AutoCloseable {
      */
     @Override
     public void close() {
-        if (isSharedOpExecuterorOwned) {
+        if (isSharedOpExecutorOwned) {
             try {
                 if (sharedOperationExecutor != null && !sharedOperationExecutor.isShutdown()) {
                     this.sharedOperationExecutor.shutdownNow();
@@ -235,7 +236,7 @@ public class Client implements AutoCloseable {
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
-        private Object metric = null;
+        private Object metricRegistry = null;
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
@@ -960,7 +961,7 @@ public class Client implements AutoCloseable {
          * @return same instance of the builder
          */
         public Builder registerClientMetrics(Object registry, String name) {
-            this.metric = registry;
+            this.metricRegistry = registry;
             this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
             return this;
         }
@@ -1024,7 +1025,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metric);
+                this.columnToMethodMatchingStrategy, this.metricRegistry);
         }
 
 
