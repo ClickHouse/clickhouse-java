@@ -23,10 +23,12 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
@@ -279,31 +281,31 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date"), Date.valueOf("1970-01-01"));
-                    assertEquals(rs.getDate("date32"), Date.valueOf("1970-01-01"));
-                    assertEquals(rs.getTimestamp("dateTime"), new java.sql.Timestamp(Date.valueOf("1970-01-01").getTime()));
-                    assertEquals(rs.getTimestamp("dateTime32"), new java.sql.Timestamp(Date.valueOf("1970-01-01").getTime()));
-                    assertEquals(rs.getTimestamp("dateTime643"), new java.sql.Timestamp(Date.valueOf("1970-01-01").getTime()));
-                    assertEquals(rs.getTimestamp("dateTime646"), new java.sql.Timestamp(Date.valueOf("1970-01-01").getTime()));
-                    assertEquals(rs.getTimestamp("dateTime649"), new java.sql.Timestamp(Date.valueOf("1970-01-01").getTime()));
+                    assertEquals(rs.getDate("date", new GregorianCalendar()), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getDate("date32", new GregorianCalendar()), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getTimestamp("dateTime").toInstant().toString(), "1970-01-01T00:00:00Z");
+                    assertEquals(rs.getTimestamp("dateTime32").toInstant().toString(), "1970-01-01T00:00:00Z");
+                    assertEquals(rs.getTimestamp("dateTime643").toInstant().toString(), "1970-01-01T00:00:00Z");
+                    assertEquals(rs.getTimestamp("dateTime646").toInstant().toString(), "1970-01-01T00:00:00Z");
+                    assertEquals(rs.getTimestamp("dateTime649").toInstant().toString(), "1970-01-01T00:00:00Z");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date"), Date.valueOf("2149-06-06"));
-                    assertEquals(rs.getDate("date32"), Date.valueOf("2299-12-31"));
-                    assertEquals(rs.getTimestamp("dateTime"), java.sql.Timestamp.valueOf("2106-02-07 06:28:15"));
-                    assertEquals(rs.getTimestamp("dateTime32"), java.sql.Timestamp.valueOf("2106-02-07 06:28:15"));
-                    assertEquals(rs.getTimestamp("dateTime643"), java.sql.Timestamp.valueOf("2261-12-31 23:59:59.999"));
-                    assertEquals(rs.getTimestamp("dateTime646"), java.sql.Timestamp.valueOf("2261-12-31 23:59:59.999999"));
-                    assertEquals(rs.getTimestamp("dateTime649"), java.sql.Timestamp.valueOf("2261-12-31 23:59:59.999999999"));
+                    assertEquals(rs.getDate("date", new GregorianCalendar()), Date.valueOf("2149-06-06"));
+                    assertEquals(rs.getDate("date32", new GregorianCalendar()), Date.valueOf("2299-12-31"));
+                    assertEquals(rs.getTimestamp("dateTime").toInstant().toString(), "2106-02-07T06:28:15Z");
+                    assertEquals(rs.getTimestamp("dateTime32").toInstant().toString(), "2106-02-07T06:28:15Z");
+                    assertEquals(rs.getTimestamp("dateTime643").toInstant().toString(), "2261-12-31T23:59:59.999Z");
+                    assertEquals(rs.getTimestamp("dateTime646").toInstant().toString(), "2261-12-31T23:59:59.999999Z");
+                    assertEquals(rs.getTimestamp("dateTime649").toInstant().toString(), "2261-12-31T23:59:59.999999999Z");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date").toLocalDate(), date.toLocalDate());
-                    assertEquals(rs.getDate("date32").toLocalDate(), date32.toLocalDate());
-                    assertEquals(rs.getTimestamp("dateTime"), dateTime);
-                    assertEquals(rs.getTimestamp("dateTime32"), dateTime32);
-                    assertEquals(rs.getTimestamp("dateTime643"), dateTime643);
-                    assertEquals(rs.getTimestamp("dateTime646"), dateTime646);
-                    assertEquals(rs.getTimestamp("dateTime649"), dateTime649);
+                    assertEquals(rs.getDate("date", new GregorianCalendar()).toString(), date.toString());
+                    assertEquals(rs.getDate("date32", new GregorianCalendar()).toString(), date32.toString());
+                    assertEquals(rs.getTimestamp("dateTime", new GregorianCalendar()).toString(), dateTime.toString());
+                    assertEquals(rs.getTimestamp("dateTime32", new GregorianCalendar()).toString(), dateTime32.toString());
+                    assertEquals(rs.getTimestamp("dateTime643", new GregorianCalendar()).toString(), dateTime643.toString());
+                    assertEquals(rs.getTimestamp("dateTime646", new GregorianCalendar()).toString(), dateTime646.toString());
+                    assertEquals(rs.getTimestamp("dateTime649", new GregorianCalendar()).toString(), dateTime649.toString());
 
                     assertFalse(rs.next());
                 }
@@ -885,7 +887,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(3, Double.class), 1.0);
                     assertEquals(String.valueOf(rs.getObject(3, new HashMap<String, Class<?>>(){{put(JDBCType.FLOAT.getName(), Float.class);}})), "1.0");
 
-                    assertEquals(rs.getDate(4), Date.valueOf("2024-12-01"));
+                    assertEquals(rs.getDate(4, new GregorianCalendar()), Date.valueOf("2024-12-01"));
                     assertTrue(rs.getObject(4) instanceof Date);
                     assertEquals(rs.getObject(4), Date.valueOf("2024-12-01"));
                     assertEquals(rs.getString(4), "2024-12-01");//Underlying object is ZonedDateTime
@@ -893,7 +895,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(4, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 0, 0, 0, 0, ZoneId.of("UTC")));
                     assertEquals(String.valueOf(rs.getObject(4, new HashMap<String, Class<?>>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
 
-                    assertEquals(rs.getTimestamp(5), Timestamp.valueOf("2024-12-01 12:34:56"));
+                    assertEquals(rs.getTimestamp(5).toInstant().toString(), "2024-12-01T12:34:56Z");
                     assertTrue(rs.getObject(5) instanceof Timestamp);
                     assertEquals(rs.getObject(5), Timestamp.valueOf("2024-12-01 12:34:56"));
                     assertEquals(rs.getString(5), "2024-12-01T12:34:56Z[UTC]");
@@ -901,21 +903,21 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(5, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 12, 34, 56, 0, ZoneId.of("UTC")));
                     assertEquals(String.valueOf(rs.getObject(5, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56");
 
-                    assertEquals(rs.getTimestamp(6), Timestamp.valueOf("2024-12-01 12:34:56.789"));
+                    assertEquals(rs.getTimestamp(6).toInstant().toString(), "2024-12-01T12:34:56.789Z");
                     assertTrue(rs.getObject(6) instanceof Timestamp);
                     assertEquals(rs.getObject(6), Timestamp.valueOf("2024-12-01 12:34:56.789"));
                     assertEquals(rs.getString(6), "2024-12-01T12:34:56.789Z[UTC]");
                     assertEquals(rs.getObject(6, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789000000));
                     assertEquals(String.valueOf(rs.getObject(6, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56.789");
 
-                    assertEquals(rs.getTimestamp(7), Timestamp.valueOf("2024-12-01 12:34:56.789789"));
+                    assertEquals(rs.getTimestamp(7).toInstant().toString(), "2024-12-01T12:34:56.789789Z");
                     assertTrue(rs.getObject(7) instanceof Timestamp);
                     assertEquals(rs.getObject(7), Timestamp.valueOf("2024-12-01 12:34:56.789789"));
                     assertEquals(rs.getString(7), "2024-12-01T12:34:56.789789Z[UTC]");
                     assertEquals(rs.getObject(7, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789000));
                     assertEquals(String.valueOf(rs.getObject(7, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), OffsetDateTime.class);}})), "2024-12-01T12:34:56.789789Z");
 
-                    assertEquals(rs.getTimestamp(8), Timestamp.valueOf("2024-12-01 12:34:56.789789789"));
+                    assertEquals(rs.getTimestamp(8).toInstant().toString(), "2024-12-01T12:34:56.789789789Z");
                     assertTrue(rs.getObject(8) instanceof Timestamp);
                     assertEquals(rs.getObject(8), Timestamp.valueOf("2024-12-01 12:34:56.789789789"));
                     assertEquals(rs.getString(8), "2024-12-01T12:34:56.789789789Z[UTC]");

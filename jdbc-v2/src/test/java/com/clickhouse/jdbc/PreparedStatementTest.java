@@ -10,8 +10,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -170,7 +172,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setDate(1, java.sql.Date.valueOf("2021-01-01"));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(java.sql.Date.valueOf("2021-01-01"), rs.getDate(1));
+                    assertEquals(rs.getDate(1, new GregorianCalendar()), java.sql.Date.valueOf("2021-01-01"));
                     assertFalse(rs.next());
                 }
             }
@@ -180,11 +182,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSetTime() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT parseDateTime(?, '%H:%i:%s')")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime(?)")) {
                 stmt.setTime(1, java.sql.Time.valueOf("12:34:56"));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(java.sql.Time.valueOf("12:34:56"), rs.getTime(1));
+                    assertEquals(rs.getTime(1, new GregorianCalendar()).toString(), "12:34:56");
                     assertFalse(rs.next());
                 }
             }
@@ -194,19 +196,13 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSetTimestamp() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3), toDateTime64(?, 3), toDateTime64(?, 3)")) {
-                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 12:34:56.111"));
-                stmt.setTimestamp(2, java.sql.Timestamp.valueOf("2021-01-01 12:34:56.123"), java.util.Calendar.getInstance());
-                stmt.setTimestamp(3, java.sql.Timestamp.valueOf("2021-01-01 12:34:56.456"), java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3), toDateTime64(?, 3)")) {
+                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"));
+                stmt.setTimestamp(2, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTimestamp(1), java.sql.Timestamp.valueOf("2021-01-01 12:34:56.111"));
-                    assertEquals(rs.getTimestamp(2), java.sql.Timestamp.valueOf("2021-01-01 12:34:56.123"));
-
-                    Timestamp x = java.sql.Timestamp.valueOf("2021-01-01 12:34:56.456");
-                    Calendar cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
-                    cal.setTime(x);
-                    assertEquals(rs.getTimestamp(3).toString(), PreparedStatementImpl.DATETIME_FORMATTER.format(cal.toInstant().atZone(cal.getTimeZone().toZoneId()).withNano(x.getNanos()).toLocalDateTime()));
+                    assertEquals(rs.getTimestamp(1, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
+                    assertEquals(rs.getTimestamp(2, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
             }
