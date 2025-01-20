@@ -1098,12 +1098,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 wasNull = true;
                 return null;
             }
+            wasNull = false;
+            
             Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
             c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
                     localDateTime.getSecond());
             Timestamp timestamp = new Timestamp(c.getTimeInMillis());
             timestamp.setNanos(localDateTime.getNano());
-            wasNull = false;
             return timestamp;
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("SQL: [%s]; Method: getTimestamp(%s)", parentStatement.getLastSql(), columnLabel), e);
