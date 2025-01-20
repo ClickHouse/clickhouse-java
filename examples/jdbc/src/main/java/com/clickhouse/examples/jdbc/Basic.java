@@ -1,6 +1,7 @@
 package com.clickhouse.examples.jdbc;
 
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.jdbc.ClickHouseDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -61,8 +62,16 @@ public class Basic {
         try {
             //Using HikariCP with ClickHouseDataSource
             usedPooledConnection(url, properties);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             e.printStackTrace();
+        }
+
+        try {
+            //Customizing client settings
+            setClientSettings();
+        } catch (ClientException e) {
+            // Ignore
+            System.out.println(e.getMessage());
         }
     }
 
@@ -82,6 +91,28 @@ public class Basic {
              ResultSet rs = s.executeQuery("SELECT 123")) {
             System.out.println(rs.next());
             System.out.println(rs.getInt(1));
+        }
+    }
+
+    static void setClientSettings() {
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost:18123?jdbc_ignore_unsupported_values=true&socket_timeout=1");
+
+        // Set user and password if needed
+        Properties properties = new Properties();
+        properties.setProperty("user", System.getProperty("chUser", "default"));
+        properties.setProperty("password", System.getProperty("chPassword", ""));
+
+        try (Connection conn = DriverManager.getConnection(url, properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT sleep(3)")) {
+                    // this will throw an exception
+                    // because the query takes more than 1 second
+                    // and the socket timeout is set to 1 second
+                    System.out.println(rs.next());
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
         }
     }
 }
