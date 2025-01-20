@@ -1,6 +1,10 @@
 package com.clickhouse.examples.jdbc;
 
 
+import com.clickhouse.jdbc.ClickHouseDataSource;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -52,6 +56,32 @@ public class Basic {
             }
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+
+        try {
+            //Using HikariCP with ClickHouseDataSource
+            usedPooledConnection(url, properties);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static void usedPooledConnection(String url, Properties properties) throws SQLException {
+        // connection pooling won't help much in terms of performance,
+        // because the underlying implementation has its own pool.
+        // for example: HttpURLConnection has a pool for sockets
+        HikariConfig poolConfig = new HikariConfig();
+        poolConfig.setConnectionTimeout(5000L);
+        poolConfig.setMaximumPoolSize(20);
+        poolConfig.setMaxLifetime(300_000L);
+        poolConfig.setDataSource(new ClickHouseDataSource(url, properties));
+
+        try (HikariDataSource ds = new HikariDataSource(poolConfig);
+             Connection conn = ds.getConnection();
+             Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery("SELECT 123")) {
+            System.out.println(rs.next());
+            System.out.println(rs.getInt(1));
         }
     }
 }
