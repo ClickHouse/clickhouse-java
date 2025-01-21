@@ -50,6 +50,7 @@ public enum ClickHouseFormat {
     JSONCompactStringsEachRowWithNamesAndTypes(true, true, false, true, true, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrowwithnamesandtypes
     JSONCompactStrings(false, true, false, false, false, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstrings
     JSONEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrow
+    PrettyJSONEachRow(false, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/PrettyJSONEachRow
     JSONEachRowWithProgress(false, true, false, false, true, JSONEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrowwithprogress
     JSONLines(true, true, false, false, true), // alias of JSONEachRow
     NDJSON(true, true, true, true, true), // alias of JSONEachRow
