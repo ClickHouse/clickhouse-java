@@ -54,31 +54,37 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
-        log.debug("Creating connection to {}", url);
-        this.url = url;//Raw URL
-        this.config = new JdbcConfiguration(url, info);
-        this.onCluster = false;
-        this.cluster = null;
-        String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
+        try {
+            log.debug("Creating connection to {}", url);
+            this.url = url;//Raw URL
+            this.config = new JdbcConfiguration(url, info);
+            this.onCluster = false;
+            this.cluster = null;
+            String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
 
-        if (this.config.isDisableFrameworkDetection()) {
-            log.debug("Framework detection is disabled.");
-        } else {
-            String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
-            log.debug("Detected frameworks: {}", detectedFrameworks);
-            clientName += " (" + detectedFrameworks + ")";
+            if (this.config.isDisableFrameworkDetection()) {
+                log.debug("Framework detection is disabled.");
+            } else {
+                String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
+                log.debug("Detected frameworks: {}", detectedFrameworks);
+                clientName += " (" + detectedFrameworks + ")";
+            }
+
+            this.client = this.config.applyClientProperties(new Client.Builder())
+                    .setClientName(clientName)
+                    .build();
+            this.client.loadServerInfo();
+            this.schema = client.getDefaultDatabase();
+            this.defaultQuerySettings = new QuerySettings()
+                    .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
+
+            this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Failed to create connection", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION, e);
         }
-
-        this.client =  this.config.applyClientProperties(new Client.Builder())
-                .setClientName(clientName)
-                .build();
-        this.client.loadServerInfo();
-        this.schema = client.getDefaultDatabase();
-        this.defaultQuerySettings = new QuerySettings()
-                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
-
-        this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
     }
 
     public QuerySettings getDefaultQuerySettings() {
