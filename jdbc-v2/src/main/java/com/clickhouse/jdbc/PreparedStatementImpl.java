@@ -28,10 +28,12 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
@@ -39,6 +41,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -159,19 +162,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        checkClosed();
         setDate(parameterIndex, x, null);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        checkClosed();
         setTime(parameterIndex, x, null);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        checkClosed();
         setTimestamp(parameterIndex, x, null);
     }
 
@@ -269,42 +269,42 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         checkClosed();
         if (cal == null) {
-            cal = new GregorianCalendar();
-            cal.setTime(x);
+            cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));//This says whatever date is in UTC
         }
 
-        ZoneId tz = cal.getTimeZone().toZoneId();
+        LocalDate d = x.toLocalDate();
         Calendar c = (Calendar) cal.clone();
-        c.setTime(x);
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).toLocalDate());
+        c.clear();
+        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         checkClosed();
         if (cal == null) {
-            cal = new GregorianCalendar();
-            cal.setTime(x);
+            cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
         }
 
-        ZoneId tz = cal.getTimeZone().toZoneId();
+        LocalTime t = x.toLocalTime();
         Calendar c = (Calendar) cal.clone();
-        c.setTime(x);
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).toLocalTime());
+        c.clear();
+        c.set(1970, Calendar.JANUARY, 1, t.getHour(), t.getMinute(), t.getSecond());
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         checkClosed();
         if (cal == null) {
-            cal = new GregorianCalendar();
-            cal.setTime(x);
+            cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
         }
 
-        ZoneId tz = cal.getTimeZone().toZoneId();
+        LocalDateTime ldt = x.toLocalDateTime();
         Calendar c = (Calendar) cal.clone();
-        c.setTime(x);
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(tz).withNano(x.getNanos()).toLocalDateTime());
+        c.clear();
+        c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos()));
     }
 
     @Override
@@ -479,6 +479,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
             } else if (x instanceof LocalDateTime) {
                 return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+            } else if (x instanceof ZonedDateTime) {
+                return encodeObject(((ZonedDateTime) x).toInstant());
+            } else if (x instanceof Instant) {
+                return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano())+ ")";
             } else if (x instanceof Array) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");
@@ -570,6 +574,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             throw new SQLException("Error encoding object", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
     }
+
 
     private static String escapeString(String x) {
         return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes

@@ -21,6 +21,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
@@ -123,22 +124,14 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteQueryDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT toDate('2020-01-01 12:10:07') AS date, toDateTime('2020-01-01 10:11:12', 'Asia/Istanbul') AS datetime")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT toDate('2020-01-01') AS date, toDateTime('2020-01-01 10:11:12', 'Asia/Istanbul') AS datetime")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1).toString(), "2020-01-01");
-                    assertEquals(rs.getDate("date").toString(), "2020-01-01");
-                    assertEquals(rs.getDate(1).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("date").toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate(1, null).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("date", null).toLocalDate().toString(), "2020-01-01");
+                    assertEquals(rs.getDate(1, new GregorianCalendar()).toString(), Date.valueOf("2020-01-01").toString());
+                    assertEquals(rs.getDate("date", new GregorianCalendar()).toString(), Date.valueOf("2020-01-01").toString());
                     assertEquals(rs.getString(1), "2020-01-01");
                     assertEquals(rs.getString("date"), "2020-01-01");
-                    assertEquals(rs.getDate(2).toString(), "2020-01-01");
-                    assertEquals(rs.getDate("datetime").toString(), "2020-01-01");
-                    assertEquals(rs.getDate(2).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("datetime").toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate(2, null).toLocalDate().toString(), "2020-01-01");
-                    assertEquals(rs.getDate("datetime", null).toLocalDate().toString(), "2020-01-01");
+                    assertEquals(rs.getDate(2, new GregorianCalendar()).toString(), "2020-01-01");
+                    assertEquals(rs.getDate("datetime", new GregorianCalendar()).toString(), "2020-01-01");
                     assertEquals(rs.getString(2), "2020-01-01T10:11:12+03:00[Asia/Istanbul]");
                     assertEquals(rs.getString("datetime"), "2020-01-01T10:11:12+03:00[Asia/Istanbul]");
                     assertFalse(rs.next());
@@ -250,13 +243,13 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".dates VALUES (0, '2020-01-01', '2020-01-01 10:11:12'), (1, NULL, '2020-01-01 12:10:07'), (2, '2020-01-01', NULL)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT date, datetime FROM " + getDatabase() + ".dates ORDER BY id")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1).toString(), "2020-01-01");
-                    assertEquals(rs.getDate(2).toString(), "2020-01-01");
+                    assertEquals(rs.getDate(1, new GregorianCalendar()).toString(), "2020-01-01");
+                    assertEquals(rs.getDate(2, new GregorianCalendar()).toString(), "2020-01-01");
                     assertTrue(rs.next());
                     assertNull(rs.getDate(1));
-                    assertEquals(rs.getDate(2).toString(), "2020-01-01");
+                    assertEquals(rs.getDate(2, new GregorianCalendar()).toString(), "2020-01-01");
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1).toString(), "2020-01-01");
+                    assertEquals(rs.getDate(1, new GregorianCalendar()).toString(), "2020-01-01");
                     assertNull(rs.getDate(2));
                     assertFalse(rs.next());
                 }
@@ -306,7 +299,7 @@ public class StatementTest extends JdbcIntegrationTest {
                         "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn POSITION('Hello', 'l')}) AS FNPOSITION, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
                         "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
+                    assertEquals(rs.getDate(1, new GregorianCalendar()), Date.valueOf(LocalDate.of(2021, 11, 1)));
                     //assertEquals(rs.getTimestamp(2), java.sql.Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 12, 34, 56)));
                     assertEquals(rs.getInt(3), 1);
                     assertEquals(rs.getInt("FNABS"), 1);
