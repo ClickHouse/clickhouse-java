@@ -269,7 +269,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         checkClosed();
         if (cal == null) {
-            cal = new GregorianCalendar();//This says whatever date is in UTC
+            cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));//This says whatever date is in UTC
         }
 
         LocalDate d = x.toLocalDate();

@@ -1053,7 +1053,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
 
             if (cal == null) {
-                cal = new GregorianCalendar();
+                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));//Default to UTC
             }
 
             return Date.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate());
