@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.GregorianCalendar;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -133,13 +134,16 @@ public class DateTimeComparisonTest extends JdbcIntegrationTest {
     @Test (groups = "integration", enabled = true)
     public void setTimestampTest() throws SQLException {
         run("DROP TABLE IF EXISTS test_timestamp");
-        run("CREATE TABLE IF NOT EXISTS test_timestamp (id Int8, t1 Datetime64(3), t2 Datetime64(6), t3 Datetime64(9)) ENGINE = MergeTree ORDER BY id");
+        run("CREATE TABLE IF NOT EXISTS test_timestamp (id Int8, t1 Datetime64(3), t2 Datetime64(6), t3 Datetime64(9), t4 DateTime64(9)) ENGINE = MergeTree ORDER BY id");
+
+        Timestamp ts = new Timestamp(System.currentTimeMillis());
 
         try (Connection connV1 = getJdbcConnectionV1(null)) {
-            try (PreparedStatement stmtV1 = connV1.prepareStatement("INSERT INTO test_timestamp VALUES (1, ?, ?, ?)")) {//INSERT with V1
+            try (PreparedStatement stmtV1 = connV1.prepareStatement("INSERT INTO test_timestamp VALUES (1, ?, ?, ?, ?)")) {//INSERT with V1
                 stmtV1.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:23:45"));
                 stmtV1.setTimestamp(2, java.sql.Timestamp.valueOf("2021-01-01 01:23:45"), new GregorianCalendar());
                 stmtV1.setTimestamp(3, java.sql.Timestamp.valueOf("2021-01-01 01:23:45"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
+                stmtV1.setTimestamp(4, ts);
                 stmtV1.execute();
             }
         }
@@ -157,6 +161,7 @@ public class DateTimeComparisonTest extends JdbcIntegrationTest {
                 assertEquals(rsV2.getTimestamp(3, new GregorianCalendar()), rsV1.getTimestamp(3, new GregorianCalendar()));
                 assertEquals(rsV2.getTimestamp(4, new GregorianCalendar(TimeZone.getTimeZone("UTC"))),
                         rsV1.getTimestamp(4, new GregorianCalendar(TimeZone.getTimeZone("UTC"))));
+                assertEquals(rsV2.getTimestamp(5), rsV1.getTimestamp(5));
             }
         }
     }

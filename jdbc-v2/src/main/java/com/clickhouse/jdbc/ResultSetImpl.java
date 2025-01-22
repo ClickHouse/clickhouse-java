@@ -1,24 +1,17 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
-import java.io.CharArrayReader;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Map;
-import java.util.TimeZone;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -47,7 +40,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = new GregorianCalendar();
+        this.defaultCalendar = parentStatement.connection.defaultCalendar;
     }
 
     protected ResultSetImpl(ResultSetImpl resultSet) {
@@ -57,7 +50,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = new GregorianCalendar();
+        this.defaultCalendar = parentStatement.connection.defaultCalendar;
     }
 
     private void checkClosed() throws SQLException {
