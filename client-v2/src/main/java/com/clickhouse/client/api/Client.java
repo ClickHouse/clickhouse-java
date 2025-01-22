@@ -1164,10 +1164,11 @@ public class Client implements AutoCloseable {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping(long timeout) {
+        long startTime = System.nanoTime();
         try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
             return true;
         } catch (Exception e) {
-            LOG.debug("Failed to connect to the server", e);
+            LOG.debug("Failed to connect to the server (Duration: {})", System.nanoTime() - startTime, e);
             return false;
         }
     }
@@ -1284,7 +1285,6 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName, List<?> data, InsertSettings settings) {
-
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
@@ -1325,6 +1325,7 @@ public class Client implements AutoCloseable {
         settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
         final InsertSettings finalSettings = settings;
         Supplier<InsertResponse> supplier = () -> {
+            long startTime = System.nanoTime();
             // Selecting some node
             ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -1355,7 +1356,7 @@ public class Client implements AutoCloseable {
 
                     // Check response
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), System.nanoTime() - startTime);
                         selectedNode = getNextAliveNode();
                         continue;
                     }
@@ -1369,7 +1370,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
+                    lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
+                            (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedNode = getNextAliveNode();
@@ -1378,7 +1380,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
         };
 
         return runAsyncOperation(supplier, settings.getAllSettings());
@@ -1483,6 +1485,7 @@ public class Client implements AutoCloseable {
         final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
         finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
         responseSupplier = () -> {
+            long startTime = System.nanoTime();
             // Selecting some node
             ClickHouseNode selectedNode = getNextAliveNode();
 
@@ -1499,7 +1502,7 @@ public class Client implements AutoCloseable {
 
                     // Check response
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", System.nanoTime() - startTime, httpResponse.getCode());
                         selectedNode = getNextAliveNode();
                         continue;
                     }
@@ -1512,7 +1515,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
+                    lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
+                            (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedNode = getNextAliveNode();
@@ -1529,7 +1533,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1), lastException);
+            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1608,6 +1612,7 @@ public class Client implements AutoCloseable {
             }
             final QuerySettings finalSettings = settings;
             responseSupplier = () -> {
+                long startTime = System.nanoTime();
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
                 RuntimeException lastException = null;
@@ -1621,7 +1626,7 @@ public class Client implements AutoCloseable {
 
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying.", httpResponse.getCode());
+                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", System.nanoTime() - startTime, httpResponse.getCode());
                             selectedNode = getNextAliveNode();
                             continue;
                         }
@@ -1638,7 +1643,8 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
 
                     } catch (Exception e) {
-                        lastException = httpClientHelper.wrapException("Query request failed (Attempt " + (i + 1) + "/" + (maxRetries + 1) + ")", e);
+                        lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
+                                (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedNode = getNextAliveNode();
@@ -1648,7 +1654,7 @@ public class Client implements AutoCloseable {
                     }
                 }
 
-                throw new ClientException("Query request failed after attempts: " + (maxRetries + 1), lastException);
+                throw new ClientException("Query request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
