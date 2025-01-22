@@ -38,6 +38,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private boolean closed;
     private final StatementImpl parentStatement;
     private boolean wasNull;
+    private final Calendar defaultCalendar;
 
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.parentStatement = parentStatement;
@@ -46,6 +47,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
+        this.defaultCalendar = new GregorianCalendar();
     }
 
     protected ResultSetImpl(ResultSetImpl resultSet) {
@@ -55,6 +57,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
+        this.defaultCalendar = new GregorianCalendar();
     }
 
     private void checkClosed() throws SQLException {
@@ -1052,11 +1055,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            if (cal == null) {
-                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));//Default to UTC
-            }
-
-            return Date.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate());
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.clear();
+            c.set(zdt.getYear(), zdt.getMonthValue() - 1, zdt.getDayOfMonth(), 0, 0, 0);
+            return new Date(c.getTimeInMillis());
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1078,11 +1080,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            if (cal == null) {
-                cal = new GregorianCalendar();
-            }
-
-            return Time.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalTime());
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.clear();
+            c.set(1970, Calendar.JANUARY, 1, zdt.getHour(), zdt.getMinute(), zdt.getSecond());
+            return new Time(c.getTimeInMillis());
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1104,13 +1105,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            if (cal == null) {
-                cal = new GregorianCalendar();
-            }
-
-            Timestamp ts = Timestamp.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime());
-            ts.setNanos(zdt.getNano());
-            return ts;//This assumes the response is in cal.getTimeZone()
+            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+            c.set(zdt.getYear(), zdt.getMonthValue() - 1, zdt.getDayOfMonth(), zdt.getHour(), zdt.getMinute(),
+                    zdt.getSecond());
+            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
+            timestamp.setNanos(zdt.getNano());
+            return timestamp;
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
