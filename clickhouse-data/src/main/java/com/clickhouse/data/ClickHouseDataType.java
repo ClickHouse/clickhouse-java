@@ -1,12 +1,16 @@
 package com.clickhouse.data;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -20,7 +24,12 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 import com.clickhouse.data.value.UnsignedByte;
 import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
@@ -158,22 +167,52 @@ public enum ClickHouseDataType {
     static Map<ClickHouseDataType, Set<Class<?>>> dataTypeClassMap() {
         Map<ClickHouseDataType, Set<Class<?>>> map = new HashMap<>();
 
-        map.put(UInt256, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
-        map.put(Int256, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
-        map.put(UInt128, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
-        map.put(Int128, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class))));
-        map.put(UInt64, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class))));
-        map.put(Int64, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class))));
-        map.put(UInt32, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class ))));
-        map.put(Int32, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class))));
-        map.put(UInt16, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class))));
-        map.put(Int16, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class, short.class, Short.class))));
-        map.put(UInt8, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class))));
-        map.put(Int8, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(byte.class, Byte.class))));
+        // We allow to write short to UInt8 even it may not fit. It is done because we have to allow users to utilize UInt* data types.
+        List<Class<?>> allNumberClassesOrderedBySize = Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class);
+        Set<Class<?>> setOfAllNumberClasses = Collections.unmodifiableSet(new HashSet<>(allNumberClassesOrderedBySize));
+        map.put(UInt256, setOfAllNumberClasses);
+        map.put(Int256, setOfAllNumberClasses);
+        map.put(UInt128, setOfAllNumberClasses);
+        map.put(Int128, setOfAllNumberClasses);
+        map.put(UInt64, setOfAllNumberClasses);
 
-        map.put(String, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(String.class))));
+        map.put(Int64, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(UInt32, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class ));
+        map.put(Int32, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class));
+        map.put(UInt16, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class));
+        map.put(Int16, setOf(byte.class, Byte.class, short.class, Short.class));
+        map.put(UInt8, setOf(byte.class, Byte.class, short.class, Short.class));
+        map.put(Int8, setOf(byte.class, Byte.class));
 
+        map.put(Bool, setOf(boolean.class, Boolean.class));
+        map.put(String, setOf(String.class));
+        map.put(Float64, setOf(float.class, Float.class, double.class, Double.class));
+        map.put(Float32, setOf(float.class, Float.class));
+        map.put(Decimal, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal256, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal128, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal64, setOf(float.class, Float.class, double.class, Double.class));
+        map.put(Decimal32, setOf(float.class, Float.class));
+
+        map.put(IPv4, setOf(Inet4Address.class));
+        map.put(IPv6, setOf(Inet6Address.class));
+        map.put(UUID, setOf(java.util.UUID.class));
+
+        map.put(Point, setOf(double[].class, ClickHouseGeoPointValue.class));
+        map.put(Ring, setOf(double[][].class, ClickHouseGeoRingValue.class));
+        map.put(Polygon, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
+        map.put(MultiPolygon, setOf(double[][][][].class, ClickHouseGeoMultiPolygonValue.class));
+
+        map.put(Date, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));
+        map.put(Date32, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));
+        map.put(DateTime64, setOf(LocalDateTime.class, ZonedDateTime.class));
+        map.put(DateTime32, setOf(LocalDateTime.class, ZonedDateTime.class));
+        map.put(DateTime, setOf(LocalDateTime.class, ZonedDateTime.class));
         return map;
+    }
+
+    private static Set<Class<?>> setOf(Class<?>... args) {
+        return Collections.unmodifiableSet(new HashSet<>(Arrays.stream(args).collect(Collectors.toList())));
     }
 
 

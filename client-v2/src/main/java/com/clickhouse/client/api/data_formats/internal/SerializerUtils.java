@@ -8,6 +8,10 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -17,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -28,17 +33,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
-import java.util.TimeZone;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -60,13 +61,32 @@ public class SerializerUtils {
                 serializeArrayData(stream, value, column);
                 break;
             case Tuple:
-                serializeTupleData(stream, value, column);
+                serializeTuple(stream, value, column);
                 break;
             case Map:
                 serializeMapData(stream, value, column);
                 break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
+                break;
+            case Variant:
+                serializerVariant(stream, column, value);
+                break;
+            case Point:
+                value = value instanceof ClickHouseGeoPointValue ? ((ClickHouseGeoPointValue)value).getValue() : value;
+                serializeTuple(stream, value, GEO_POINT_TUPLE);
+                break;
+            case Ring:
+                value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
+                serializeArrayData(stream, value, GEO_RING_ARRAY);
+                break;
+            case Polygon:
+                value = value instanceof ClickHouseGeoPolygonValue ? ((ClickHouseGeoPolygonValue)value).getValue() : value;
+                serializeArrayData(stream, value, GEO_POLYGON_ARRAY);
+                break;
+            case MultiPolygon:
+                value = value instanceof ClickHouseGeoMultiPolygonValue ? ((ClickHouseGeoMultiPolygonValue)value).getValue() : value;
+                serializeArrayData(stream, value, GEO_MULTI_POLYGON_ARRAY);
                 break;
             default:
                 serializePrimitiveData(stream, value, column);
@@ -76,23 +96,39 @@ public class SerializerUtils {
     }
 
     private static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
-        //Serialize the array to the stream
-        //The array is a list of values
-        List<?> values = (List<?>) value;
-        writeVarInt(stream, values.size());
-        for (Object val : values) {
-            if (column.getArrayBaseColumn().isNullable()) {
-                if (val == null) {
-                    writeNull(stream);
-                    continue;
+
+        if (value instanceof List<?>) {
+            //Serialize the array to the stream
+            //The array is a list of values
+            List<?> values = (List<?>) value;
+            writeVarInt(stream, values.size());
+            for (Object val : values) {
+                if (column.getArrayBaseColumn().isNullable()) {
+                    if (val == null) {
+                        writeNull(stream);
+                        continue;
+                    }
+                    writeNonNull(stream);
                 }
-                writeNonNull(stream);
+                serializeData(stream, val, column.getArrayBaseColumn());
             }
-            serializeData(stream, val, column.getArrayBaseColumn());
+        } else if (value.getClass().isArray()) {
+            writeVarInt(stream, Array.getLength(value));
+            for (int i = 0; i < Array.getLength(value); i++) {
+                Object val = Array.get(value, i);
+                if (column.getArrayBaseColumn().isNullable()) {
+                    if (val == null) {
+                        writeNull(stream);
+                        continue;
+                    }
+                    writeNonNull(stream);
+                }
+                serializeData(stream, val, column.getNestedColumns().get(0));
+            }
         }
     }
 
-    private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    private static void serializeTuple(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
         if (value instanceof List) {
@@ -100,10 +136,16 @@ public class SerializerUtils {
             for (int i = 0; i < values.size(); i++) {
                 serializeData(stream, values.get(i), column.getNestedColumns().get(i));
             }
-        } else if (value instanceof Object[]) {
-            Object[] values = (Object[]) value;
-            for (int i = 0; i < values.length; i++) {
-                serializeData(stream, values[i], column.getNestedColumns().get(i));
+        }
+//        else if (value instanceof Object[]) {
+//            Object[] values = (Object[]) value;
+//            for (int i = 0; i < values.length; i++) {
+//                serializeData(stream, values[i], column.getNestedColumns().get(i));
+//            }
+//        }
+        else if (value.getClass().isArray()) {
+            for (int i = 0; i < Array.getLength(value); i++) {
+                serializeData(stream, Array.get(value, i), column.getNestedColumns().get(i));
             }
         } else {
             throw new IllegalArgumentException("Cannot serialize " + value + " as a tuple");
@@ -165,10 +207,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt256(stream, convertToBigInteger(value));
                 break;
             case Float32:
-                BinaryStreamUtils.writeFloat32(stream, (Float) value);
+                BinaryStreamUtils.writeFloat32(stream, (float) value);
                 break;
             case Float64:
-                BinaryStreamUtils.writeFloat64(stream, (Double) value);
+                BinaryStreamUtils.writeFloat64(stream, (double) value);
                 break;
             case Decimal:
             case Decimal32:
@@ -220,15 +262,6 @@ public class SerializerUtils {
             case JSON:
                 serializeJSON(stream, value);
                 break;
-            case Tuple:
-                serializeTuple(stream, column, (Object[]) value);
-                break;
-            case Point:
-                serializeTuple(stream, GEO_POINT_TUPLE, (Object[]) value);
-                break;
-            case Variant:
-                serializerVariant(stream, column, value);
-                break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
         }
@@ -241,18 +274,18 @@ public class SerializerUtils {
             throw new UnsupportedOperationException("Serialization of Java object to JSON is not supported yet.");
         }
     }
-
-    private static void serializeTuple(OutputStream out, ClickHouseColumn column, Object[] tupleValues) throws IOException {
-        if (column.getNestedColumns().size() != tupleValues.length) {
-            throw new IllegalArgumentException("Column " + column.getColumnName() + " defines as Tuple with "
-                    + column.getNestedColumns().size() +" elements, but only " + tupleValues.length + " provided");
-        }
-
-        List<ClickHouseColumn> nested = column.getNestedColumns();
-        for (int i = 0; i < nested.size() ; i++) {
-            serializeData(out, tupleValues[i], nested.get(i));
-        }
-    }
+//
+//    private static void serializeTuple(OutputStream out, ClickHouseColumn column, Object[] tupleValues) throws IOException {
+//        if (column.getNestedColumns().size() != tupleValues.length) {
+//            throw new IllegalArgumentException("Column " + column.getColumnName() + " defines as Tuple with "
+//                    + column.getNestedColumns().size() +" elements, but only " + tupleValues.length + " provided");
+//        }
+//
+//        List<ClickHouseColumn> nested = column.getNestedColumns();
+//        for (int i = 0; i < nested.size() ; i++) {
+//            serializeData(out, tupleValues[i], nested.get(i));
+//        }
+//    }
 
 
     private static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
@@ -266,6 +299,9 @@ public class SerializerUtils {
     }
 
     private static final ClickHouseColumn GEO_POINT_TUPLE = ClickHouseColumn.parse("geopoint Tuple(Float64, Float64)").get(0);
+    private static final ClickHouseColumn GEO_RING_ARRAY = ClickHouseColumn.parse("georing Array(Tuple(Float64, Float64))").get(0);
+    private static final ClickHouseColumn GEO_POLYGON_ARRAY = ClickHouseColumn.parse("geopolygin Array(Array(Tuple(Float64, Float64)))").get(0);
+    private static final ClickHouseColumn GEO_MULTI_POLYGON_ARRAY = ClickHouseColumn.parse("geomultipolygin Array(Array(Array(Tuple(Float64, Float64))))").get(0);
 
     private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
