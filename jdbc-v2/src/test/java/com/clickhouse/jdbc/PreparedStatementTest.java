@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -172,7 +173,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setDate(1, java.sql.Date.valueOf("2021-01-01"));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1, new GregorianCalendar()), java.sql.Date.valueOf("2021-01-01"));
+                    assertEquals(rs.getDate(1, new GregorianCalendar(TimeZone.getTimeZone("UTC"))), java.sql.Date.valueOf("2021-01-01"));
                     assertFalse(rs.next());
                 }
             }
@@ -202,7 +203,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(rs.getTimestamp(1).toString(), "2021-01-01 01:34:56.456");
-                    assertEquals(rs.getTimestamp(2, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
+                    assertEquals(rs.getTimestamp(2, java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
             }

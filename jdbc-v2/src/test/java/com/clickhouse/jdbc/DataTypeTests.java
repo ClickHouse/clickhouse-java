@@ -281,8 +281,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date", new GregorianCalendar()), Date.valueOf("1970-01-01"));
-                    assertEquals(rs.getDate("date32", new GregorianCalendar()), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getDate("date", new GregorianCalendar(TimeZone.getTimeZone("UTC"))), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getDate("date32", new GregorianCalendar(TimeZone.getTimeZone("UTC"))), Date.valueOf("1970-01-01"));
                     assertEquals(rs.getTimestamp("dateTime").toInstant().toString(), "1970-01-01T00:00:00Z");
                     assertEquals(rs.getTimestamp("dateTime32").toInstant().toString(), "1970-01-01T00:00:00Z");
                     assertEquals(rs.getTimestamp("dateTime643").toInstant().toString(), "1970-01-01T00:00:00Z");
@@ -290,8 +290,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getTimestamp("dateTime649").toInstant().toString(), "1970-01-01T00:00:00Z");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date", new GregorianCalendar()), Date.valueOf("2149-06-06"));
-                    assertEquals(rs.getDate("date32", new GregorianCalendar()), Date.valueOf("2299-12-31"));
+                    assertEquals(rs.getDate("date", new GregorianCalendar(TimeZone.getTimeZone("UTC"))), Date.valueOf("2149-06-06"));
+                    assertEquals(rs.getDate("date32", new GregorianCalendar(TimeZone.getTimeZone("UTC"))), Date.valueOf("2299-12-31"));
                     assertEquals(rs.getTimestamp("dateTime").toInstant().toString(), "2106-02-07T06:28:15Z");
                     assertEquals(rs.getTimestamp("dateTime32").toInstant().toString(), "2106-02-07T06:28:15Z");
                     assertEquals(rs.getTimestamp("dateTime643").toInstant().toString(), "2261-12-31T23:59:59.999Z");
@@ -299,8 +299,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getTimestamp("dateTime649").toInstant().toString(), "2261-12-31T23:59:59.999999999Z");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date", new GregorianCalendar()).toString(), date.toString());
-                    assertEquals(rs.getDate("date32", new GregorianCalendar()).toString(), date32.toString());
+                    assertEquals(rs.getDate("date", new GregorianCalendar(TimeZone.getTimeZone("UTC"))).toString(), date.toString());
+                    assertEquals(rs.getDate("date32", new GregorianCalendar(TimeZone.getTimeZone("UTC"))).toString(), date32.toString());
                     assertEquals(rs.getTimestamp("dateTime").toString(), dateTime.toString());
                     assertEquals(rs.getTimestamp("dateTime32").toString(), dateTime32.toString());
                     assertEquals(rs.getTimestamp("dateTime643").toString(), dateTime643.toString());
@@ -887,7 +887,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(3, Double.class), 1.0);
                     assertEquals(String.valueOf(rs.getObject(3, new HashMap<String, Class<?>>(){{put(JDBCType.FLOAT.getName(), Float.class);}})), "1.0");
 
-                    assertEquals(rs.getDate(4, new GregorianCalendar()), Date.valueOf("2024-12-01"));
+                    assertEquals(rs.getDate(4, new GregorianCalendar(TimeZone.getTimeZone("UTC"))), Date.valueOf("2024-12-01"));
                     assertTrue(rs.getObject(4) instanceof Date);
                     assertEquals(rs.getObject(4), Date.valueOf("2024-12-01"));
                     assertEquals(rs.getString(4), "2024-12-01");//Underlying object is ZonedDateTime

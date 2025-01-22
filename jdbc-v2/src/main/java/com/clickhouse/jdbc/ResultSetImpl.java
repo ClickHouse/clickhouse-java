@@ -1053,10 +1053,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
 
             if (cal == null) {
-                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                cal = new GregorianCalendar();
             }
 
-            return new Date(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());//This assumes the response is in cal.getTimeZone()
+            return Date.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate());
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1079,10 +1079,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
 
             if (cal == null) {
-                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                cal = new GregorianCalendar();
             }
 
-            return new Time(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());//This assumes the response is in cal.getTimeZone()
+            return Time.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalTime());
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1105,10 +1105,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             wasNull = false;
 
             if (cal == null) {
-                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                cal = new GregorianCalendar();
             }
 
-            Timestamp ts = new Timestamp(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());
+            Timestamp ts = Timestamp.valueOf(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime());
             ts.setNanos(zdt.getNano());
             return ts;//This assumes the response is in cal.getTimeZone()
         } catch (Exception e) {
