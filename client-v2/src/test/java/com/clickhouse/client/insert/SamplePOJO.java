@@ -85,6 +85,8 @@ public class SamplePOJO {
     private ClickHouseBitmap groupBitmapUint32;
     private ClickHouseBitmap groupBitmapUint64;
 
+    private String keyword;
+
     public SamplePOJO() {
         final Random random = new Random();
         byteValue = (byte) random.nextInt();
@@ -180,6 +182,8 @@ public class SamplePOJO {
 
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
+
+        keyword = "database";
     }
 
     public byte getByteValue() {
@@ -574,6 +578,14 @@ public class SamplePOJO {
         this.groupBitmapUint64 = groupBitmapUint64;
     }
 
+    public String getKeyword() {
+        return keyword;
+    }
+
+    public void setKeyword(String keyword) {
+        this.keyword = keyword;
+    }
+
     @Override
     public String toString() {
         return "SamplePOJO{" +
@@ -683,7 +695,8 @@ public class SamplePOJO {
                 "nested Nested (innerInt Int32, innerString String, " +
                 "innerNullableInt Nullable(Int32)), " +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
-                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
+                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64), " +
+                "keyword LowCardinality(String) " +
                 ") ENGINE = MergeTree ORDER BY ()";
     }
 }

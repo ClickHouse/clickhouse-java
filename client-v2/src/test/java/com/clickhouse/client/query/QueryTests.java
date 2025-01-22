@@ -62,6 +62,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1998,6 +1999,23 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(serverTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTime);
             Assert.assertEquals(serverTime, serverUtcTime);
             Assert.assertEquals(serverUtcTime.withZoneSameInstant(ZoneId.of("America/New_York")), serverEstTime);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testLowCardinalityValues() throws Exception {
+        final String table = "test_low_cardinality_values";
+        final String tableCreate = "CREATE TABLE " + table + "(rowID Int32, keyword LowCardinality(String)) Engine = MergeTree ORDER BY ()";
+
+        client.execute("DROP TABLE IF EXISTS " + table);
+        client.execute(tableCreate);
+
+        client.execute("INSERT INTO " + table + " VALUES (0, 'db'), (1, 'fast'), (2, 'not a java')");
+        String[] values = new String[] {"db", "fast", "not a java"};
+        Collection<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowID");
+            Assert.assertEquals(record.getString("keyword"), values[rowId]);
         }
     }
 }
