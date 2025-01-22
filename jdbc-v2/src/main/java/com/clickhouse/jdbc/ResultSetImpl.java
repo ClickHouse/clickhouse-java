@@ -38,7 +38,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private boolean closed;
     private final StatementImpl parentStatement;
     private boolean wasNull;
-    private final Calendar defaultCalendar;
 
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
         this.parentStatement = parentStatement;
@@ -47,7 +46,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
     }
 
     protected ResultSetImpl(ResultSetImpl resultSet) {
@@ -57,7 +55,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
     }
 
     private void checkClosed() throws SQLException {
@@ -1048,17 +1045,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
-            LocalDate d = reader.getLocalDate(columnLabel);
-            if (d == null) {
+            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            if (zdt == null) {
                 wasNull = true;
                 return null;
             }
             wasNull = false;
 
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.clear();
-            c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-            return new Date(c.getTimeInMillis());
+            if (cal == null) {
+                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+            }
+
+            return new Date(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());//This assumes the response is in cal.getTimeZone()
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1080,10 +1078,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            Calendar c = (Calendar)( cal != null ? cal : defaultCalendar).clone();
-            c.clear();
-            c.set(1970, Calendar.JANUARY, 1, zdt.getHour(), zdt.getMinute(), zdt.getSecond());
-            return new Time(c.getTimeInMillis());
+            if (cal == null) {
+                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+            }
+
+            return new Time(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());//This assumes the response is in cal.getTimeZone()
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
@@ -1098,23 +1097,23 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
-            LocalDateTime localDateTime = reader.getLocalDateTime(columnLabel);
-            if (localDateTime == null) {
+            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            if (zdt == null) {
                 wasNull = true;
                 return null;
             }
             wasNull = false;
-            
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.set(localDateTime.getYear(), localDateTime.getMonthValue() - 1, localDateTime.getDayOfMonth(), localDateTime.getHour(), localDateTime.getMinute(),
-                    localDateTime.getSecond());
-            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
-            timestamp.setNanos(localDateTime.getNano());
-            return timestamp;
+
+            if (cal == null) {
+                cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+            }
+
+            Timestamp ts = new Timestamp(zdt.withZoneSameLocal(cal.getTimeZone().toZoneId()).toInstant().toEpochMilli());
+            ts.setNanos(zdt.getNano());
+            return ts;//This assumes the response is in cal.getTimeZone()
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
         }
-
     }
 
     @Override

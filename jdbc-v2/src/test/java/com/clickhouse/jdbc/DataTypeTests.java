@@ -301,11 +301,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate("date", new GregorianCalendar()).toString(), date.toString());
                     assertEquals(rs.getDate("date32", new GregorianCalendar()).toString(), date32.toString());
-                    assertEquals(rs.getTimestamp("dateTime", new GregorianCalendar()).toString(), dateTime.toString());
-                    assertEquals(rs.getTimestamp("dateTime32", new GregorianCalendar()).toString(), dateTime32.toString());
-                    assertEquals(rs.getTimestamp("dateTime643", new GregorianCalendar()).toString(), dateTime643.toString());
-                    assertEquals(rs.getTimestamp("dateTime646", new GregorianCalendar()).toString(), dateTime646.toString());
-                    assertEquals(rs.getTimestamp("dateTime649", new GregorianCalendar()).toString(), dateTime649.toString());
+                    assertEquals(rs.getTimestamp("dateTime").toString(), dateTime.toString());
+                    assertEquals(rs.getTimestamp("dateTime32").toString(), dateTime32.toString());
+                    assertEquals(rs.getTimestamp("dateTime643").toString(), dateTime643.toString());
+                    assertEquals(rs.getTimestamp("dateTime646").toString(), dateTime646.toString());
+                    assertEquals(rs.getTimestamp("dateTime649").toString(), dateTime649.toString());
 
                     assertFalse(rs.next());
                 }

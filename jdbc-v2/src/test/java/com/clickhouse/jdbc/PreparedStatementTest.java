@@ -186,7 +186,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setTime(1, java.sql.Time.valueOf("12:34:56"));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTime(1, new GregorianCalendar()).toString(), "12:34:56");
+                    assertEquals(rs.getTime(1).toString(), "12:34:56");
                     assertFalse(rs.next());
                 }
             }
@@ -201,7 +201,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setTimestamp(2, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTimestamp(1, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
+                    assertEquals(rs.getTimestamp(1).toString(), "2021-01-01 01:34:56.456");
                     assertEquals(rs.getTimestamp(2, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
