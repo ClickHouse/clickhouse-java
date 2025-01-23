@@ -414,10 +414,10 @@ public class HttpAPIClientHelper {
         } catch (UnknownHostException e) {
             LOG.warn("Host '{}' unknown", server.getHost());
             throw new ClientException("Unknown host", e);
-        } catch (ConnectException | NoRouteToHostException e) {
+        } catch (NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
-        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
+        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException | ConnectException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
