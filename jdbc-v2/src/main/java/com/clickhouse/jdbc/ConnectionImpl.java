@@ -30,6 +30,7 @@ import java.sql.Savepoint;
 import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private QuerySettings defaultQuerySettings;
 
     private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
+    protected final Calendar defaultCalendar;
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
@@ -80,6 +82,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                     .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
 
             this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
+            this.defaultCalendar = Calendar.getInstance();
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {
