@@ -1,10 +1,10 @@
 package com.clickhouse.examples.jdbc;
 
-
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.jdbc.ClickHouseDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -13,14 +13,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Properties;
 
 public class Basic {
+    private static final Logger log = LoggerFactory.getLogger(Basic.class);
     static final String TABLE_NAME = "jdbc_example_basic";
 
     public static void main(String[] args) {
-        String url = System.getProperty("chUrl", "jdbc:ch://localhost:18123");
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost:8123");
 
         // Set user and password if needed
         Properties properties = new Properties();
@@ -38,7 +40,7 @@ public class Basic {
             //Using HikariCP with ClickHouseDataSource
             usedPooledConnection(url, properties);
         } catch (SQLException e) {
-            e.printStackTrace();
+            log.error("Error", e);
         }
     }
 
@@ -47,7 +49,7 @@ public class Basic {
             try (Statement stmt = conn.createStatement()) {//Create a statement
                 stmt.execute("DROP TABLE IF EXISTS " + TABLE_NAME);//Execute a query to drop the table if it exists
                 stmt.execute("CREATE TABLE " + TABLE_NAME +
-                        " (`date` Date, `id` UInt32, `name` String, `attributes` Map(String, String))" +
+                        " (`date` DateTime64(3), `id` UInt32, `name` String, `attributes` Map(String, String))" +
                         " ENGINE = MergeTree() ORDER BY id");//Create a table with three columns: date, id, and name
             }
         }
@@ -55,22 +57,20 @@ public class Basic {
 
     static void insertDateWithPreparedStatement(String url, Properties properties) throws SQLException {
         try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection using the jdbc DriverManager
-            try (Statement stmt = conn.createStatement()) {
-                try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + TABLE_NAME + " VALUES(?, ?, ?, ?)")) {//Create a prepared statement
-                    pstmt.setDate(1, Date.valueOf("2025-01-01"));//Set the first parameter to '2025-01-01' (using java.sql.Date)
-                    pstmt.setInt(2, 1);//Set the second parameter to 1
-                    pstmt.setString(3, "Alice");//Set the third parameter to "Alice"
-                    pstmt.setObject(4, Collections.singletonMap("key1", "value1"));
-                    pstmt.addBatch();//Add the current parameters to the batch
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + TABLE_NAME + " VALUES(?, ?, ?, ?)")) {//Create a prepared statement
+                pstmt.setDate(1, Date.valueOf("2025-01-01"));//Set the first parameter to '2025-01-01' (using java.sql.Date)
+                pstmt.setInt(2, 1);//Set the second parameter to 1
+                pstmt.setString(3, "Alice");//Set the third parameter to "Alice"
+                pstmt.setObject(4, Collections.singletonMap("key1", "value1"));
+                pstmt.addBatch();//Add the current parameters to the batch
 
-                    pstmt.setDate(1, Date.valueOf("2025-02-01"));//Set the first parameter to '2025-02-01'
-                    pstmt.setInt(2, 2);//Set the second parameter to 2
-                    pstmt.setString(3, "Bob");//Set the third parameter to "Bob"
-                    pstmt.setObject(4, Collections.singletonMap("key2", "value2"));
-                    pstmt.addBatch();//Add the current parameters to the batch
+                pstmt.setObject(1, ZonedDateTime.now());
+                pstmt.setInt(2, 2);//Set the second parameter to 2
+                pstmt.setString(3, "Bob");//Set the third parameter to "Bob"
+                pstmt.setObject(4, Collections.singletonMap("key2", "value2"));
+                pstmt.addBatch();//Add the current parameters to the batch
 
-                    pstmt.executeBatch();//Execute the batch
-                }
+                pstmt.executeBatch();//Execute the batch
             }
         }
     }
@@ -80,7 +80,9 @@ public class Basic {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + TABLE_NAME)) {
                     while (rs.next()) {
-                        System.out.println(rs.getDate(1) + ", " + rs.getInt(2) + ", " + rs.getString(3) + ", " + rs.getObject(4));
+                        //Print the values of the current row
+                        log.info("DateTime: {}, Int: {}, String: {}, Object: {}",
+                                rs.getObject(1, ZonedDateTime.class), rs.getInt(2), rs.getString(3), rs.getObject(4));
                     }
                 }
             }
@@ -101,9 +103,11 @@ public class Basic {
         try (HikariDataSource ds = new HikariDataSource(poolConfig);
              Connection conn = ds.getConnection();
              Statement s = conn.createStatement();
-             ResultSet rs = s.executeQuery("SELECT 123")) {
-            System.out.println(rs.next());
-            System.out.println(rs.getInt(1));
+             ResultSet rs = s.executeQuery("SELECT * FROM system.numbers LIMIT 3")) {
+            while (rs.next()) {
+                // handle row
+                log.info("Integer: {}, String: {}", rs.getInt(1), rs.getString(1));//Same column but different types
+            }
         }
     }
 
@@ -113,10 +117,10 @@ public class Basic {
         try (Connection conn = DriverManager.getConnection(url, properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1, 'Hello, world!'")) {
-                    System.out.println(rs.next());
-                    System.out.println(rs.getInt(1));
-                    System.out.println(rs.getString(2));
-                    System.out.println(rs.getClob(2));//Unsupported type, but ignore_unsupported_values=true, so it won't throw an exception
+                    while(rs.next()) {
+                        log.info("Integer: {}", rs.getInt(1));
+                        log.info("String: {}", rs.getString(2));
+                    }
                 }
             }
         } catch (SQLException e) {

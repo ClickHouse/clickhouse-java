@@ -12,7 +12,7 @@
     <name>JDBC Examples</name>
     <description>JDBC Examples</description>
     <url>https://github.com/ClickHouse/clickhouse-java</url>
-    <inceptionYear>2022</inceptionYear>
+    <inceptionYear>2025</inceptionYear>
 
     <organization>
         <name>ClickHouse, Inc.</name>
@@ -43,7 +43,7 @@
     </repositories>
 
     <properties>
-        <project.current.year>2024</project.current.year>
+        <project.current.year>2025</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>2.0.13</version>
+            <version>2.0.16</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
