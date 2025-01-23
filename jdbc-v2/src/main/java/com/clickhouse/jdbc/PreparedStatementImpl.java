@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -472,6 +473,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
             } else if (x instanceof LocalDateTime) {
                 return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+            } else if (x instanceof OffsetDateTime) {
+                return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
                 return encodeObject(((ZonedDateTime) x).toInstant());
             } else if (x instanceof Instant) {
