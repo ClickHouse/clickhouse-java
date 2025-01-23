@@ -2,6 +2,8 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -61,7 +63,7 @@ public class SerializerUtils {
                 serializeArrayData(stream, value, column);
                 break;
             case Tuple:
-                serializeTuple(stream, value, column);
+                serializeTupleData(stream, value, column);
                 break;
             case Map:
                 serializeMapData(stream, value, column);
@@ -74,7 +76,7 @@ public class SerializerUtils {
                 break;
             case Point:
                 value = value instanceof ClickHouseGeoPointValue ? ((ClickHouseGeoPointValue)value).getValue() : value;
-                serializeTuple(stream, value, GEO_POINT_TUPLE);
+                serializeTupleData(stream, value, GEO_POINT_TUPLE);
                 break;
             case Ring:
                 value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
@@ -128,7 +130,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeTuple(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
         if (value instanceof List) {
@@ -136,14 +138,8 @@ public class SerializerUtils {
             for (int i = 0; i < values.size(); i++) {
                 serializeData(stream, values.get(i), column.getNestedColumns().get(i));
             }
-        }
-//        else if (value instanceof Object[]) {
-//            Object[] values = (Object[]) value;
-//            for (int i = 0; i < values.length; i++) {
-//                serializeData(stream, values[i], column.getNestedColumns().get(i));
-//            }
-//        }
-        else if (value.getClass().isArray()) {
+        } else if (value.getClass().isArray()) {
+            // TODO: this code uses reflection - we might need to measure it and find faster solution.
             for (int i = 0; i < Array.getLength(value); i++) {
                 serializeData(stream, Array.get(value, i), column.getNestedColumns().get(i));
             }
@@ -217,7 +213,7 @@ public class SerializerUtils {
             case Decimal64:
             case Decimal128:
             case Decimal256:
-                BinaryStreamUtils.writeDecimal(stream, (BigDecimal) value, column.getPrecision(), column.getScale());
+                BinaryStreamUtils.writeDecimal(stream, convertToBigDecimal(value), column.getPrecision(), column.getScale());
                 break;
             case Bool:
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
@@ -247,11 +243,15 @@ public class SerializerUtils {
             case UUID:
                 BinaryStreamUtils.writeUuid(stream, (UUID) value);
                 break;
+//            case Enum8:
+//                BinaryStreamUtils.writeEnum8(stream, (Byte) value);
+//                break;
+//            case Enum16:
+//                BinaryStreamUtils.writeEnum16(stream, convertToInteger(value));
+//                break;
             case Enum8:
-                BinaryStreamUtils.writeEnum8(stream, (Byte) value);
-                break;
             case Enum16:
-                BinaryStreamUtils.writeEnum16(stream, convertToInteger(value));
+                serializeEnumData(stream, column, value);
                 break;
             case IPv4:
                 BinaryStreamUtils.writeInet4Address(stream, (Inet4Address) value);
@@ -267,6 +267,25 @@ public class SerializerUtils {
         }
     }
 
+    private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+        int enumValue = -1;
+        if (value instanceof String) {
+            enumValue = column.getEnumConstants().value((String) value);
+        } else if (value instanceof Number) {
+            enumValue = ((Number)value).intValue();
+        } else {
+            throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with Enum type " + column.getOriginalTypeName());
+        }
+
+        if (column.getDataType() == ClickHouseDataType.Enum8) {
+            BinaryStreamUtils.writeInt8(stream, enumValue);
+        } else if (column.getDataType() == ClickHouseDataType.Enum16) {
+            BinaryStreamUtils.writeInt16(stream, enumValue);
+        } else {
+            throw new ClientException("Bug! serializeEnumData() was called for " + column.getDataType());
+        }
+    }
+
     private static void serializeJSON(OutputStream stream, Object value) throws IOException {
         if (value instanceof String) {
             BinaryStreamUtils.writeString(stream, (String)value);
@@ -274,19 +293,6 @@ public class SerializerUtils {
             throw new UnsupportedOperationException("Serialization of Java object to JSON is not supported yet.");
         }
     }
-//
-//    private static void serializeTuple(OutputStream out, ClickHouseColumn column, Object[] tupleValues) throws IOException {
-//        if (column.getNestedColumns().size() != tupleValues.length) {
-//            throw new IllegalArgumentException("Column " + column.getColumnName() + " defines as Tuple with "
-//                    + column.getNestedColumns().size() +" elements, but only " + tupleValues.length + " provided");
-//        }
-//
-//        List<ClickHouseColumn> nested = column.getNestedColumns();
-//        for (int i = 0; i < nested.size() ; i++) {
-//            serializeData(out, tupleValues[i], nested.get(i));
-//        }
-//    }
-
 
     private static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
         int typeOrdNum = column.getVariantOrdNum(value);

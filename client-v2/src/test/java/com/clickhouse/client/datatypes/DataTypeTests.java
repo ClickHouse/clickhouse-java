@@ -6,6 +6,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseDataType;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 public class DataTypeTests extends BaseIntegrationTest {
@@ -63,7 +65,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
 
-    @Test
+    @Test(groups = {"integration"})
     public void testNestedDataTypes() throws Exception {
         final String table = "test_nested_types";
         String tblCreateSQL = NestedTypesDTO.tblCreateSQL(table);
@@ -85,7 +87,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
         final String table = "test_variant_primitives";
         final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
@@ -198,24 +200,103 @@ public class DataTypeTests extends BaseIntegrationTest {
         private Object field;
     }
 
+    @Test(groups = {"integration"})
     public void testVariantWithDecimals() throws Exception {
-
+        testVariantWith("decimals", new String[]{"field Variant(String, Decimal(4, 4))"},
+                new Object[]{
+                        "10.2",
+                        10.2d, // TODO: when f it gives 10.199
+                },
+                new String[]{
+                        "10.2",
+                        "10.2000",
+                });
+        testVariantWith("decimal32", new String[]{"field Variant(String, Decimal32(4))"},
+                new Object[]{
+                        "10.202",
+                        10.1233d,
+                },
+                new String[]{
+                        "10.202",
+                        "10.1233",
+                });
     }
 
-    public void testVariantWithDateTime() throws Exception {
-
-    }
-
-    public void testVariantWithNullable() throws Exception {
-
-    }
-
+    @Test(groups = {"integration"}, enabled = false)
     public void testVariantWithArrays() throws Exception {
-
+        // TODO: writing array would need custom serialization logic
+        testVariantWith("arrays", new String[]{"field Variant(String, Array(String))"},
+                new Object[]{
+                        "a,b",
+                        new String[]{"a", "b"}
+                },
+                new String[]{
+                        "a,b",
+                        "a,b",
+                });
     }
 
+    @Test(groups = {"integration"}, enabled = false)
     public void testVariantWithMaps() throws Exception {
+        //TODO: similar to arrays
+    }
 
+    @Test(groups = {"integration"})
+    public void testVariantWithEnums() throws Exception {
+        testVariantWith("enums", new String[]{"field Variant(Bool, Enum('stopped' = 1, 'running' = 2))"},
+                new Object[]{
+                        "stopped",
+                        1,
+                        "running",
+                        2,
+                        true,
+                        false
+                },
+                new String[]{
+                        "stopped",
+                        "stopped",
+                        "running",
+                        "running",
+                        "true",
+                        "false"
+                });
+    }
+
+    @Test(groups = {"integration"}, enabled = false)
+    public void testVariantWithTuple() throws Exception {
+        // TODO: same as array
+        testVariantWith("arrays", new String[]{"field Variant(String, Tuple(Int32, Float32))"},
+                new Object[]{
+                        "10,0.34",
+                        new Object[] { 10, 0.34f}
+                },
+                new String[]{
+                        "10,0.34",
+                        "(10,0.34)",
+                });
+    }
+
+    private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {
+        String table = "test_variant_with_" + withWhat;
+        String[] actualFields = new String[fields.length + 1];
+        actualFields[0] = "rowId Int32";
+        System.arraycopy(fields, 0, actualFields, 1, fields.length);
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, actualFields), (CommandSettings) new CommandSettings().serverSetting("enable_variant_type", "1")).get();
+
+        client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
+
+        List<DTOForVariantPrimitivesTests> data = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            data.add(new DTOForVariantPrimitivesTests(i, values[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
+        for (GenericRecord row : rows) {
+            System.out.println("> " + row.getString("field"));
+            Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
+        }
     }
 
     public static String tableDefinition(String table, String... columns) {

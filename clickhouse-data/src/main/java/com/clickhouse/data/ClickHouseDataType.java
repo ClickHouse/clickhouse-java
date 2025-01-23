@@ -208,6 +208,9 @@ public enum ClickHouseDataType {
         map.put(DateTime64, setOf(LocalDateTime.class, ZonedDateTime.class));
         map.put(DateTime32, setOf(LocalDateTime.class, ZonedDateTime.class));
         map.put(DateTime, setOf(LocalDateTime.class, ZonedDateTime.class));
+
+        map.put(Enum8, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         return map;
     }
 

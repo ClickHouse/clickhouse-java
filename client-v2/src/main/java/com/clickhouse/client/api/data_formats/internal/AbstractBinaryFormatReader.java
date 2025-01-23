@@ -271,23 +271,37 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        Object value = readValue(colName);
+        return readAsString(readValue(colName), schema.getColumnByName(colName));
+    }
+
+    /**
+     * Converts value in to a string representation. Does some formatting for selected data types
+     * @return string representation of a value for specified column
+     */
+    public static String readAsString(Object value, ClickHouseColumn column) {
         if (value == null) {
             return null;
         } else if (value instanceof String) {
             return (String) value;
         } else if (value instanceof ZonedDateTime) {
-            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            ClickHouseDataType dataType = column.getDataType();
             ZonedDateTime zdt = (ZonedDateTime) value;
             if (dataType == ClickHouseDataType.Date) {
                 return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
             }
             return value.toString();
-        } else {
-            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
-            if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
-                ClickHouseEnum clickHouseEnum = schema.getColumnByName(colName).getEnumConstants();
-                return clickHouseEnum.name(Integer.parseInt(value.toString()));
+        } else if (value instanceof Number ) {
+            ClickHouseDataType dataType = column.getDataType();
+            int num = ((Number)value).intValue();
+            if (column.getDataType() == ClickHouseDataType.Variant) {
+                for (ClickHouseColumn c : column.getNestedColumns()) {
+                    // TODO: will work only if single enum listed as variant
+                    if (c.getDataType() == ClickHouseDataType.Enum8 || c.getDataType() == ClickHouseDataType.Enum16) {
+                        return c.getEnumConstants().name(num);
+                    }
+                }
+            } else if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
+                return column.getEnumConstants().name(num);
             }
         }
         return value.toString();
