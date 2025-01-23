@@ -1,5 +1,13 @@
 ## Latest
 
+## 0.8.0
+- `jdbc-v2` - Updated Driver and DataSource to default to updated (`client-v2`) implementation of the JDBC driver.
+- `jdbc-v2` - Removed support for Transaction Support. Early versions of the driver only simulated transaction support, which could have unexpected results.
+- `jdbc-v2` - Removed support for Response Column Renaming. `ResultSet` was mutable - for efficiency sake they're now read-only
+- `jdbc-v2` - Removed support for Multi-Statement SQL. Multi-statement support was only simulated, now it strictly follows 1:1
+- `jdbc-v2` - Removed support for Named Parameters. Not part of the JDBC spec
+- `jdbc-v2` - Removed support for Stream-based `PreparedStatement`. Early version of the driver allowed for non-jdbc usage of `PreparedStatement` - if you desire such options, we recommend looking at client-v2.
+
 ## 0.7.2 
 
 ### New Components 
