@@ -2018,4 +2018,12 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(record.getString("keyword"), values[rowId]);
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testGettingRowsBeforeLimit() throws Exception {
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 100").get()) {
+            Assert.assertTrue(response.getResultRows() < 1000);
+            Assert.assertEquals(response.getTotalRowsToRead(), 100);
+        }
+    }
 }
