@@ -57,7 +57,7 @@ jobs:
         uses: samuelmeuli/action-maven-publish@v1
         with:
           maven_profiles: release
-          maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }}
+          maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }} -X
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
