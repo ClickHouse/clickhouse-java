@@ -68,7 +68,7 @@ public class DriverTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetMinorVersion() {
         Driver driver = new Driver();
-        Assert.assertEquals(driver.getMinorVersion(), 7);
+        Assert.assertEquals(driver.getMinorVersion(), 8);
     }
 
     @Test(groups = { "integration" })

@@ -112,7 +112,7 @@ public class Basic {
     }
 
     static void setClientSettings(Properties properties){
-        String url = System.getProperty("chUrl", "jdbc:ch://localhost:18123?jdbc_ignore_unsupported_values=true&socket_timeout=10");
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost:8123?jdbc_ignore_unsupported_values=true&socket_timeout=10");
 
         try (Connection conn = DriverManager.getConnection(url, properties)) {
             try (Statement stmt = conn.createStatement()) {
