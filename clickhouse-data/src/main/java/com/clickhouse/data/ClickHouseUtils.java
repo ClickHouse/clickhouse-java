@@ -357,6 +357,17 @@ public final class ClickHouseUtils {
         }
 
         if (!pattern.startsWith("glob:") && !pattern.startsWith("regex:")) {
+            if (IS_WINDOWS) {
+                final String reservedCharsWindows = "<>:\"|?*";
+                pattern.chars().anyMatch(
+                        value -> {
+                            if (value < ' ' || reservedCharsWindows.indexOf(value) != -1) {
+                                throw new IllegalArgumentException("File path contains reserved character <%s>".formatted((char) value));
+                            }
+                            return false;
+                        }
+                );
+            }
             Path path = Paths.get(pattern);
             if (path.isAbsolute()) {
                 return Collections.singletonList(path);
