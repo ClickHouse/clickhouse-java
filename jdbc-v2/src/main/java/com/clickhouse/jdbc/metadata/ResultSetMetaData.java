@@ -4,6 +4,7 @@ import java.sql.SQLException;
 
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -165,6 +166,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        throw new SQLException("Not implemented", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        JdbcTypeMapping mapping = JdbcTypeMapping.getDefaultMapping();
+		return mapping.toJavaClass(getColumn(column), Map.of()).getCanonicalName();
     }
 }
