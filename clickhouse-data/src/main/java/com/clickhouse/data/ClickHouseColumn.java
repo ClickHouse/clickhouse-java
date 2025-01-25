@@ -37,13 +37,19 @@ import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 /**
@@ -65,6 +71,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_OBJECT = ClickHouseDataType.Object.name();
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
+    private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
 
     private int columnCount;
     private int columnIndex;
@@ -91,6 +98,10 @@ public final class ClickHouseColumn implements Serializable {
     private int estimatedByteLength;
 
     private ClickHouseValue template;
+
+    private Map<Class<?>, Integer> classToVariantOrdNumMap;
+
+    private Map<Class<?>, Integer> arrayToVariantOrdNumMap;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
@@ -273,6 +284,9 @@ public final class ClickHouseColumn implements Serializable {
             case Nothing:
                 column.template = ClickHouseEmptyValue.INSTANCE;
                 break;
+            case Variant:
+                column.template = ClickHouseTupleValue.of();
+                break;
             default:
                 break;
         }
@@ -398,7 +412,8 @@ public final class ClickHouseColumn implements Serializable {
             fixedLength = false;
             estimatedLength++;
         } else if (args.startsWith(matchedKeyword = KEYWORD_TUPLE, i)
-                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)) {
+                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)
+                || args.startsWith(matchedKeyword = KEYWORD_VARIANT, i)) {
             int index = args.indexOf('(', i + matchedKeyword.length());
             if (index < i) {
                 throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
@@ -410,11 +425,21 @@ public final class ClickHouseColumn implements Serializable {
                 if (c == ')') {
                     break;
                 } else if (c != ',' && !Character.isWhitespace(c)) {
+                    String columnName = "";
                     i = readColumn(args, i, endIndex, "", nestedColumns);
                 }
             }
             if (nestedColumns.isEmpty()) {
                 throw new IllegalArgumentException("Tuple should have at least one nested column");
+            }
+
+            List<ClickHouseDataType> variantDataTypes = new ArrayList<>();
+            if (matchedKeyword.equals(KEYWORD_VARIANT)) {
+                nestedColumns.sort(Comparator.comparing(o -> o.getDataType().name()));
+                nestedColumns.forEach(c -> {
+                    c.columnName = "v." + c.getDataType().name();
+                    variantDataTypes.add(c.dataType);
+                });
             }
             column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
                     args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
@@ -422,6 +447,22 @@ public final class ClickHouseColumn implements Serializable {
                 estimatedLength += n.estimatedByteLength;
                 if (!n.fixedByteLength) {
                     fixedLength = false;
+                }
+            }
+            column.classToVariantOrdNumMap = ClickHouseDataType.buildVariantMapping(variantDataTypes);
+
+            for (int ordNum = 0; ordNum < nestedColumns.size(); ordNum++) {
+                ClickHouseColumn nestedColumn = nestedColumns.get(ordNum);
+                if (nestedColumn.getDataType() == ClickHouseDataType.Array) {
+                    Set<Class<?>> classSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.arrayBaseColumn.dataType);
+                    if (classSet != null) {
+                        if (column.arrayToVariantOrdNumMap == null) {
+                            column.arrayToVariantOrdNumMap = new HashMap<>();
+                        }
+                        for (Class<?> c : classSet) {
+                            column.arrayToVariantOrdNumMap.put(c, ordNum);
+                        }
+                    }
                 }
             }
         }
@@ -625,6 +666,26 @@ public final class ClickHouseColumn implements Serializable {
     public boolean isAggregateFunction() {
         return dataType == ClickHouseDataType.AggregateFunction;
 
+    }
+
+    public int getVariantOrdNum(Object value) {
+        if (value != null && value.getClass().isArray()) {
+            Class<?> c = value.getClass();
+            while (c.isArray()) {
+                c = c.getComponentType();
+            }
+            return arrayToVariantOrdNumMap.getOrDefault(c, -1);
+        } else if (value != null && value instanceof List<?>) {
+            Object tmpV = ((List)value).get(0);
+            Class<?> valueClass = tmpV.getClass();
+            while (tmpV instanceof List<?>) {
+                tmpV = ((List)tmpV).get(0);
+                valueClass = tmpV.getClass();
+            }
+            return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
+        } else {
+            return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+        }
     }
 
     public boolean isArray() {
