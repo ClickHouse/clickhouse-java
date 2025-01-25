@@ -1,5 +1,30 @@
 ## Latest
 
+## 0.8.0
+
+### Highlights
+- We've updated `ClickHouseDriver` and `ClickHouseDataSource` to default to using the new (`jdbc-v2`) implementation of the JDBC driver. Setting `clickhouse.jdbc.v1=true` will revert this change.
+
+#### JDBC Changes
+- `jdbc-v2` - Removed support for Transaction Support. Early versions of the driver only simulated transaction support, which could have unexpected results.
+- `jdbc-v2` - Removed support for Response Column Renaming. `ResultSet` was mutable - for efficiency sake they're now read-only
+- `jdbc-v2` - Removed support for Multi-Statement SQL. Multi-statement support was only simulated, now it strictly follows 1:1
+- `jdbc-v2` - Removed support for Named Parameters. Not part of the JDBC spec
+- `jdbc-v2` - Removed support for Stream-based `PreparedStatement`. Early version of the driver allowed for non-jdbc usage of `PreparedStatement` - if you desire such options, we recommend looking at client-v2.
+
+### New Features
+- [client-v2, jdbc-v2] - Added support for Bearer token authentication like JWT. Now it is possible to specify encoded token while
+creating a client and change while runtime using `com.clickhouse.client.api.Client.updateBearerToken`. (https://github.com/ClickHouse/clickhouse-java/issues/1834, https://github.com/ClickHouse/clickhouse-java/issues/1988) 
+- [client-v2] - Exposed connection pool metrics through Micrometer. It allows to monitor internal connection pool for number of active and leased connections. (https://github.com/ClickHouse/clickhouse-java/issues/1901) 
+
+### Bug Fixes
+- [client-v2] - Fixed construction of `User-Agent` header. Prev. implementation uses `class.getPackage().getImplementationVersion()` what returns
+incorrect title and version when library is shaded. New implementation uses build time information from resource files generated while build. (https://github.com/ClickHouse/clickhouse-java/issues/2007)
+- [client-v2] - Fixed multiple issues with handling connectivity disruption. Socket timeout is unlimited by default. Added retry on timeout. Added more information to exception message.
+Please read the issue for more details. (https://github.com/ClickHouse/clickhouse-java/issues/1994)
+- [client-v2] - Client doesn't close provided executor anymore letting application close it instead. (https://github.com/ClickHouse/clickhouse-java/issues/1956)
+- [client-v2] - Removed unnecessary initialization to make startup time shorter. (https://github.com/ClickHouse/clickhouse-java/issues/2032)  
+
 ## 0.7.2 
 
 ### New Components 
