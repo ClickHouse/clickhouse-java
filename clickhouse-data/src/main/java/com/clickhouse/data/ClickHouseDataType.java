@@ -151,14 +151,14 @@ public enum ClickHouseDataType {
             }
         }
 
-        // add numbers mappings
+        // add integers
         for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : intTypesMappings.entrySet()) {
             DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
         }
+        // add decimals
         for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : decTypesMappings.entrySet()) {
             DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
         }
-
 
         return variantMapping;
     }
@@ -211,6 +211,7 @@ public enum ClickHouseDataType {
 
         map.put(Enum8, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(Array, setOf(List.class, Object[].class, byte[].class, short[].class, int[].class, long[].class, boolean[].class));
         return map;
     }
 

@@ -5,13 +5,16 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseDataType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -25,6 +28,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class DataTypeTests extends BaseIntegrationTest {
 
@@ -59,39 +65,83 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .build();
     }
 
-    @AfterMethod(groups = { "integration" })
+    @AfterMethod(groups = {"integration"})
     public void tearDown() {
         client.close();
     }
 
+    private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
+                                     BiConsumer<List<T>, T> rowVerifier) throws Exception {
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDef);
+
+        final TableSchema tableSchema = client.getTableSchema(table);
+        client.register(dtoClass, tableSchema);
+        client.insert(table, data);
+        final AtomicInteger rowCount = new AtomicInteger(0);
+        client.queryAll("SELECT * FROM " + table, dtoClass, tableSchema).forEach(dto -> {
+            rowVerifier.accept(data, dto);
+            rowCount.incrementAndGet();
+        });
+
+        Assert.assertEquals(rowCount.get(), data.size());
+    }
 
     @Test(groups = {"integration"})
     public void testNestedDataTypes() throws Exception {
         final String table = "test_nested_types";
-        String tblCreateSQL = NestedTypesDTO.tblCreateSQL(table);
-        client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tblCreateSQL);
+        writeReadVerify(table,
+                NestedTypesDTO.tblCreateSQL(table),
+                NestedTypesDTO.class,
+                Arrays.asList(new NestedTypesDTO(0, new Object[]{(short) 127, "test 1"}, new double[]{0.3d, 0.4d})),
+                (data, dto) -> {
+                    NestedTypesDTO dataDto = data.get(dto.getRowId());
+                    Assert.assertEquals(dto.getTuple1(), dataDto.getTuple1());
+                    Assert.assertEquals(dto.getPoint1(), dataDto.getPoint1());
+                });
+    }
 
-        client.register(NestedTypesDTO.class, client.getTableSchema(table));
+    @Test(groups = {"integration"})
+    public void testArrays() throws Exception {
+        final String table = "test_arrays";
+        writeReadVerify(table,
+                DTOForArraysTests.tblCreateSQL(table),
+                DTOForArraysTests.class,
+                Arrays.asList(new DTOForArraysTests(
+                        0, Arrays.asList("db", "fast"), new int[]{1, 2, 3}, new String[]{"a", "b", "c"})),
+                (data, dto) -> {
+                    DTOForArraysTests dataDto = data.get(dto.getRowId());
+                    System.out.println(dto.getWords());
+                    Assert.assertEquals(dto.getWords(), dataDto.getWords());
+                    System.out.println(Arrays.asList(dto.getLetters()));
+                    Assert.assertEquals(dto.getLetters(), dataDto.getLetters());
+                    System.out.println(Arrays.asList(dto.getNumbers()));
+                    Assert.assertEquals(dto.getNumbers(), dataDto.getNumbers());
+                });
+    }
 
-        List<NestedTypesDTO> data =
-                Arrays.asList(new NestedTypesDTO(0, new Object[] {(short)127, "test 1"}, new Double[] {0.3d, 0.4d} ));
-        client.insert(table, data);
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForArraysTests {
+        private int rowId;
 
-        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
-        for (GenericRecord row : rows) {
-            NestedTypesDTO dto = data.get(row.getInteger("rowId"));
-            Assert.assertEquals(row.getTuple("tuple1"), dto.getTuple1());
-            Assert.assertEquals(row.getGeoPoint("point1").getValue(), dto.getPoint1());
+        private List<String> words;
+
+        private int[] numbers;
+
+        private String[] letters;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int16", "words Array(String)", "numbers Array(Int32)",
+                    "letters Array(String)");
         }
-
     }
 
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
         final String table = "test_variant_primitives";
         final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
-        System.out.println("sample: " + sample);
 
         dataTypesLoop:
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
@@ -168,7 +218,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case DateTime:
                     case DateTime32:
                         strValue = row.getLocalDateTime("field").truncatedTo(ChronoUnit.SECONDS).toString();
-                        value = ((LocalDateTime)value ).truncatedTo(ChronoUnit.SECONDS).toString();
+                        value = ((LocalDateTime) value).truncatedTo(ChronoUnit.SECONDS).toString();
                         break;
                     case Point:
                         strValue = row.getGeoPoint("field").toString();
@@ -183,7 +233,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
                 }
-                System.out.println("field: " + strValue  + " value " + value);
+                System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {
                     Assert.assertEquals(strValue, String.valueOf(value));
                 } else {
@@ -222,17 +272,41 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
-    @Test(groups = {"integration"}, enabled = false)
+    @Test(groups = {"integration"})
     public void testVariantWithArrays() throws Exception {
-        // TODO: writing array would need custom serialization logic
         testVariantWith("arrays", new String[]{"field Variant(String, Array(String))"},
                 new Object[]{
                         "a,b",
-                        new String[]{"a", "b"}
+                        new String[]{"a", "b"},
+                        Arrays.asList("c", "d")
                 },
                 new String[]{
                         "a,b",
-                        "a,b",
+                        "[a, b]",
+                        "[c, d]"
+                });
+        testVariantWith("arrays", new String[]{"field Variant(Array(String), Array(Int32))"},
+                new Object[]{
+                        new int[]{1, 2},
+                        new String[]{"a", "b"},
+                        Arrays.asList("c", "d")
+                },
+                new String[]{
+                        "[1, 2]",
+                        "[a, b]",
+                        "[c, d]",
+                });
+
+        testVariantWith("arrays", new String[]{"field Variant(Array(Array(String)), Array(Array(Int32)))"},
+                new Object[]{
+                        new int[][]{ new int[] {1, 2}, new int[] { 3, 4}},
+                        new String[][]{new String[]{"a", "b"}, new String[]{"c", "d"}},
+//                        Arrays.asList(Arrays.asList("e", "f"), Arrays.asList("j", "h"))
+                },
+                new String[]{
+                        "[[1, 2], [3, 4]]",
+                        "[[a, b], [c, d]]",
+//                        "[c, d]",
                 });
     }
 
@@ -268,7 +342,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         testVariantWith("arrays", new String[]{"field Variant(String, Tuple(Int32, Float32))"},
                 new Object[]{
                         "10,0.34",
-                        new Object[] { 10, 0.34f}
+                        new Object[]{10, 0.34f}
                 },
                 new String[]{
                         "10,0.34",

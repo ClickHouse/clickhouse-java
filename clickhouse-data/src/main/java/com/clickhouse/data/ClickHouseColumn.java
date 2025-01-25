@@ -41,6 +41,7 @@ import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -48,6 +49,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 /**
@@ -98,6 +100,8 @@ public final class ClickHouseColumn implements Serializable {
     private ClickHouseValue template;
 
     private Map<Class<?>, Integer> classToVariantOrdNumMap;
+
+    private Map<Class<?>, Integer> arrayToVariantOrdNumMap;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
@@ -446,6 +450,21 @@ public final class ClickHouseColumn implements Serializable {
                 }
             }
             column.classToVariantOrdNumMap = ClickHouseDataType.buildVariantMapping(variantDataTypes);
+
+            for (int ordNum = 0; ordNum < nestedColumns.size(); ordNum++) {
+                ClickHouseColumn nestedColumn = nestedColumns.get(ordNum);
+                if (nestedColumn.getDataType() == ClickHouseDataType.Array) {
+                    Set<Class<?>> classSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.arrayBaseColumn.dataType);
+                    if (classSet != null) {
+                        if (column.arrayToVariantOrdNumMap == null) {
+                            column.arrayToVariantOrdNumMap = new HashMap<>();
+                        }
+                        for (Class<?> c : classSet) {
+                            column.arrayToVariantOrdNumMap.put(c, ordNum);
+                        }
+                    }
+                }
+            }
         }
 
         if (column == null) {
@@ -650,7 +669,23 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     public int getVariantOrdNum(Object value) {
-        return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+        if (value != null && value.getClass().isArray()) {
+            Class<?> c = value.getClass();
+            while (c.isArray()) {
+                c = c.getComponentType();
+            }
+            return arrayToVariantOrdNumMap.getOrDefault(c, -1);
+        } else if (value != null && value instanceof List<?>) {
+            Object tmpV = ((List)value).get(0);
+            Class<?> valueClass = tmpV.getClass();
+            while (tmpV instanceof List<?>) {
+                tmpV = ((List)tmpV).get(0);
+                valueClass = tmpV.getClass();
+            }
+            return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
+        } else {
+            return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+        }
     }
 
     public boolean isArray() {

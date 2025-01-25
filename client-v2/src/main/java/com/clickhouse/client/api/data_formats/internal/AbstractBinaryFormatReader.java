@@ -109,7 +109,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 }
                 throw e;
             } catch (Exception e) {
-                throw new ClientException("Failed to put value of '" + column.getColumnName() + "' into POJO", e);
+                throw new ClientException("Failed to set value of '" + column.getColumnName(), e);
             }
         }
         return true;
@@ -303,6 +303,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             } else if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
                 return column.getEnumConstants().name(num);
             }
+        } else if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue)value).asList().toString();
         }
         return value.toString();
     }

@@ -1807,7 +1807,13 @@ public class Client implements AutoCloseable {
                         (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                 while (true) {
-                    Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+
+                    Object record;
+                    try {
+                        record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+                    } catch (NoSuchMethodException e) {
+                        throw new ClientException("Failed to instantiate DTO to store data: no-args constructor is not defined");
+                    }
                     if (reader.readToPOJO(classDeserializers, record)) {
                         records.add((T) record);
                     } else {

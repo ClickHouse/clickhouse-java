@@ -247,6 +247,9 @@ public class BinaryStreamReader {
         if (typeHint.isAssignableFrom(List.class)) {
             return (T) value.asList();
         }
+        if (typeHint.isArray()) {
+            return (T) value.array;
+        }
 
         return (T) value;
     }

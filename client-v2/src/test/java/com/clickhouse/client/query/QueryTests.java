@@ -1149,7 +1149,6 @@ public class QueryTests extends BaseIntegrationTest {
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
-
     @Test
     public void testUUID() {
         final List<String> columns = Arrays.asList(

@@ -17,7 +17,7 @@ public class NestedTypesDTO {
 
     private Object[] tuple1;
 
-    private Object[] point1;
+    private double[] point1;
 
     public static String tblCreateSQL(String table) {
         return tableDefinition(table,
