@@ -51,9 +51,12 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     boolean hasNext();
 
     /**
-     * Moves cursor to the next row. Must be called before reading the first row.
+     * Moves cursor to the next row. Must be called before reading the first row. Returns reference to
+     * an internal record representation. It means that next call to the method will affect value in returned Map.
+     * This is done for memory usage optimization.
+     * Method is intended to be used only by the client not an application.
      *
-     * @return map filled with column values or null if no more records are available
+     * @return reference to a map filled with column values or null if no more records are available
      */
     Map<String, Object> next();
 
