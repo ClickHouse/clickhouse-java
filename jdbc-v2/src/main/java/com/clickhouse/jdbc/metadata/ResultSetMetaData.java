@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.metadata;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
@@ -167,6 +168,6 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
     @Override
     public String getColumnClassName(int column) throws SQLException {
         JdbcTypeMapping mapping = JdbcTypeMapping.getDefaultMapping();
-		return mapping.toJavaClass(getColumn(column), Map.of()).getCanonicalName();
+		return mapping.toJavaClass(getColumn(column), new HashMap<>()).getCanonicalName();
     }
 }
