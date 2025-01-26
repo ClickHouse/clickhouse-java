@@ -23,10 +23,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -639,16 +636,17 @@ public class SerializerUtils {
     }
 
     public static void writeDateTime(OutputStream output, Object value, ZoneId targetTz) throws IOException {
-        long ts = 0;
-        if (value instanceof LocalDateTime) {
-            LocalDateTime dt = (LocalDateTime) value;
+        long ts;
+        if (value instanceof LocalDateTime dt) {
             ts = dt.atZone(targetTz).toEpochSecond();
-        } else if (value instanceof ZonedDateTime) {
-            ZonedDateTime dt = (ZonedDateTime) value;
-            ts = dt.withZoneSameInstant(targetTz).toEpochSecond();
-        } else if (value instanceof Timestamp) {
-            Timestamp t = (Timestamp) value;
+        } else if (value instanceof ZonedDateTime dt) {
+            ts = dt.toEpochSecond();
+        } else if (value instanceof Timestamp t) {
             ts = t.toLocalDateTime().atZone(targetTz).toEpochSecond();
+        } else if(value instanceof OffsetDateTime dt) {
+            ts = dt.toEpochSecond();
+        } else if (value instanceof Instant dt) {
+            ts = dt.getEpochSecond();
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
         }
@@ -661,19 +659,24 @@ public class SerializerUtils {
             throw new IllegalArgumentException("Invalid scale value '" + scale + "'");
         }
 
-        long ts = 0;
-        long nano = 0;
-        if (value instanceof LocalDateTime) {
-            ZonedDateTime dt = ((LocalDateTime) value).atZone(targetTz);
+        long ts;
+        long nano;
+        if (value instanceof LocalDateTime dt) {
+            ZonedDateTime zdt = dt.atZone(targetTz);
+            ts = zdt.toEpochSecond();
+            nano = zdt.getNano();
+        } else if (value instanceof ZonedDateTime dt) {
             ts = dt.toEpochSecond();
             nano = dt.getNano();
-        } else if (value instanceof ZonedDateTime) {
-            ZonedDateTime dt = ((ZonedDateTime) value).withZoneSameInstant(targetTz);
+        } else if (value instanceof Timestamp dt) {
+            ZonedDateTime zdt = dt.toLocalDateTime().atZone(targetTz);
+            ts = zdt.toEpochSecond();
+            nano = zdt.getNano();
+        } else if (value instanceof OffsetDateTime dt) {
             ts = dt.toEpochSecond();
             nano = dt.getNano();
-        } else if (value instanceof Timestamp) {
-            ZonedDateTime dt = ((Timestamp) value).toLocalDateTime().atZone(targetTz);
-            ts = dt.toEpochSecond();
+        } else if (value instanceof Instant dt) {
+            ts = dt.getEpochSecond();
             nano = dt.getNano();
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
