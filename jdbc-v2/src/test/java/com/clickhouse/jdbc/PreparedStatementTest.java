@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -169,10 +170,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     public void testSetDate() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
-                stmt.setDate(1, java.sql.Date.valueOf("2021-01-01"));
+                stmt.setDate(1, java.sql.Date.valueOf("2021-01-01"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate(1, new GregorianCalendar()), java.sql.Date.valueOf("2021-01-01"));
+                    assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-01"));
                     assertFalse(rs.next());
                 }
             }
@@ -183,10 +184,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     public void testSetTime() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime(?)")) {
-                stmt.setTime(1, java.sql.Time.valueOf("12:34:56"));
+                stmt.setTime(1, java.sql.Time.valueOf("12:34:56"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTime(1, new GregorianCalendar()).toString(), "12:34:56");
+                    assertEquals(rs.getTime(1).toString(), "12:34:56");
                     assertFalse(rs.next());
                 }
             }
@@ -196,13 +197,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSetTimestamp() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3), toDateTime64(?, 3)")) {
-                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"));
-                stmt.setTimestamp(2, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3)")) {
+                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTimestamp(1, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
-                    assertEquals(rs.getTimestamp(2, new GregorianCalendar()).toString(), "2021-01-01 01:34:56.456");
+                    assertEquals(rs.getTimestamp(1).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
             }

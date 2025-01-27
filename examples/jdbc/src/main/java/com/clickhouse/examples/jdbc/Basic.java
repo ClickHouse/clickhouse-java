@@ -1,148 +1,96 @@
 package com.clickhouse.examples.jdbc;
 
-import java.io.IOException;
+import com.clickhouse.jdbc.ClickHouseDataSource;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Properties;
 
-import com.clickhouse.data.ClickHouseOutputStream;
-import com.clickhouse.data.ClickHouseWriter;
-import com.clickhouse.jdbc.ClickHouseDataSource;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-
 public class Basic {
+    private static final Logger log = LoggerFactory.getLogger(Basic.class);
     static final String TABLE_NAME = "jdbc_example_basic";
 
-    private static Connection getConnection(String url) throws SQLException {
-        return getConnection(url, new Properties());
-    }
+    public static void main(String[] args) {
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost:8123");
 
-    private static Connection getConnection(String url, Properties properties) throws SQLException {
-        final Connection conn;
-        // Driver driver = new ClickHouseDriver();
-        // conn = driver.connect(url, properties);
-
-        // ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
-        // conn = dataSource.getConnection();
-
-        conn = DriverManager.getConnection(url, properties);
-        System.out.println("Connected to: " + conn.getMetaData().getURL());
-        return conn;
-    }
-
-    static int dropAndCreateTable(Connection conn) throws SQLException {
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute(String.format("DROP TABLE IF EXISTS %1$s",TABLE_NAME));
-            stmt.execute(String.format("CREATE TABLE %1$s(a String, b Nullable(String)) ENGINE=MergeTree ORDER BY ()", TABLE_NAME));
-            return stmt.getUpdateCount();
-        }
-    }
-
-    static int batchInsert(Connection conn) throws SQLException {
-        // 1. NOT recommended when inserting lots of rows, because it's based on a large
-        // statement
-        String sql = String.format("INSERT INTO %s VALUES(? || ' - 1', ?)", TABLE_NAME);
-        int count = 0;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, "a");
-            ps.setString(2, "b");
-            ps.addBatch();
-            ps.setString(1, "c");
-            ps.setString(2, null);
-            ps.addBatch();
-
-            // same as below query:
-            // insert into <table> values ('a' || ' - 1', 'b'), ('c' || ' - 1', null)
-            for (int i : ps.executeBatch()) {
-                if (i > 0) {
-                    count += i;
-                }
-            }
-        }
-
-        return count;
-    }
-
-    static int connectWithCustomSettings(String url) throws SQLException {
-        // comma separated settings
-        String customSettings = "session_check=0,max_query_size=3000";
+        // Set user and password if needed
         Properties properties = new Properties();
-        // properties.setProperty(ClickHouseClientOption.CUSTOM_SETTINGS.getKey(),
-        // customSettings);
-        properties.setProperty("custom_settings", customSettings);
-        try (Connection conn = getConnection(url, properties);
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery("select 5")) {
-            return rs.next() ? rs.getInt(1) : -1;
+        properties.setProperty("user", System.getProperty("chUser", "default"));
+        properties.setProperty("password", System.getProperty("chPassword", ""));
+
+        try {
+            createTable(url, properties);
+            insertDateWithPreparedStatement(url, properties);
+            printInsertedData(url, properties);
+
+            //Customizing client settings
+            setClientSettings(properties);
+
+            //Using HikariCP with ClickHouseDataSource
+            usedPooledConnection(url, properties);
+        } catch (SQLException e) {
+            log.error("Error", e);
         }
     }
 
-    static int query(Connection conn) throws SQLException {
-        String sql = "select * from " + TABLE_NAME;
-        try (Statement stmt = conn.createStatement()) {
-            // set max_result_rows = 3, result_overflow_mode = 'break'
-            // or simply discard rows after the first 3 in read-only mode
-            stmt.setMaxRows(3);
-            int count = 0;
-            try (ResultSet rs = stmt.executeQuery(sql)) {
-                while (rs.next()) {
-                    count++;
-                }
+    static void createTable(String url, Properties properties) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection using the jdbc DriverManager
+            try (Statement stmt = conn.createStatement()) {//Create a statement
+                stmt.execute("DROP TABLE IF EXISTS " + TABLE_NAME);//Execute a query to drop the table if it exists
+                stmt.execute("CREATE TABLE " + TABLE_NAME +
+                        " (`date` DateTime64(3), `id` UInt32, `name` String, `attributes` Map(String, String))" +
+                        " ENGINE = MergeTree() ORDER BY id");//Create a table with three columns: date, id, and name
             }
-            return count;
         }
     }
 
-    static void insertByteArray(Connection conn) throws SQLException {
-        try (Statement s = conn.createStatement()) {
-            s.execute("DROP TABLE IF EXISTS t_map");
-            s.execute("CREATE TABLE t_map"
-                    + "("
-                    + "    `audit_seq` Int64 CODEC(Delta(8), LZ4),"
-                    + "`timestamp` Int64 CODEC(Delta(8), LZ4),"
-                    + "`event_type` LowCardinality(String),"
-                    + "`event_subtype` LowCardinality(String),"
-                    + "`actor_type` LowCardinality(String),"
-                    + "`actor_id` String,"
-                    + "`actor_tenant_id` LowCardinality(String),"
-                    + "`actor_tenant_name` String,"
-                    + "`actor_firstname` String,"
-                    + "`actor_lastname` String,"
-                    + "`resource_type` LowCardinality(String),"
-                    + "`resource_id` String,"
-                    + "`resource_container` LowCardinality(String),"
-                    + "`resource_path` String,"
-                    + "`origin_ip` String,"
-                    + "`origin_app_name` LowCardinality(String),"
-                    + "`origin_app_instance` String,"
-                    + "`description` String,"
-                    + "`attributes` Map(String, String)"
-                    + ")"
-                    + "ENGINE = MergeTree "
-                    + "ORDER BY (resource_container, event_type, event_subtype) "
-                    + "SETTINGS index_granularity = 8192");
-            try (PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO t_map SETTINGS async_insert=1,wait_for_async_insert=1 VALUES " +
-                            "(8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?)")) {
-                stmt.setObject(1, Collections.singletonMap("key1", "value1"));
-                stmt.execute();
+    static void insertDateWithPreparedStatement(String url, Properties properties) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection using the jdbc DriverManager
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + TABLE_NAME + " VALUES(?, ?, ?, ?)")) {//Create a prepared statement
+                pstmt.setDate(1, Date.valueOf("2025-01-01"));//Set the first parameter to '2025-01-01' (using java.sql.Date)
+                pstmt.setInt(2, 1);//Set the second parameter to 1
+                pstmt.setString(3, "Alice");//Set the third parameter to "Alice"
+                pstmt.setObject(4, Collections.singletonMap("key1", "value1"));
+                pstmt.addBatch();//Add the current parameters to the batch
 
-                try (ResultSet rs = s.executeQuery("select attributes from t_map")) {
-                    System.out.println(rs.next());
-                    System.out.println(rs.getObject(1));
+                pstmt.setObject(1, ZonedDateTime.now());
+                pstmt.setInt(2, 2);//Set the second parameter to 2
+                pstmt.setString(3, "Bob");//Set the third parameter to "Bob"
+                pstmt.setObject(4, Collections.singletonMap("key2", "value2"));
+                pstmt.addBatch();//Add the current parameters to the batch
+
+                pstmt.executeBatch();//Execute the batch
+            }
+        }
+    }
+
+    static void printInsertedData(String url, Properties properties) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(url, properties)) {//Grab a connection using the jdbc DriverManager
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + TABLE_NAME)) {
+                    while (rs.next()) {
+                        //Print the values of the current row
+                        log.info("DateTime: {}, Int: {}, String: {}, Object: {}",
+                                rs.getObject(1, ZonedDateTime.class), rs.getInt(2), rs.getString(3), rs.getObject(4));
+                    }
                 }
             }
         }
     }
 
-    static void usedPooledConnection(String url) throws SQLException {
+
+    static void usedPooledConnection(String url, Properties properties) throws SQLException {
         // connection pooling won't help much in terms of performance,
         // because the underlying implementation has its own pool.
         // for example: HttpURLConnection has a pool for sockets
@@ -150,41 +98,33 @@ public class Basic {
         poolConfig.setConnectionTimeout(5000L);
         poolConfig.setMaximumPoolSize(20);
         poolConfig.setMaxLifetime(300_000L);
-        poolConfig.setDataSource(new ClickHouseDataSource(url));
+        poolConfig.setDataSource(new ClickHouseDataSource(url, properties));
 
-        HikariDataSource ds = new HikariDataSource(poolConfig);
-
-        try (Connection conn = ds.getConnection();
-                Statement s = conn.createStatement();
-                ResultSet rs = s.executeQuery("select 123")) {
-            System.out.println(rs.next());
-            System.out.println(rs.getInt(1));
+        try (HikariDataSource ds = new HikariDataSource(poolConfig);
+             Connection conn = ds.getConnection();
+             Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery("SELECT * FROM system.numbers LIMIT 3")) {
+            while (rs.next()) {
+                // handle row
+                log.info("Integer: {}, String: {}", rs.getInt(1), rs.getString(1));//Same column but different types
+            }
         }
     }
 
-    public static void main(String[] args) {
-        // jdbc:ch:https://explorer@play.clickhouse.com:443
-        // jdbc:ch:https://demo:demo@github.demo.trial.altinity.cloud
-        String url = System.getProperty("chUrl", "jdbc:ch://localhost");
+    static void setClientSettings(Properties properties){
+        String url = System.getProperty("chUrl", "jdbc:ch://localhost:8123?jdbc_ignore_unsupported_values=true&socket_timeout=10");
 
-        try {
-            usedPooledConnection(url);
+        try (Connection conn = DriverManager.getConnection(url, properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1, 'Hello, world!'")) {
+                    while(rs.next()) {
+                        log.info("Integer: {}", rs.getInt(1));
+                        log.info("String: {}", rs.getString(2));
+                    }
+                }
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.out.println(e.getMessage());
         }
-
-        System.out.println(url);
-        try (Connection conn = getConnection(url)) {
-            connectWithCustomSettings(url);
-            insertByteArray(conn);
-
-            System.out.println("Update Count: " + dropAndCreateTable(conn));
-            System.out.println("Inserted Rows: " + batchInsert(conn));
-            System.out.println("Result Rows: " + query(conn));
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        System.out.println("Done!");
     }
 }
