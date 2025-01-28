@@ -27,7 +27,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -301,18 +303,48 @@ public class DataTypeTests extends BaseIntegrationTest {
                 new Object[]{
                         new int[][]{ new int[] {1, 2}, new int[] { 3, 4}},
                         new String[][]{new String[]{"a", "b"}, new String[]{"c", "d"}},
-//                        Arrays.asList(Arrays.asList("e", "f"), Arrays.asList("j", "h"))
+                        Arrays.asList(Arrays.asList("e", "f"), Arrays.asList("j", "h"))
                 },
                 new String[]{
                         "[[1, 2], [3, 4]]",
                         "[[a, b], [c, d]]",
-//                        "[c, d]",
+                        "[[e, f], [j, h]]",
                 });
     }
 
-    @Test(groups = {"integration"}, enabled = false)
+    @Test(groups = {"integration"})
     public void testVariantWithMaps() throws Exception {
-        //TODO: similar to arrays
+        Map<String, Byte> map1 = new HashMap<>();
+        map1.put("key1", (byte) 1);
+        map1.put("key2", (byte) 2);
+        map1.put("key3", (byte) 3);
+
+        testVariantWith("maps", new String[]{"field Variant(Map(String, String), Map(String, Int128))"},
+                new Object[]{
+                        map1
+                },
+                new String[]{
+                        "{key1=1, key2=2, key3=3}",
+                });
+
+
+        Map<Integer, String> map2 = new HashMap<>();
+        map2.put(1, "a");
+        map2.put(2, "b");
+
+        Map<String, String> map3 = new HashMap<>();
+        map3.put("1", "a");
+        map3.put("2", "b");
+
+        testVariantWith("maps", new String[]{"field Variant(Map(Int32, String), Map(String, String))"},
+                new Object[]{
+                        map2,
+                        map3
+                },
+                new String[]{
+                        "{1=a, 2=b}",
+                        "{1=a, 2=b}",
+                });
     }
 
     @Test(groups = {"integration"})

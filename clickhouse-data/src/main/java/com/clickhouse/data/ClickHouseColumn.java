@@ -103,6 +103,10 @@ public final class ClickHouseColumn implements Serializable {
 
     private Map<Class<?>, Integer> arrayToVariantOrdNumMap;
 
+    private Map<Class<?>, Integer> mapKeyToVariantOrdNumMap;
+    private Map<Class<?>, Integer> mapValueToVariantOrdNumMap;
+
+
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
         int size = column.parameters.size();
@@ -463,6 +467,23 @@ public final class ClickHouseColumn implements Serializable {
                             column.arrayToVariantOrdNumMap.put(c, ordNum);
                         }
                     }
+                } else if (nestedColumn.getDataType() == ClickHouseDataType.Map) {
+                    Set<Class<?>> keyClassSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.getKeyInfo().getDataType());
+                    Set<Class<?>> valueClassSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.getValueInfo().getDataType());
+                    if (keyClassSet != null && valueClassSet != null) {
+                        if (column.mapKeyToVariantOrdNumMap == null) {
+                            column.mapKeyToVariantOrdNumMap = new HashMap<>();
+                        }
+                        if (column.mapValueToVariantOrdNumMap == null) {
+                            column.mapValueToVariantOrdNumMap = new HashMap<>();
+                        }
+                        for (Class<?> c : keyClassSet) {
+                            column.mapKeyToVariantOrdNumMap.put(c, ordNum);
+                        }
+                        for (Class<?> c : valueClassSet) {
+                            column.mapValueToVariantOrdNumMap.put(c, ordNum);
+                        }
+                    }
                 }
             }
         }
@@ -670,19 +691,45 @@ public final class ClickHouseColumn implements Serializable {
 
     public int getVariantOrdNum(Object value) {
         if (value != null && value.getClass().isArray()) {
+            // TODO: add cache by value class
             Class<?> c = value.getClass();
             while (c.isArray()) {
                 c = c.getComponentType();
             }
             return arrayToVariantOrdNumMap.getOrDefault(c, -1);
         } else if (value != null && value instanceof List<?>) {
-            Object tmpV = ((List)value).get(0);
+            // TODO: add cache by instance of the list
+            Object tmpV = ((List) value).get(0);
             Class<?> valueClass = tmpV.getClass();
             while (tmpV instanceof List<?>) {
-                tmpV = ((List)tmpV).get(0);
+                tmpV = ((List) tmpV).get(0);
                 valueClass = tmpV.getClass();
             }
             return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
+        } else if (value != null && value instanceof Map<?,?>) {
+            // TODO: add cache by instance of map 
+            Map<?, ?> map = (Map<?, ?>) value;
+            if (!map.isEmpty()) {
+                for (Map.Entry<?, ?> e : map.entrySet()) {
+                    if (e.getValue() != null) {
+                        int keyOrdNum = mapKeyToVariantOrdNumMap.getOrDefault(e.getKey().getClass(), -1);
+                        int valueOrdNum = mapValueToVariantOrdNumMap.getOrDefault(e.getValue().getClass(), -1);
+
+                        if (keyOrdNum == valueOrdNum) {
+                            return valueOrdNum; // exact match
+                        } else if (keyOrdNum != -1 && valueOrdNum != -1) {
+                            if (ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nested.get(keyOrdNum).getValueInfo().getDataType()).contains(e.getValue().getClass())){
+                                return keyOrdNum; // can write to map found by key class because values are compatible
+                            } else {
+                                return valueOrdNum;
+                            }
+                        }
+
+                        break;
+                    }
+                }
+            }
+            return -1;
         } else {
             return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
         }

@@ -112,7 +112,7 @@ public class SerializerUtils {
                     }
                     writeNonNull(stream);
                 }
-                serializeData(stream, val, column.getArrayBaseColumn());
+                serializeData(stream, val, column.getNestedColumns().get(0));
             }
         } else if (value.getClass().isArray()) {
             writeVarInt(stream, Array.getLength(value));
