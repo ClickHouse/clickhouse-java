@@ -57,6 +57,7 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getLong("num"), 1);
                     assertFalse(rs.next());
                 }
+                Assert.assertFalse(((StatementImpl)stmt).getLastQueryId().isEmpty());
             }
         }
     }
@@ -528,6 +529,14 @@ public class StatementTest extends JdbcIntegrationTest {
                     stmt.cancel();
                 }
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTextFormatInResponse() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            Assert.expectThrows(SQLException.class, () ->stmt.executeQuery("SELECT 1 FORMAT JSON"));
         }
     }
 }

@@ -41,6 +41,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
@@ -1639,8 +1640,13 @@ public class Client implements AutoCloseable {
                                 .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId());
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
+                        Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
+                        ClickHouseFormat responseFormat = finalSettings.getFormat();
+                        if (formatHeader != null) {
+                            responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
+                        }
 
-                        return new QueryResponse(httpResponse, finalSettings.getFormat(), finalSettings, metrics);
+                        return new QueryResponse(httpResponse, responseFormat, finalSettings, metrics);
 
                     } catch (Exception e) {
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",

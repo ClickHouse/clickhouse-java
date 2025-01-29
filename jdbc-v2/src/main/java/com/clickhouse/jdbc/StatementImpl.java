@@ -182,6 +182,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             } else {
                 response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
+
+            if (response.getFormat().isText()) {
+                throw new SQLException("Only RowBinaryWithNameAndTypes is supported for output format. Please check your query.",
+                        ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+            }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
 
             currentResultSet = new ResultSetImpl(this, response, reader);
@@ -600,5 +605,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public String enquoteNCharLiteral(String val) throws SQLException {
         checkClosed();
         return Statement.super.enquoteNCharLiteral(val);
+    }
+
+    /**
+     * Return query ID of last executed statement. It is not guaranteed when statements is used concurrently.
+     * @return query ID
+     */
+    public String getLastQueryId() {
+        return lastQueryId;
     }
 }
