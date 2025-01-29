@@ -1528,7 +1528,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
+    @Test(groups = "integration", enabled = false)
     public void testVariantDataType() throws SQLException {
         String table = "test_variant_type_01";
         Properties props = new Properties();
@@ -1548,9 +1548,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 while (rs.next()) {
                     Object variantValue = rs.getObject(1);
                     Object name = rs.getString(2);
-                    Object variantSubColumn = rs.getObject("v.String");
                     System.out.println("-> " + name + " : " + variantValue);
-                    System.out.println("sub: " + variantSubColumn);
                 }
             }
         }

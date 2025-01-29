@@ -707,7 +707,7 @@ public final class ClickHouseColumn implements Serializable {
             }
             return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
         } else if (value != null && value instanceof Map<?,?>) {
-            // TODO: add cache by instance of map 
+            // TODO: add cache by instance of map
             Map<?, ?> map = (Map<?, ?>) value;
             if (!map.isEmpty()) {
                 for (Map.Entry<?, ?> e : map.entrySet()) {
