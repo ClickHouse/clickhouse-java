@@ -2045,8 +2045,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testGettingRowsBeforeLimit() throws Exception {
         int expectedTotalRowsToRead = 100;
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
-            // issue in prev. release. 
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,23.8]")) {
+            // issue in prev. release.
             expectedTotalRowsToRead = 0;
         }
 
