@@ -2056,4 +2056,14 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getTotalRowsToRead(), expectedTotalRowsToRead);
         }
     }
+
+    static {
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+    }
+    @Test(groups = {"integration"})
+    public void testEmptyResponse() throws Exception {
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 0", new QuerySettings().setFormat(ClickHouseFormat.RowBinary)).get()) {
+            System.out.println(response.getResultRows());
+        }
+    }
 }
