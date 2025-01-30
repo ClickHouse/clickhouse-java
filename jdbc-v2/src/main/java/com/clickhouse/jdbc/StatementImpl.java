@@ -230,7 +230,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
                 : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
-            updateCount = (int) response.getWrittenRows();
+            updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
