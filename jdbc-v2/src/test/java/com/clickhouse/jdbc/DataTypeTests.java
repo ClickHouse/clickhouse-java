@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +10,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
-import java.sql.DriverManager;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -26,7 +24,6 @@ import java.time.ZonedDateTime;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -318,7 +315,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_strings (order Int8, "
                 + "str String, fixed FixedString(6), "
                 + "enum Enum8('a' = 6, 'b' = 7, 'c' = 8), enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3), "
-                + "uuid UUID, ipv4 IPv4, ipv6 IPv6"
+                + "uuid UUID, ipv4 IPv4, ipv6 IPv6, "
+                + "escaped String "
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
@@ -333,10 +331,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
         String uuid = UUID.randomUUID().toString();
         String ipv4 = rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256);
         String ipv6 = "2001:adb8:85a3:1:2:8a2e:370:7334";
-
+        String escaped = "\\xA3\\xA3\\x12\\xA0\\xDF\\x13\\x4E\\x8C\\x87\\x74\\xD4\\x53\\xDB\\xFC\\x34\\x95";
 
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ?, ?, ? )")) {
                 stmt.setString(1, str);
                 stmt.setString(2, fixed);
                 stmt.setString(3, enum8);
@@ -345,6 +343,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 stmt.setString(6, uuid);
                 stmt.setString(7, ipv4);
                 stmt.setString(8, ipv6);
+                stmt.setString(9, escaped);
                 stmt.executeUpdate();
             }
         }
@@ -365,7 +364,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("uuid"), uuid);
                     assertEquals(rs.getString("ipv4"), "/" + ipv4);
                     assertEquals(rs.getString("ipv6"), "/" + ipv6);
-
+                    assertEquals(rs.getString("escaped"), escaped);
                     assertFalse(rs.next());
                 }
             }

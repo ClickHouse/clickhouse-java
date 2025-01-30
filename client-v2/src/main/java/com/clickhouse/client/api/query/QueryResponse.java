@@ -133,6 +133,15 @@ public class QueryResponse implements AutoCloseable {
         return operationMetrics.getMetric(ServerMetrics.RESULT_ROWS).getLong();
     }
 
+
+    /**
+     * Alias for {@link ServerMetrics#TOTAL_ROWS_TO_READ}
+     * @return estimated number of rows to read
+     */
+    public long getTotalRowsToRead() {
+        return operationMetrics.getMetric(ServerMetrics.TOTAL_ROWS_TO_READ).getLong();
+    }
+
     /**
      * Alias for {@link OperationMetrics#getQueryId()}
      * @return query id of the request

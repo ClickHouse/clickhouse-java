@@ -34,6 +34,7 @@ import com.clickhouse.data.ClickHouseVersion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.BaseEncoding;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testng.Assert;
@@ -55,6 +56,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -62,6 +64,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -486,7 +489,8 @@ public class QueryTests extends BaseIntegrationTest {
             "col1 Array(UInt32)",
             "col2 Array(Array(Int32))",
             "col3 Array(UInt64)",
-            "col4 Array(Bool)"
+            "col4 Array(Bool)",
+            "col5 Array(String)"
     );
 
     private final static List<Function<String, Object>> ARRAY_VALUE_GENERATORS = Arrays.asList(
@@ -505,8 +509,17 @@ public class QueryTests extends BaseIntegrationTest {
                 RANDOM.longs(10, 0, Long.MAX_VALUE)
                         .mapToObj(BigInteger::valueOf).collect(Collectors.toList()),
             c -> RANDOM.ints(10, 0, 1)
-                    .mapToObj(i -> i == 0 ).collect(Collectors.toList())
-
+                    .mapToObj(i -> i == 0 ).collect(Collectors.toList()),
+            c -> {
+                UUID uuid = UUID.randomUUID();
+                byte[] bts = ByteBuffer.allocate(16)
+                        .putLong(uuid.getMostSignificantBits())
+                        .putLong(uuid.getLeastSignificantBits())
+                        .array();
+                String sep = "\\x";
+                String hex = sep + BaseEncoding.base16().withSeparator(sep, 2).encode(bts);
+                return Arrays.asList(hex);
+            }
     );
 
     @Test(groups = {"integration"})
@@ -546,6 +559,7 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(col4Values, data.get(0).get("col4"));
         boolean[] col4Array = reader.getBooleanArray("col4");
         Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
+        Assert.assertEquals(reader.getList("col5"), ((List)data.get(0).get("col5")));
     }
 
     @Test
@@ -1452,6 +1466,13 @@ public class QueryTests extends BaseIntegrationTest {
                 }
                 insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
                 insertStmtBuilder.append("}, ");
+            } else if (value instanceof List) {
+                insertStmtBuilder.append("[");
+                for (Object item : (List)value) {
+                    insertStmtBuilder.append(quoteValue(item)).append(", ");
+                }
+                insertStmtBuilder.setLength(insertStmtBuilder.length() - 2);
+                insertStmtBuilder.append("], ");
             } else {
                 insertStmtBuilder.append(value).append(", ");
             }
@@ -1463,7 +1484,9 @@ public class QueryTests extends BaseIntegrationTest {
 
     private String quoteValue(Object value) {
         if (value instanceof String) {
-            return '\'' + value.toString() + '\'';
+            String strVal = (String)value;
+
+            return '\'' + strVal.replaceAll("\\\\", "\\\\\\\\") + '\'';
         }
         return value.toString();
     }
@@ -1998,6 +2021,39 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(serverTime.withZoneSameInstant(ZoneId.of("UTC")), serverUtcTime);
             Assert.assertEquals(serverTime, serverUtcTime);
             Assert.assertEquals(serverUtcTime.withZoneSameInstant(ZoneId.of("America/New_York")), serverEstTime);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testLowCardinalityValues() throws Exception {
+        final String table = "test_low_cardinality_values";
+        final String tableCreate = "CREATE TABLE " + table + "(rowID Int32, keyword LowCardinality(String)) Engine = MergeTree ORDER BY ()";
+
+        client.execute("DROP TABLE IF EXISTS " + table);
+        client.execute(tableCreate);
+
+        client.execute("INSERT INTO " + table + " VALUES (0, 'db'), (1, 'fast'), (2, 'not a java')");
+        String[] values = new String[] {"db", "fast", "not a java"};
+        Collection<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowID");
+            Assert.assertEquals(record.getString("keyword"), values[rowId]);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGettingRowsBeforeLimit() throws Exception {
+        int expectedTotalRowsToRead = 100;
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,23.8]")) {
+            // issue in prev. release.
+            expectedTotalRowsToRead = 0;
+        }
+
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 100").get()) {
+            Assert.assertTrue(response.getResultRows() < 1000);
+
+            Assert.assertEquals(response.getTotalRowsToRead(), expectedTotalRowsToRead);
         }
     }
 }
