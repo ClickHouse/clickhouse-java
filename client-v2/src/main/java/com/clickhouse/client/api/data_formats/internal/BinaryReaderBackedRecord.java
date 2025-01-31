@@ -355,6 +355,16 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     }
 
     @Override
+    public OffsetDateTime getOffsetDateTime(String colName) {
+        return reader.getOffsetDateTime(colName);
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(int index) {
+        return reader.getOffsetDateTime(index);
+    }
+
+    @Override
     public Object getObject(String colName) {
         return reader.readValue(colName);
     }

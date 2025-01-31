@@ -8,8 +8,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -66,6 +65,15 @@ public class SamplePOJO {
 
     private LocalDateTime dateTime;
     private LocalDateTime dateTime64;
+
+    private ZonedDateTime zonedDateTime;
+    private ZonedDateTime zonedDateTime64;
+
+    private OffsetDateTime offsetDateTime;
+    private OffsetDateTime offsetDateTime64;
+
+    private Instant instant;
+    private Instant instant64;
 
     private UUID uuid;
 
@@ -139,6 +147,15 @@ public class SamplePOJO {
 
         dateTime = LocalDateTime.now();
         dateTime64 = LocalDateTime.now();
+
+        zonedDateTime = ZonedDateTime.now();
+        zonedDateTime64 = ZonedDateTime.now();
+
+        offsetDateTime = OffsetDateTime.now();
+        offsetDateTime64 = OffsetDateTime.now();
+
+        instant = Instant.now();
+        instant64 = Instant.now();
 
         uuid = UUID.randomUUID();
 
@@ -474,6 +491,54 @@ public class SamplePOJO {
         this.dateTime64 = dateTime64;
     }
 
+    public ZonedDateTime getZonedDateTime() {
+        return zonedDateTime;
+    }
+
+    public void setZonedDateTime(ZonedDateTime zonedDateTime) {
+        this.zonedDateTime = zonedDateTime;
+    }
+
+    public ZonedDateTime getZonedDateTime64() {
+        return zonedDateTime64;
+    }
+
+    public void setZonedDateTime64(ZonedDateTime zonedDateTime64) {
+        this.zonedDateTime64 = zonedDateTime64;
+    }
+
+    public OffsetDateTime getOffsetDateTime() {
+        return offsetDateTime;
+    }
+
+    public void setOffsetDateTime(OffsetDateTime offsetDateTime) {
+        this.offsetDateTime = offsetDateTime;
+    }
+
+    public OffsetDateTime getOffsetDateTime64() {
+        return offsetDateTime64;
+    }
+
+    public void setOffsetDateTime64(OffsetDateTime offsetDateTime64) {
+        this.offsetDateTime64 = offsetDateTime64;
+    }
+
+    public Instant getInstant() {
+        return instant;
+    }
+
+    public void setInstant(Instant instant) {
+        this.instant = instant;
+    }
+
+    public Instant getInstant64() {
+        return instant64;
+    }
+
+    public void setInstant64(Instant instant64) {
+        this.instant64 = instant64;
+    }
+
     public UUID getUuid() {
         return uuid;
     }
@@ -628,6 +693,12 @@ public class SamplePOJO {
                 ", date32=" + date32 +
                 ", dateTime=" + dateTime +
                 ", dateTime64=" + dateTime64 +
+                ", zonedDateTime=" + zonedDateTime +
+                ", zonedDateTime64=" + zonedDateTime64 +
+                ", offsetDateTime=" + offsetDateTime +
+                ", offsetDateTime64=" + offsetDateTime64 +
+                ", instant=" + instant +
+                ", instant64=" + instant64 +
                 ", uuid=" + uuid +
                 ", enum8=" + enum8 +
                 ", enum16=" + enum16 +
@@ -684,6 +755,12 @@ public class SamplePOJO {
                 "date32 Date, " +
                 "dateTime DateTime, " +
                 "dateTime64 DateTime64(3), " +
+                "zonedDateTime DateTime, " +
+                "zonedDateTime64 DateTime64(9), " +
+                "offsetDateTime DateTime, " +
+                "offsetDateTime64 DateTime64(9), " +
+                "instant DateTime, " +
+                "instant64 DateTime64(9), " +
                 "uuid UUID, " +
                 "enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26), " +
                 "enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26), " +

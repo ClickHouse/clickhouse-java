@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -207,6 +208,12 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
             Assert.assertEquals(reader.getString("string"), pojo.getString());
             Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime").isEqual(pojo.getZonedDateTime().withNano(0)));
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime64").isEqual(pojo.getZonedDateTime64()));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime").isEqual(pojo.getOffsetDateTime().withNano(0)));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime64").isEqual(pojo.getOffsetDateTime64()));
+            Assert.assertEquals(reader.getInstant("instant"), pojo.getInstant().with(ChronoField.MICRO_OF_SECOND, 0));
+            Assert.assertEquals(reader.getInstant("instant64"), pojo.getInstant64());
         }
     }
 
