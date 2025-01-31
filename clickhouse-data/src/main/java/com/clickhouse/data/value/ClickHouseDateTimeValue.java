@@ -285,9 +285,9 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         if (value == null) {
             resetToNullOrEmpty();
         } else if (scale == 0) {
-            set(ClickHouseValues.convertToDateTime(new BigDecimal(value, 0)));
+            set(LocalDateTime.ofInstant(ClickHouseValues.convertToInstant(new BigDecimal(value, 0)), tz.toZoneId()));
         } else {
-            set(ClickHouseValues.convertToDateTime(new BigDecimal(value, scale)));
+            set(LocalDateTime.ofInstant(ClickHouseValues.convertToInstant(new BigDecimal(value, scale)), tz.toZoneId()));
         }
         return this;
     }
@@ -300,7 +300,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
             if (value.scale() != scale) {
                 value = value.setScale(scale, ClickHouseDataConfig.DEFAULT_ROUNDING_MODE);
             }
-            set(ClickHouseValues.convertToDateTime(value));
+            set(LocalDateTime.ofInstant(ClickHouseValues.convertToInstant(value), tz.toZoneId()));
         }
         return this;
     }
