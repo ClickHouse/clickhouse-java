@@ -246,6 +246,10 @@ public class SamplePOJO {
         return boxedBool;
     }
 
+    public boolean getBool() {
+        return true;
+    }
+
     public void setBoxedBool(Boolean boxedBool) {
         this.boxedBool = boxedBool;
     }

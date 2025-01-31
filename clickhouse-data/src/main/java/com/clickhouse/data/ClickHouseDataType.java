@@ -1,22 +1,35 @@
 package com.clickhouse.data;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 import com.clickhouse.data.value.UnsignedByte;
 import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
@@ -101,7 +114,111 @@ public enum ClickHouseDataType {
     Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true),
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     // implementation-defined intermediate state
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true);
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
+    Variant(List.class, true, true, false, 0, 0, 0, 0, 0, true),
+
+    ;
+
+    public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =
+            Collections.unmodifiableList(Arrays.asList(
+                    Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Int256, UInt256
+            ));
+
+    public static final List<ClickHouseDataType> ORDERED_BY_RANGE_DECIMAL_TYPES =
+            Collections.unmodifiableList(Arrays.asList(
+                    Float32, Float64, Decimal32, Decimal64, Decimal128, Decimal256, Decimal
+            ));
+
+    public static Map<Class<?>, Integer> buildVariantMapping(List<ClickHouseDataType> variantDataTypes) {
+        Map<Class<?>, Integer> variantMapping = new HashMap<>();
+
+        TreeMap<ClickHouseDataType, Integer> intTypesMappings = new TreeMap<>(Comparator.comparingInt(ORDERED_BY_RANGE_INT_TYPES::indexOf));
+        TreeMap<ClickHouseDataType, Integer> decTypesMappings = new TreeMap<>(Comparator.comparingInt(ORDERED_BY_RANGE_DECIMAL_TYPES::indexOf));
+
+        for (int ordNum = 0; ordNum < variantDataTypes.size(); ordNum++) {
+            ClickHouseDataType dataType = variantDataTypes.get(ordNum);
+            Set<Class<?>> classSet = DATA_TYPE_TO_CLASS.get(dataType);
+
+            final int finalOrdNum = ordNum;
+            if (classSet != null) {
+                if (ORDERED_BY_RANGE_INT_TYPES.contains(dataType)) {
+                    intTypesMappings.put(dataType, ordNum);
+                } else if (ORDERED_BY_RANGE_DECIMAL_TYPES.contains(dataType)) {
+                    decTypesMappings.put(dataType, ordNum);
+                } else {
+                    classSet.forEach(c -> variantMapping.put(c, finalOrdNum));
+                }
+            }
+        }
+
+        // add integers
+        for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : intTypesMappings.entrySet()) {
+            DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
+        }
+        // add decimals
+        for (java.util.Map.Entry<ClickHouseDataType, Integer> entry : decTypesMappings.entrySet()) {
+            DATA_TYPE_TO_CLASS.get(entry.getKey()).forEach(c -> variantMapping.put(c, entry.getValue()));
+        }
+
+        return variantMapping;
+    }
+
+    static final Map<ClickHouseDataType, Set<Class<?>>> DATA_TYPE_TO_CLASS = dataTypeClassMap();
+    static Map<ClickHouseDataType, Set<Class<?>>> dataTypeClassMap() {
+        Map<ClickHouseDataType, Set<Class<?>>> map = new HashMap<>();
+
+        // We allow to write short to UInt8 even it may not fit. It is done because we have to allow users to utilize UInt* data types.
+        List<Class<?>> allNumberClassesOrderedBySize = Arrays.asList(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class);
+        Set<Class<?>> setOfAllNumberClasses = Collections.unmodifiableSet(new HashSet<>(allNumberClassesOrderedBySize));
+        map.put(UInt256, setOfAllNumberClasses);
+        map.put(Int256, setOfAllNumberClasses);
+        map.put(UInt128, setOfAllNumberClasses);
+        map.put(Int128, setOfAllNumberClasses);
+        map.put(UInt64, setOfAllNumberClasses);
+
+        map.put(Int64, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(UInt32, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class ));
+        map.put(Int32, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class));
+        map.put(UInt16, setOf(byte.class, Byte.class, short.class, Short.class, int.class, Integer.class));
+        map.put(Int16, setOf(byte.class, Byte.class, short.class, Short.class));
+        map.put(UInt8, setOf(byte.class, Byte.class, short.class, Short.class));
+        map.put(Int8, setOf(byte.class, Byte.class));
+
+        map.put(Bool, setOf(boolean.class, Boolean.class));
+        map.put(String, setOf(String.class));
+        map.put(Float64, setOf(float.class, Float.class, double.class, Double.class));
+        map.put(Float32, setOf(float.class, Float.class));
+        map.put(Decimal, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal256, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal128, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
+        map.put(Decimal64, setOf(float.class, Float.class, double.class, Double.class));
+        map.put(Decimal32, setOf(float.class, Float.class));
+
+        map.put(IPv4, setOf(Inet4Address.class));
+        map.put(IPv6, setOf(Inet6Address.class));
+        map.put(UUID, setOf(java.util.UUID.class));
+
+        map.put(Point, setOf(double[].class, ClickHouseGeoPointValue.class));
+        map.put(Ring, setOf(double[][].class, ClickHouseGeoRingValue.class));
+        map.put(Polygon, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
+        map.put(MultiPolygon, setOf(double[][][][].class, ClickHouseGeoMultiPolygonValue.class));
+
+        map.put(Date, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));
+        map.put(Date32, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));
+        map.put(DateTime64, setOf(LocalDateTime.class, ZonedDateTime.class));
+        map.put(DateTime32, setOf(LocalDateTime.class, ZonedDateTime.class));
+        map.put(DateTime, setOf(LocalDateTime.class, ZonedDateTime.class));
+
+        map.put(Enum8, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
+        map.put(Array, setOf(List.class, Object[].class, byte[].class, short[].class, int[].class, long[].class, boolean[].class));
+        return map;
+    }
+
+    private static Set<Class<?>> setOf(Class<?>... args) {
+        return Collections.unmodifiableSet(new HashSet<>(Arrays.stream(args).collect(Collectors.toList())));
+    }
+
 
     /**
      * Immutable set(sorted) for all aliases.
