@@ -458,12 +458,12 @@ public class InsertTests extends BaseIntegrationTest {
                 if (row[4] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeString((String) row[4]);
+                    formatWriter.writeDateTime((ZonedDateTime) row[4], null);
                 }
                 if (row[5] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeInt8((byte) row[5]);
+                    formatWriter.writeInt8(((Integer) row[5]).byteValue());
                 }
             }
         }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
