@@ -11,11 +11,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -534,6 +530,10 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     LocalDateTime getLocalDateTime(String colName);
 
     LocalDateTime getLocalDateTime(int index);
+
+    OffsetDateTime getOffsetDateTime(String colName);
+
+    OffsetDateTime getOffsetDateTime(int index);
 
     TableSchema getSchema();
 

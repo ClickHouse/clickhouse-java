@@ -487,6 +487,10 @@ public interface GenericRecord {
 
     LocalDateTime getLocalDateTime(int index);
 
+    OffsetDateTime getOffsetDateTime(String colName);
+
+    OffsetDateTime getOffsetDateTime(int index);
+
     Object getObject(String colName);
 
     Object getObject(int index);
