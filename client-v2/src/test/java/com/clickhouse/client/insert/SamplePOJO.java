@@ -123,7 +123,6 @@ public class SamplePOJO {
         uint32 = (long) (random.nextDouble() * 4294967295L);
         uint64 = (long) (random.nextDouble() * 18446744073709615L);
 
-
         uint128 = upper.or(lower).abs();
         uint256 = upper1.or(upper2).or(lower1).or(lower2).abs();
 
