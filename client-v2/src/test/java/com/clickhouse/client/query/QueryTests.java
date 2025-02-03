@@ -6,7 +6,6 @@ import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
@@ -81,7 +80,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -2054,6 +2052,23 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertTrue(response.getResultRows() < 1000);
 
             Assert.assertEquals(response.getTotalRowsToRead(), expectedTotalRowsToRead);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetDynamicValue() throws Exception  {
+        String table = "test_get_dynamic_values";
+        client.execute("DROP TABLE IF EXISTS " + table);
+        client.execute("CREATE TABLE " + table + " (rowId Int32, v Dynamic) Engine MergeTree ORDER BY ()", (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1"));
+
+        client.execute("INSERT INTO " + table + " VALUES (0, 'string'), (1, 2222222)");
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+            System.out.println(reader.getString("v"));
+            reader.next();
+            System.out.println(reader.getString("v"));
         }
     }
 }

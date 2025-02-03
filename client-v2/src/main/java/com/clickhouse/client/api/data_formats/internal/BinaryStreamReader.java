@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
 
@@ -91,12 +92,18 @@ public class BinaryStreamReader {
             }
         }
 
+        ClickHouseDataType dataType = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicValueDataType() : column.getDataType();
+        int estimatedLen = column.getEstimatedLength();
+        int precision = column.getPrecision();
+        int scale = column.getScale();
+        TimeZone timezone = column.getTimeZoneOrDefault(timeZone);
+
         try {
-            switch (column.getDataType()) {
+            switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    byte[] bytes = readNBytes(input, column.getEstimatedLength());
-                    return (T) new String(bytes, 0, column.getEstimatedLength(), StandardCharsets.UTF_8);
+                    byte[] bytes = readNBytes(input, estimatedLen);
+                    return (T) new String(bytes, 0, estimatedLen, StandardCharsets.UTF_8);
                 }
                 case String: {
                     int len = readVarInt(input);
@@ -132,13 +139,13 @@ public class BinaryStreamReader {
                 case Decimal:
                     return (T) readDecimal(column.getPrecision(), column.getScale());
                 case Decimal32:
-                    return (T) readDecimal(ClickHouseDataType.Decimal32.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal32.getMaxPrecision(), scale);
                 case Decimal64:
-                    return (T) readDecimal(ClickHouseDataType.Decimal64.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal64.getMaxPrecision(), scale);
                 case Decimal128:
-                    return (T) readDecimal(ClickHouseDataType.Decimal128.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal128.getMaxPrecision(), scale);
                 case Decimal256:
-                    return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), column.getScale());
+                    return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), scale);
                 case Float32:
                     return (T) Float.valueOf(readFloatLE());
                 case Float64:
@@ -150,21 +157,15 @@ public class BinaryStreamReader {
                 case Enum16:
                     return (T) Short.valueOf((short) readUnsignedShortLE());
                 case Date:
-                    return convertDateTime(readDate(column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone()), typeHint);
+                    return convertDateTime(readDate(timezone), typeHint);
                 case Date32:
-                    return convertDateTime(readDate32(column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone()), typeHint);
+                    return convertDateTime(readDate32(timezone), typeHint);
                 case DateTime:
-                    return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone()), typeHint);
+                    return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:
-                    return convertDateTime(readDateTime32(column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone()), typeHint);
+                    return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime64:
-                    return convertDateTime(readDateTime64(column.getScale(), column.getTimeZone() == null ? timeZone :
-                            column.getTimeZone()), typeHint);
-
+                    return convertDateTime(readDateTime64(scale, timezone), typeHint);
                 case IntervalYear:
                 case IntervalQuarter:
                 case IntervalMonth:
@@ -214,6 +215,8 @@ public class BinaryStreamReader {
                     return (T) readValue(column.getNestedColumns().get(0));
                 case AggregateFunction:
                     return (T) readBitmap( column);
+                case Dynamic:
+                    return (T) readValue(column, typeHint);
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
             }
@@ -513,6 +516,35 @@ public class BinaryStreamReader {
         return bytes;
     }
 
+    public ArrayValue readArrayStack(int levels, ClickHouseColumn baseElementColumn) throws IOException {
+
+        Stack<ArrayValue> arrays = new Stack<>();
+        int level = levels;
+        ArrayValue array = null;
+        while (level <= levels) {
+            if (level != 1 && arrays.size() < level) {
+                int len = readVarInt(input);
+                arrays.push(new ArrayValue(ArrayValue.class, len));
+                level--;
+            } else if (level == 1) {
+                int len = readVarInt(input);
+                array = readArrayItem(baseElementColumn, len);
+                level++;
+            } else if (array !=null) { // some array read completely
+                ArrayValue tmp = arrays.pop();
+                if (tmp.append(array)) { // array filled
+                    array = tmp;
+                    level++;
+                } else {
+                    array = null;
+                    level--;
+                }
+            }
+        }
+
+        return array;
+    }
+
     /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
@@ -585,6 +617,8 @@ public class BinaryStreamReader {
 
         final Object array;
 
+        int nextPos = 0;
+
         ArrayValue(Class<?> itemType, int length) {
             this.itemType = itemType;
             this.length = length;
@@ -615,6 +649,11 @@ public class BinaryStreamReader {
                 throw new IllegalArgumentException("Failed to set value at index: " + index +
                         " value " + value + " of class " + value.getClass().getName(), e);
             }
+        }
+
+        public boolean append(Object value) {
+            set(nextPos++, value);
+            return nextPos == length;
         }
 
         private List<?> list = null;
@@ -945,5 +984,25 @@ public class BinaryStreamReader {
 
             return new byte[size];
         }
+    }
+
+    private ClickHouseDataType readDynamicValueDataType() throws IOException {
+        byte tag = readByte();
+
+        ClickHouseDataType type;
+        if (tag == ClickHouseDataType.INTERVAL_BIN_TAG) {
+            byte intervalKind = readByte();
+            type = ClickHouseDataType.intervalKind2Type.get(intervalKind);
+            if (type == null) {
+                throw  new ClientException("Unsupported interval kind: " + intervalKind);
+            }
+        } else {
+            type = ClickHouseDataType.binTag2Type.get(tag);
+            if (type == null) {
+                throw new ClientException("Unsupported data type with tag " + tag);
+            }
+        }
+
+        return type;
     }
 }

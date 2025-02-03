@@ -36,72 +36,126 @@ import com.clickhouse.data.value.UnsignedShort;
  */
 @SuppressWarnings("squid:S115")
 public enum ClickHouseDataType {
-    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, "BOOLEAN"),
-    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false),
-    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false),
-    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, "TIMESTAMP"),
-    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false),
-    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false),
-    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, "ENUM"),
-    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
-    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),
-    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
+    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false,0x2D, "BOOLEAN"),
+    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false, 0x0F),
+    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false, 0x10),
+    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, 0x11, "TIMESTAMP"),
+    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, 0x12),
+    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x13),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17, "ENUM"),
+    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, 0x18),
+    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x16, "BINARY"),
+    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, 0x07,"BYTE", "INT1", "INT1 SIGNED", "TINYINT",
             "TINYINT SIGNED"),
-    UInt8(UnsignedByte.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
-    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, "SMALLINT", "SMALLINT SIGNED"),
-    UInt16(UnsignedShort.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED", "YEAR"),
-    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INT SIGNED", "INTEGER", "INTEGER SIGNED",
+    UInt8(UnsignedByte.class, false, true, false, 1, 3, 0, 0, 0, false,0x01, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
+    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, 0x08,"SMALLINT", "SMALLINT SIGNED"),
+    UInt16(UnsignedShort.class, false, true, false, 2, 5, 0, 0, 0, false, 0x02,"SMALLINT UNSIGNED", "YEAR"),
+    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, 0x09, "INT", "INT SIGNED", "INTEGER", "INTEGER SIGNED",
             "MEDIUMINT", "MEDIUMINT SIGNED"),
     // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
-    UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
+    UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, 0x03, "INT UNSIGNED", "INTEGER UNSIGNED",
             "MEDIUMINT UNSIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED", "TIME"),
-    IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalWeek(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalDay(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMicrosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMillisecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalNanosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    UInt64(UnsignedLong.class, false, true, false, 8, 20, 0, 0, 0, false, "BIGINT UNSIGNED", "BIT", "SET"),
-    Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false),
-    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false),
-    Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false),
-    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x0A,"BIGINT", "BIGINT SIGNED", "TIME"),
+    IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalWeek(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalDay(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalMicrosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalMillisecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    IntervalNanosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
+    UInt64(UnsignedLong.class, false, true, false, 8, 20, 0, 0, 0, false, 0x04, "BIGINT UNSIGNED", "BIT", "SET"),
+    Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false, 0x0B),
+    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false, 0x05),
+    Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false, 0x0C),
+    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false, 0x06),
     Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, "DEC", "FIXED", "NUMERIC"),
-    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false),
-    Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false),
-    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false),
-    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false),
-    Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, "FLOAT", "REAL", "SINGLE"),
-    Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
-    IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, "INET4"),
-    IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, "INET6"),
-    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false),
-    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true), // same as Tuple(Float64, Float64)
-    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
-    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Polygon)
-    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
-    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true), // same as Object('JSON')
+    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false, 0x19),
+    Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false, 0x1A),
+    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false, 0x1B),
+    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false, 0x1C),
+    Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, 0x0D, "FLOAT", "REAL", "SINGLE"),
+    Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, 0x0E, "DOUBLE", "DOUBLE PRECISION"),
+    IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, 0x28, "INET4"),
+    IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, 0x29, "INET6"),
+    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false, 0x1D),
+    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true, 0x2C), // same as Tuple(Float64, Float64)
+    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Ring)
+    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Polygon)
+    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Point)
+    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
+    @Deprecated
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    String(String.class, false, false, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
+    String(String.class, false, false, false, 0, 0, 0, 0, 0, false, 0x15, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
             "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
             "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
             "NATIONAL CHARACTER VARYING", "NCHAR", "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT",
             "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR", "VARCHAR2"),
-    Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true),
-    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
+    Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x1E),
+    Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true, 0x27),
+    Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2F),
+    Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true, 0x1F),
+    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true, 0x00),
+    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x2E),
     // implementation-defined intermediate state
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true);
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true, 0x25),
+    Dynamic(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2B),
+    ;
+
+
+    public static final byte INTERVAL_BIN_TAG = 0x22;
+
+    public static final byte NULLABLE_BIN_TAG = 0x23;
+
+    public static final byte LOW_CARDINALITY_BIN_TAG = 0x26;
+
+    public static final byte SET_BIN_TAG = 0x21;
+
+    public enum IntervalKindBinTag {
+        Nanosecond(IntervalNanosecond, 0x00),
+        Microsecond(IntervalMicrosecond, 0x01),
+
+        Millisecond(IntervalMillisecond, 0x02),
+
+        Second(IntervalSecond,  0x03),
+
+        Minute(IntervalMinute, 0x04),
+
+        Hour(IntervalHour, 0x05),
+
+        Day(IntervalDay, 0x06),
+
+        Week(IntervalWeek, 0x07),
+
+        Month(IntervalMonth, 0x08),
+
+        Quarter(IntervalQuarter, 0x09),
+
+        Year(IntervalYear, 0x1A) // why 1A ?
+
+        ;
+
+        private ClickHouseDataType intervalType;
+
+        byte tag;
+        IntervalKindBinTag(ClickHouseDataType clickHouseDataType, int tag) {
+            this.intervalType = clickHouseDataType;
+            this.tag = (byte) tag;
+        }
+
+        public ClickHouseDataType getIntervalType() {
+            return intervalType;
+        }
+
+        public byte getTag() {
+            return tag;
+        }
+    }
+
 
     /**
      * Immutable set(sorted) for all aliases.
@@ -112,6 +166,10 @@ public enum ClickHouseDataType {
      * Immutable mapping between name and type.
      */
     public static final Map<String, ClickHouseDataType> name2type;
+
+    public static final Map<Byte, ClickHouseDataType> binTag2Type;
+
+    public static final Map<Byte, ClickHouseDataType> intervalKind2Type;
 
     static {
         Set<String> set = new TreeSet<>();
@@ -141,6 +199,18 @@ public enum ClickHouseDataType {
 
         allAliases = Collections.unmodifiableSet(set);
         name2type = Collections.unmodifiableMap(map);
+
+        Map<Byte, ClickHouseDataType> tmpbinTag2Type = new HashMap<>();
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            tmpbinTag2Type.put((byte) type.getBinTag(), type);
+        }
+        binTag2Type = Collections.unmodifiableMap(tmpbinTag2Type);
+
+        Map<Byte, ClickHouseDataType> tmpIntervalKind2Type = new HashMap<>();
+        for (IntervalKindBinTag kind : IntervalKindBinTag.values()) {
+            tmpIntervalKind2Type.put(kind.getTag(), kind.getIntervalType());
+        }
+        intervalKind2Type = Collections.unmodifiableMap(tmpIntervalKind2Type);
     }
 
     /**
@@ -373,6 +443,8 @@ public enum ClickHouseDataType {
     private final int maxScale;
     private final boolean nestedType;
 
+    private final byte binTag;
+
     /**
      * Default constructor.
      *
@@ -404,6 +476,30 @@ public enum ClickHouseDataType {
         this.minScale = minScale;
         this.maxScale = maxScale;
         this.nestedType = nestedType;
+        this.binTag = -1;
+        if (aliases == null || aliases.length == 0) {
+            this.aliases = Collections.emptyList();
+        } else {
+            this.aliases = Collections.unmodifiableList(Arrays.asList(aliases));
+        }
+    }
+
+    ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
+                       int maxPrecision, int defaultScale, int minScale, int maxScale, boolean nestedType, int binTag, String... aliases) {
+        this.objectType = toObjectType(javaClass);
+        this.widerObjectType = !signed ? toWiderObjectType(javaClass) : this.objectType;
+        this.primitiveType = toPrimitiveType(javaClass);
+        this.widerPrimitiveType = !signed ? toWiderPrimitiveType(javaClass) : this.primitiveType;
+        this.parameter = parameter;
+        this.caseSensitive = caseSensitive;
+        this.signed = signed;
+        this.byteLength = byteLength;
+        this.maxPrecision = maxPrecision;
+        this.defaultScale = defaultScale;
+        this.minScale = minScale;
+        this.maxScale = maxScale;
+        this.nestedType = nestedType;
+        this.binTag = (byte) binTag;
         if (aliases == null || aliases.length == 0) {
             this.aliases = Collections.emptyList();
         } else {
@@ -540,5 +636,13 @@ public enum ClickHouseDataType {
      */
     public int getMaxScale() {
         return maxScale;
+    }
+
+    /**
+     * Returns a binary tag for the type
+     * @return tag value
+     */
+    public byte getBinTag() {
+        return binTag;
     }
 }
