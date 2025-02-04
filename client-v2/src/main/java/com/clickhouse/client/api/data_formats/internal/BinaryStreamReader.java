@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class BinaryStreamReader {
             }
         }
 
-        ClickHouseDataType dataType = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicValueDataType() : column.getDataType();
+        ClickHouseDataType dataType = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicData() : column.getDataType();
         int estimatedLen = column.getEstimatedLength();
         int precision = column.getPrecision();
         int scale = column.getScale();
@@ -199,7 +200,7 @@ public class BinaryStreamReader {
                     if (jsonAsString) {
                         return (T) readString(input);
                     } else {
-                        throw new RuntimeException("Reading JSON from binary is not implemented yet");
+                        return (T) readJsonData(input);
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case Array:
@@ -986,7 +987,7 @@ public class BinaryStreamReader {
         }
     }
 
-    private ClickHouseDataType readDynamicValueDataType() throws IOException {
+    private ClickHouseDataType readDynamicData() throws IOException {
         byte tag = readByte();
 
         ClickHouseDataType type;
@@ -1004,5 +1005,22 @@ public class BinaryStreamReader {
         }
 
         return type;
+    }
+
+    private static final ClickHouseColumn JSON_PLACEHOLDER_COL = ClickHouseColumn.parse("v Dynamic").get(0);
+
+    private Map<String, Object> readJsonData(InputStream input) throws IOException {
+        int numOfPaths = readVarInt(input);
+        if (numOfPaths == 0) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Object> obj = new HashMap<>();
+        for (int i = 0; i < numOfPaths; i++) {
+            String path = readString(input);
+            Object value = readValue(JSON_PLACEHOLDER_COL);
+            obj.put(path, value);
+        }
+        return obj;
     }
 }

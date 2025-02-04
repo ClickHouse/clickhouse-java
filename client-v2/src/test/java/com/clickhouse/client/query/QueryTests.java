@@ -80,9 +80,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1420,7 +1422,10 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
+            client.execute(createStmtBuilder.toString(), (CommandSettings)
+                    new CommandSettings().serverSetting("enable_dynamic_type", "1")
+                            .serverSetting("allow_experimental_json_type", "1"))
+                    .get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -2058,17 +2063,59 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testGetDynamicValue() throws Exception  {
         String table = "test_get_dynamic_values";
-        client.execute("DROP TABLE IF EXISTS " + table);
-        client.execute("CREATE TABLE " + table + " (rowId Int32, v Dynamic) Engine MergeTree ORDER BY ()", (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1"));
 
-        client.execute("INSERT INTO " + table + " VALUES (0, 'string'), (1, 2222222)");
+        final AtomicInteger rowId = new AtomicInteger(-1);
+        final Random rnd = new Random();
+
+        List<Map<String,Object>> dataset = prepareDataSet(table, Arrays.asList("rowId Int32", "v Dynamic"),
+                Arrays.asList(s -> rowId.incrementAndGet(), s-> {
+                    int decision = rnd.nextInt(3);
+                    if (decision == 0) {
+                        return RandomStringUtils.randomAlphanumeric(3, 10);
+                    } else if (decision == 1) {
+                        return rnd.nextInt();
+                    } else {
+                        return rnd.nextDouble();
+                    }
+                }), 1000);
 
         try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            reader.next();
-            System.out.println(reader.getString("v"));
-            reader.next();
-            System.out.println(reader.getString("v"));
+            while (reader.next() != null) {
+                int rowIndex  = reader.getInteger("rowId");
+                Assert.assertEquals(reader.getString("v"), dataset.get(rowIndex).get("v").toString());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetJSON() throws Exception  {
+        String table = "test_get_json_values";
+
+        final AtomicInteger rowId = new AtomicInteger(-1);
+        final Random rnd = new Random();
+
+        List<Map<String,Object>> dataset = prepareDataSet(table, Arrays.asList("rowId Int32", "v1 JSON"),
+                Arrays.asList(s -> rowId.incrementAndGet(),
+                s-> {
+                    String a = "{'a': '" + RandomStringUtils.randomAlphabetic(20) + "', 'b': { 'c': 'test1', 'd': " + rnd
+                            .nextInt(1000) + "}}";
+                    return a.replaceAll("'", "\"");
+                }), 1);
+
+        System.out.println(dataset);
+        ObjectMapper jackson = new ObjectMapper();
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            while (reader.next() != null) {
+                int rowIndex  = reader.getInteger("rowId");
+                JsonNode expected = jackson.readValue(dataset.get(rowIndex).get("v1").toString(), JsonNode.class);
+                Map<String, Object> v1 = reader.readValue("v1");
+                for (Map.Entry<String, Object> e : v1.entrySet()) {
+                    String pointer = "/" + e.getKey().replaceAll("\\.", "/");
+                    Assert.assertEquals(e.getValue().toString(), expected.at(pointer).asText());
+                }
+            }
         }
     }
 }
