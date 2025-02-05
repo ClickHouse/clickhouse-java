@@ -1418,6 +1418,11 @@ public class QueryTests extends BaseIntegrationTest {
             client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
+            CommandSettings settings = new CommandSettings();
+            if (isVersionMatch("[24.8,)")) {
+                settings.serverSetting("enable_dynamic_type", "1")
+                        .serverSetting("allow_experimental_json_type", "1");
+            }
             StringBuilder createStmtBuilder = new StringBuilder();
             createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
@@ -1425,10 +1430,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            client.execute(createStmtBuilder.toString(), (CommandSettings)
-                    new CommandSettings().serverSetting("enable_dynamic_type", "1")
-                            .serverSetting("allow_experimental_json_type", "1"))
-                    .get(10, TimeUnit.SECONDS);
+            client.execute(createStmtBuilder.toString(), settings).get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1787,9 +1789,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
     public void testOperationCustomRoles(String[] roles) throws Exception {
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
-            System.out.println("Test is skipped: feature is supported since 24.4");
+        if (isVersionMatch("(,24.3]")) {
             return;
         }
 
@@ -1825,9 +1825,7 @@ public class QueryTests extends BaseIntegrationTest {
     }
     @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
     public void testClientCustomRoles(String[] roles) throws Exception {
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
-            System.out.println("Test is skipped: feature is supported since 24.4");
+        if (isVersionMatch("(,24.3]")) {
             return;
         }
 
@@ -1909,9 +1907,7 @@ public class QueryTests extends BaseIntegrationTest {
         if (isCloud()) {
             return; // TODO: add support on cloud
         }
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
-            System.out.println("Test is skipped: feature is supported since 24.8");
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
         CommandSettings commandSettings = new CommandSettings();
@@ -2050,8 +2046,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testGettingRowsBeforeLimit() throws Exception {
         int expectedTotalRowsToRead = 100;
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,23.8]")) {
+        if (isVersionMatch("(,23.8]")) {
             // issue in prev. release.
             expectedTotalRowsToRead = 0;
         }
@@ -2065,6 +2060,10 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testGetDynamicValue() throws Exception  {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         String table = "test_get_dynamic_values";
 
         final AtomicInteger rowId = new AtomicInteger(-1);
@@ -2093,6 +2092,10 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testGetJSON() throws Exception  {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         String table = "test_get_json_values";
 
         final AtomicInteger rowId = new AtomicInteger(-1);
@@ -2120,5 +2123,10 @@ public class QueryTests extends BaseIntegrationTest {
                 }
             }
         }
+    }
+
+    public boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
 }
