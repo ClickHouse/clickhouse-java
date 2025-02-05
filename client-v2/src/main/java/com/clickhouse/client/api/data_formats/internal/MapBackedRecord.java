@@ -477,6 +477,24 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
+    public OffsetDateTime getOffsetDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(int index) {
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
+    }
+
+    @Override
     public ClickHouseBitmap getClickHouseBitmap(String colName) {
         return readValue(colName);
     }
