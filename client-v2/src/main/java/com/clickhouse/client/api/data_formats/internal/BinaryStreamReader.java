@@ -216,6 +216,8 @@ public class BinaryStreamReader {
                     return (T) readValue(column.getNestedColumns().get(0));
                 case AggregateFunction:
                     return (T) readBitmap( column);
+                case Variant:
+                    return (T) readVariant(column);
                 case Dynamic:
                     return (T) readValue(column, typeHint);
                 default:
@@ -248,6 +250,9 @@ public class BinaryStreamReader {
         }
         if (typeHint.isAssignableFrom(List.class)) {
             return (T) value.asList();
+        }
+        if (typeHint.isArray()) {
+            return (T) value.array;
         }
 
         return (T) value;
@@ -713,6 +718,11 @@ public class BinaryStreamReader {
         }
 
         return tuple;
+    }
+
+    public Object readVariant(ClickHouseColumn column) throws IOException {
+        int ordNum = readByte();
+        return readValue(column.getNestedColumns().get(ordNum));
     }
 
     /**
