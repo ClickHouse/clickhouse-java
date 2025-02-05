@@ -6,7 +6,6 @@ import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
@@ -81,10 +80,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1418,6 +1418,11 @@ public class QueryTests extends BaseIntegrationTest {
             client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
+            CommandSettings settings = new CommandSettings();
+            if (isVersionMatch("[24.8,)")) {
+                settings.serverSetting("enable_dynamic_type", "1")
+                        .serverSetting("allow_experimental_json_type", "1");
+            }
             StringBuilder createStmtBuilder = new StringBuilder();
             createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
@@ -1425,7 +1430,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
+            client.execute(createStmtBuilder.toString(), settings).get(10, TimeUnit.SECONDS);
 
             // Insert data
             StringBuilder insertStmtBuilder = new StringBuilder();
@@ -1784,9 +1789,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
     public void testOperationCustomRoles(String[] roles) throws Exception {
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
-            System.out.println("Test is skipped: feature is supported since 24.4");
+        if (isVersionMatch("(,24.3]")) {
             return;
         }
 
@@ -1822,9 +1825,7 @@ public class QueryTests extends BaseIntegrationTest {
     }
     @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
     public void testClientCustomRoles(String[] roles) throws Exception {
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.3]")) {
-            System.out.println("Test is skipped: feature is supported since 24.4");
+        if (isVersionMatch("(,24.3]")) {
             return;
         }
 
@@ -1906,9 +1907,7 @@ public class QueryTests extends BaseIntegrationTest {
         if (isCloud()) {
             return; // TODO: add support on cloud
         }
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,24.8]")) {
-            System.out.println("Test is skipped: feature is supported since 24.8");
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
         CommandSettings commandSettings = new CommandSettings();
@@ -2047,8 +2046,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testGettingRowsBeforeLimit() throws Exception {
         int expectedTotalRowsToRead = 100;
-        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
-        if (ClickHouseVersion.of(serverVersion.get(0).getString(1)).check("(,23.8]")) {
+        if (isVersionMatch("(,23.8]")) {
             // issue in prev. release.
             expectedTotalRowsToRead = 0;
         }
@@ -2058,5 +2056,77 @@ public class QueryTests extends BaseIntegrationTest {
 
             Assert.assertEquals(response.getTotalRowsToRead(), expectedTotalRowsToRead);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetDynamicValue() throws Exception  {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String table = "test_get_dynamic_values";
+
+        final AtomicInteger rowId = new AtomicInteger(-1);
+        final Random rnd = new Random();
+
+        List<Map<String,Object>> dataset = prepareDataSet(table, Arrays.asList("rowId Int32", "v Dynamic"),
+                Arrays.asList(s -> rowId.incrementAndGet(), s-> {
+                    int decision = rnd.nextInt(3);
+                    if (decision == 0) {
+                        return RandomStringUtils.randomAlphanumeric(3, 10);
+                    } else if (decision == 1) {
+                        return rnd.nextInt();
+                    } else {
+                        return rnd.nextDouble();
+                    }
+                }), 1000);
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            while (reader.next() != null) {
+                int rowIndex  = reader.getInteger("rowId");
+                Assert.assertEquals(reader.getString("v"), dataset.get(rowIndex).get("v").toString());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetJSON() throws Exception  {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String table = "test_get_json_values";
+
+        final AtomicInteger rowId = new AtomicInteger(-1);
+        final Random rnd = new Random();
+
+        List<Map<String,Object>> dataset = prepareDataSet(table, Arrays.asList("rowId Int32", "v1 JSON"),
+                Arrays.asList(s -> rowId.incrementAndGet(),
+                s-> {
+                    String a = "{'a': '" + RandomStringUtils.randomAlphabetic(20) + "', 'b': { 'c': 'test1', 'd': " + rnd
+                            .nextInt(1000) + "}}";
+                    return a.replaceAll("'", "\"");
+                }), 1);
+
+        System.out.println(dataset);
+        ObjectMapper jackson = new ObjectMapper();
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            while (reader.next() != null) {
+                int rowIndex  = reader.getInteger("rowId");
+                JsonNode expected = jackson.readValue(dataset.get(rowIndex).get("v1").toString(), JsonNode.class);
+                Map<String, Object> v1 = reader.readValue("v1");
+                for (Map.Entry<String, Object> e : v1.entrySet()) {
+                    String pointer = "/" + e.getKey().replaceAll("\\.", "/");
+                    Assert.assertEquals(e.getValue().toString(), expected.at(pointer).asText());
+                }
+            }
+        }
+    }
+
+    public boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
 }
