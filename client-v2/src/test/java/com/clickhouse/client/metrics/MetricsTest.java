@@ -18,10 +18,17 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
 
 public class MetricsTest extends BaseIntegrationTest {
     private MeterRegistry meterRegistry;
+
     @BeforeMethod(groups = {"integration"})
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
@@ -33,8 +40,8 @@ public class MetricsTest extends BaseIntegrationTest {
         meterRegistry.clear();
         Metrics.globalRegistry.clear();
     }
-
-    @Test(groups = { "integration" }, enabled = true)
+    
+    @Test(groups = {"integration"}, enabled = true)
     public void testRegisterMetrics() throws Exception {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
@@ -54,18 +61,39 @@ public class MetricsTest extends BaseIntegrationTest {
             Gauge available = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "available").gauge();
             Gauge leased = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "leased").gauge();
 
-            System.out.println("totalMax:" + totalMax.value() + ", available: " + available.value() + ", leased: " + leased.value());
-            Assert.assertEquals((int)totalMax.value(), Integer.parseInt(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getDefaultValue()));
-            Assert.assertEquals((int)available.value(), 1);
-            Assert.assertEquals((int)leased.value(), 0);
+            Assert.assertEquals((int) totalMax.value(), Integer.parseInt(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getDefaultValue()));
+            Assert.assertEquals((int) available.value(), 1);
+            Assert.assertEquals((int) leased.value(), 0);
 
-            try (QueryResponse response = client.query("SELECT 1").get()) {
-                Assert.assertEquals((int)available.value(), 0);
-                Assert.assertEquals((int)leased.value(), 1);
-            }
+            Runnable task = () -> {
+                try (QueryResponse response = client.query("SELECT 1").get()) {
+                    Assert.assertEquals((int) available.value(), 0);
+                    Assert.assertEquals((int) leased.value(), 1);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    fail("Failed to to request", e);
+                }
+            };
 
-            Assert.assertEquals((int)available.value(), 1);
-            Assert.assertEquals((int)leased.value(), 0);
+            ExecutorService executor = Executors.newFixedThreadPool(3);
+            executor.submit(task);
+            executor.submit(task);
+            executor.shutdown();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+
+            Assert.assertEquals((int) available.value(), 2);
+            Assert.assertEquals((int) leased.value(), 0);
+
+            Thread.sleep(15_000);
+
+            Assert.assertEquals((int) available.value(), 2);
+            Assert.assertEquals((int) leased.value(), 0);
+
+            task.run();
+
+            Assert.assertEquals((int) available.value(), 1);
+            Assert.assertEquals((int) leased.value(), 0);
+
         }
         // currently there are  only 5 metrics that are monitored by micrometer (out of the box)
         assertEquals(meterRegistry.getMeters().size(), 5);

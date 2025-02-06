@@ -7,6 +7,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -96,8 +97,20 @@ public class ClickHouseUtilsTest {
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(null));
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(""));
 
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM?.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM<?.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM>.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM|.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM*.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles("READM<>:\\\"|?*.md"));
+            Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(" "));
+        }
+        else {
+            Assert.assertEquals(ClickHouseUtils.findFiles("READM?.md").size(), 1);
+        }
+
         Assert.assertEquals(ClickHouseUtils.findFiles("README.md").size(), 1);
-        Assert.assertEquals(ClickHouseUtils.findFiles("READM?.md").size(), 1);
         Assert.assertEquals(ClickHouseUtils.findFiles("glob:*.md").size(), 1);
         Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src", "..").size() >= 1);
         Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src/test").size() >= 1);
