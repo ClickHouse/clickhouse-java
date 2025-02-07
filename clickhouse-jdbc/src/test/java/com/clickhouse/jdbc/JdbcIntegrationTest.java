@@ -105,8 +105,12 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         if (properties == null) {
             properties = new Properties();
         }
-        properties.put("password", getPassword());
-        properties.put("user", "default");
+        if (!properties.containsKey("password")) {
+            properties.put("password", getPassword());
+        }
+        if (!properties.containsKey("user")) {
+            properties.put("user", "default");
+        }
 
         if (isCloud()) {
             url = String.format("jdbc:clickhouse:https://%s/%s", getServerAddress(ClickHouseProtocol.HTTP), ClickHouseServerForTest.getDatabase());
