@@ -188,10 +188,10 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                 }
                 : null;
 
+        ClickHouseNode server = sealedRequest.getServer();
         if (conn.isReusable()) {
             Map<String, Serializable> additionalParams = buildAdditionalReqParams(sealedRequest);
 
-            ClickHouseNode server = sealedRequest.getServer();
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
                     ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest, additionalParams),
@@ -199,7 +199,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                     postAction);
         } else {
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
-                    sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null), null, null,
+                    sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
+                    null, ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent(), getReferer(config)),
                     postAction);
         }
 

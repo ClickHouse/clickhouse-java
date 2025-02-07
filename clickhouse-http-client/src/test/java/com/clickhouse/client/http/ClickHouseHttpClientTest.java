@@ -29,6 +29,7 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
@@ -114,10 +115,10 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     public void testAuthentication() throws ClickHouseException {
         if (isCloud()) return; //TODO: testAuthentication - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String sql = "select currentUser()";
-        try (ClickHouseClient client = getClient(
-                new ClickHouseConfig(null, ClickHouseCredentials.fromUserAndPassword("dba", "dba"), null, null));
+        try (ClickHouseClient client = getClient();
                 ClickHouseResponse response = newRequest(client, getServer())
-                        // .option(ClickHouseHttpOption.CUSTOM_PARAMS, "user=dba,password=incorrect")
+                        .option(ClickHouseDefaults.PASSWORD, "dba")
+                        .option(ClickHouseDefaults.USER, "dba")
                         .query(sql).executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asString(), "dba");
         }
@@ -461,7 +462,8 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
             Map<String, String> options = new HashMap<>();
             // without any proxy options
-            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+            try (ClickHouseClient client = ClickHouseClient.builder().option(ClickHouseDefaults.PASSWORD, getPassword())
+                    .options(getClientOptions())
                     .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
                 ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
                 Assert.assertTrue(client.ping(server, 30000), "Can not ping");

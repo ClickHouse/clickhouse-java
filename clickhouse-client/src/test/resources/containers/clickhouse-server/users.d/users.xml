@@ -10,6 +10,15 @@
         </managed2>
     </profiles>
     <users>
+        <default>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password>test_default_password</password>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </default>
         <dba>
             <access_management>1</access_management>
             <profile>default</profile>
@@ -40,7 +49,7 @@
             <networks>
                 <ip>::/0</ip>
             </networks>
-            <password></password>
+            <password>poorman_111</password>
             <quota>default</quota>
         </poorman1>
         <poorman2>
@@ -48,7 +57,7 @@
             <networks>
                 <ip>::/0</ip>
             </networks>
-            <password></password>
+            <password>poorman_222</password>
             <quota>default</quota>
         </poorman2>
         <test>

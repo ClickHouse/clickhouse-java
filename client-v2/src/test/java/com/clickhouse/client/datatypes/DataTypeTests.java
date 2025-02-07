@@ -3,6 +3,7 @@ package com.clickhouse.client.datatypes;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -60,7 +61,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)

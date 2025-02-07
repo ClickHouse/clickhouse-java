@@ -102,12 +102,13 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     public DataSource newDataSource(String url, Properties properties) throws SQLException {
+        if (properties == null) {
+            properties = new Properties();
+        }
+        properties.put("password", getPassword());
+        properties.put("user", "default");
+
         if (isCloud()) {
-            if (properties == null) {
-                properties = new Properties();
-            }
-            properties.put("password", getPassword());
-            properties.put("user", "default");
             url = String.format("jdbc:clickhouse:https://%s/%s", getServerAddress(ClickHouseProtocol.HTTP), ClickHouseServerForTest.getDatabase());
             return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
         }

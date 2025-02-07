@@ -2706,6 +2706,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseNode availableNode = getServer();
         Properties props = new Properties();
         props.setProperty("failover", "1");
+        props.setProperty(ClickHouseDefaults.PASSWORD.getKey(), getPassword());
 
         // nodes with the first node is unavailable
         ClickHouseNodes nodes = ClickHouseNodes.of(

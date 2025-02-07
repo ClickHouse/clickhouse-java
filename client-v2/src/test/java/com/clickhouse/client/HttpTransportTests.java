@@ -239,7 +239,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder()
                 .addEndpoint("https://localhost:" + secureServer.getPort())
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .compressClientRequest(true)
                 .build()) {
@@ -285,7 +285,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         Client mockServerClient = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(true) // because of the internal differences
                 .compressClientRequest(false)
                 .setMaxRetries(maxRetries)
@@ -346,7 +346,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressServerResponse(serverCompression)
                 .useHttpCompression(useHttpCompression)
                 .build()) {
@@ -436,7 +436,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressServerResponse(false)
                 .useNewImplementation(true)
                 .build()) {
@@ -486,7 +486,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .compressServerResponse(false)
                 .build()) {
 
@@ -536,7 +536,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(true)
                 .httpHeader("X-ClickHouse-Test", "default_value")
                 .httpHeader("X-ClickHouse-Test-2", Arrays.asList("default_value1", "default_value2"))
@@ -580,7 +580,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(true)
                 .serverSetting("max_threads", "10")
                 .serverSetting("async_insert", "1")
@@ -778,7 +778,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(true)
                 .build()) {
 
@@ -810,7 +810,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder()
                 .addEndpoint(server.getBaseUri())
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .setClientName(clientName)
                 .build()) {
 
@@ -1050,7 +1050,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", proxyPort, false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(true)
                 .build()) {
             int startTime = (int) System.currentTimeMillis();
@@ -1101,7 +1101,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .setSocketTimeout(3000)
                 .retryOnFailures(ClientFaultCause.SocketTimeout)
                 .build()) {

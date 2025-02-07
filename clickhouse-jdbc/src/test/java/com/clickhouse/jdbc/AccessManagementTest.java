@@ -1,11 +1,11 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -29,6 +29,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
+        properties.setProperty(ClickHouseDefaults.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
@@ -113,6 +114,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         if (isCloud()) return; //TODO: testSetRolesAccessingTableRows - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
+        properties.setProperty(ClickHouseDefaults.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
         String serverVersion = getServerVersion(dataSource.getConnection());
