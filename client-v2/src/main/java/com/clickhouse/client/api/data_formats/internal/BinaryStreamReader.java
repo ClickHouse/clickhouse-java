@@ -1005,13 +1005,37 @@ public class BinaryStreamReader {
             byte intervalKind = readByte();
             type = ClickHouseDataType.intervalKind2Type.get(intervalKind);
             if (type == null) {
-                throw  new ClientException("Unsupported interval kind: " + intervalKind);
+                throw new ClientException("Unsupported interval kind: " + intervalKind);
             }
-
+        } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
+            String typeName = readString(input);
+            return ClickHouseDataType.valueOf(typeName);
+        } else if (tag == ClickHouseDataType.Decimal.getBinTag()) {
+            byte precision = readByte();
+            byte scale = readByte();
+            System.out.println("precision: " + precision + " scale: " + scale);
+            return ClickHouseDataType.Decimal;
+        } else if (tag == ClickHouseDataType.Decimal32.getBinTag()) {
+            byte precision = readByte();
+            byte scale = readByte();
+            System.out.println("precision: " + precision + " scale: " + scale);
+            return ClickHouseDataType.Decimal;
+        } else if (tag == ClickHouseDataType.Decimal64.getBinTag()) {
+            byte precision = readByte();
+            byte scale = readByte();
+            System.out.println("precision: " + precision + " scale: " + scale);
+            return ClickHouseDataType.Decimal64;
+        } else if (tag == ClickHouseDataType.Decimal128.getBinTag()) {
+            byte precision = readByte();
+            byte scale = readByte();
+            System.out.println("precision: " + precision + " scale: " + scale);
+            return ClickHouseDataType.Decimal128;
+        } else if (tag == ClickHouseDataType.Decimal256.getBinTag()) {
+            byte precision = readByte();
+            byte scale = readByte();
+            System.out.println("precision: " + precision + " scale: " + scale);
+            return ClickHouseDataType.Decimal256;
         } else {
-            if (tag == ClickHouseDataType.String.getBinTag()) {
-                System.out.println("String");
-            }
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
                 throw new ClientException("Unsupported data type with tag " + tag);

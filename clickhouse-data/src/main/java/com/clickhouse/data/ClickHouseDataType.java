@@ -230,6 +230,10 @@ public enum ClickHouseDataType {
 
     public static final byte CUSTOM_TYPE_BIN_TAG = 0x2C;
 
+    public static final byte TUPLE_WITHOUT_NAMES_BIN_TAG = 0x1F;
+
+    public static final byte TUPLE_WITH_NAMES_BIN_TAG = 0x20;
+
     public enum IntervalKindBinTag {
         Nanosecond(IntervalNanosecond, 0x00),
         Microsecond(IntervalMicrosecond, 0x01),

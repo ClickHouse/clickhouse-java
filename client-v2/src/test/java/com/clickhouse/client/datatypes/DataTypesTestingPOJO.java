@@ -94,6 +94,28 @@ public class DataTypesTestingPOJO {
     private ClickHouseBitmap groupBitmapUint32;
     private ClickHouseBitmap groupBitmapUint64;
 
+    private int intervalYear;
+
+    private byte intervalQuarter;
+
+    private byte intervalMonth;
+
+    private byte intervalWeek;
+
+    private short intervalDay;
+
+    private byte intervalHour;
+
+    private byte intervalMinute;
+
+    private byte intervalSecond;
+
+    private long intervalMillisecond;
+
+    private long intervalMicrosecond;
+
+    private BigInteger intervalNanosecond;
+
     public DataTypesTestingPOJO() {
         final Random random = new Random();
         byteValue = (byte) random.nextInt();
@@ -219,6 +241,21 @@ public class DataTypesTestingPOJO {
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
 
+        intervalYear = random.nextInt(2000, 4000);
+        intervalQuarter = (byte) random.nextInt(4);
+        intervalMonth = (byte) random.nextInt(12);
+        intervalWeek = (byte) random.nextInt(52);
+        intervalDay = (byte) random.nextInt(30);
+        intervalHour = (byte) random.nextInt(24);
+        intervalMinute = (byte) random.nextInt(60);
+        intervalSecond = (byte) random.nextInt(60);
+        intervalMillisecond =  random.nextLong(10000);
+        intervalMicrosecond =  random.nextLong(10000);
+
+        upper = BigInteger.valueOf(random.nextLong()).shiftLeft(64);
+        lower = BigInteger.valueOf(random.nextLong()).and(BigInteger.valueOf(Long.MAX_VALUE));
+
+        intervalNanosecond = upper.or(lower);
     }
 
     public boolean getBool() {
@@ -277,7 +314,18 @@ public class DataTypesTestingPOJO {
                 "nested Nested (innerInt Int32, innerString String, " +
                 "innerNullableInt Nullable(Int32)), " +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
-                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
+                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64), " +
+                "intervalYear IntervalYear, " +
+                "intervalQuarter IntervalQuarter, " +
+                "intervalMonth IntervalMonth, " +
+                "intervalWeek IntervalWeek, " +
+                "intervalDay IntervalDay, " +
+                "intervalHour IntervalHour, " +
+                "intervalMinute IntervalMinute, " +
+                "intervalSecond IntervalSecond, " +
+                "intervalMillisecond IntervalMillisecond, " +
+                "intervalMicrosecond IntervalMicrosecond, " +
+                "intervalNanosecond IntervalNanosecond " +
                 ") ENGINE = MergeTree ORDER BY ()";
     }
 }

@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -123,6 +124,11 @@ public class SerializerUtils {
         map.put(Inet6Address.class, ClickHouseColumn.of("v", "IPv6"));
         map.put(String.class, ClickHouseColumn.of("v", "String"));
         map.put(LocalDateTime.class, ClickHouseColumn.of("v", "DateTime"));
+
+        map.put(ClickHouseGeoPointValue.class, ClickHouseColumn.of("v", "Point"));
+        map.put(ClickHouseGeoRingValue.class, ClickHouseColumn.of("v", "Ring"));
+        map.put(ClickHouseGeoPolygonValue.class, ClickHouseColumn.of("v", "Polygon"));
+        map.put(ClickHouseGeoMultiPolygonValue.class, ClickHouseColumn.of("v", "MultiPolygon"));
 
         map.put(boolean[].class, ClickHouseColumn.of("v", "Array(Bool)"));
         map.put(boolean[][].class, ClickHouseColumn.of("v", "Array(Array(Bool))"));
@@ -239,6 +245,8 @@ public class SerializerUtils {
             case Decimal128:
             case Decimal256:
                 stream.write(binTag);
+                stream.write(dt.getMaxPrecision());
+                stream.write(dt.getMaxScale());
                 //<tag><uint8_precision><uint8_scale>
                 break;
 
@@ -253,7 +261,11 @@ public class SerializerUtils {
             case IntervalQuarter:
             case IntervalYear:
                 stream.write(binTag);
-                stream.write(ClickHouseDataType.IntervalKindBinTag.Day.getTag());
+                Byte kindTag = ClickHouseDataType.intervalType2Kind.get(dt);
+                if (kindTag == null) {
+                    throw new ClientException("BUG! No Interval Mapping to a kind tag");
+                }
+                stream.write(kindTag);
                 break;
             case DateTime32:
                 stream.write(binTag);
@@ -283,6 +295,7 @@ public class SerializerUtils {
             case Ring:
             case MultiPolygon:
                 stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
+                BinaryStreamUtils.writeString(stream, dt.name());
                 break;
             case Variant:
                 stream.write(binTag);
@@ -468,6 +481,18 @@ public class SerializerUtils {
                 break;
             case JSON:
                 serializeJSON(stream, value);
+                break;
+            case IntervalNanosecond:
+            case IntervalMillisecond:
+            case IntervalSecond:
+            case IntervalMinute:
+            case IntervalHour:
+            case IntervalDay:
+            case IntervalWeek:
+            case IntervalMonth:
+            case IntervalQuarter:
+            case IntervalYear:
+                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
                 break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
