@@ -250,7 +250,9 @@ public class ClickHouseServerForTest {
             }
         }
 
-        return ClickHouseNode.builder(template).address(protocol, new InetSocketAddress(host, port)).build();
+        return ClickHouseNode.builder(template).address(protocol, new InetSocketAddress(host, port))
+                .credentials(new ClickHouseCredentials("default", getPassword()))
+                .build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, int port) {
@@ -314,7 +316,7 @@ public class ClickHouseServerForTest {
         if (isCloud) {
             return System.getenv("CLICKHOUSE_CLOUD_PASSWORD");
         } else {
-            return "";
+            return "test_default_password";
         }
     }
 

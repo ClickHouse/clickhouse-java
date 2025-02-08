@@ -3,6 +3,7 @@ package com.clickhouse.client.datatypes;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -12,6 +13,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -60,7 +62,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
@@ -142,6 +144,10 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_variant_primitives";
         final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
 
@@ -383,6 +389,10 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         String table = "test_variant_with_" + withWhat;
         String[] actualFields = new String[fields.length + 1];
         actualFields[0] = "rowId Int32";
@@ -416,4 +426,8 @@ public class DataTypeTests extends BaseIntegrationTest {
         return sb.toString();
     }
 
+    public boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
 }

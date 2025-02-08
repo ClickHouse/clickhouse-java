@@ -34,7 +34,7 @@ public class InsertClientContentCompressionTests extends InsertTests {
         try (Client client = new Client.Builder()
                 .addEndpoint("https://localhost:" + secureServer.getPort())
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(true)
