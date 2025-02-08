@@ -38,7 +38,7 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
 
     private static final String DATABASE = "default";
     private static final String USER = "default";
-    private static final String PASSWORD = "";
+    private static final String PASSWORD = "test_default_password";
 
     private static final String CUSTOM_PROTOCOL_NAME = System.getProperty("protocol", "http").toUpperCase();
     private static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol

@@ -247,7 +247,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
         map.put("user-agent", !ClickHouseChecker.isNullOrEmpty(userAgent) ? userAgent : config.getClientName());
 
-        ClickHouseCredentials credentials = server.getCredentials(config);
+        ClickHouseCredentials credentials = config.getDefaultCredentials();
         if (credentials.useAccessToken()) {
             // TODO check if auth-scheme is available and supported
             map.put("authorization", credentials.getAccessToken());

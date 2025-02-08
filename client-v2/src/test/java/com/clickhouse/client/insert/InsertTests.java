@@ -25,6 +25,11 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
+import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
@@ -557,8 +562,8 @@ public class InsertTests extends BaseIntegrationTest {
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
     }
 
-    @Test
-    public void testAppCompression() throws Exception {
+    @Test(dataProvider = "testAppCompressionDataProvider", dataProviderClass = InsertTests.class)
+    public void testAppCompression(String algo) throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (name String, " +
@@ -582,17 +587,31 @@ public class InsertTests extends BaseIntegrationTest {
         byte[][] compressedData = new byte[data.length][];
         for (int i = 0 ; i < data.length; i++) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            GZIPOutputStream gz = new GZIPOutputStream(baos);
-            gz.write(data[i].getBytes(StandardCharsets.UTF_8));
-            gz.finish();
+            if (algo.equalsIgnoreCase("gzip")) {
+                GZIPOutputStream gz = new GZIPOutputStream(baos);
+                gz.write(data[i].getBytes(StandardCharsets.UTF_8));
+                gz.finish();
+            } else if (algo.equalsIgnoreCase("lz4")) {
+                FramedLZ4CompressorOutputStream lz4 = new FramedLZ4CompressorOutputStream(baos);
+                lz4.write(data[i].getBytes(StandardCharsets.UTF_8));
+                lz4.finish();
+            } else if (algo.equalsIgnoreCase("snappy")) {
+                byte bytes[] = data[i].getBytes(StandardCharsets.UTF_8);
+
+                SnappyCompressorOutputStream snappy = new SnappyCompressorOutputStream(baos,bytes.length, 32);
+                snappy.write(bytes);
+                snappy.finish();
+            }
             System.out.println("Compressed size " + baos.size() + ", uncompressed size: " + data[i].length());
             compressedData[i] = baos.toByteArray();
         }
 
         InsertSettings insertSettings = new InsertSettings()
-                .appCompressedData(true, "gzip");
+                .appCompressedData(true, algo);
         try (InsertResponse response = client.insert(tableName, out -> {
             for (byte[] row : compressedData) {
+//                if (algo.)
+                BinaryStreamUtils.writeVarInt(out, row.length);
                 out.write(row);
             }
         }, ClickHouseFormat.JSONEachRow, insertSettings).get()) {
@@ -604,6 +623,15 @@ public class InsertTests extends BaseIntegrationTest {
         for (GenericRecord record : records) {
             System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
         }
+    }
+
+    @DataProvider(name = "testAppCompressionDataProvider")
+    public static Object[][] testAppCompressionDataProvider() {
+        return new Object[][] {
+                {"gzip"},
+                {"lz4"},
+                {"snappy"},
+        };
     }
 
     protected void initTable(String tableName, String createTableSQL) throws Exception {

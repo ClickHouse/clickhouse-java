@@ -5,6 +5,8 @@ import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseProtocol;
 
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -26,7 +28,7 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
         System.setProperty("clickhouse.jdbc.v1","true");
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
         ClickHouseDriver driver = new ClickHouseDriver();
-        Connection conn = driver.connect("jdbc:clickhouse://" + address, null);
+        Connection conn = driver.connect("jdbc:clickhouse://default:" + ClickHouseServerForTest.getPassword() + "@" + address, null);
         conn.close();
     }
     @Test(groups = "integration")

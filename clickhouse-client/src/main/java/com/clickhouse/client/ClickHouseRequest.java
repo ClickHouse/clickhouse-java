@@ -26,6 +26,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseConfigChangeListener;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
@@ -590,7 +591,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 Map<ClickHouseOption, Serializable> merged = new HashMap<>();
                 merged.putAll(clientConfig.getAllOptions());
                 merged.putAll(options);
-                config = new ClickHouseConfig(merged, node.getCredentials(clientConfig),
+
+                ClickHouseCredentials credentials = node.getCredentials(clientConfig);
+                if (merged.containsKey(ClickHouseDefaults.USER) && merged.containsKey(ClickHouseDefaults.PASSWORD)) {
+                    credentials = ClickHouseCredentials.fromUserAndPassword((String) merged.get(ClickHouseDefaults.USER),
+                            (String) merged.get(ClickHouseDefaults.PASSWORD));
+                }
+                config = new ClickHouseConfig(merged, credentials,
                         clientConfig.getNodeSelector(), clientConfig.getMetricRegistry().orElse(null));
             }
         }
