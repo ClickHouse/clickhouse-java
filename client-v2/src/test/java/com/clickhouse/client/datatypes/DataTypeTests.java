@@ -61,7 +61,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(getPassword())
                 .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
@@ -146,7 +146,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         if (isVersionMatch("(,24.8]")) {
             return;
         }
-        
+
         final String table = "test_variant_primitives";
         final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
 
@@ -385,6 +385,101 @@ public class DataTypeTests extends BaseIntegrationTest {
                         "10,0.34",
                         "(10,0.34)",
                 });
+    }
+
+
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithPrimitives() throws Exception {
+
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_dynamic_primitives";
+        final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        String createTableStatement = " CREATE TABLE " + table + "( rowId Int64, field Dynamic ) " +
+                "Engine = MergeTree ORDER BY ()";
+
+        client.execute(createTableStatement, (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1"));
+        client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
+
+        int rowId = 0;
+        for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
+            System.out.println("Testing dynamic with " + dataType + " values");
+
+            switch (dataType) {
+                case Date:
+                case Date32:
+                case DateTime:
+                case DateTime32:
+                case DateTime64:
+                case Enum8:
+                case Enum16:
+                    continue;
+                default:
+            }
+
+            Object value = null;
+            for (Method m : sample.getClass().getDeclaredMethods()) {
+                if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
+                    value = m.invoke(sample);
+                    System.out.println("selected " + value + " returned by method " + m.getName());
+                    break;
+                }
+            }
+
+            List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+            data.add(new DTOForDynamicPrimitivesTests(rowId++, value));
+            try {
+                client.insert(table, data).get().close();
+            } catch (Exception e) {
+                System.out.println("Failed for " + dataType + ": " + e.getMessage());
+                continue;
+            }
+            List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId DESC  ");
+            GenericRecord row = rows.get(0);
+                String strValue = row.getString("field");
+                switch (dataType) {
+                    case Date:
+                    case Date32:
+                        strValue = row.getLocalDate("field").toString();
+                        break;
+                    case DateTime64:
+                    case DateTime:
+                    case DateTime32:
+                        strValue = row.getLocalDateTime("field").truncatedTo(ChronoUnit.SECONDS).toString();
+                        value = ((LocalDateTime) value).truncatedTo(ChronoUnit.SECONDS).toString();
+                        break;
+                    case Point:
+                        strValue = row.getGeoPoint("field").toString();
+                        break;
+                    case Ring:
+                        strValue = row.getGeoRing("field").toString();
+                        break;
+                    case Polygon:
+                        strValue = row.getGeoPolygon("field").toString();
+                        break;
+                    case MultiPolygon:
+                        strValue = row.getGeoMultiPolygon("field").toString();
+                        break;
+                }
+                System.out.println("field: " + strValue + " value " + value);
+                if (value.getClass().isPrimitive()) {
+                    Assert.assertEquals(strValue, String.valueOf(value));
+                } else {
+                    Assert.assertEquals(strValue, String.valueOf(value));
+                }
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForDynamicPrimitivesTests {
+        private int rowId;
+        private Object field;
     }
 
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {

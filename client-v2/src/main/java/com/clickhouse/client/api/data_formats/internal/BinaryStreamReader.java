@@ -1007,7 +1007,11 @@ public class BinaryStreamReader {
             if (type == null) {
                 throw  new ClientException("Unsupported interval kind: " + intervalKind);
             }
+
         } else {
+            if (tag == ClickHouseDataType.String.getBinTag()) {
+                System.out.println("String");
+            }
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
                 throw new ClientException("Unsupported data type with tag " + tag);

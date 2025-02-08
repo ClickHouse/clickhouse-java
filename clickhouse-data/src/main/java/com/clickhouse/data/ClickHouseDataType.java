@@ -228,6 +228,8 @@ public enum ClickHouseDataType {
 
     public static final byte SET_BIN_TAG = 0x21;
 
+    public static final byte CUSTOM_TYPE_BIN_TAG = 0x2C;
+
     public enum IntervalKindBinTag {
         Nanosecond(IntervalNanosecond, 0x00),
         Microsecond(IntervalMicrosecond, 0x01),
@@ -284,6 +286,8 @@ public enum ClickHouseDataType {
 
     public static final Map<Byte, ClickHouseDataType> intervalKind2Type;
 
+    public static final Map<ClickHouseDataType, Byte> intervalType2Kind;
+
     static {
         Set<String> set = new TreeSet<>();
         Map<String, ClickHouseDataType> map = new HashMap<>();
@@ -320,10 +324,13 @@ public enum ClickHouseDataType {
         binTag2Type = Collections.unmodifiableMap(tmpbinTag2Type);
 
         Map<Byte, ClickHouseDataType> tmpIntervalKind2Type = new HashMap<>();
+        Map<ClickHouseDataType, Byte > tmpIntervalType2Kind = new HashMap<>();
         for (IntervalKindBinTag kind : IntervalKindBinTag.values()) {
             tmpIntervalKind2Type.put(kind.getTag(), kind.getIntervalType());
+            tmpIntervalType2Kind.put(kind.getIntervalType(), kind.tag);
         }
         intervalKind2Type = Collections.unmodifiableMap(tmpIntervalKind2Type);
+        intervalType2Kind = Collections.unmodifiableMap(tmpIntervalType2Kind);
     }
 
     /**

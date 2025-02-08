@@ -10,6 +10,15 @@
         </managed2>
     </profiles>
     <users>
+        <default>
+            <access_management>0</access_management>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password>test_default_password</password>
+            <quota>default</quota>
+        </default>
         <dba>
             <access_management>1</access_management>
             <profile>default</profile>

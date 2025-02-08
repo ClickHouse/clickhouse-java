@@ -2,8 +2,6 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -30,17 +28,21 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -90,6 +92,11 @@ public class SerializerUtils {
                 value = value instanceof ClickHouseGeoMultiPolygonValue ? ((ClickHouseGeoMultiPolygonValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_MULTI_POLYGON_ARRAY);
                 break;
+            case Dynamic:
+                ClickHouseColumn typeColumn = valueToColumnForDynamicType(value);
+                writeDynamicTypeTag(stream, typeColumn, value);
+                serializeData(stream, value, typeColumn);
+                break;
             default:
                 serializePrimitiveData(stream, value, column);
                 break;
@@ -97,7 +104,207 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    private static final Map<Class<?>, ClickHouseColumn> PREDEFINED_TYPE_COLUMNS = getPredefinedTypeColumnsMap();
+
+    private static Map<Class<?>, ClickHouseColumn> getPredefinedTypeColumnsMap() {
+        HashMap<Class<?>, ClickHouseColumn> map = new HashMap<>();
+        map.put(Void.class, ClickHouseColumn.of("v", "Nothing"));
+        map.put(Boolean.class, ClickHouseColumn.of("v", "Bool"));
+        map.put(Byte.class, ClickHouseColumn.of("v", "Int8"));
+        map.put(Short.class, ClickHouseColumn.of("v", "Int16"));
+        map.put(Integer.class, ClickHouseColumn.of("v", "Int32"));
+        map.put(Long.class, ClickHouseColumn.of("v", "Int64"));
+        map.put(BigInteger.class, ClickHouseColumn.of("v", "Int256"));
+        map.put(Float.class, ClickHouseColumn.of("v", "Float32"));
+        map.put(Double.class, ClickHouseColumn.of("v", "Float64"));
+        map.put(LocalDate.class, ClickHouseColumn.of("v", "Date"));
+        map.put(UUID.class, ClickHouseColumn.of("v", "UUID"));
+        map.put(Inet4Address.class, ClickHouseColumn.of("v", "IPv4"));
+        map.put(Inet6Address.class, ClickHouseColumn.of("v", "IPv6"));
+        map.put(String.class, ClickHouseColumn.of("v", "String"));
+        map.put(LocalDateTime.class, ClickHouseColumn.of("v", "DateTime"));
+
+        map.put(boolean[].class, ClickHouseColumn.of("v", "Array(Bool)"));
+        map.put(boolean[][].class, ClickHouseColumn.of("v", "Array(Array(Bool))"));
+        map.put(boolean[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Bool)))"));
+
+        map.put(byte[].class, ClickHouseColumn.of("v", "Array(Int8)"));
+        map.put(byte[][].class, ClickHouseColumn.of("v", "Array(Array(Int8))"));
+        map.put(byte[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Int8)))"));
+
+        map.put(short[].class, ClickHouseColumn.of("v", "Array(Int16)"));
+        map.put(short[][].class, ClickHouseColumn.of("v", "Array(Array(Int16))"));
+        map.put(short[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Int16)))"));
+
+        map.put(int[].class, ClickHouseColumn.of("v", "Array(Int32)"));
+        map.put(int[][].class, ClickHouseColumn.of("v", "Array(Array(Int32))"));
+        map.put(int[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Int32)))"));
+
+        map.put(long[].class, ClickHouseColumn.of("v", "Array(Int64)"));
+        map.put(long[][].class, ClickHouseColumn.of("v", "Array(Array(Int64))"));
+        map.put(long[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Int64)))"));
+
+        map.put(float[].class, ClickHouseColumn.of("v", "Array(Float32)"));
+        map.put(float[][].class, ClickHouseColumn.of("v", "Array(Array(Float32))"));
+        map.put(float[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Float32)))"));
+
+        map.put(double[].class, ClickHouseColumn.of("v", "Array(Float64)"));
+        map.put(double[][].class, ClickHouseColumn.of("v", "Array(Array(Float64))"));
+        map.put(double[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Float64)))"));
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    public static ClickHouseColumn valueToColumnForDynamicType(Object value) {
+        ClickHouseColumn column;
+        if (value instanceof ZonedDateTime) {
+            ZonedDateTime dt = (ZonedDateTime) value;
+            column = ClickHouseColumn.of("v", "DateTime(" + dt.getZone().getId() + ")");
+        } else if (value instanceof BigDecimal) {
+            BigDecimal d = (BigDecimal) value;
+            column = ClickHouseColumn.of("v", "Decimal256(" + d.precision() + ", " + d.scale() + ")");
+        } else if (value instanceof Map<?,?>) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            // TODO: handle empty map?
+            Map.Entry<?, ?> entry = map.entrySet().iterator().next();
+            ClickHouseColumn keyInfo = valueToColumnForDynamicType(entry.getKey());
+            ClickHouseColumn valueInfo = valueToColumnForDynamicType(entry.getValue());
+            column = ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + ", " + valueInfo.getOriginalTypeName() + ")");
+        } else if (value instanceof List<?>) {
+            List<?> list = (List<?>) value;
+            StringBuilder type = new StringBuilder("Array()");
+            int insertPos = type.length() - 2;
+            while (!list.isEmpty() && list.get(0) instanceof List<?>) {
+                type.insert(insertPos, "Array()");
+                insertPos += 6; // add len of 'Array(' string
+                list = (List<?>) list.get(0);
+            }
+            if (list.isEmpty()) {
+                type.insert(insertPos, "Nothing");
+                column = ClickHouseColumn.of("v", type.toString());
+            } else {
+                ClickHouseColumn arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(list.get(0));
+                if (arrayBaseColumn != null) {
+                    type.insert(insertPos, arrayBaseColumn.getOriginalTypeName());
+                    column = ClickHouseColumn.of("v", type.toString());
+                } else {
+                    column = null;
+                }
+            }
+        } else if (value == null) {
+            column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
+        } else {
+            column = PREDEFINED_TYPE_COLUMNS.get(value.getClass());
+        }
+
+        if (column == null) {
+            throw new ClientException("Unable to serialize value of " + value.getClass() + " because not supported yet");
+        }
+
+        return column;
+    }
+
+    public static void writeDynamicTypeTag(OutputStream stream, ClickHouseColumn typeColumn, Object value)
+            throws IOException {
+
+        ClickHouseDataType dt = typeColumn.getDataType();
+        byte binTag = dt.getBinTag();
+        if (binTag == -1) {
+            throw new ClientException("Type " + dt.name() +" serialization is not supported for Dynamic column");
+        }
+
+        if (typeColumn.isNullable()) {
+            stream.write(ClickHouseDataType.NULLABLE_BIN_TAG);
+        }
+        if (typeColumn.isLowCardinality()) {
+            stream.write(ClickHouseDataType.LOW_CARDINALITY_BIN_TAG);
+        }
+
+        switch (dt) {
+            case FixedString:
+                stream.write(binTag);
+                writeVarInt(stream, typeColumn.getEstimatedLength());
+                break;
+            case Enum8:
+                stream.write(binTag);
+                ///	0x17<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><int8_value_1>...<var_uint_name_size_N><name_data_N><int8_value_N>
+                break;
+            case Enum16:
+                stream.write(binTag);
+                //0x18<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><int16_little_endian_value_1>...><var_uint_name_size_N><name_data_N><int16_little_endian_value_N>
+                break;
+            case Decimal:
+            case Decimal32:
+            case Decimal64:
+            case Decimal128:
+            case Decimal256:
+                stream.write(binTag);
+                //<tag><uint8_precision><uint8_scale>
+                break;
+
+            case IntervalNanosecond:
+            case IntervalMillisecond:
+            case IntervalSecond:
+            case IntervalMinute:
+            case IntervalHour:
+            case IntervalDay:
+            case IntervalWeek:
+            case IntervalMonth:
+            case IntervalQuarter:
+            case IntervalYear:
+                stream.write(binTag);
+                stream.write(ClickHouseDataType.IntervalKindBinTag.Day.getTag());
+                break;
+            case DateTime32:
+                stream.write(binTag);
+                BinaryStreamUtils.writeString(stream, typeColumn.getTimeZoneOrDefault(TimeZone.getDefault()).getID());
+                break;
+            case DateTime64:
+                break;
+            case Array:
+                stream.write(binTag);
+                // elements 0x1E<nested_type_encoding>
+                break;
+            case Map:
+                    stream.write(binTag);
+                    ///0x0F<var_uint_size><key_encoding_1><value_encoding_1>...<key_encoding_N><value_encoding_N>
+                break;
+            case Tuple:
+                // Tuple(T1, ..., TN)
+                //  0x1F<var_uint_number_of_elements><nested_type_encoding_1>...<nested_type_encoding_N>
+                stream.write(0x1F);
+                // or
+                // Tuple(name1 T1, ..., nameN TN)
+                //  0x20<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><nested_type_encoding_1>...<var_uint_name_size_N><name_data_N><nested_type_encoding_N>
+                stream.write(0x20);
+                break;
+            case Point:
+            case Polygon:
+            case Ring:
+            case MultiPolygon:
+                stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
+                break;
+            case Variant:
+                stream.write(binTag);
+                break;
+            case Dynamic:
+                stream.write(binTag);
+                break;
+            case JSON:
+                stream.write(binTag);
+                break;
+            case SimpleAggregateFunction:
+                stream.write(binTag);
+                break;
+            case AggregateFunction:
+                stream.write(binTag);
+                break;
+            default:
+                stream.write(binTag);
+        }
+    }
+
+    public static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
 
         if (value instanceof List<?>) {
             //Serialize the array to the stream
