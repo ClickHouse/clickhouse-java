@@ -46,6 +46,7 @@ import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
@@ -95,7 +96,7 @@ public class SerializerUtils {
                 break;
             case Dynamic:
                 ClickHouseColumn typeColumn = valueToColumnForDynamicType(value);
-                writeDynamicTypeTag(stream, typeColumn, value);
+                writeDynamicTypeTag(stream, typeColumn);
                 serializeData(stream, value, typeColumn);
                 break;
             default:
@@ -158,6 +159,10 @@ public class SerializerUtils {
         map.put(double[][].class, ClickHouseColumn.of("v", "Array(Array(Float64))"));
         map.put(double[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Float64)))"));
 
+        map.put(String[].class, ClickHouseColumn.of("v", "Array(String)"));
+        map.put(String[][].class, ClickHouseColumn.of("v", "Array(Array(String))"));
+        map.put(String[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(String)))"));
+
         return Collections.unmodifiableMap(map);
     }
 
@@ -187,26 +192,7 @@ public class SerializerUtils {
             ClickHouseColumn valueInfo = valueToColumnForDynamicType(entry.getValue());
             column = ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + ", " + valueInfo.getOriginalTypeName() + ")");
         } else if (value instanceof List<?>) {
-            List<?> list = (List<?>) value;
-            StringBuilder type = new StringBuilder("Array()");
-            int insertPos = type.length() - 2;
-            while (!list.isEmpty() && list.get(0) instanceof List<?>) {
-                type.insert(insertPos, "Array()");
-                insertPos += 6; // add len of 'Array(' string
-                list = (List<?>) list.get(0);
-            }
-            if (list.isEmpty()) {
-                type.insert(insertPos, "Nothing");
-                column = ClickHouseColumn.of("v", type.toString());
-            } else {
-                ClickHouseColumn arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(list.get(0));
-                if (arrayBaseColumn != null) {
-                    type.insert(insertPos, arrayBaseColumn.getOriginalTypeName());
-                    column = ClickHouseColumn.of("v", type.toString());
-                } else {
-                    column = null;
-                }
-            }
+            column = value2Column(value);
         } else if (value == null) {
             column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
         } else {
@@ -220,7 +206,45 @@ public class SerializerUtils {
         return column;
     }
 
-    public static void writeDynamicTypeTag(OutputStream stream, ClickHouseColumn typeColumn, Object value)
+    // Returns null if cannot convert
+    // The problem here is that >2-dimensional array would require traversing all value
+    // to detect correct depth. Consider this example
+    // int[][] {
+    //      null
+    //      {   }
+    //      { 0, 1, 2 }
+    // In this case we need to find max depth.
+
+    private static ClickHouseColumn value2Column(Object value) {
+        ClickHouseColumn column;
+        if (value instanceof List<?>) {
+            List<?> list = (List<?>) value;
+            StringBuilder type = new StringBuilder("Array()");
+            int insertPos = type.length() - 1;
+            while (!list.isEmpty() && list.get(0) instanceof List<?>) {
+                type.insert(insertPos, "Array()");
+                insertPos += 6; // add len of 'Array(' string
+                list = (List<?>) list.get(0);
+            }
+            if (list.isEmpty() || list.get(0) == null) {
+                type.insert(insertPos, "Nothing");
+                column = ClickHouseColumn.of("v", type.toString());
+            } else {
+                ClickHouseColumn arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(list.get(0).getClass());
+                if (arrayBaseColumn != null) {
+                    type.insert(insertPos, arrayBaseColumn.getOriginalTypeName());
+                    column = ClickHouseColumn.of("v", type.toString());
+                } else {
+                    column = null;
+                }
+            }
+        } else {
+            column = null;
+        }
+        return column;
+    }
+
+    public static void writeDynamicTypeTag(OutputStream stream, ClickHouseColumn typeColumn)
             throws IOException {
 
         ClickHouseDataType dt = typeColumn.getDataType();
@@ -285,7 +309,8 @@ public class SerializerUtils {
                 break;
             case Array:
                 stream.write(binTag);
-                // elements 0x1E<nested_type_encoding>
+                ClickHouseColumn arrayElemColumn = typeColumn.getNestedColumns().get(0);
+                writeDynamicTypeTag(stream, arrayElemColumn);
                 break;
             case Map:
                     stream.write(binTag);

@@ -21,11 +21,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -93,18 +96,12 @@ public class BinaryStreamReader {
             }
         }
 
-        ClickHouseDataType dataType = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicData() : column.getDataType();
-        int estimatedLen = column.getEstimatedLength();
-        int precision = column.getPrecision();
-        int scale = column.getScale();
-        if (dataType == ClickHouseDataType.Decimal || dataType == ClickHouseDataType.Decimal32 ||
-            dataType == ClickHouseDataType.Decimal64 || dataType == ClickHouseDataType.Decimal128 ||
-            dataType == ClickHouseDataType.Decimal256) {
-            precision = readByte();
-            scale = readByte();
-            System.out.println("p: " + precision + " " +scale);
-        }
-        TimeZone timezone = column.getTimeZoneOrDefault(timeZone);
+        ClickHouseColumn actualColumn = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicData() : column;
+        ClickHouseDataType dataType = actualColumn.getDataType();
+        int estimatedLen = actualColumn.getEstimatedLength();
+        int precision = actualColumn.getPrecision();
+        int scale = actualColumn.getScale();
+        TimeZone timezone = actualColumn.getTimeZoneOrDefault(timeZone);
 
         try {
             switch (dataType) {
@@ -211,24 +208,24 @@ public class BinaryStreamReader {
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case Array:
-                    return convertArray(readArray(column), typeHint);
+                    return convertArray(readArray(actualColumn), typeHint);
                 case Map:
-                    return (T) readMap(column);
+                    return (T) readMap(actualColumn);
 //                case Nested:
                 case Tuple:
-                    return (T) readTuple(column);
+                    return (T) readTuple(actualColumn);
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
                     return (T) readValue(column.getNestedColumns().get(0));
                 case AggregateFunction:
-                    return (T) readBitmap( column);
+                    return (T) readBitmap( actualColumn);
                 case Variant:
-                    return (T) readVariant(column);
+                    return (T) readVariant(actualColumn);
                 case Dynamic:
-                    return (T) readValue(column, typeHint);
+                    return (T) readValue(actualColumn, typeHint);
                 default:
-                    throw new IllegalArgumentException("Unsupported data type: " + column.getDataType());
+                    throw new IllegalArgumentException("Unsupported data type: " + actualColumn.getDataType());
             }
         } catch (EOFException e) {
             throw e;
@@ -1003,7 +1000,15 @@ public class BinaryStreamReader {
         }
     }
 
-    private ClickHouseDataType readDynamicData() throws IOException {
+    private static final Set<Byte> DECIMAL_TAGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            ClickHouseDataType.Decimal.getBinTag(),
+            ClickHouseDataType.Decimal32.getBinTag(),
+            ClickHouseDataType.Decimal64.getBinTag(),
+            ClickHouseDataType.Decimal128.getBinTag(),
+            ClickHouseDataType.Decimal256.getBinTag()
+    )));
+
+    private ClickHouseColumn readDynamicData() throws IOException {
         byte tag = readByte();
 
         ClickHouseDataType type;
@@ -1013,25 +1018,24 @@ public class BinaryStreamReader {
             if (type == null) {
                 throw new ClientException("Unsupported interval kind: " + intervalKind);
             }
+            return ClickHouseColumn.of("v", type, false, 0, 0);
         } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
             String typeName = readString(input);
-            return ClickHouseDataType.valueOf(typeName);
-        } else if (tag == ClickHouseDataType.Decimal32.getBinTag()) {
-            return ClickHouseDataType.Decimal;
-        } else if (tag == ClickHouseDataType.Decimal64.getBinTag()) {
-            return ClickHouseDataType.Decimal;
-        } else if (tag == ClickHouseDataType.Decimal128.getBinTag()) {
-            return ClickHouseDataType.Decimal;
-        } else if (tag == ClickHouseDataType.Decimal256.getBinTag()) {
-            return ClickHouseDataType.Decimal;
+            return ClickHouseColumn.of("v", typeName);
+        } else if (DECIMAL_TAGS.contains(tag)) {
+            int precision = readByte();
+            int scale = readByte();
+            return ClickHouseColumn.of("v", ClickHouseDataType.binTag2Type.get(tag), false, precision, scale);
+        } else if (tag == ClickHouseDataType.Array.getBinTag()) {
+            ClickHouseColumn elementColumn = readDynamicData();
+            return ClickHouseColumn.of("v", "Array(" + elementColumn.getOriginalTypeName() + ")");
         } else {
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
                 throw new ClientException("Unsupported data type with tag " + tag);
             }
+            return ClickHouseColumn.of("v", type, false, 0, 0);
         }
-
-        return type;
     }
 
     private static final ClickHouseColumn JSON_PLACEHOLDER_COL = ClickHouseColumn.parse("v Dynamic").get(0);

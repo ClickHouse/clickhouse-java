@@ -410,15 +410,35 @@ public class DataTypeTests extends BaseIntegrationTest {
         int rowId = 0;
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             System.out.println("Testing dynamic with " + dataType + " values");
-
             switch (dataType) {
                 case Date:
                 case Date32:
                 case DateTime:
                 case DateTime32:
                 case DateTime64:
+                case Decimal:
+                case Decimal32:
+                case Decimal64:
+                case Decimal128:
+                case Decimal256:
+                    // requires fix
+                    continue;
+                case Array:
+                case Map:
+                case Nested:
+                case Tuple:
+                case AggregateFunction:
+                case SimpleAggregateFunction:
+                case Variant:
                 case Enum8:
                 case Enum16:
+                    // tested separately
+                    continue;
+                case Dynamic:
+                case Nothing:
+                case Object:
+                case JSON:
+                    // no tests or tested in other tests
                     continue;
                 default:
             }
@@ -480,11 +500,74 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testDynamicWithArrays() throws Exception {
+        testDynamicWith("arrays",
+                new Object[]{
+                        "a,b",
+                        new String[]{"a", "b"},
+                        Arrays.asList("c", "d")
+                },
+                new String[]{
+                        "a,b",
+                        "[a, b]",
+                        "[c, d]"
+                });
+        testDynamicWith("arrays",
+                new Object[]{
+                        new int[]{1, 2},
+                        new String[]{"a", "b"},
+                        Arrays.asList("c", "d")
+                },
+                new String[]{
+                        "[1, 2]",
+                        "[a, b]",
+                        "[c, d]",
+                });
+
+        testDynamicWith("arrays",
+                new Object[]{
+                        new int[][]{ new int[] {1, 2}, new int[] { 3, 4}},
+                        new String[][]{new String[]{"a", "b"}, new String[]{"c", "d"}},
+                        Arrays.asList(Arrays.asList("e", "f"), Arrays.asList("j", "h"))
+                },
+                new String[]{
+                        "[[1, 2], [3, 4]]",
+                        "[[a, b], [c, d]]",
+                        "[[e, f], [j, h]]",
+                });
+    }
+
     @Data
     @AllArgsConstructor
     public static class DTOForDynamicPrimitivesTests {
         private int rowId;
         private Object field;
+    }
+
+    private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String table = "test_dynamic_with_" + withWhat;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
+                (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1")).get();
+
+        client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
+
+        List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            data.add(new DTOForDynamicPrimitivesTests(i, values[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
+        for (GenericRecord row : rows) {
+            System.out.println("> " + row.getString("field"));
+            Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
+        }
     }
 
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {

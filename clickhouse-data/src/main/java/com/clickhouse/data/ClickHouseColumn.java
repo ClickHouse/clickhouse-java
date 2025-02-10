@@ -640,7 +640,7 @@ public final class ClickHouseColumn implements Serializable {
         return Collections.unmodifiableList(c);
     }
 
-    private ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
+    public ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
             boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns) {
         this.aggFuncType = null;
         this.dataType = ClickHouseChecker.nonNull(dataType, "dataType");
