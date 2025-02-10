@@ -466,6 +466,10 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case MultiPolygon:
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
+                    case Decimal32:
+                        double v = row.getDouble("field");
+                        System.out.println(v);
+                        break;
                 }
                 System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {

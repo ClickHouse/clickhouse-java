@@ -168,7 +168,17 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", "DateTime(" + dt.getZone().getId() + ")");
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
-            column = ClickHouseColumn.of("v", "Decimal256(" + d.precision() + ", " + d.scale() + ")");
+            String decType;
+            if (d.scale() <= ClickHouseDataType.Decimal32.getMaxScale()) {
+                decType = "Decimal32";
+            } else if (d.scale() <= ClickHouseDataType.Decimal64.getMaxScale()) {
+                decType = "Decimal64";
+            } else if (d.scale() <= ClickHouseDataType.Decimal128.getMaxScale()) {
+                decType = "Decimal128";
+            } else {
+                decType = "Decimal256";
+            }
+            column = ClickHouseColumn.of("v", decType + "(" + d.precision() +"," + d.scale() + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
             // TODO: handle empty map?

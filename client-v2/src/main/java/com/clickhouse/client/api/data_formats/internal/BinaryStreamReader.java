@@ -97,6 +97,13 @@ public class BinaryStreamReader {
         int estimatedLen = column.getEstimatedLength();
         int precision = column.getPrecision();
         int scale = column.getScale();
+        if (dataType == ClickHouseDataType.Decimal || dataType == ClickHouseDataType.Decimal32 ||
+            dataType == ClickHouseDataType.Decimal64 || dataType == ClickHouseDataType.Decimal128 ||
+            dataType == ClickHouseDataType.Decimal256) {
+            precision = readByte();
+            scale = readByte();
+            System.out.println("p: " + precision + " " +scale);
+        }
         TimeZone timezone = column.getTimeZoneOrDefault(timeZone);
 
         try {
@@ -138,7 +145,7 @@ public class BinaryStreamReader {
                 case UInt256:
                     return (T) readBigIntegerLE(INT256_SIZE, true);
                 case Decimal:
-                    return (T) readDecimal(column.getPrecision(), column.getScale());
+                    return (T) readDecimal(precision, scale);
                 case Decimal32:
                     return (T) readDecimal(ClickHouseDataType.Decimal32.getMaxPrecision(), scale);
                 case Decimal64:
@@ -462,7 +469,6 @@ public class BinaryStreamReader {
         } else {
             v = new BigDecimal(readBigIntegerLE(INT256_SIZE, false), scale);
         }
-
         return v;
     }
 
@@ -1010,31 +1016,14 @@ public class BinaryStreamReader {
         } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
             String typeName = readString(input);
             return ClickHouseDataType.valueOf(typeName);
-        } else if (tag == ClickHouseDataType.Decimal.getBinTag()) {
-            byte precision = readByte();
-            byte scale = readByte();
-            System.out.println("precision: " + precision + " scale: " + scale);
-            return ClickHouseDataType.Decimal;
         } else if (tag == ClickHouseDataType.Decimal32.getBinTag()) {
-            byte precision = readByte();
-            byte scale = readByte();
-            System.out.println("precision: " + precision + " scale: " + scale);
             return ClickHouseDataType.Decimal;
         } else if (tag == ClickHouseDataType.Decimal64.getBinTag()) {
-            byte precision = readByte();
-            byte scale = readByte();
-            System.out.println("precision: " + precision + " scale: " + scale);
-            return ClickHouseDataType.Decimal64;
+            return ClickHouseDataType.Decimal;
         } else if (tag == ClickHouseDataType.Decimal128.getBinTag()) {
-            byte precision = readByte();
-            byte scale = readByte();
-            System.out.println("precision: " + precision + " scale: " + scale);
-            return ClickHouseDataType.Decimal128;
+            return ClickHouseDataType.Decimal;
         } else if (tag == ClickHouseDataType.Decimal256.getBinTag()) {
-            byte precision = readByte();
-            byte scale = readByte();
-            System.out.println("precision: " + precision + " scale: " + scale);
-            return ClickHouseDataType.Decimal256;
+            return ClickHouseDataType.Decimal;
         } else {
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
