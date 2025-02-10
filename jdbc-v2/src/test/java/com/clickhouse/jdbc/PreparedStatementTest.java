@@ -260,4 +260,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+
+    @Test(groups = "integration")
+    void testWithClause() throws Exception {
+        int count = 0;
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("with data as (SELECT number FROM numbers(100)) select * from data ")) {
+                stmt.execute();
+                ResultSet rs = stmt.getResultSet();
+                while (rs.next()) {
+                    count++;
+                }
+            }
+        }
+        assertEquals(count, 100);
+    }
 }
