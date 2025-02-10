@@ -174,16 +174,22 @@ public class SerializerUtils {
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
             String decType;
-            if (d.scale() <= ClickHouseDataType.Decimal32.getMaxScale()) {
-                decType = "Decimal32";
-            } else if (d.scale() <= ClickHouseDataType.Decimal64.getMaxScale()) {
-                decType = "Decimal64";
-            } else if (d.scale() <= ClickHouseDataType.Decimal128.getMaxScale()) {
-                decType = "Decimal128";
-            } else {
+            int scale;
+            if (d.precision() > ClickHouseDataType.Decimal128.getMaxScale()) {
                 decType = "Decimal256";
+                scale = ClickHouseDataType.Decimal128.getMaxScale();
+            } else if (d.precision() > ClickHouseDataType.Decimal64.getMaxScale()) {
+                decType = "Decimal128";
+                scale = ClickHouseDataType.Decimal128.getMaxScale();
+            } else if (d.precision() > ClickHouseDataType.Decimal32.getMaxScale()) {
+                decType = "Decimal64";
+                scale = ClickHouseDataType.Decimal128.getMaxScale();
+            } else {
+                decType = "Decimal32";
+                scale = ClickHouseDataType.Decimal128.getMaxScale();
             }
-            column = ClickHouseColumn.of("v", decType + "(" + d.precision() +"," + d.scale() + ")");
+
+            column = ClickHouseColumn.of("v", decType + "(" + scale + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
             // TODO: handle empty map?
@@ -279,11 +285,9 @@ public class SerializerUtils {
             case Decimal128:
             case Decimal256:
                 stream.write(binTag);
-                stream.write(dt.getMaxPrecision());
-                stream.write(dt.getMaxScale());
-                //<tag><uint8_precision><uint8_scale>
+                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
+                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxScale());
                 break;
-
             case IntervalNanosecond:
             case IntervalMillisecond:
             case IntervalSecond:
@@ -313,8 +317,10 @@ public class SerializerUtils {
                 writeDynamicTypeTag(stream, arrayElemColumn);
                 break;
             case Map:
-                    stream.write(binTag);
-                    ///0x0F<var_uint_size><key_encoding_1><value_encoding_1>...<key_encoding_N><value_encoding_N>
+                stream.write(binTag);
+                // 0x27<key_type_encoding><value_type_encoding>
+                writeDynamicTypeTag(stream, typeColumn.getKeyInfo());
+                writeDynamicTypeTag(stream, typeColumn.getValueInfo());
                 break;
             case Tuple:
                 // Tuple(T1, ..., TN)

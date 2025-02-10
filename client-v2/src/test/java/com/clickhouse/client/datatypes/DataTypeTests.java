@@ -388,8 +388,6 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
-
-
     @Test(groups = {"integration"})
     public void testDynamicWithPrimitives() throws Exception {
 
@@ -416,11 +414,11 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case DateTime:
                 case DateTime32:
                 case DateTime64:
-                case Decimal:
-                case Decimal32:
-                case Decimal64:
-                case Decimal128:
-                case Decimal256:
+//                case Decimal:
+//                case Decimal32:
+//                case Decimal64:
+//                case Decimal128:
+//                case Decimal256:
                     // requires fix
                     continue;
                 case Array:
@@ -486,10 +484,6 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case MultiPolygon:
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
-                    case Decimal32:
-                        double v = row.getDouble("field");
-                        System.out.println(v);
-                        break;
                 }
                 System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {
@@ -535,6 +529,41 @@ public class DataTypeTests extends BaseIntegrationTest {
                         "[[1, 2], [3, 4]]",
                         "[[a, b], [c, d]]",
                         "[[e, f], [j, h]]",
+                });
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithMaps() throws Exception {
+        Map<String, Byte> map1 = new HashMap<>();
+        map1.put("key1", (byte) 1);
+        map1.put("key2", (byte) 2);
+        map1.put("key3", (byte) 3);
+
+        testDynamicWith("maps",
+                new Object[]{
+                        map1
+                },
+                new String[]{
+                        "{key1=1, key2=2, key3=3}",
+                });
+
+
+        Map<Integer, String> map2 = new HashMap<>();
+        map2.put(1, "a");
+        map2.put(2, "b");
+
+        Map<String, String> map3 = new HashMap<>();
+        map3.put("1", "a");
+        map3.put("2", "b");
+
+        testDynamicWith("maps",
+                new Object[]{
+                        map2,
+                        map3
+                },
+                new String[]{
+                        "{1=a, 2=b}",
+                        "{1=a, 2=b}",
                 });
     }
 

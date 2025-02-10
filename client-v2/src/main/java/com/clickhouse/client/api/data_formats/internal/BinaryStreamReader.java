@@ -1029,6 +1029,10 @@ public class BinaryStreamReader {
         } else if (tag == ClickHouseDataType.Array.getBinTag()) {
             ClickHouseColumn elementColumn = readDynamicData();
             return ClickHouseColumn.of("v", "Array(" + elementColumn.getOriginalTypeName() + ")");
+        } else if (tag == ClickHouseDataType.Map.getBinTag()) {
+            ClickHouseColumn keyInfo = readDynamicData();
+            ClickHouseColumn valueInfo = readDynamicData();
+            return ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + "," + valueInfo.getOriginalTypeName() + ")");
         } else {
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
