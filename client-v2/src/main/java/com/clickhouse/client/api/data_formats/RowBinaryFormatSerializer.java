@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -143,6 +145,22 @@ public class RowBinaryFormatSerializer {
 
     public void writeDateTime64(ZonedDateTime value, int scale, ZoneId targetTz) throws IOException {
         SerializerUtils.writeDateTime64(out, value, scale, targetTz);
+    }
+
+    public void writeDateTime32(OffsetDateTime value) throws IOException {
+        SerializerUtils.writeDateTime32(out, value, null);
+    }
+
+    public void writeDateTime64(OffsetDateTime value, int scale) throws IOException {
+        SerializerUtils.writeDateTime64(out, value, scale, null);
+    }
+
+    public void writeDateTime32(Instant value) throws IOException {
+        SerializerUtils.writeDateTime32(out, value, null);
+    }
+
+    public void writeDateTime64(Instant value, int scale) throws IOException {
+        SerializerUtils.writeDateTime64(out, value, scale, null);
     }
 
     public void writeEnum8(byte value) throws IOException {

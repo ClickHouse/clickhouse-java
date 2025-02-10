@@ -2006,6 +2006,7 @@ public class Client implements AutoCloseable {
         return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
     }
 
+    @Override
     public String toString() {
         return "Client{" +
                 "endpoints=" + endpoints +

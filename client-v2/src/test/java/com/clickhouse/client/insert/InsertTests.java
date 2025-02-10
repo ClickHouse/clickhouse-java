@@ -48,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -139,7 +140,6 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(response.getQueryId(), uuid);
     }
 
-
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOWithJSON() throws Exception {
         if (isCloud()) {
@@ -212,6 +212,12 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
             Assert.assertEquals(reader.getString("string"), pojo.getString());
             Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime").isEqual(pojo.getZonedDateTime().withNano(0)));
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime64").isEqual(pojo.getZonedDateTime64()));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime").isEqual(pojo.getOffsetDateTime().withNano(0)));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime64").isEqual(pojo.getOffsetDateTime64()));
+            Assert.assertEquals(reader.getInstant("instant"), pojo.getInstant().with(ChronoField.MICRO_OF_SECOND, 0));
+            Assert.assertEquals(reader.getInstant("instant64"), pojo.getInstant64());
         }
     }
 
@@ -456,12 +462,12 @@ public class InsertTests extends BaseIntegrationTest {
                 if (row[4] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeString((String) row[4]);
+                    formatWriter.writeDateTime((ZonedDateTime) row[4], null);
                 }
                 if (row[5] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeInt8((byte) row[5]);
+                    formatWriter.writeInt8(((Integer) row[5]).byteValue());
                 }
             }
         }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
