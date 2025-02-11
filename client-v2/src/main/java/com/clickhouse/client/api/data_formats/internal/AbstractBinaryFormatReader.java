@@ -27,12 +27,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -221,7 +216,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected void setSchema(TableSchema schema) {
         this.schema = schema;
-        this.columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
 
         for (int i = 0; i < columns.length; i++) {
@@ -288,7 +283,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             ClickHouseDataType dataType = column.getDataType();
             ZonedDateTime zdt = (ZonedDateTime) value;
             if (dataType == ClickHouseDataType.Date) {
-                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
+                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER);
             }
             return value.toString();
         } else if (value instanceof BinaryStreamReader.EnumValue) {
@@ -389,11 +384,17 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return data.atStartOfDay().toInstant(ZoneOffset.UTC);
             case DateTime:
             case DateTime64:
-                LocalDateTime dateTime = readValue(colName);
-                return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-
+                Object colValue = readValue(colName);
+                if (colValue instanceof LocalDateTime) {
+                    LocalDateTime dateTime = (LocalDateTime) colValue;
+                    return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+                } else {
+                    ZonedDateTime dateTime = (ZonedDateTime) colValue;
+                    return dateTime.toInstant();
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
@@ -406,9 +407,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             case Date:
             case Date32:
                 return readValue(colName);
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
-
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
@@ -745,6 +746,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(int index) {
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
     }
 
     @Override

@@ -362,7 +362,7 @@ public final class ClickHouseUtils {
                 pattern.chars().anyMatch(
                         value -> {
                             if (value < ' ' || reservedCharsWindows.indexOf(value) != -1) {
-                                throw new IllegalArgumentException("File path contains reserved character <%s>".formatted((char) value));
+                                throw new IllegalArgumentException(String.format("File path contains reserved character <%s>", value));
                             }
                             return false;
                         }

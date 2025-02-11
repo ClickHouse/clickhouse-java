@@ -1884,7 +1884,7 @@ public class QueryTests extends BaseIntegrationTest {
             throw e;
         }
 
-        client.register(AggregateFuncDTO.class, client.getTableSchema(tableName, "default"));
+        client.register(AggregateFuncDTO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo)).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);
