@@ -254,9 +254,6 @@ public class HttpAPIClientHelper {
 
                 applyMethod = micrometerLoader.getDeclaredMethod("applyConnectionMetricsBinder", Object.class, String.class, MeteredManagedHttpClientConnectionFactory.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
-
-                applyMethod = micrometerLoader.getDeclaredMethod("applyFailureRatioMetricsBinder", Object.class, String.class, HttpAPIClientHelper.class);
-                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, this);
             } catch (Exception e) {
                 LOG.error("Failed to register metrics", e);
             }
