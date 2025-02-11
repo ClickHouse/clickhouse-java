@@ -156,6 +156,6 @@ public class ClickHouseStatement implements Statement {
 
     @Override
     public Statement returnGeneratedValues(String... columns) {
-        throw new UnsupportedOperationException(GENERATED_VALUES_CAN_NOT_BE_RETURNED_FROM_CLICKHOUSE_DATABASE);
+        return null;
     }
 }
