@@ -156,6 +156,6 @@ public class ClickHouseStatement implements Statement {
 
     @Override
     public Statement returnGeneratedValues(String... columns) {
-        return null;
+        return this;
     }
 }
