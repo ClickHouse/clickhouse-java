@@ -6,9 +6,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -24,17 +22,16 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class DataTypeTests extends BaseIntegrationTest {
 
@@ -63,7 +60,6 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
@@ -115,11 +111,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                         0, Arrays.asList("db", "fast"), new int[]{1, 2, 3}, new String[]{"a", "b", "c"})),
                 (data, dto) -> {
                     DTOForArraysTests dataDto = data.get(dto.getRowId());
-                    System.out.println(dto.getWords());
                     Assert.assertEquals(dto.getWords(), dataDto.getWords());
-                    System.out.println(Arrays.asList(dto.getLetters()));
                     Assert.assertEquals(dto.getLetters(), dataDto.getLetters());
-                    System.out.println(Arrays.asList(dto.getNumbers()));
                     Assert.assertEquals(dto.getNumbers(), dataDto.getNumbers());
                 });
     }
@@ -153,7 +146,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         dataTypesLoop:
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
-            System.out.println("Testing " + dataType);
             client.execute("DROP TABLE IF EXISTS " + table).get();
             StringBuilder b = new StringBuilder(" CREATE TABLE ");
             b.append(table).append(" ( rowId Int64, field Variant(String, ").append(dataType.name());
@@ -161,21 +153,11 @@ public class DataTypeTests extends BaseIntegrationTest {
             switch (dataType) {
                 case String:
                 case FixedString:
-                case IntervalYear:
-                case IntervalDay:
-                case IntervalHour:
-                case IntervalWeek:
-                case IntervalMonth:
-                case IntervalMinute:
-                case IntervalSecond:
-                case IntervalNanosecond:
-                case IntervalMicrosecond:
-                case IntervalQuarter:
-                case IntervalMillisecond:
                 case Nothing:
                 case Variant:
                 case JSON:
                 case Object:
+                case Dynamic:
                     // skipped
                     continue dataTypesLoop;
 
@@ -205,10 +187,10 @@ public class DataTypeTests extends BaseIntegrationTest {
             for (Method m : sample.getClass().getDeclaredMethods()) {
                 if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
                     value = m.invoke(sample);
-                    System.out.println("selected " + value + " returned by method " + m.getName());
                     break;
                 }
             }
+            Assert.assertNotNull(value);
 
             List<DTOForVariantPrimitivesTests> data = new ArrayList<>();
             data.add(new DTOForVariantPrimitivesTests(0, value));
@@ -241,7 +223,6 @@ public class DataTypeTests extends BaseIntegrationTest {
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
                 }
-                System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {
                     Assert.assertEquals(strValue, String.valueOf(value));
                 } else {
@@ -407,57 +388,52 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         int rowId = 0;
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
-            System.out.println("Testing dynamic with " + dataType + " values");
             switch (dataType) {
                 case Date:
                 case Date32:
                 case DateTime:
                 case DateTime32:
                 case DateTime64:
-//                case Decimal:
-//                case Decimal32:
-//                case Decimal64:
-//                case Decimal128:
-//                case Decimal256:
                     // requires fix
                     continue;
                 case Array:
                 case Map:
-                case Nested:
-                case Tuple:
                 case AggregateFunction:
                 case SimpleAggregateFunction:
-                case Variant:
-                case Enum8:
-                case Enum16:
                     // tested separately
                     continue;
                 case Dynamic:
-                case Nothing:
-                case Object:
+                case Nothing: // array tests
+                case Object: // deprecated
                 case JSON:
+                case Nested:
+                case Tuple:
+                case Variant:
+                case Decimal: // virtual type
                     // no tests or tested in other tests
                     continue;
                 default:
             }
 
             Object value = null;
-            for (Method m : sample.getClass().getDeclaredMethods()) {
-                if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
-                    value = m.invoke(sample);
-                    System.out.println("selected " + value + " returned by method " + m.getName());
-                    break;
+            if (dataType == ClickHouseDataType.Enum8) {
+                value = sample.getSmallEnum();
+            } else if (dataType == ClickHouseDataType.Enum16) {
+                value = sample.getLargeEnum();
+            } else {
+                for (Method m : sample.getClass().getDeclaredMethods()) {
+                    if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
+                        value = m.invoke(sample);
+                        break;
+                    }
                 }
             }
 
+            Assert.assertNotNull(value);
+
             List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
             data.add(new DTOForDynamicPrimitivesTests(rowId++, value));
-            try {
-                client.insert(table, data).get().close();
-            } catch (Exception e) {
-                System.out.println("Failed for " + dataType + ": " + e.getMessage());
-                continue;
-            }
+            client.insert(table, data).get().close();
             List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId DESC  ");
             GenericRecord row = rows.get(0);
                 String strValue = row.getString("field");
@@ -484,8 +460,14 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case MultiPolygon:
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
+                    case Decimal32:
+                    case Decimal64:
+                    case Decimal128:
+                    case Decimal256:
+                        BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
+                        strValue = tmpDec.toPlainString();
+                        break;
                 }
-                System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {
                     Assert.assertEquals(strValue, String.valueOf(value));
                 } else {
@@ -594,7 +576,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
         for (GenericRecord row : rows) {
-            System.out.println("> " + row.getString("field"));
             Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
         }
     }
@@ -621,7 +602,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
         for (GenericRecord row : rows) {
-            System.out.println("> " + row.getString("field"));
             Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
         }
     }

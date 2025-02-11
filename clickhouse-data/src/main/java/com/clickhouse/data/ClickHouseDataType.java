@@ -213,6 +213,19 @@ public enum ClickHouseDataType {
         map.put(Enum8, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         map.put(Array, setOf(List.class, Object[].class, byte[].class, short[].class, int[].class, long[].class, boolean[].class));
+
+        map.put(IntervalYear, setOfAllNumberClasses);
+        map.put(IntervalQuarter, setOfAllNumberClasses);
+        map.put(IntervalMonth, setOfAllNumberClasses);
+        map.put(IntervalWeek, setOfAllNumberClasses);
+        map.put(IntervalDay, setOfAllNumberClasses);
+        map.put(IntervalHour, setOfAllNumberClasses);
+        map.put(IntervalMinute, setOfAllNumberClasses);
+        map.put(IntervalSecond, setOfAllNumberClasses);
+        map.put(IntervalMillisecond, setOfAllNumberClasses);
+        map.put(IntervalMicrosecond, setOfAllNumberClasses);
+        map.put(IntervalNanosecond, setOfAllNumberClasses);
+
         return map;
     }
 

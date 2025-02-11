@@ -291,9 +291,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
             }
             return value.toString();
+        } else if (value instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue)value).name;
         } else if (value instanceof Number ) {
             ClickHouseDataType dataType = column.getDataType();
-            int num = ((Number)value).intValue();
+            int num = ((Number) value).intValue();
             if (column.getDataType() == ClickHouseDataType.Variant) {
                 for (ClickHouseColumn c : column.getNestedColumns()) {
                     // TODO: will work only if single enum listed as variant

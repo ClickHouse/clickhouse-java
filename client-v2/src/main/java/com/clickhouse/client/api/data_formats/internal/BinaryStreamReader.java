@@ -3,6 +3,7 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseEnum;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
@@ -158,9 +159,11 @@ public class BinaryStreamReader {
                 case Bool:
                     return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
                 case Enum8:
-                    return (T) Byte.valueOf((byte) readUnsignedByte());
+                    byte enum8Val = (byte) readUnsignedByte();
+                    return (T) new EnumValue(actualColumn.getEnumConstants().name(enum8Val), enum8Val);
                 case Enum16:
-                    return (T) Short.valueOf((short) readUnsignedShortLE());
+                    short enum16Val = (short) readUnsignedShortLE();
+                    return (T) new EnumValue(actualColumn.getEnumConstants().name(enum16Val), enum16Val);
                 case Date:
                     return convertDateTime(readDate(timezone), typeHint);
                 case Date32:
@@ -684,6 +687,38 @@ public class BinaryStreamReader {
         }
     }
 
+    public static class EnumValue extends Number {
+
+        public final String name;
+
+        public final int value;
+
+        public EnumValue(String name, int value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public int intValue() {
+            return value;
+        }
+
+        @Override
+        public long longValue() {
+            return value;
+        }
+
+        @Override
+        public float floatValue() {
+            return value;
+        }
+
+        @Override
+        public double doubleValue() {
+            return value;
+        }
+    }
+
     /**
      * Reads a map.
      * @param column - column information
@@ -1033,6 +1068,21 @@ public class BinaryStreamReader {
             ClickHouseColumn keyInfo = readDynamicData();
             ClickHouseColumn valueInfo = readDynamicData();
             return ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + "," + valueInfo.getOriginalTypeName() + ")");
+        } else if (tag == ClickHouseDataType.Enum8.getBinTag() || tag == ClickHouseDataType.Enum16.getBinTag()) {
+            int constants = readVarInt(input);
+            int []values = new int[constants];
+            String []names = new String[constants];
+            ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+            for (int i = 0; i < constants; i++) {
+                names[i] = readString(input);
+                if (enumType == ClickHouseDataType.Enum8) {
+                    values[i] = readUnsignedByte();
+                } else {
+                    values[i] = readUnsignedShortLE();
+                }
+            }
+            return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(),  Collections.emptyList(),
+                    new ClickHouseEnum(names, values));
         } else {
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {

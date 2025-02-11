@@ -51,7 +51,7 @@ public class ClickHouseEnum implements Serializable {
         }
     }
 
-    protected ClickHouseEnum(String[] names, int[] values) {
+    public ClickHouseEnum(String[] names, int[] values) {
         if (names == null || values == null) {
             throw new IllegalArgumentException("Non-null names and values are required");
         } else if (names.length != values.length) {
@@ -134,5 +134,17 @@ public class ClickHouseEnum implements Serializable {
             builder.setLength(builder.length() - 1);
         }
         return builder.toString();
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public String[] getNames() {
+        return names;
+    }
+
+    public int[] getValues() {
+        return values;
     }
 }

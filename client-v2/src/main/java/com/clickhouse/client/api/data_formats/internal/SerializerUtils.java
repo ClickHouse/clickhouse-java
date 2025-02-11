@@ -6,6 +6,7 @@ import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseEnum;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -28,12 +29,10 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +45,6 @@ import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
@@ -177,16 +175,16 @@ public class SerializerUtils {
             int scale;
             if (d.precision() > ClickHouseDataType.Decimal128.getMaxScale()) {
                 decType = "Decimal256";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
+                scale = ClickHouseDataType.Decimal256.getMaxScale();
             } else if (d.precision() > ClickHouseDataType.Decimal64.getMaxScale()) {
                 decType = "Decimal128";
                 scale = ClickHouseDataType.Decimal128.getMaxScale();
             } else if (d.precision() > ClickHouseDataType.Decimal32.getMaxScale()) {
                 decType = "Decimal64";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
+                scale = ClickHouseDataType.Decimal64.getMaxScale();
             } else {
                 decType = "Decimal32";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
+                scale = ClickHouseDataType.Decimal32.getMaxScale();
             }
 
             column = ClickHouseColumn.of("v", decType + "(" + scale + ")");
@@ -197,8 +195,10 @@ public class SerializerUtils {
             ClickHouseColumn keyInfo = valueToColumnForDynamicType(entry.getKey());
             ClickHouseColumn valueInfo = valueToColumnForDynamicType(entry.getValue());
             column = ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + ", " + valueInfo.getOriginalTypeName() + ")");
+        } else if (value instanceof Enum<?>) {
+            column = enumValue2Column((Enum)value);
         } else if (value instanceof List<?>) {
-            column = value2Column(value);
+            column = listValue2Column(value);
         } else if (value == null) {
             column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
         } else {
@@ -221,7 +221,7 @@ public class SerializerUtils {
     //      { 0, 1, 2 }
     // In this case we need to find max depth.
 
-    private static ClickHouseColumn value2Column(Object value) {
+    private static ClickHouseColumn listValue2Column(Object value) {
         ClickHouseColumn column;
         if (value instanceof List<?>) {
             List<?> list = (List<?>) value;
@@ -250,6 +250,12 @@ public class SerializerUtils {
         return column;
     }
 
+    private static ClickHouseColumn enumValue2Column(Enum<?> enumValue) {
+        ClickHouseEnum clickHouseEnum= ClickHouseEnum.of(enumValue.getClass());
+        return new ClickHouseColumn(clickHouseEnum.size() > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8, "v", "Enum16", false, false, Collections.emptyList(), Collections.emptyList(),
+                clickHouseEnum);
+    }
+
     public static void writeDynamicTypeTag(OutputStream stream, ClickHouseColumn typeColumn)
             throws IOException {
 
@@ -272,12 +278,20 @@ public class SerializerUtils {
                 writeVarInt(stream, typeColumn.getEstimatedLength());
                 break;
             case Enum8:
-                stream.write(binTag);
-                ///	0x17<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><int8_value_1>...<var_uint_name_size_N><name_data_N><int8_value_N>
-                break;
             case Enum16:
                 stream.write(binTag);
-                //0x18<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><int16_little_endian_value_1>...><var_uint_name_size_N><name_data_N><int16_little_endian_value_N>
+                ClickHouseEnum enumVal = typeColumn.getEnumConstants();
+                String[] names = enumVal.getNames();
+                int[] values = enumVal.getValues();
+                writeVarInt(stream, names.length);
+                for (int i = 0; i < enumVal.size(); i++ ) {
+                    BinaryStreamUtils.writeString(stream, names[i]);
+                    if (dt == ClickHouseDataType.Enum8) {
+                        BinaryStreamUtils.writeInt8(stream, values[i]);
+                    } else {
+                        BinaryStreamUtils.writeInt16(stream, values[i]);
+                    }
+                }
                 break;
             case Decimal:
             case Decimal32:
@@ -524,6 +538,7 @@ public class SerializerUtils {
                 serializeJSON(stream, value);
                 break;
             case IntervalNanosecond:
+            case IntervalMicrosecond:
             case IntervalMillisecond:
             case IntervalSecond:
             case IntervalMinute:
@@ -545,7 +560,9 @@ public class SerializerUtils {
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
         } else if (value instanceof Number) {
-            enumValue = ((Number)value).intValue();
+            enumValue = ((Number) value).intValue();
+        } else if (value instanceof Enum<?>) {
+            enumValue = ((Enum<?>)value).ordinal();
         } else {
             throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with Enum type " + column.getOriginalTypeName());
         }
