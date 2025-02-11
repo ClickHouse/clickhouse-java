@@ -690,22 +690,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getEnum8(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.byteValue();
     }
 
     @Override
     public byte getEnum8(int index) {
-        return readValue(index);
+        return getEnum8(schema.columnIndexToName(index));
     }
 
     @Override
     public short getEnum16(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.shortValue();
     }
 
     @Override
     public short getEnum16(int index) {
-        return readValue(index);
+        return getEnum16(schema.columnIndexToName(index));
     }
 
     @Override

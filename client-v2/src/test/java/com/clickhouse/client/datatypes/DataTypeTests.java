@@ -383,7 +383,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         String createTableStatement = " CREATE TABLE " + table + "( rowId Int64, field Dynamic ) " +
                 "Engine = MergeTree ORDER BY ()";
 
-        client.execute(createTableStatement, (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1"));
+        client.execute(createTableStatement, (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1"));
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
         int rowId = 0;
