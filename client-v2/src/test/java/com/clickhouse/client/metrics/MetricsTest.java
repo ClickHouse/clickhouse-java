@@ -18,6 +18,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.time.temporal.ChronoUnit;
+
 import static org.testng.Assert.assertEquals;
 
 public class MetricsTest extends BaseIntegrationTest {
@@ -53,21 +55,73 @@ public class MetricsTest extends BaseIntegrationTest {
             Gauge totalMax = meterRegistry.get("httpcomponents.httpclient.pool.total.max").gauge();
             Gauge available = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "available").gauge();
             Gauge leased = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "leased").gauge();
+            Gauge times = meterRegistry.get("httpcomponents.httpclient.connect.time").gauge();
+            Gauge ratio = meterRegistry.get("httpcomponents.httpclient.request.ratio").gauge();
 
-            System.out.println("totalMax:" + totalMax.value() + ", available: " + available.value() + ", leased: " + leased.value());
+            System.out.println("totalMax:" + totalMax.value() +
+                    ", available: " + available.value() +
+                    ", leased: " + leased.value() +
+                    ", times: " + times.value() +
+                    ", ratio: " + ratio.value());
             Assert.assertEquals((int)totalMax.value(), Integer.parseInt(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getDefaultValue()));
             Assert.assertEquals((int)available.value(), 1);
             Assert.assertEquals((int)leased.value(), 0);
+            assertEquals((int)ratio.value(), 0);
 
             try (QueryResponse response = client.query("SELECT 1").get()) {
                 Assert.assertEquals((int)available.value(), 0);
                 Assert.assertEquals((int)leased.value(), 1);
+                assertEquals(ratio.value(), 0);
             }
 
             Assert.assertEquals((int)available.value(), 1);
             Assert.assertEquals((int)leased.value(), 0);
         }
-        // currently there are  only 5 metrics that are monitored by micrometer (out of the box)
-        assertEquals(meterRegistry.getMeters().size(), 5);
+        // currently there are  only 7 metrics that are monitored by micrometer (out of the box)
+        assertEquals(meterRegistry.getMeters().size(), 7);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void testConnectionTime() throws Exception {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "192.168.1.1", node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .setConnectTimeout(5, ChronoUnit.SECONDS)
+                .registerClientMetrics(meterRegistry, "pool-test")
+                .build()) {
+
+            client.ping();
+            Gauge times = meterRegistry.get("httpcomponents.httpclient.connect.time").gauge();
+
+            Assert.assertTrue(times.value() > 0);
+            assertEquals(times.value(), 0);//Second time should be 0
+        }
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void testConnectionRatio() throws Exception {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "192.168.1.1", node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .setConnectTimeout(5, ChronoUnit.SECONDS)
+                .registerClientMetrics(meterRegistry, "pool-test")
+                .build()) {
+
+            client.ping();
+            Gauge ratio = meterRegistry.get("httpcomponents.httpclient.request.ratio").gauge();
+
+            System.out.println("Ratio: " + ratio.value());
+            Assert.assertTrue(ratio.value() > 99.0);
+        }
     }
 }

@@ -13,6 +13,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import io.micrometer.core.annotation.Timed;
 import org.apache.hc.client5.http.AuthenticationStrategy;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.ExecChain;
@@ -94,7 +95,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 public class HttpAPIClientHelper {
@@ -111,6 +114,9 @@ public class HttpAPIClientHelper {
     private String proxyAuthHeaderValue;
 
     private final Set<ClientFaultCause> defaultRetryCauses;
+
+    private AtomicLong requestCount = new AtomicLong(0);
+    private AtomicLong failureCount = new AtomicLong(0);
 
     private String defaultUserAgent;
     private Object metricsRegistry;
@@ -229,22 +235,12 @@ public class HttpAPIClientHelper {
 
 
         int networkBufferSize = MapUtils.getInt(chConfiguration, "client_network_buffer_size");
-        ManagedHttpClientConnectionFactory connectionFactory = new ManagedHttpClientConnectionFactory(
+        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
                 Http1Config.custom()
                         .setBufferSize(networkBufferSize)
                         .build(),
                 CharCodingConfig.DEFAULT,
-                DefaultHttpResponseParserFactory.INSTANCE) {
-            @Override
-            public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
-                long startT = System.nanoTime();
-                try {
-                    return super.createConnection(socket);
-                } finally {
-                    LOG.info("connection created in " + (System.nanoTime() - startT)  + "ns");
-                }
-            }
-        };
+                DefaultHttpResponseParserFactory.INSTANCE);
 
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
@@ -258,6 +254,12 @@ public class HttpAPIClientHelper {
                 Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
                 Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
+
+                applyMethod = micrometerLoader.getDeclaredMethod("applyConnectionMetricsBinder", Object.class, String.class, MeteredManagedHttpClientConnectionFactory.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
+
+                applyMethod = micrometerLoader.getDeclaredMethod("applyFailureRatioMetricsBinder", Object.class, String.class, HttpAPIClientHelper.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, this);
             } catch (Exception e) {
                 LOG.error("Failed to register metrics", e);
             }
@@ -418,9 +420,7 @@ public class HttpAPIClientHelper {
         HttpClientContext context = HttpClientContext.create();
 
         try {
-            {
-                // increment request count
-            }
+            requestCount.incrementAndGet();
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
             boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression));
@@ -446,9 +446,9 @@ public class HttpAPIClientHelper {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
         } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
-            if (e instanceof ConnectionRequestTimeoutException) {
-                // add failed request because of connection request timeout
-                req.getConfig().getConnectionRequestTimeout(); // record timeout value
+            failureCount.incrementAndGet();
+            if (e instanceof ConnectionRequestTimeoutException || e instanceof SocketTimeoutException) {
+                LOG.warn("Request failed with timeout: {}", req.getConfig().getConnectionRequestTimeout()); // record timeout value
             }
             throw e;
         } catch (Exception e) {
@@ -784,6 +784,10 @@ public class HttpAPIClientHelper {
     }
 
 
+    public long getRequestRatio() {//Metrics
+        return requestCount.get() == 0 ? 0 : Math.round(((float) failureCount.get() / requestCount.get()) * 100);
+    }
+
     /**
      * This factory is used only when no ssl connections are required (no https endpoints).
      * Internally http client would create factory and spend time if no supplied.
@@ -802,6 +806,36 @@ public class HttpAPIClientHelper {
         @Override
         public Socket connectSocket(TimeValue connectTimeout, Socket socket, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
             return null;
+        }
+    }
+
+    public class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+        public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
+            super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
+        }
+
+        ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
+
+
+        @Override
+        public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
+            long startT = System.currentTimeMillis();
+            try {
+                return super.createConnection(socket);
+            } finally {
+                long endT = System.currentTimeMillis();
+                times.add(endT - startT);
+            }
+        }
+
+        public long getTime() {
+            int count = times.size();
+            long runningAverage = 0;
+            for (int i = 0; i < count; i++) {
+                runningAverage += times.poll();
+            }
+
+            return count > 0 ? runningAverage / count : 0;
         }
     }
 }
