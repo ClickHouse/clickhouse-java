@@ -28,15 +28,4 @@ public class MicrometerLoader {
             throw new ClientMisconfigurationException("Unsupported registry type." + registry.getClass());
         }
     }
-
-    public static void applyFailureRatioMetricsBinder(Object registry, String metricsGroupName, HttpAPIClientHelper httpAPIClientHelper) {
-        if (registry instanceof MeterRegistry) {
-            Gauge.builder("httpcomponents.httpclient.request.ratio", httpAPIClientHelper, HttpAPIClientHelper::getRequestRatio)
-                    .description("The ratio of total requests to failures via timeout.")
-                    .tag("httpclient", metricsGroupName)
-                    .register((MeterRegistry) registry);
-        } else {
-            throw new ClientMisconfigurationException("Unsupported registry type." + registry.getClass());
-        }
-    }
 }

@@ -102,26 +102,4 @@ public class MetricsTest extends BaseIntegrationTest {
             assertEquals(times.value(), 0);//Second time should be 0
         }
     }
-
-    @Test(groups = { "integration" }, enabled = true)
-    public void testConnectionRatio() throws Exception {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        boolean isSecure = isCloud();
-
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, "192.168.1.1", node.getPort(), isSecure)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .setConnectTimeout(5, ChronoUnit.SECONDS)
-                .registerClientMetrics(meterRegistry, "pool-test")
-                .build()) {
-
-            client.ping();
-            Gauge ratio = meterRegistry.get("httpcomponents.httpclient.request.ratio").gauge();
-
-            System.out.println("Ratio: " + ratio.value());
-            Assert.assertTrue(ratio.value() > 99.0);
-        }
-    }
 }

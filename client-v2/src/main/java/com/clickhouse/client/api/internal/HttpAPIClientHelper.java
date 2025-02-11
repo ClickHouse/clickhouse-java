@@ -115,9 +115,6 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private AtomicLong requestCount = new AtomicLong(0);
-    private AtomicLong failureCount = new AtomicLong(0);
-
     private String defaultUserAgent;
     private Object metricsRegistry;
     public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
@@ -420,7 +417,6 @@ public class HttpAPIClientHelper {
         HttpClientContext context = HttpClientContext.create();
 
         try {
-            requestCount.incrementAndGet();
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
             boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression));
@@ -446,10 +442,6 @@ public class HttpAPIClientHelper {
             LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
             throw new ClientException("Failed to connect", e);
         } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
-            failureCount.incrementAndGet();
-            if (e instanceof ConnectionRequestTimeoutException || e instanceof SocketTimeoutException) {
-                LOG.warn("Request failed with timeout: {}", req.getConfig().getConnectionRequestTimeout()); // record timeout value
-            }
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to execute request", e);
@@ -781,11 +773,6 @@ public class HttpAPIClientHelper {
 
     public void close() {
         httpClient.close(CloseMode.IMMEDIATE);
-    }
-
-
-    public long getRequestRatio() {//Metrics
-        return requestCount.get() == 0 ? 0 : Math.round(((float) failureCount.get() / requestCount.get()) * 100);
     }
 
     /**
