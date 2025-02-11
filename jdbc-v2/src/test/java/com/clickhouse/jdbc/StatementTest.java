@@ -539,4 +539,17 @@ public class StatementTest extends JdbcIntegrationTest {
             Assert.expectThrows(SQLException.class, () ->stmt.executeQuery("SELECT 1 FORMAT JSON"));
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testSwitchDatabase() throws Exception {
+        String createSql = "CREATE TABLE strings (id UInt8, words String) ENGINE = MergeTree ORDER BY ()";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                assertEquals(stmt.executeUpdate(createSql), 0);
+                assertEquals(stmt.executeUpdate("CREATE DATABASE \"test\" ENGINE=Atomic"), 0);
+                assertFalse(stmt.execute("USE \"test\""));
+                assertEquals(stmt.executeUpdate(createSql), 0);
+            }
+        }
+    }
 }
