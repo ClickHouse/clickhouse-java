@@ -84,6 +84,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
                 switch (tokens[0].toUpperCase()) {
                     case "SELECT": return StatementType.SELECT;
+                    case "WITH": return StatementType.SELECT;
                     case "INSERT": return StatementType.INSERT;
                     case "DELETE": return StatementType.DELETE;
                     case "UPDATE": return StatementType.UPDATE;

@@ -105,8 +105,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
     }
 
     @AfterMethod(groups = { "integration" })
@@ -162,7 +161,7 @@ public class InsertTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName, commandSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createSQL, commandSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
 
-        client.register(PojoWithJSON.class, client.getTableSchema(tableName, "default"));
+        client.register(PojoWithJSON.class, client.getTableSchema(tableName));
         PojoWithJSON pojo = new PojoWithJSON();
         pojo.setEventPayload(originalJsonStr);
         List<Object> data = Arrays.asList(pojo);
@@ -189,7 +188,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         System.out.println("Inserting POJO: " + pojo);
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
@@ -231,7 +230,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");

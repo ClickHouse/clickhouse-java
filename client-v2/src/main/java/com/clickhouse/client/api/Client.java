@@ -1882,8 +1882,9 @@ public class Client implements AutoCloseable {
     private TableSchema getTableSchemaImpl(String describeQuery, String name, String originalQuery, String database) {
         int operationTimeout = getOperationTimeout();
 
-        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
-                query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+        QuerySettings settings = new QuerySettings().setDatabase(database);
+        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery, settings).get() :
+                query(describeQuery, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
