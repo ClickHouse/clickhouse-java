@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -778,8 +780,9 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
 
-    @Test (enabled = false)//TODO: The client doesn't support all of these yet
+    @Test(groups = { "integration" }, enabled = false)
     public void testGeometricTypesSimpleStatement() throws SQLException {
+        // TODO: add LineString and MultiLineString support
         runQuery("CREATE TABLE test_geometric (order Int8, "
                 + "point Point, ring Ring, linestring LineString, multilinestring MultiLineString, polygon Polygon, multipolygon MultiPolygon"
                 + ") ENGINE = MergeTree ORDER BY ()");
@@ -818,11 +821,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
 
-    @Test (enabled = false)//TODO: This type is experimental right now
+    @Test(groups = { "integration" })
     public void testDynamicTypesSimpleStatement() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
         runQuery("CREATE TABLE test_dynamic (order Int8, "
                 + "dynamic Dynamic"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ENGINE = MergeTree ORDER BY ()",
+                properties);
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -922,6 +928,48 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString(8), "2024-12-01T12:34:56.789789789Z[UTC]");
                     assertEquals(rs.getObject(8, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56, 789789789));
                     assertEquals(String.valueOf(rs.getObject(8, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), ZonedDateTime.class);}})), "2024-12-01T12:34:56.789789789Z[UTC]");
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testVariantTypesSimpleStatement() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
+        runQuery("CREATE TABLE test_variant (order Int8, "
+                        + "v Variant(String, Int32)"
+                        + ") ENGINE = MergeTree ORDER BY ()",
+                properties);
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        String variant1 = "string" + rand.nextInt(1000);
+        int variant2 = rand.nextInt(256) - 128;
+
+        String sql = String.format("INSERT INTO test_variant VALUES ( 1, '%s' )", variant1);
+        insertData(sql);
+
+        sql = String.format("INSERT INTO test_variant VALUES ( 2, %d )", variant2);
+        insertData(sql);
+
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_variant ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("v"), variant1);
+                    assertTrue(rs.getObject("v") instanceof String);
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("v"), variant2);
+                    assertTrue(rs.getObject("v") instanceof Number);
+
+                    assertFalse(rs.next());
                 }
             }
         }
