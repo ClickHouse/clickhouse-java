@@ -926,4 +926,16 @@ public class DataTypeTests extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = "integration")
+    void testIPv6MappedToIPv4() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("select toIPv6('::ffff:1.1.1.1')");
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "/0:0:0:0:0:ffff:101:101");
+                assertFalse(rs.next());
+            }
+        }
+    }
 }

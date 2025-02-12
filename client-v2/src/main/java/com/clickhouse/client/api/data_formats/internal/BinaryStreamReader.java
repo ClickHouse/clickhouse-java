@@ -182,7 +182,7 @@ public class BinaryStreamReader {
                     return (T) Inet4Address.getByAddress(readNBytesLE(input, 4));
                 case IPv6:
                     // https://clickhouse.com/docs/en/sql-reference/data-types/ipv6
-                    return (T) Inet6Address.getByAddress(readNBytes(input, 16));
+                    return (T) Inet6Address.getByAddress(null, readNBytes(input, 16), null);
                 case UUID:
                     return (T) new UUID(readLongLE(), readLongLE());
                 case Point:
