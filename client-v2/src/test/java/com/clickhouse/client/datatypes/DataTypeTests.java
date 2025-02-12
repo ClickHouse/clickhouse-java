@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -389,13 +390,6 @@ public class DataTypeTests extends BaseIntegrationTest {
         int rowId = 0;
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             switch (dataType) {
-                case Date:
-                case Date32:
-                case DateTime:
-                case DateTime32:
-                case DateTime64:
-                    // requires fix
-                    continue;
                 case Array:
                 case Map:
                 case AggregateFunction:
@@ -481,36 +475,33 @@ public class DataTypeTests extends BaseIntegrationTest {
         testDynamicWith("arrays",
                 new Object[]{
                         "a,b",
-                        new String[]{"a", "b"},
-                        Arrays.asList("c", "d")
+                        new String[]{"a", null, "b"},
+                        Arrays.asList("c", "d"),
+                        new Integer[]{1, null, 2, null, 3}
+
                 },
                 new String[]{
                         "a,b",
-                        "[a, b]",
-                        "[c, d]"
+                        "[a, null, b]",
+                        "[c, d]",
+                        "[1, null, 2, null, 3]"
                 });
         testDynamicWith("arrays",
                 new Object[]{
                         new int[]{1, 2},
                         new String[]{"a", "b"},
-                        Arrays.asList("c", "d")
+                        Arrays.asList("c", "d"),
+                        Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)),
+                        Arrays.asList(Arrays.asList(1, 2), Collections.emptyList()),
+                        Arrays.asList(Arrays.asList(1, 2), null, Arrays.asList(3, 4))
                 },
                 new String[]{
                         "[1, 2]",
                         "[a, b]",
                         "[c, d]",
-                });
-
-        testDynamicWith("arrays",
-                new Object[]{
-                        new int[][]{ new int[] {1, 2}, new int[] { 3, 4}},
-                        new String[][]{new String[]{"a", "b"}, new String[]{"c", "d"}},
-                        Arrays.asList(Arrays.asList("e", "f"), Arrays.asList("j", "h"))
-                },
-                new String[]{
                         "[[1, 2], [3, 4]]",
-                        "[[a, b], [c, d]]",
-                        "[[e, f], [j, h]]",
+                        "[[1, 2], []]",
+                        "[[1, 2], [], [3, 4]]"
                 });
     }
 

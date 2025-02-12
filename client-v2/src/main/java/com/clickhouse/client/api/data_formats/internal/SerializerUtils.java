@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Stack;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -154,10 +155,6 @@ public class SerializerUtils {
         map.put(double[][].class, ClickHouseColumn.of("v", "Array(Array(Float64))"));
         map.put(double[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(Float64)))"));
 
-        map.put(String[].class, ClickHouseColumn.of("v", "Array(String)"));
-        map.put(String[][].class, ClickHouseColumn.of("v", "Array(Array(String))"));
-        map.put(String[][][].class, ClickHouseColumn.of("v", "Array(Array(Array(String)))"));
-
         return Collections.unmodifiableMap(map);
     }
 
@@ -194,7 +191,7 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + ", " + valueInfo.getOriginalTypeName() + ")");
         } else if (value instanceof Enum<?>) {
             column = enumValue2Column((Enum)value);
-        } else if (value instanceof List<?>) {
+        } else if (value instanceof List<?> || (value !=null && value.getClass().isArray())) {
             column = listValue2Column(value);
         } else if (value == null) {
             column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
@@ -219,28 +216,57 @@ public class SerializerUtils {
     // In this case we need to find max depth.
 
     private static ClickHouseColumn listValue2Column(Object value) {
-        ClickHouseColumn column;
-        if (value instanceof List<?>) {
-            List<?> list = (List<?>) value;
-            StringBuilder type = new StringBuilder("Array()");
-            int insertPos = type.length() - 1;
-            while (!list.isEmpty() && list.get(0) instanceof List<?>) {
-                type.insert(insertPos, "Array()");
-                insertPos += 6; // add len of 'Array(' string
-                list = (List<?>) list.get(0);
-            }
-            if (list.isEmpty() || list.get(0) == null) {
-                type.insert(insertPos, "Nothing");
-                column = ClickHouseColumn.of("v", type.toString());
-            } else {
-                ClickHouseColumn arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(list.get(0).getClass());
+
+        ClickHouseColumn column = PREDEFINED_TYPE_COLUMNS.get(value.getClass());
+        if (column != null) {
+            return column;
+        }
+
+        if (value instanceof List<?> || (value.getClass().isArray())) {
+            Stack<Object[]> arrays = new Stack<>();
+            arrays.push(new Object[]{value, 1});
+            int maxDepth = 0;
+            boolean hasNulls = false;
+            ClickHouseColumn arrayBaseColumn = null;
+            StringBuilder typeStr = new StringBuilder();
+            int insertPos = 0;
+            while (!arrays.isEmpty()) {
+                Object[] arr = arrays.pop();
+                int depth = (Integer) arr[1];
+                if (depth > maxDepth) {
+                    maxDepth = depth;
+                    typeStr.insert(insertPos, "Array()");
+                    insertPos += 6;
+                }
+
+                boolean isArray = arr[0].getClass().isArray();
+                List<?> list = isArray ? null : ((List<?>) arr[0]);
+                int len = isArray ? Array.getLength(arr[0]) : list.size();
+                for (int i = 0; i < len; i++) {
+                    Object item = isArray ? Array.get(arr[0], i) : list.get(i);
+                    if (!hasNulls && item == null) {
+                        hasNulls = true;
+                    } else if (item != null && (item instanceof List<?> || item.getClass().isArray())) {
+                        arrays.push(new Object[]{item, depth + 1});
+                    } else if (arrayBaseColumn == null && item != null) {
+                        arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(item.getClass());
+                        if (arrayBaseColumn == null) {
+                            throw new ClientException("Cannot serialize " + item.getClass() + " as array element");
+                        }
+                    }
+                }
+
                 if (arrayBaseColumn != null) {
-                    type.insert(insertPos, arrayBaseColumn.getOriginalTypeName());
-                    column = ClickHouseColumn.of("v", type.toString());
-                } else {
-                    column = null;
+                    if (hasNulls) {
+                        typeStr.insert(insertPos, "Nullable()");
+                        insertPos += 9;
+                    }
+                    typeStr.insert(insertPos, arrayBaseColumn.getOriginalTypeName());
+                    break;
                 }
             }
+
+            column = ClickHouseColumn.of("v", typeStr.toString());
         } else {
             column = null;
         }
@@ -370,27 +396,20 @@ public class SerializerUtils {
     }
 
     public static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            writeVarInt(stream, 0);
+            return;
+        }
 
-        if (value instanceof List<?>) {
-            //Serialize the array to the stream
-            //The array is a list of values
-            List<?> values = (List<?>) value;
-            writeVarInt(stream, values.size());
-            for (Object val : values) {
-                if (column.getArrayBaseColumn().isNullable()) {
-                    if (val == null) {
-                        writeNull(stream);
-                        continue;
-                    }
-                    writeNonNull(stream);
-                }
-                serializeData(stream, val, column.getNestedColumns().get(0));
-            }
-        } else if (value.getClass().isArray()) {
-            writeVarInt(stream, Array.getLength(value));
-            for (int i = 0; i < Array.getLength(value); i++) {
-                Object val = Array.get(value, i);
-                if (column.getArrayBaseColumn().isNullable()) {
+        boolean isArray = value.getClass().isArray();
+        if (value instanceof List<?> || isArray) {
+            List<?> list = isArray ? null : (List<?>)value;
+            int len = isArray ? Array.getLength(value) : list.size();
+
+            writeVarInt(stream, len);
+            for (int i = 0; i < len; i++) {
+                Object val = isArray? Array.get(value, i) : list.get(i);
+                if (column.getArrayNestedLevel() == 1 && column.getArrayBaseColumn().isNullable()) {
                     if (val == null) {
                         writeNull(stream);
                         continue;
@@ -515,12 +534,6 @@ public class SerializerUtils {
             case UUID:
                 BinaryStreamUtils.writeUuid(stream, (UUID) value);
                 break;
-//            case Enum8:
-//                BinaryStreamUtils.writeEnum8(stream, (Byte) value);
-//                break;
-//            case Enum16:
-//                BinaryStreamUtils.writeEnum16(stream, convertToInteger(value));
-//                break;
             case Enum8:
             case Enum16:
                 serializeEnumData(stream, column, value);

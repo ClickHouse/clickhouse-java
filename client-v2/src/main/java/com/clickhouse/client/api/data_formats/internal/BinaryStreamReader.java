@@ -527,36 +527,7 @@ public class BinaryStreamReader {
 
         return bytes;
     }
-
-    public ArrayValue readArrayStack(int levels, ClickHouseColumn baseElementColumn) throws IOException {
-
-        Stack<ArrayValue> arrays = new Stack<>();
-        int level = levels;
-        ArrayValue array = null;
-        while (level <= levels) {
-            if (level != 1 && arrays.size() < level) {
-                int len = readVarInt(input);
-                arrays.push(new ArrayValue(ArrayValue.class, len));
-                level--;
-            } else if (level == 1) {
-                int len = readVarInt(input);
-                array = readArrayItem(baseElementColumn, len);
-                level++;
-            } else if (array !=null) { // some array read completely
-                ArrayValue tmp = arrays.pop();
-                if (tmp.append(array)) { // array filled
-                    array = tmp;
-                    level++;
-                } else {
-                    array = null;
-                    level--;
-                }
-            }
-        }
-
-        return array;
-    }
-
+    
     /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
@@ -1070,8 +1041,8 @@ public class BinaryStreamReader {
             return ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + "," + valueInfo.getOriginalTypeName() + ")");
         } else if (tag == ClickHouseDataType.Enum8.getBinTag() || tag == ClickHouseDataType.Enum16.getBinTag()) {
             int constants = readVarInt(input);
-            int []values = new int[constants];
-            String []names = new String[constants];
+            int[] values = new int[constants];
+            String[] names = new String[constants];
             ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
             for (int i = 0; i < constants; i++) {
                 names[i] = readString(input);
@@ -1081,8 +1052,11 @@ public class BinaryStreamReader {
                     values[i] = readUnsignedShortLE();
                 }
             }
-            return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(),  Collections.emptyList(),
+            return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(), Collections.emptyList(),
                     new ClickHouseEnum(names, values));
+        } else if (tag == ClickHouseDataType.NULLABLE_BIN_TAG) {
+            ClickHouseColumn column = readDynamicData();
+            return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
         } else {
             type = ClickHouseDataType.binTag2Type.get(tag);
             if (type == null) {
