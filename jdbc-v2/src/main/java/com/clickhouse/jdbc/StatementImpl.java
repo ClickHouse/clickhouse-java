@@ -367,6 +367,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 }
             }
             return false;
+        } else if (type == StatementType.USE) {
+            executeUpdate(sql, settings);
+            //USE Database
+            List<String> tokens = JdbcUtils.tokenizeSQL(sql);
+            this.schema = tokens.get(1).replace("\"", "");
+            LOG.info("Changed statement schema " + schema);
+            return false;
         } else {
             executeUpdate(sql, settings);
             return false;
