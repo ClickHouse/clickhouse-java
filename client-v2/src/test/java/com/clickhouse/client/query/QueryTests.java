@@ -2127,4 +2127,11 @@ public class QueryTests extends BaseIntegrationTest {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
+
+    @Test(groups = {"integration"})
+    public void testEmptyResponse() throws Exception {
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 0", new QuerySettings().setFormat(ClickHouseFormat.RowBinary)).get()) {
+            System.out.println(response.getResultRows());
+        }
+    }
 }
