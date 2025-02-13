@@ -1418,7 +1418,7 @@ public class QueryTests extends BaseIntegrationTest {
 
             // Create table
             CommandSettings settings = new CommandSettings();
-            if (isVersionMatch("[24.8,)")) {
+            if (isVersionMatch("[24.8,)") && !isCloud()) {
                 settings.serverSetting("allow_experimental_dynamic_type", "1")
                         .serverSetting("allow_experimental_json_type", "1");
             }

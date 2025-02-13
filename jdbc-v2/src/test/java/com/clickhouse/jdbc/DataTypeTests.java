@@ -828,11 +828,13 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
-        runQuery("CREATE TABLE test_dynamic (order Int8, "
+        if (!isCloud()) {
+            properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
+        }
+        assertTrue(runQuery("CREATE TABLE test_dynamic (order Int8, "
                 + "dynamic Dynamic"
                 + ") ENGINE = MergeTree ORDER BY ()",
-                properties);
+                properties), "Failed to create table");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -944,7 +946,9 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
+        if (!isCloud()) {
+            properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
+        }
         runQuery("CREATE TABLE test_variant (order Int8, "
                         + "v Variant(String, Int32)"
                         + ") ENGINE = MergeTree ORDER BY ()",
