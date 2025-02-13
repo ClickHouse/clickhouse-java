@@ -268,7 +268,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest"]
+        clickhouse: ["23.8", "24.3", "24.8", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
 #        protocol: ["http", "http_client", "apache_http_client"]
         protocol: ["apache_http_client"]
@@ -321,7 +321,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}
+          name: result ${{ github.job }}_${{ matrix.project }}_${{ matrix.clickhouse }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports

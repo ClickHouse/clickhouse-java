@@ -642,6 +642,9 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" }, enabled = true)
     public void testPOJOWithDynamicType() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
         final String tableName = "pojo_dynamic_type_test";
         final String createSQL = PojoWithDynamic.getTableDef(tableName);
 
@@ -684,5 +687,10 @@ public class InsertTests extends BaseIntegrationTest {
     protected void initTable(String tableName, String createTableSQL, CommandSettings settings) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + tableName, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createTableSQL, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    private boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
 }

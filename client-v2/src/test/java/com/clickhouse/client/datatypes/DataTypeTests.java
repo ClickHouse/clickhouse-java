@@ -608,7 +608,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         return sb.toString();
     }
 
-    public boolean isVersionMatch(String versionExpression) {
+    private boolean isVersionMatch(String versionExpression) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
