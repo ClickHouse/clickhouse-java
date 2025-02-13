@@ -179,7 +179,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY () SETTINGS enable_variant_type=1");
+            b.append(")) Engine = MergeTree ORDER BY () SETTINGS allow_experimental_dynamic_type=1");
 
             client.execute(b.toString());
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
