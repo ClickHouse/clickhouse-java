@@ -27,12 +27,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -109,7 +104,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 }
                 throw e;
             } catch (Exception e) {
-                throw new ClientException("Failed to put value of '" + column.getColumnName() + "' into POJO", e);
+                throw new ClientException("Failed to set value of '" + column.getColumnName(), e);
             }
         }
         return true;
@@ -221,7 +216,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected void setSchema(TableSchema schema) {
         this.schema = schema;
-        this.columns = schema.getColumns().toArray(new ClickHouseColumn[0]);
+        this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
 
         for (int i = 0; i < columns.length; i++) {
@@ -251,6 +246,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case String:
                 case Enum8:
                 case Enum16:
+                case Variant:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -270,24 +266,40 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        Object value = readValue(colName);
+        return readAsString(readValue(colName), schema.getColumnByName(colName));
+    }
+
+    /**
+     * Converts value in to a string representation. Does some formatting for selected data types
+     * @return string representation of a value for specified column
+     */
+    public static String readAsString(Object value, ClickHouseColumn column) {
         if (value == null) {
             return null;
         } else if (value instanceof String) {
             return (String) value;
         } else if (value instanceof ZonedDateTime) {
-            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
+            ClickHouseDataType dataType = column.getDataType();
             ZonedDateTime zdt = (ZonedDateTime) value;
             if (dataType == ClickHouseDataType.Date) {
-                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER).toString();
+                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER);
             }
             return value.toString();
-        } else {
-            ClickHouseDataType dataType = schema.getColumnByName(colName).getDataType();
-            if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
-                ClickHouseEnum clickHouseEnum = schema.getColumnByName(colName).getEnumConstants();
-                return clickHouseEnum.name(Integer.parseInt(value.toString()));
+        } else if (value instanceof Number ) {
+            ClickHouseDataType dataType = column.getDataType();
+            int num = ((Number)value).intValue();
+            if (column.getDataType() == ClickHouseDataType.Variant) {
+                for (ClickHouseColumn c : column.getNestedColumns()) {
+                    // TODO: will work only if single enum listed as variant
+                    if (c.getDataType() == ClickHouseDataType.Enum8 || c.getDataType() == ClickHouseDataType.Enum16) {
+                        return c.getEnumConstants().name(num);
+                    }
+                }
+            } else if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
+                return column.getEnumConstants().name(num);
             }
+        } else if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue)value).asList().toString();
         }
         return value.toString();
     }
@@ -369,11 +381,17 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return data.atStartOfDay().toInstant(ZoneOffset.UTC);
             case DateTime:
             case DateTime64:
-                LocalDateTime dateTime = readValue(colName);
-                return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-
+                Object colValue = readValue(colName);
+                if (colValue instanceof LocalDateTime) {
+                    LocalDateTime dateTime = (LocalDateTime) colValue;
+                    return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+                } else {
+                    ZonedDateTime dateTime = (ZonedDateTime) colValue;
+                    return dateTime.toInstant();
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
@@ -386,9 +404,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             case Date:
             case Date32:
                 return readValue(colName);
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
-
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
@@ -723,6 +741,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(int index) {
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
     }
 
     @Override

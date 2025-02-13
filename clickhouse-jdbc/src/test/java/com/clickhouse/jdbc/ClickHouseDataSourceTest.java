@@ -36,6 +36,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty("failover", "21");
         props.setProperty("load_balancing_policy", "roundRobin");
+        props.setProperty("password",ClickHouseServerForTest.getPassword());
         try (Connection conn = DriverManager.getConnection(url, props)) {
             Assert.assertEquals(conn.unwrap(ClickHouseRequest.class).getConfig().getFailover(), 21);
             Assert.assertEquals(conn.unwrap(ClickHouseRequest.class).getConfig().getOption(
@@ -55,7 +56,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
                 + ")/system?load_balancing_policy=roundRobin";
         Properties props = new Properties();
         props.setProperty("user", "default");
-        props.setProperty("password", "");
+        props.setProperty("password", ClickHouseServerForTest.getPassword());
         ClickHouseDataSource ds = new ClickHouseDataSource(url, props);
         for (int i = 0; i < 10; i++) {
             try (Connection httpConn = ds.getConnection();
@@ -73,7 +74,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         String url = "jdbc:ch:" + getEndpointString();
 //        String urlWithCredentials = "jdbc:ch:" + (isCloud() ? "https" : DEFAULT_PROTOCOL.name()) + "://default@"
 //                + getServerAddress(DEFAULT_PROTOCOL);
-        String urlWithCredentials = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://default@" + getServerAddress(DEFAULT_PROTOCOL);
+        String urlWithCredentials = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://default:" + getPassword() + "@" + getServerAddress(DEFAULT_PROTOCOL);
         if (isCloud()) {
             urlWithCredentials = "jdbc:ch:https://default:" + getPassword() + "@" + getServerAddress(DEFAULT_PROTOCOL);
         }

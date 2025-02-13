@@ -25,6 +25,11 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
+import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
@@ -43,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -99,8 +105,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
     }
 
     @AfterMethod(groups = { "integration" })
@@ -134,7 +139,6 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals(response.getQueryId(), uuid);
     }
 
-
     @Test(groups = { "integration" }, enabled = true)
     public void insertPOJOWithJSON() throws Exception {
         if (isCloud()) {
@@ -157,7 +161,7 @@ public class InsertTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName, commandSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createSQL, commandSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
 
-        client.register(PojoWithJSON.class, client.getTableSchema(tableName, "default"));
+        client.register(PojoWithJSON.class, client.getTableSchema(tableName));
         PojoWithJSON pojo = new PojoWithJSON();
         pojo.setEventPayload(originalJsonStr);
         List<Object> data = Arrays.asList(pojo);
@@ -184,7 +188,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         System.out.println("Inserting POJO: " + pojo);
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
@@ -207,6 +211,12 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
             Assert.assertEquals(reader.getString("string"), pojo.getString());
             Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime").isEqual(pojo.getZonedDateTime().withNano(0)));
+            Assert.assertTrue(reader.getZonedDateTime("zonedDateTime64").isEqual(pojo.getZonedDateTime64()));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime").isEqual(pojo.getOffsetDateTime().withNano(0)));
+            Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime64").isEqual(pojo.getOffsetDateTime64()));
+            Assert.assertEquals(reader.getInstant("instant"), pojo.getInstant().with(ChronoField.MICRO_OF_SECOND, 0));
+            Assert.assertEquals(reader.getInstant("instant64"), pojo.getInstant64());
         }
     }
 
@@ -220,7 +230,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         initTable(tableName, createSQL);
 
-        client.register(SamplePOJO.class, client.getTableSchema(tableName, "default"));
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");
@@ -451,12 +461,12 @@ public class InsertTests extends BaseIntegrationTest {
                 if (row[4] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeString((String) row[4]);
+                    formatWriter.writeDateTime((ZonedDateTime) row[4], null);
                 }
                 if (row[5] == null) {
                     formatWriter.writeDefault();
                 } else {
-                    formatWriter.writeInt8((byte) row[5]);
+                    formatWriter.writeInt8(((Integer) row[5]).byteValue());
                 }
             }
         }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
@@ -556,8 +566,8 @@ public class InsertTests extends BaseIntegrationTest {
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
     }
 
-    @Test
-    public void testAppCompression() throws Exception {
+    @Test(dataProvider = "testAppCompressionDataProvider", dataProviderClass = InsertTests.class)
+    public void testAppCompression(String algo) throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (name String, " +
@@ -581,17 +591,31 @@ public class InsertTests extends BaseIntegrationTest {
         byte[][] compressedData = new byte[data.length][];
         for (int i = 0 ; i < data.length; i++) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            GZIPOutputStream gz = new GZIPOutputStream(baos);
-            gz.write(data[i].getBytes(StandardCharsets.UTF_8));
-            gz.finish();
+            if (algo.equalsIgnoreCase("gzip")) {
+                GZIPOutputStream gz = new GZIPOutputStream(baos);
+                gz.write(data[i].getBytes(StandardCharsets.UTF_8));
+                gz.finish();
+            } else if (algo.equalsIgnoreCase("lz4")) {
+                FramedLZ4CompressorOutputStream lz4 = new FramedLZ4CompressorOutputStream(baos);
+                lz4.write(data[i].getBytes(StandardCharsets.UTF_8));
+                lz4.finish();
+            } else if (algo.equalsIgnoreCase("snappy")) {
+                byte bytes[] = data[i].getBytes(StandardCharsets.UTF_8);
+
+                SnappyCompressorOutputStream snappy = new SnappyCompressorOutputStream(baos,bytes.length, 32);
+                snappy.write(bytes);
+                snappy.finish();
+            }
             System.out.println("Compressed size " + baos.size() + ", uncompressed size: " + data[i].length());
             compressedData[i] = baos.toByteArray();
         }
 
         InsertSettings insertSettings = new InsertSettings()
-                .appCompressedData(true, "gzip");
+                .appCompressedData(true, algo);
         try (InsertResponse response = client.insert(tableName, out -> {
             for (byte[] row : compressedData) {
+//                if (algo.)
+                BinaryStreamUtils.writeVarInt(out, row.length);
                 out.write(row);
             }
         }, ClickHouseFormat.JSONEachRow, insertSettings).get()) {
@@ -603,6 +627,15 @@ public class InsertTests extends BaseIntegrationTest {
         for (GenericRecord record : records) {
             System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
         }
+    }
+
+    @DataProvider(name = "testAppCompressionDataProvider")
+    public static Object[][] testAppCompressionDataProvider() {
+        return new Object[][] {
+                {"gzip"},
+                {"lz4"},
+                {"snappy"},
+        };
     }
 
     protected void initTable(String tableName, String createTableSQL) throws Exception {

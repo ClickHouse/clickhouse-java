@@ -206,7 +206,7 @@ public class ProxyTests extends BaseIntegrationTest{
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, "clickhouse", 8123, false)
                 .setUsername("default")
-                .setPassword("")
+                .setPassword(ClickHouseServerForTest.getPassword())
                 .useNewImplementation(onlyNewImplementation ? onlyNewImplementation :
                         System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .addProxy(ProxyType.HTTP, "localhost", proxyPort);

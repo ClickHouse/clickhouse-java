@@ -1819,7 +1819,13 @@ public class Client implements AutoCloseable {
                         (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
                 while (true) {
-                    Object record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+
+                    Object record;
+                    try {
+                        record = allocator == null ? clazz.getDeclaredConstructor().newInstance() : allocator.get();
+                    } catch (NoSuchMethodException e) {
+                        throw new ClientException("Failed to instantiate DTO to store data: no-args constructor is not defined");
+                    }
                     if (reader.readToPOJO(classDeserializers, record)) {
                         records.add((T) record);
                     } else {
@@ -1876,8 +1882,9 @@ public class Client implements AutoCloseable {
     private TableSchema getTableSchemaImpl(String describeQuery, String name, String originalQuery, String database) {
         int operationTimeout = getOperationTimeout();
 
-        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery).get() :
-                query(describeQuery).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+        QuerySettings settings = new QuerySettings().setDatabase(database);
+        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery, settings).get() :
+                query(describeQuery, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
@@ -2000,6 +2007,7 @@ public class Client implements AutoCloseable {
         return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
     }
 
+    @Override
     public String toString() {
         return "Client{" +
                 "endpoints=" + endpoints +

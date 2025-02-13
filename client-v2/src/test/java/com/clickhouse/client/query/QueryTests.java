@@ -1127,7 +1127,6 @@ public class QueryTests extends BaseIntegrationTest {
                 "max_enum8 Enum8('value1' = 1, 'value2' = 2, 'value3' = 127)"
         );
 
-        final UUID providedUUID = UUID.randomUUID();
         final List<Supplier<String>> valueGenerators = Arrays.asList(
                 () -> "'value1'",
                 () -> "'value3'",
@@ -1140,26 +1139,30 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertTrue(r.hasValue("min_enum16"), "No value for column min_enum16 found");
             Assert.assertEquals(r.getEnum16("min_enum16"), (short) -32768);
             Assert.assertEquals(r.getEnum16(1), (short) -32768);
+            Assert.assertEquals(r.getString(1), "value1");
+
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum16"), "No value for column max_enum16 found");
             Assert.assertEquals(r.getEnum16("max_enum16"), (short) 32767);
             Assert.assertEquals(r.getEnum16(2), (short) 32767);
+            Assert.assertEquals(r.getString(2), "value3");
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("min_enum8"), "No value for column min_enum8 found");
             Assert.assertEquals(r.getEnum8("min_enum8"), (byte) -128);
             Assert.assertEquals(r.getEnum8(3), (byte) -128);
+            Assert.assertEquals(r.getString(3), "value1");
         });
         verifiers.add(r -> {
             Assert.assertTrue(r.hasValue("max_enum8"), "No value for column max_enum8 found");
             Assert.assertEquals(r.getEnum8("max_enum8"), (byte) 127);
             Assert.assertEquals(r.getEnum8(4), (byte) 127);
+            Assert.assertEquals(r.getString(4), "value3");
         });
 
         testDataTypes(columns, valueGenerators, verifiers);
     }
-
     @Test
     public void testUUID() {
         final List<String> columns = Arrays.asList(
@@ -1880,7 +1883,7 @@ public class QueryTests extends BaseIntegrationTest {
             throw e;
         }
 
-        client.register(AggregateFuncDTO.class, client.getTableSchema(tableName, "default"));
+        client.register(AggregateFuncDTO.class, client.getTableSchema(tableName));
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo)).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);

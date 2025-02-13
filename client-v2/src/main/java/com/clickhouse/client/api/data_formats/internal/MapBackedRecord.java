@@ -47,25 +47,12 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public String getString(String colName) {
-        Object value = readValue(colName);
-        if (value == null) {
-            return null;
-        } else if (value instanceof String) {
-            return (String) value;
-        }
-        return value.toString();
+        return AbstractBinaryFormatReader.readAsString(readValue(colName), schema.getColumnByName(colName));
     }
 
     @Override
     public String getString(int index) {
-        // TODO: it may be incorrect to call .toString() on some objects
-        Object value = readValue(index);
-        if (value == null) {
-            return null;
-        } else if (value instanceof String) {
-            return (String) value;
-        }
-        return value.toString();
+        return getString(schema.columnIndexToName(index));
     }
 
     private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
@@ -487,6 +474,24 @@ public class MapBackedRecord implements GenericRecord {
             return ((ZonedDateTime) value).toLocalDateTime();
         }
         return (LocalDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
+    }
+
+    @Override
+    public OffsetDateTime getOffsetDateTime(int index) {
+        Object value = readValue(index);
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).toOffsetDateTime();
+        }
+        return (OffsetDateTime) value;
     }
 
     @Override

@@ -14,7 +14,9 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseRecord;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
@@ -47,6 +49,24 @@ public class MetadataTests extends BaseIntegrationTest {
         List<ClickHouseColumn> columns = schema.getColumns();
         Assert.assertEquals(columns.get(0).getColumnName(), "param1");
         Assert.assertEquals(columns.get(0).getDataType().name(), "UInt32");
+    }
+
+    @Test(groups = { "integration" })
+
+    public void testGetTableSchemaDifferentDb() throws Exception {
+        String table = "test_get_table_schema_different_db";
+        String db = ClickHouseServerForTest.getDatabase() + "_schema_test" ;
+        try {
+            QuerySettings settings = new QuerySettings().setDatabase(db);
+            client.execute("DROP DATABASE IF EXISTS " + db).get().close();
+            client.execute("CREATE DATABASE " + db).get().close();
+            client.query("DROP TABLE IF EXISTS " + table, settings).get().close();
+            client.query("CREATE TABLE " + table + " (rowId Int32) Engine=MergeTree ORDER BY ()", settings).get().close();
+            TableSchema tableSchema = client.getTableSchema(table, db);
+            Assert.assertEquals(tableSchema.getColumnByName("rowId").getDataType(), ClickHouseDataType.Int32);
+        } finally {
+            client.execute("DROP DATABASE IF EXISTS " + db).get().close();
+        }
     }
 
     private void prepareDataSet(String tableName) {

@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
@@ -379,7 +380,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.USER.getKey(), "default");
-        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
         properties.put(ClientConfigProperties.CA_CERTIFICATE.getKey(), "containers/clickhouse-server/certs/localhost.crt");
 
         try (Connection conn = new ConnectionImpl("jdbc:clickhouse:" + secureServer.getBaseUri(), properties);
@@ -412,7 +413,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.USER.getKey(), "default");
-        properties.put(ClientConfigProperties.PASSWORD.getKey(), "");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
 
         String jdbcUrl = "jdbc:clickhouse://" + server.getHost() + ":" + server.getPort();
         try (Connection conn = new ConnectionImpl(jdbcUrl, properties);

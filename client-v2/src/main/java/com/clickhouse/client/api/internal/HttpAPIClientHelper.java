@@ -64,6 +64,7 @@ import org.apache.hc.core5.http.protocol.RequestUserAgent;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.pool.ConnPoolControl;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.util.TimeValue;
@@ -117,6 +118,9 @@ public class HttpAPIClientHelper {
 
     private String defaultUserAgent;
     private Object metricsRegistry;
+
+    ConnPoolControl<?> poolControl;
+
     public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
         this.chConfiguration = configuration;
         this.metricsRegistry = metricsRegistry;
@@ -243,7 +247,7 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
-
+        poolControl = phccm;
         if (metricsRegistry != null ) {
             try {
                 String mGroupName = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(),
@@ -386,6 +390,8 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
+        poolControl.closeExpired();
+
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }

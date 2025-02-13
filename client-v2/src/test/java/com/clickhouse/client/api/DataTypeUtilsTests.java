@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 import static org.testng.AssertJUnit.assertEquals;
 
-public class DataTypeTests {
+public class DataTypeUtilsTests {
 
 
     @Test
