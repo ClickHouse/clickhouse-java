@@ -13,27 +13,39 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import io.micrometer.core.annotation.Timed;
+import org.apache.hc.client5.http.AuthenticationStrategy;
 import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.classic.ExecChain;
+import org.apache.hc.client5.http.classic.ExecChainHandler;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.ChainElement;
+import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
+import org.apache.hc.client5.http.impl.DefaultClientConnectionReuseStrategy;
+import org.apache.hc.client5.http.impl.DefaultSchemePortResolver;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.ConnectExec;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
@@ -45,7 +57,10 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.http.protocol.DefaultHttpProcessor;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.http.protocol.RequestTargetHost;
+import org.apache.hc.core5.http.protocol.RequestUserAgent;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIBuilder;
@@ -81,7 +96,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 public class HttpAPIClientHelper {
@@ -219,7 +236,7 @@ public class HttpAPIClientHelper {
 
 
         int networkBufferSize = MapUtils.getInt(chConfiguration, "client_network_buffer_size");
-        ManagedHttpClientConnectionFactory connectionFactory = new ManagedHttpClientConnectionFactory(
+        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
                 Http1Config.custom()
                         .setBufferSize(networkBufferSize)
                         .build(),
@@ -238,6 +255,9 @@ public class HttpAPIClientHelper {
                 Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
                 Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
+
+                applyMethod = micrometerLoader.getDeclaredMethod("applyConnectionMetricsBinder", Object.class, String.class, MeteredManagedHttpClientConnectionFactory.class);
+                applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
             } catch (Exception e) {
                 LOG.error("Failed to register metrics", e);
             }
@@ -758,7 +778,6 @@ public class HttpAPIClientHelper {
         httpClient.close(CloseMode.IMMEDIATE);
     }
 
-
     /**
      * This factory is used only when no ssl connections are required (no https endpoints).
      * Internally http client would create factory and spend time if no supplied.
@@ -777,6 +796,36 @@ public class HttpAPIClientHelper {
         @Override
         public Socket connectSocket(TimeValue connectTimeout, Socket socket, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
             return null;
+        }
+    }
+
+    public class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+        public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
+            super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
+        }
+
+        ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
+
+
+        @Override
+        public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
+            long startT = System.currentTimeMillis();
+            try {
+                return super.createConnection(socket);
+            } finally {
+                long endT = System.currentTimeMillis();
+                times.add(endT - startT);
+            }
+        }
+
+        public long getTime() {
+            int count = times.size();
+            long runningAverage = 0;
+            for (int i = 0; i < count; i++) {
+                runningAverage += times.poll();
+            }
+
+            return count > 0 ? runningAverage / count : 0;
         }
     }
 }
