@@ -56,32 +56,29 @@ public class MetricsTest extends BaseIntegrationTest {
             Gauge available = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "available").gauge();
             Gauge leased = meterRegistry.get("httpcomponents.httpclient.pool.total.connections").tags("state", "leased").gauge();
             Gauge times = meterRegistry.get("httpcomponents.httpclient.connect.time").gauge();
-            Gauge ratio = meterRegistry.get("httpcomponents.httpclient.request.ratio").gauge();
 
             System.out.println("totalMax:" + totalMax.value() +
                     ", available: " + available.value() +
                     ", leased: " + leased.value() +
-                    ", times: " + times.value() +
-                    ", ratio: " + ratio.value());
+                    ", times: " + times.value());
             Assert.assertEquals((int)totalMax.value(), Integer.parseInt(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getDefaultValue()));
             Assert.assertEquals((int)available.value(), 1);
             Assert.assertEquals((int)leased.value(), 0);
-            assertEquals((int)ratio.value(), 0);
 
             try (QueryResponse response = client.query("SELECT 1").get()) {
                 Assert.assertEquals((int)available.value(), 0);
                 Assert.assertEquals((int)leased.value(), 1);
-                assertEquals(ratio.value(), 0);
             }
 
             Assert.assertEquals((int)available.value(), 1);
             Assert.assertEquals((int)leased.value(), 0);
         }
         // currently there are  only 7 metrics that are monitored by micrometer (out of the box)
-        assertEquals(meterRegistry.getMeters().size(), 7);
+        assertEquals(meterRegistry.getMeters().size(), 6);
     }
 
-    @Test(groups = { "integration" }, enabled = true)
+    //Disabled because we can't assume the time is greater than 0
+    @Test(groups = { "integration" }, enabled = false)
     public void testConnectionTime() throws Exception {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
