@@ -464,6 +464,11 @@ public class StatementTest extends JdbcIntegrationTest {
         assertEquals(StatementImpl.parseStatementType("      "), StatementImpl.StatementType.OTHER);
     }
 
+    @Test(groups = { "integration" })
+    public void testParseStatementWithClause() throws Exception {
+        assertEquals(StatementImpl.parseStatementType("with data as (SELECT number FROM numbers(100)) select * from data"), StatementImpl.StatementType.SELECT);
+    }
+
 
     @Test(groups = { "integration" })
     public void testWithIPs() throws Exception {
@@ -537,6 +542,34 @@ public class StatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
             Assert.expectThrows(SQLException.class, () ->stmt.executeQuery("SELECT 1 FORMAT JSON"));
+        }
+    }
+
+    @Test(groups = "integration")
+    void testWithClause() throws Exception {
+        int count = 0;
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("with data as (SELECT number FROM numbers(100)) select * from data");
+                ResultSet rs = stmt.getResultSet();
+                while (rs.next()) {
+                    count++;
+                }
+            }
+        }
+        assertEquals(count, 100);
+    }
+
+    @Test(groups = { "integration" })
+    public void testSwitchDatabase() throws Exception {
+        String createSql = "CREATE TABLE switchDatabaseWithUse (id UInt8, words String) ENGINE = MergeTree ORDER BY ()";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                assertEquals(stmt.executeUpdate(createSql), 0);
+                assertEquals(stmt.executeUpdate("CREATE DATABASE \"newDatabase\" ENGINE=Atomic"), 0);
+                assertFalse(stmt.execute("USE \"newDatabase\""));
+                assertEquals(stmt.executeUpdate(createSql), 0);
+            }
         }
     }
 }

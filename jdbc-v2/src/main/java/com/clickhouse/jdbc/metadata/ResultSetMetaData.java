@@ -165,6 +165,6 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        throw new SQLException("Not implemented", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        return null;
     }
 }
