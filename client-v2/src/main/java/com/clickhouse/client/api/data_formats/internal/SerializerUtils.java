@@ -115,12 +115,11 @@ public class SerializerUtils {
         map.put(BigInteger.class, ClickHouseColumn.of("v", "Int256"));
         map.put(Float.class, ClickHouseColumn.of("v", "Float32"));
         map.put(Double.class, ClickHouseColumn.of("v", "Float64"));
-        map.put(LocalDate.class, ClickHouseColumn.of("v", "Date"));
         map.put(UUID.class, ClickHouseColumn.of("v", "UUID"));
         map.put(Inet4Address.class, ClickHouseColumn.of("v", "IPv4"));
         map.put(Inet6Address.class, ClickHouseColumn.of("v", "IPv6"));
         map.put(String.class, ClickHouseColumn.of("v", "String"));
-        map.put(LocalDateTime.class, ClickHouseColumn.of("v", "DateTime"));
+        map.put(LocalDate.class, ClickHouseColumn.of("v", "Date32"));
 
         map.put(ClickHouseGeoPointValue.class, ClickHouseColumn.of("v", "Point"));
         map.put(ClickHouseGeoRingValue.class, ClickHouseColumn.of("v", "Ring"));
@@ -162,7 +161,9 @@ public class SerializerUtils {
         ClickHouseColumn column;
         if (value instanceof ZonedDateTime) {
             ZonedDateTime dt = (ZonedDateTime) value;
-            column = ClickHouseColumn.of("v", "DateTime(" + dt.getZone().getId() + ")");
+            column = ClickHouseColumn.of("v", "DateTime64(9, " + dt.getZone().getId() + ")");
+        } else if (value instanceof LocalDateTime) {
+            column = ClickHouseColumn.of("v", "DateTime64(9, " + ZoneId.systemDefault().getId() + ")");
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
             String decType;
@@ -347,6 +348,9 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeString(stream, typeColumn.getTimeZoneOrDefault(TimeZone.getDefault()).getID());
                 break;
             case DateTime64:
+                stream.write(binTag);
+                BinaryStreamUtils.writeUnsignedInt8(stream, typeColumn.getScale());
+                BinaryStreamUtils.writeString(stream, typeColumn.getTimeZoneOrDefault(TimeZone.getDefault()).getID());
                 break;
             case Array:
                 stream.write(binTag);
@@ -559,6 +563,9 @@ public class SerializerUtils {
             case IntervalQuarter:
             case IntervalYear:
                 BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
+                break;
+            case Nothing:
+                // no value is expected to be written. Used mainly for Dynamic when NULL
                 break;
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
@@ -788,7 +795,7 @@ public class SerializerUtils {
                                 Type.getType(Class.class)),
                         false);
 
-                if (targetType.isAssignableFrom(List.class) && column.getDataType() == ClickHouseDataType.Tuple) {
+                if (List.class.isAssignableFrom(targetType) && column.getDataType() == ClickHouseDataType.Tuple) {
                     mv.visitTypeInsn(CHECKCAST, Type.getInternalName(Object[].class));
                     mv.visitMethodInsn(INVOKESTATIC,
                             Type.getInternalName(Arrays.class),

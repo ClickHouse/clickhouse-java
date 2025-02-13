@@ -242,9 +242,9 @@ public class BinaryStreamReader {
         if (typeHint == null) {
             return (T) value;
         }
-        if (typeHint.isAssignableFrom(LocalDateTime.class)) {
+        if (LocalDateTime.class.isAssignableFrom(typeHint)) {
             return (T) value.toLocalDateTime();
-        } else if (typeHint.isAssignableFrom(LocalDate.class)) {
+        } else if (LocalDate.class.isAssignableFrom(typeHint)) {
             return (T) value.toLocalDate();
         }
 
@@ -255,7 +255,10 @@ public class BinaryStreamReader {
         if (typeHint == null) {
             return (T) value;
         }
-        if (typeHint.isAssignableFrom(List.class)) {
+        if (typeHint == Object.class) {
+            return (T) value.asList();
+        }
+        if (List.class.isAssignableFrom(typeHint)) {
             return (T) value.asList();
         }
         if (typeHint.isArray()) {
@@ -918,8 +921,10 @@ public class BinaryStreamReader {
             }
         }
 
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds), tz.toZoneId())
-                .atZone(tz.toZoneId());
+//        Instant.ofEpochSecond()
+        return Instant.ofEpochSecond(value, nanoSeconds).atZone(tz.toZoneId());
+//        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds), tz.toZoneId())
+//                .atZone(tz.toZoneId());
     }
 
     /**
@@ -1025,6 +1030,16 @@ public class BinaryStreamReader {
                 throw new ClientException("Unsupported interval kind: " + intervalKind);
             }
             return ClickHouseColumn.of("v", type, false, 0, 0);
+        } else if (tag == ClickHouseDataType.DateTime32.getBinTag()) {
+            byte scale = readByte();
+            return ClickHouseColumn.of("v", "DateTime32(" + scale + ")");
+        }  else if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) { // without timezone
+            byte scale = readByte();
+            return ClickHouseColumn.of("v", "DateTime64(" + scale  +")");
+        }  else if (tag == ClickHouseDataType.DateTime64.getBinTag()) {
+            byte scale = readByte();
+            String timezone = readString(input);
+            return ClickHouseColumn.of("v", "DateTime64(" + scale + (timezone.isEmpty() ? "" : ", " + timezone) +")");
         } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
             String typeName = readString(input);
             return ClickHouseColumn.of("v", typeName);

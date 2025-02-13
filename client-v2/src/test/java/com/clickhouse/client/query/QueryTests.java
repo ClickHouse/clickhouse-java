@@ -84,7 +84,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -2091,7 +2090,7 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testGetJSON() throws Exception  {
+    public void testBinaryEncodedJSON() throws Exception  {
         if (isVersionMatch("(,24.8]")) {
             return;
         }
@@ -2109,7 +2108,6 @@ public class QueryTests extends BaseIntegrationTest {
                     return a.replaceAll("'", "\"");
                 }), 1);
 
-        System.out.println(dataset);
         ObjectMapper jackson = new ObjectMapper();
         try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);

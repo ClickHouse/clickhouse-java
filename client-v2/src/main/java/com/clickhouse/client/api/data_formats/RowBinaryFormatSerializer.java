@@ -207,6 +207,8 @@ public class RowBinaryFormatSerializer {
                     return false;//And we're done
                 } else if (dataType == ClickHouseDataType.Array) {//If the column is an array
                     SerializerUtils.writeNonNull(out);//Then we send nonNull
+                } else if (dataType == ClickHouseDataType.Dynamic) {
+                    // do nothing
                 } else {
                     throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
                 }
@@ -221,6 +223,8 @@ public class RowBinaryFormatSerializer {
             } else if (value == null) {
                 if (dataType == ClickHouseDataType.Array) {
                     SerializerUtils.writeNonNull(out);
+                } else if (dataType == ClickHouseDataType.Dynamic) {
+                    // do nothing
                 } else {
                     throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
                 }
