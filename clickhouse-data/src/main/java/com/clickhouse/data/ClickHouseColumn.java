@@ -640,8 +640,13 @@ public final class ClickHouseColumn implements Serializable {
         return Collections.unmodifiableList(c);
     }
 
-    private ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
+    public ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
             boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns) {
+        this(dataType, columnName, originalTypeName, nullable, lowCardinality, parameters, nestedColumns, ClickHouseEnum.EMPTY);
+    }
+
+    public ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
+            boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns, ClickHouseEnum enumConstants) {
         this.aggFuncType = null;
         this.dataType = ClickHouseChecker.nonNull(dataType, "dataType");
 
@@ -671,6 +676,7 @@ public final class ClickHouseColumn implements Serializable {
 
         this.fixedByteLength = false;
         this.estimatedByteLength = 0;
+        this.enumConstants = enumConstants;
     }
 
     /**

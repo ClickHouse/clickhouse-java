@@ -247,6 +247,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Enum8:
                 case Enum16:
                 case Variant:
+                case Dynamic:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -285,9 +286,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER);
             }
             return value.toString();
+        } else if (value instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue)value).name;
         } else if (value instanceof Number ) {
             ClickHouseDataType dataType = column.getDataType();
-            int num = ((Number)value).intValue();
+            int num = ((Number) value).intValue();
             if (column.getDataType() == ClickHouseDataType.Variant) {
                 for (ClickHouseColumn c : column.getNestedColumns()) {
                     // TODO: will work only if single enum listed as variant
@@ -688,22 +691,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getEnum8(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.byteValue();
     }
 
     @Override
     public byte getEnum8(int index) {
-        return readValue(index);
+        return getEnum8(schema.columnIndexToName(index));
     }
 
     @Override
     public short getEnum16(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.shortValue();
     }
 
     @Override
     public short getEnum16(int index) {
-        return readValue(index);
+        return getEnum16(schema.columnIndexToName(index));
     }
 
     @Override

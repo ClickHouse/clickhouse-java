@@ -6,9 +6,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -24,17 +22,17 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class DataTypeTests extends BaseIntegrationTest {
 
@@ -60,10 +58,9 @@ public class DataTypeTests extends BaseIntegrationTest {
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"))
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
@@ -115,11 +112,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                         0, Arrays.asList("db", "fast"), new int[]{1, 2, 3}, new String[]{"a", "b", "c"})),
                 (data, dto) -> {
                     DTOForArraysTests dataDto = data.get(dto.getRowId());
-                    System.out.println(dto.getWords());
                     Assert.assertEquals(dto.getWords(), dataDto.getWords());
-                    System.out.println(Arrays.asList(dto.getLetters()));
                     Assert.assertEquals(dto.getLetters(), dataDto.getLetters());
-                    System.out.println(Arrays.asList(dto.getNumbers()));
                     Assert.assertEquals(dto.getNumbers(), dataDto.getNumbers());
                 });
     }
@@ -153,7 +147,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         dataTypesLoop:
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
-            System.out.println("Testing " + dataType);
             client.execute("DROP TABLE IF EXISTS " + table).get();
             StringBuilder b = new StringBuilder(" CREATE TABLE ");
             b.append(table).append(" ( rowId Int64, field Variant(String, ").append(dataType.name());
@@ -161,21 +154,11 @@ public class DataTypeTests extends BaseIntegrationTest {
             switch (dataType) {
                 case String:
                 case FixedString:
-                case IntervalYear:
-                case IntervalDay:
-                case IntervalHour:
-                case IntervalWeek:
-                case IntervalMonth:
-                case IntervalMinute:
-                case IntervalSecond:
-                case IntervalNanosecond:
-                case IntervalMicrosecond:
-                case IntervalQuarter:
-                case IntervalMillisecond:
                 case Nothing:
                 case Variant:
                 case JSON:
                 case Object:
+                case Dynamic:
                     // skipped
                     continue dataTypesLoop;
 
@@ -196,19 +179,19 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY ()");
+            b.append(")) Engine = MergeTree ORDER BY () SETTINGS enable_variant_type=1");
 
-            client.execute(b.toString(), (CommandSettings) new CommandSettings().serverSetting("enable_variant_type", "1"));
+            client.execute(b.toString());
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
             Object value = null;
             for (Method m : sample.getClass().getDeclaredMethods()) {
                 if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
                     value = m.invoke(sample);
-                    System.out.println("selected " + value + " returned by method " + m.getName());
                     break;
                 }
             }
+            Assert.assertNotNull(value);
 
             List<DTOForVariantPrimitivesTests> data = new ArrayList<>();
             data.add(new DTOForVariantPrimitivesTests(0, value));
@@ -241,7 +224,6 @@ public class DataTypeTests extends BaseIntegrationTest {
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
                 }
-                System.out.println("field: " + strValue + " value " + value);
                 if (value.getClass().isPrimitive()) {
                     Assert.assertEquals(strValue, String.valueOf(value));
                 } else {
@@ -388,6 +370,207 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
+    @Test(groups = {"integration"})
+    public void testDynamicWithPrimitives() throws Exception {
+
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_dynamic_primitives";
+        final DataTypesTestingPOJO sample = new DataTypesTestingPOJO();
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        String createTableStatement = " CREATE TABLE " + table + "( rowId Int64, field Dynamic ) " +
+                "Engine = MergeTree ORDER BY ()";
+
+        client.execute(createTableStatement, (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1"));
+        client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
+
+        int rowId = 0;
+        for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
+            switch (dataType) {
+                case Array:
+                case Map:
+                case AggregateFunction:
+                case SimpleAggregateFunction:
+                    // tested separately
+                    continue;
+                case Dynamic:
+                case Nothing: // array tests
+                case Object: // deprecated
+                case JSON:
+                case Nested:
+                case Tuple:
+                case Variant:
+                case Decimal: // virtual type
+                    // no tests or tested in other tests
+                    continue;
+                default:
+            }
+
+            Object value = null;
+            if (dataType == ClickHouseDataType.Enum8) {
+                value = sample.getSmallEnum();
+            } else if (dataType == ClickHouseDataType.Enum16) {
+                value = sample.getLargeEnum();
+            } else {
+                for (Method m : sample.getClass().getDeclaredMethods()) {
+                    if (m.getName().equalsIgnoreCase("get" + dataType.name())) {
+                        value = m.invoke(sample);
+                        break;
+                    }
+                }
+            }
+
+            Assert.assertNotNull(value);
+
+            List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+            data.add(new DTOForDynamicPrimitivesTests(rowId++, value));
+            client.insert(table, data).get().close();
+            List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId DESC  ");
+            GenericRecord row = rows.get(0);
+                String strValue = row.getString("field");
+                switch (dataType) {
+                    case Date:
+                    case Date32:
+                        strValue = row.getLocalDate("field").toString();
+                        break;
+                    case DateTime64:
+                    case DateTime:
+                    case DateTime32:
+                        strValue = row.getLocalDateTime("field").truncatedTo(ChronoUnit.SECONDS).toString();
+                        value = ((LocalDateTime) value).truncatedTo(ChronoUnit.SECONDS).toString();
+                        break;
+                    case Point:
+                        strValue = row.getGeoPoint("field").toString();
+                        break;
+                    case Ring:
+                        strValue = row.getGeoRing("field").toString();
+                        break;
+                    case Polygon:
+                        strValue = row.getGeoPolygon("field").toString();
+                        break;
+                    case MultiPolygon:
+                        strValue = row.getGeoMultiPolygon("field").toString();
+                        break;
+                    case Decimal32:
+                    case Decimal64:
+                    case Decimal128:
+                    case Decimal256:
+                        BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
+                        strValue = tmpDec.toPlainString();
+                        break;
+                }
+                if (value.getClass().isPrimitive()) {
+                    Assert.assertEquals(strValue, String.valueOf(value));
+                } else {
+                    Assert.assertEquals(strValue, String.valueOf(value));
+                }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithArrays() throws Exception {
+        testDynamicWith("arrays",
+                new Object[]{
+                        "a,b",
+                        new String[]{"a", null, "b"},
+                        Arrays.asList("c", "d"),
+                        new Integer[]{1, null, 2, null, 3}
+
+                },
+                new String[]{
+                        "a,b",
+                        "[a, null, b]",
+                        "[c, d]",
+                        "[1, null, 2, null, 3]"
+                });
+        testDynamicWith("arrays",
+                new Object[]{
+                        new int[]{1, 2},
+                        new String[]{"a", "b"},
+                        Arrays.asList("c", "d"),
+                        Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)),
+                        Arrays.asList(Arrays.asList(1, 2), Collections.emptyList()),
+                        Arrays.asList(Arrays.asList(1, 2), null, Arrays.asList(3, 4))
+                },
+                new String[]{
+                        "[1, 2]",
+                        "[a, b]",
+                        "[c, d]",
+                        "[[1, 2], [3, 4]]",
+                        "[[1, 2], []]",
+                        "[[1, 2], [], [3, 4]]"
+                });
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithMaps() throws Exception {
+        Map<String, Byte> map1 = new HashMap<>();
+        map1.put("key1", (byte) 1);
+        map1.put("key2", (byte) 2);
+        map1.put("key3", (byte) 3);
+
+        testDynamicWith("maps",
+                new Object[]{
+                        map1
+                },
+                new String[]{
+                        "{key1=1, key2=2, key3=3}",
+                });
+
+
+        Map<Integer, String> map2 = new HashMap<>();
+        map2.put(1, "a");
+        map2.put(2, "b");
+
+        Map<String, String> map3 = new HashMap<>();
+        map3.put("1", "a");
+        map3.put("2", "b");
+
+        testDynamicWith("maps",
+                new Object[]{
+                        map2,
+                        map3
+                },
+                new String[]{
+                        "{1=a, 2=b}",
+                        "{1=a, 2=b}",
+                });
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForDynamicPrimitivesTests {
+        private int rowId;
+        private Object field;
+    }
+
+    private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String table = "test_dynamic_with_" + withWhat;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
+                (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1")).get();
+
+        client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
+
+        List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            data.add(new DTOForDynamicPrimitivesTests(i, values[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
+        for (GenericRecord row : rows) {
+            Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
+        }
+    }
+
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -410,7 +593,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table);
         for (GenericRecord row : rows) {
-            System.out.println("> " + row.getString("field"));
             Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
         }
     }
@@ -426,7 +608,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         return sb.toString();
     }
 
-    public boolean isVersionMatch(String versionExpression) {
+    private boolean isVersionMatch(String versionExpression) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
