@@ -358,6 +358,7 @@ public class ClickHouseServerForTest {
     @AfterSuite(groups = {"integration"})
     public static void afterSuite() {
         if (clickhouseContainer != null) {
+//            clickhouseContainer.copyFileFromContainer("/var/log/clickhouse-server/clickhouse-server.log", "server-container.log");
             clickhouseContainer.stop();
         }
 

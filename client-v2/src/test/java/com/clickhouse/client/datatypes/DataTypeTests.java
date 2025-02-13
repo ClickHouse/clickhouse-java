@@ -58,7 +58,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     public void setUp() throws IOException {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), false)
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(useClientCompression)
@@ -179,9 +179,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY ()");
+            b.append(")) Engine = MergeTree ORDER BY () SETTINGS enable_variant_type=1");
 
-            client.execute(b.toString(), (CommandSettings) new CommandSettings().serverSetting("enable_variant_type", "1"));
+            client.execute(b.toString());
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
             Object value = null;
