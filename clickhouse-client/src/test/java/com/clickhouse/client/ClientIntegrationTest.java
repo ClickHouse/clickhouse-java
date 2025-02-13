@@ -2511,7 +2511,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
             tx.begin();
             try {
-                Thread.sleep(3000L);
+                Thread.sleep(4000L);
             } catch (InterruptedException ex) {
                 Assert.fail("Sleep was interrupted", ex);
             }
