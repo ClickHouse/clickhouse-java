@@ -93,6 +93,16 @@ public class ClickHouseEnum implements Serializable {
         throw new IllegalArgumentException("Unknown enum value: " + value);
     }
 
+    public String nameNullable(int value) {
+        for (int i = 0; i < size; i++) {
+            if (values[i] == value) {
+                return names[i];
+            }
+        }
+
+        return null;
+    }
+
     public int value(String name) {
         for (int i = 0; i < size; i++) {
             if (names[i].equals(name)) {

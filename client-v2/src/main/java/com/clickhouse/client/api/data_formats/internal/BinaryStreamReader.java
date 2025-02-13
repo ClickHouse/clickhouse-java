@@ -158,12 +158,16 @@ public class BinaryStreamReader {
                     return (T) Double.valueOf(readDoubleLE());
                 case Bool:
                     return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
-                case Enum8:
+                case Enum8: {
                     byte enum8Val = (byte) readUnsignedByte();
-                    return (T) new EnumValue(actualColumn.getEnumConstants().name(enum8Val), enum8Val);
-                case Enum16:
+                    String name = actualColumn.getEnumConstants().name(enum8Val);
+                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum8Val);
+                }
+                case Enum16: {
                     short enum16Val = (short) readUnsignedShortLE();
-                    return (T) new EnumValue(actualColumn.getEnumConstants().name(enum16Val), enum16Val);
+                    String name = actualColumn.getEnumConstants().name(enum16Val);
+                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum16Val);
+                }
                 case Date:
                     return convertDateTime(readDate(timezone), typeHint);
                 case Date32:

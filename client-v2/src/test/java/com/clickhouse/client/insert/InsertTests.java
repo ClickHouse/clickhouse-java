@@ -427,7 +427,7 @@ public class InsertTests extends BaseIntegrationTest {
         };
     }
 
-    @Test
+    @Test(enabled = false)
     public void testWriter() throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +

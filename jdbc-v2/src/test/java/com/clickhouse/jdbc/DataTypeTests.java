@@ -823,6 +823,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testDynamicTypesSimpleStatement() throws SQLException {
+        if (earlierThan(24, 8)) {//Min version is 24.4
+            return;
+        }
+
         Properties properties = new Properties();
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
         runQuery("CREATE TABLE test_dynamic (order Int8, "
@@ -935,6 +939,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testVariantTypesSimpleStatement() throws SQLException {
+        if (earlierThan(24, 8)) {//Min version is 24.4
+            return;
+        }
+
         Properties properties = new Properties();
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
         runQuery("CREATE TABLE test_variant (order Int8, "
