@@ -1,6 +1,5 @@
 package com.clickhouse.data;
 
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -8,12 +7,11 @@ import java.net.Inet6Address;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -247,36 +245,39 @@ public enum ClickHouseDataType {
 
     public static final byte TUPLE_WITH_NAMES_BIN_TAG = 0x20;
 
-    public enum IntervalKindBinTag {
-        Nanosecond(IntervalNanosecond, 0x00),
-        Microsecond(IntervalMicrosecond, 0x01),
+    public enum IntervalKind {
+        Nanosecond(IntervalNanosecond, ChronoUnit.NANOS, 0x00),
+        Microsecond(IntervalMicrosecond, ChronoUnit.MICROS, 0x01),
 
-        Millisecond(IntervalMillisecond, 0x02),
+        Millisecond(IntervalMillisecond, ChronoUnit.MILLIS, 0x02),
 
-        Second(IntervalSecond,  0x03),
+        Second(IntervalSecond,  ChronoUnit.SECONDS, 0x03),
 
-        Minute(IntervalMinute, 0x04),
+        Minute(IntervalMinute, ChronoUnit.MINUTES, 0x04),
 
-        Hour(IntervalHour, 0x05),
+        Hour(IntervalHour, ChronoUnit.HOURS, 0x05),
 
-        Day(IntervalDay, 0x06),
+        Day(IntervalDay, ChronoUnit.DAYS, 0x06),
 
-        Week(IntervalWeek, 0x07),
+        Week(IntervalWeek, ChronoUnit.WEEKS, 0x07),
 
-        Month(IntervalMonth, 0x08),
+        Month(IntervalMonth, ChronoUnit.MONTHS, 0x08),
 
-        Quarter(IntervalQuarter, 0x09),
+        Quarter(IntervalQuarter, null, 0x09),
 
-        Year(IntervalYear, 0x1A) // why 1A ?
+        Year(IntervalYear, ChronoUnit.YEARS, 0x1A) // why 1A ?
 
         ;
 
         private ClickHouseDataType intervalType;
 
+        private TemporalUnit temporalUnit;
+
         byte tag;
-        IntervalKindBinTag(ClickHouseDataType clickHouseDataType, int tag) {
+        IntervalKind(ClickHouseDataType clickHouseDataType, TemporalUnit temporalUnit, int tag) {
             this.intervalType = clickHouseDataType;
             this.tag = (byte) tag;
+            this.temporalUnit = temporalUnit;
         }
 
         public ClickHouseDataType getIntervalType() {
@@ -286,6 +287,8 @@ public enum ClickHouseDataType {
         public byte getTag() {
             return tag;
         }
+
+        public TemporalUnit getTemporalUnit() { return temporalUnit; }
     }
 
 
@@ -303,7 +306,7 @@ public enum ClickHouseDataType {
 
     public static final Map<Byte, ClickHouseDataType> intervalKind2Type;
 
-    public static final Map<ClickHouseDataType, Byte> intervalType2Kind;
+    public static final Map<ClickHouseDataType, ClickHouseDataType.IntervalKind> intervalType2Kind;
 
     static {
         Set<String> set = new TreeSet<>();
@@ -341,10 +344,10 @@ public enum ClickHouseDataType {
         binTag2Type = Collections.unmodifiableMap(tmpbinTag2Type);
 
         Map<Byte, ClickHouseDataType> tmpIntervalKind2Type = new HashMap<>();
-        Map<ClickHouseDataType, Byte > tmpIntervalType2Kind = new HashMap<>();
-        for (IntervalKindBinTag kind : IntervalKindBinTag.values()) {
+        Map<ClickHouseDataType, ClickHouseDataType.IntervalKind > tmpIntervalType2Kind = new HashMap<>();
+        for (IntervalKind kind : IntervalKind.values()) {
             tmpIntervalKind2Type.put(kind.getTag(), kind.getIntervalType());
-            tmpIntervalType2Kind.put(kind.getIntervalType(), kind.tag);
+            tmpIntervalType2Kind.put(kind.getIntervalType(), kind);
         }
         intervalKind2Type = Collections.unmodifiableMap(tmpIntervalKind2Type);
         intervalType2Kind = Collections.unmodifiableMap(tmpIntervalType2Kind);

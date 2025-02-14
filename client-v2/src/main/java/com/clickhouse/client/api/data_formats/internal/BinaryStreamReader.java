@@ -17,10 +17,13 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -189,7 +192,7 @@ public class BinaryStreamReader {
                 case IntervalMicrosecond:
                 case IntervalMillisecond:
                 case IntervalNanosecond:
-                    return (T) readBigIntegerLE(8, true);
+                    return (T) readIntervalValue(dataType, input);
                 case IPv4:
                     // https://clickhouse.com/docs/en/sql-reference/data-types/ipv4
                     return (T) Inet4Address.getByAddress(readNBytesLE(input, 4));
@@ -218,7 +221,6 @@ public class BinaryStreamReader {
                     return convertArray(readArray(actualColumn), typeHint);
                 case Map:
                     return (T) readMap(actualColumn);
-//                case Nested:
                 case Tuple:
                     return (T) readTuple(actualColumn);
                 case Nothing:
@@ -239,6 +241,37 @@ public class BinaryStreamReader {
         } catch (Exception e) {
             log.debug("Failed to read value for column {}, {}", column.getColumnName(), e.getLocalizedMessage());
             throw new ClientException("Failed to read value for column " + column.getColumnName(), e);
+        }
+    }
+
+    private TemporalAmount readIntervalValue(ClickHouseDataType dataType, InputStream input) throws IOException {
+        BigInteger v = readBigIntegerLE(8, true);
+
+        switch (dataType) {
+            case IntervalYear:
+                return Period.ofYears(v.intValue());
+            case IntervalQuarter:
+                return Period.ofMonths(4 * v.intValue());
+            case IntervalMonth:
+                return Period.ofMonths(v.intValue());
+            case IntervalWeek:
+                return Period.ofWeeks(v.intValue());
+            case IntervalDay:
+                return Period.ofDays(v.intValue());
+            case IntervalHour:
+                return Duration.ofHours(v.longValue());
+            case IntervalMinute:
+                return Duration.ofMinutes(v.longValue());
+            case IntervalSecond:
+                return Duration.ofSeconds(v.longValue());
+            case IntervalMicrosecond:
+                return Duration.ofNanos(1000 * v.longValue());
+            case IntervalMillisecond:
+                return Duration.ofMillis(v.longValue());
+            case IntervalNanosecond:
+                return Duration.ofNanos(v.longValue());
+            default:
+                throw new ClientException("Unsupported interval type: " + dataType);
         }
     }
 
@@ -925,10 +958,7 @@ public class BinaryStreamReader {
             }
         }
 
-//        Instant.ofEpochSecond()
         return Instant.ofEpochSecond(value, nanoSeconds).atZone(tz.toZoneId());
-//        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds), tz.toZoneId())
-//                .atZone(tz.toZoneId());
     }
 
     /**

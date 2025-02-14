@@ -14,8 +14,10 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -94,27 +96,27 @@ public class DataTypesTestingPOJO {
     private ClickHouseBitmap groupBitmapUint32;
     private ClickHouseBitmap groupBitmapUint64;
 
-    private int intervalYear;
+    private Period intervalYear;
 
-    private byte intervalQuarter;
+    private Period intervalQuarter;
 
-    private byte intervalMonth;
+    private Period intervalMonth;
 
-    private byte intervalWeek;
+    private Period intervalWeek;
 
-    private short intervalDay;
+    private Period intervalDay;
 
-    private byte intervalHour;
+    private Duration intervalHour;
 
-    private byte intervalMinute;
+    private Duration intervalMinute;
 
-    private byte intervalSecond;
+    private Duration intervalSecond;
 
-    private long intervalMillisecond;
+    private Duration intervalMillisecond;
 
-    private long intervalMicrosecond;
+    private Duration intervalMicrosecond;
 
-    private BigInteger intervalNanosecond;
+    private Duration intervalNanosecond;
 
     private SmallEnum smallEnum;
 
@@ -245,18 +247,18 @@ public class DataTypesTestingPOJO {
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
 
-        intervalYear = random.nextInt(4000);
-        intervalQuarter = (byte) random.nextInt(4);
-        intervalMonth = (byte) random.nextInt(12);
-        intervalWeek = (byte) random.nextInt(52);
-        intervalDay = (byte) random.nextInt(30);
-        intervalHour = (byte) random.nextInt(24);
-        intervalMinute = (byte) random.nextInt(60);
-        intervalSecond = (byte) random.nextInt(60);
-        intervalMillisecond =  Math.abs(random.nextLong());
-        intervalMicrosecond =  Math.abs(random.nextInt());
+        intervalYear = Period.ofYears(random.nextInt(4000));
+        intervalQuarter = Period.ofDays(random.nextInt(1000));
+        intervalMonth = Period.ofMonths(random.nextInt(12));
+        intervalWeek = Period.ofWeeks(random.nextInt(52));
+        intervalDay = Period.ofDays(random.nextInt(30));
+        intervalHour = Duration.ofHours(random.nextInt(24));
+        intervalMinute = Duration.ofMinutes(random.nextInt(60));
+        intervalSecond = Duration.ofSeconds(random.nextInt(60));
+        intervalMillisecond =  Duration.ofMillis(random.nextInt());
+        intervalMicrosecond =  Duration.ofNanos(random.nextInt());
 
-        intervalNanosecond = BigInteger.valueOf(Math.abs(random.nextLong()));
+        intervalNanosecond = Duration.ofNanos((random.nextInt()));
 
         smallEnum = SmallEnum.valueOf("CONSTANT_" + Math.max(1, random.nextInt(SmallEnum.values().length - 1)));
         largeEnum = LargeEnum.valueOf("CONSTANT_" + Math.max(1, random.nextInt(LargeEnum.values().length - 1)));
@@ -319,16 +321,16 @@ public class DataTypesTestingPOJO {
                 "innerNullableInt Nullable(Int32)), " +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
                 "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64), " +
-                "intervalYear IntervalYear, " +
-                "intervalQuarter IntervalQuarter, " +
-                "intervalMonth IntervalMonth, " +
-                "intervalWeek IntervalWeek, " +
+                "intervalYear IntervalDay, " +
+                "intervalQuarter IntervalDay, " +
+                "intervalMonth IntervalDay, " +
+                "intervalWeek IntervalDay, " +
                 "intervalDay IntervalDay, " +
                 "intervalHour IntervalHour, " +
-                "intervalMinute IntervalMinute, " +
-                "intervalSecond IntervalSecond, " +
-                "intervalMillisecond IntervalMillisecond, " +
-                "intervalMicrosecond IntervalMicrosecond, " +
+                "intervalMinute IntervalNanosecond, " +
+                "intervalSecond IntervalNanosecond, " +
+                "intervalMillisecond IntervalNanosecond, " +
+                "intervalMicrosecond IntervalNanosecond, " +
                 "intervalNanosecond IntervalNanosecond " +
                 ") ENGINE = MergeTree ORDER BY ()";
     }

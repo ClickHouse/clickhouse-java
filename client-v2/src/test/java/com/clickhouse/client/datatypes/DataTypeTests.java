@@ -23,8 +23,12 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
+import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -138,7 +142,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
-        if (isVersionMatch("(,24.8]")) {
+        if (isVersionMatch("(,24.8]") || isCloud()) {
             return;
         }
 
@@ -179,7 +183,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY () SETTINGS allow_experimental_dynamic_type=1");
+            b.append(")) Engine = MergeTree ORDER BY () SETTINGS enable_variant_type=1");
 
             client.execute(b.toString());
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
@@ -372,8 +376,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testDynamicWithPrimitives() throws Exception {
-
-        if (isVersionMatch("(,24.8]")) {
+        if (isVersionMatch("(,24.8]") || isCloud()) {
             return;
         }
 
@@ -460,6 +463,23 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case Decimal256:
                         BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
                         strValue = tmpDec.toPlainString();
+                        break;
+                    case IntervalMicrosecond:
+                    case IntervalMillisecond:
+                    case IntervalSecond:
+                    case IntervalMinute:
+                    case IntervalHour:
+                        strValue = String.valueOf(row.getTemporalAmount("field"));
+                        break;
+                    case IntervalDay:
+                    case IntervalWeek:
+                    case IntervalMonth:
+                    case IntervalQuarter:
+                    case IntervalYear:
+                        strValue = String.valueOf(row.getTemporalAmount("field"));
+                        Period period = (Period) value;
+                        long days = (period).getDays() + Math.round((period.toTotalMonths() / 12d) * 360);
+                        value = Period.ofDays((int) days);
                         break;
                 }
                 if (value.getClass().isPrimitive()) {
@@ -548,7 +568,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
-        if (isVersionMatch("(,24.8]")) {
+        if (isVersionMatch("(,24.8]") || isCloud()) {
             return;
         }
 
@@ -572,7 +592,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {
-        if (isVersionMatch("(,24.8]")) {
+        if (isVersionMatch("(,24.8]") || isCloud()) {
             return;
         }
 

@@ -30,6 +30,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
 import java.time.*;
+import java.time.temporal.TemporalUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -120,6 +121,8 @@ public class SerializerUtils {
         map.put(Inet6Address.class, ClickHouseColumn.of("v", "IPv6"));
         map.put(String.class, ClickHouseColumn.of("v", "String"));
         map.put(LocalDate.class, ClickHouseColumn.of("v", "Date32"));
+        map.put(Duration.class, ClickHouseColumn.of("v", "IntervalNanosecond"));
+        map.put(Period.class, ClickHouseColumn.of("v", "IntervalDay"));
 
         map.put(ClickHouseGeoPointValue.class, ClickHouseColumn.of("v", "Point"));
         map.put(ClickHouseGeoRingValue.class, ClickHouseColumn.of("v", "Ring"));
@@ -337,7 +340,7 @@ public class SerializerUtils {
             case IntervalQuarter:
             case IntervalYear:
                 stream.write(binTag);
-                Byte kindTag = ClickHouseDataType.intervalType2Kind.get(dt);
+                Byte kindTag = ClickHouseDataType.intervalType2Kind.get(dt).getTag();
                 if (kindTag == null) {
                     throw new ClientException("BUG! No Interval Mapping to a kind tag");
                 }
@@ -562,7 +565,7 @@ public class SerializerUtils {
             case IntervalMonth:
             case IntervalQuarter:
             case IntervalYear:
-                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
+                serializeInterval(stream, column, value);
                 break;
             case Nothing:
                 // no value is expected to be written. Used mainly for Dynamic when NULL
@@ -570,6 +573,57 @@ public class SerializerUtils {
             default:
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
         }
+    }
+
+    private static void serializeInterval(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+        long v;
+
+        if (value instanceof Duration) {
+            Duration d = (Duration) value;
+            switch (column.getDataType()) {
+                case IntervalMillisecond:
+                    v = d.toMillis();
+                    break;
+                case IntervalNanosecond:
+                    v = d.toNanos();
+                    break;
+                case IntervalMicrosecond:
+                    v = d.toNanos() / 1000;
+                    break;
+                case IntervalSecond:
+                    v = d.getSeconds();
+                    break;
+                case IntervalMinute:
+                    v = d.toMinutes();
+                    break;
+                case IntervalHour:
+                    v = d.toHours();
+                    break;
+                case IntervalDay:
+                    v = d.toDays();
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Cannot convert Duration to " + column.getDataType());
+            }
+        } else if (value instanceof Period) {
+            Period p = (Period) value;
+            switch (column.getDataType()) {
+                case IntervalDay:
+                    v = p.toTotalMonths() * 30 + p.getDays();
+                    break;
+                case IntervalMonth:
+                    v = p.toTotalMonths();
+                    break;
+                case IntervalYear:
+                    v = p.toTotalMonths() / 12;
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Cannot convert Period to " + column.getDataType());
+            }
+        } else {
+            throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to " + column.getDataType());
+        }
+        BinaryStreamUtils.writeUnsignedInt64(stream, v);
     }
 
     private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
