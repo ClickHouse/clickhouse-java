@@ -30,6 +30,7 @@ import java.net.Inet6Address;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -247,6 +248,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Enum8:
                 case Enum16:
                 case Variant:
+                case Dynamic:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -285,9 +287,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER);
             }
             return value.toString();
+        } else if (value instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue)value).name;
         } else if (value instanceof Number ) {
             ClickHouseDataType dataType = column.getDataType();
-            int num = ((Number)value).intValue();
+            int num = ((Number) value).intValue();
             if (column.getDataType() == ClickHouseDataType.Variant) {
                 for (ClickHouseColumn c : column.getNestedColumns()) {
                     // TODO: will work only if single enum listed as variant
@@ -411,38 +415,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Duration getDuration(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
-        BigInteger value = readValue(colName);
-        try {
-            switch (column.getDataType()) {
-                case IntervalYear:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.YEARS);
-                case IntervalQuarter:
-                    return Duration.of(value.longValue() * 3, java.time.temporal.ChronoUnit.MONTHS);
-                case IntervalMonth:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.MONTHS);
-                case IntervalWeek:
-                    return Duration.of(value.longValue(), ChronoUnit.WEEKS);
-                case IntervalDay:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.DAYS);
-                case IntervalHour:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.HOURS);
-                case IntervalMinute:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.MINUTES);
-                case IntervalSecond:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.SECONDS);
-                case IntervalMicrosecond:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.MICROS);
-                case IntervalMillisecond:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.MILLIS);
-                case IntervalNanosecond:
-                    return Duration.of(value.longValue(), java.time.temporal.ChronoUnit.NANOS);
-            }
-        } catch (ArithmeticException e) {
-            throw new ClientException("Stored value is bigger then Long.MAX_VALUE and it cannot be converted to Duration without information loss", e);
-        }
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Duration");
+        TemporalAmount temporalAmount = getTemporalAmount(colName);
+        return Duration.from(temporalAmount);
+    }
+
+    @Override
+    public TemporalAmount getTemporalAmount(String colName) {
+        return readValue(colName);
     }
 
     @Override
@@ -603,7 +582,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Duration getDuration(int index) {
-        return readValue(index);
+        return getDuration(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public TemporalAmount getTemporalAmount(int index) {
+        return getTemporalAmount(schema.columnIndexToName(index));
     }
 
     @Override
@@ -688,22 +672,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getEnum8(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.byteValue();
     }
 
     @Override
     public byte getEnum8(int index) {
-        return readValue(index);
+        return getEnum8(schema.columnIndexToName(index));
     }
 
     @Override
     public short getEnum16(String colName) {
-        return readValue(colName);
+        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return enumValue.shortValue();
     }
 
     @Override
     public short getEnum16(int index) {
-        return readValue(index);
+        return getEnum16(schema.columnIndexToName(index));
     }
 
     @Override

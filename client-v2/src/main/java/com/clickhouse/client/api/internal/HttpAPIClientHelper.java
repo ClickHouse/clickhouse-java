@@ -447,7 +447,7 @@ public class HttpAPIClientHelper {
         } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
             throw e;
         } catch (Exception e) {
-            throw new ClientException("Failed to execute request", e);
+            throw new ClientException(e.getMessage(), e);
         }
     }
 

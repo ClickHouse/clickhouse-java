@@ -11,6 +11,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.*;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,6 +88,11 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     @Override
     public Duration getDuration(String colName) {
         return reader.getDuration(colName);
+    }
+
+    @Override
+    public TemporalAmount getTemporalAmount(String colName) {
+        return reader.getTemporalAmount(colName);
     }
 
     @Override
@@ -232,6 +238,11 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     @Override
     public Duration getDuration(int index) {
         return reader.getDuration(index);
+    }
+
+    @Override
+    public TemporalAmount getTemporalAmount(int index) {
+        return reader.getTemporalAmount(index);
     }
 
     @Override

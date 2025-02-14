@@ -14,8 +14,10 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -93,6 +95,32 @@ public class DataTypesTestingPOJO {
 
     private ClickHouseBitmap groupBitmapUint32;
     private ClickHouseBitmap groupBitmapUint64;
+
+    private Period intervalYear;
+
+    private Period intervalQuarter;
+
+    private Period intervalMonth;
+
+    private Period intervalWeek;
+
+    private Period intervalDay;
+
+    private Duration intervalHour;
+
+    private Duration intervalMinute;
+
+    private Duration intervalSecond;
+
+    private Duration intervalMillisecond;
+
+    private Duration intervalMicrosecond;
+
+    private Duration intervalNanosecond;
+
+    private SmallEnum smallEnum;
+
+    private LargeEnum largeEnum;
 
     public DataTypesTestingPOJO() {
         final Random random = new Random();
@@ -219,6 +247,21 @@ public class DataTypesTestingPOJO {
         groupBitmapUint32 = ClickHouseBitmap.wrap(random.ints(5, Integer.MAX_VALUE - 100, Integer.MAX_VALUE).toArray());
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
 
+        intervalYear = Period.ofYears(random.nextInt(4000));
+        intervalQuarter = Period.ofMonths(random.nextInt(10)  *3);
+        intervalMonth = Period.ofMonths(random.nextInt(12));
+        intervalWeek = Period.ofWeeks(random.nextInt(52));
+        intervalDay = Period.ofDays(random.nextInt(30));
+        intervalHour = Duration.ofHours(random.nextInt(24));
+        intervalMinute = Duration.ofMinutes(random.nextInt(60));
+        intervalSecond = Duration.ofSeconds(random.nextInt(60));
+        intervalMillisecond =  Duration.ofMillis(random.nextInt());
+        intervalMicrosecond =  Duration.ofNanos(random.nextInt() * 1000L);
+
+        intervalNanosecond = Duration.ofNanos((random.nextInt()));
+
+        smallEnum = SmallEnum.valueOf("CONSTANT_" + Math.max(1, random.nextInt(SmallEnum.values().length - 1)));
+        largeEnum = LargeEnum.valueOf("CONSTANT_" + Math.max(1, random.nextInt(LargeEnum.values().length - 1)));
     }
 
     public boolean getBool() {
@@ -277,7 +320,51 @@ public class DataTypesTestingPOJO {
                 "nested Nested (innerInt Int32, innerString String, " +
                 "innerNullableInt Nullable(Int32)), " +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
-                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
+                "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64), " +
+                "intervalYear IntervalDay, " +
+                "intervalQuarter IntervalDay, " +
+                "intervalMonth IntervalDay, " +
+                "intervalWeek IntervalDay, " +
+                "intervalDay IntervalDay, " +
+                "intervalHour IntervalHour, " +
+                "intervalMinute IntervalNanosecond, " +
+                "intervalSecond IntervalNanosecond, " +
+                "intervalMillisecond IntervalNanosecond, " +
+                "intervalMicrosecond IntervalNanosecond, " +
+                "intervalNanosecond IntervalNanosecond " +
                 ") ENGINE = MergeTree ORDER BY ()";
+    }
+
+    public enum SmallEnum {
+        CONSTANT_1, CONSTANT_2, CONSTANT_3, CONSTANT_4, CONSTANT_5, CONSTANT_6, CONSTANT_7, CONSTANT_8, CONSTANT_9, CONSTANT_10;
+    }
+
+    public enum LargeEnum {
+        CONSTANT_1, CONSTANT_2, CONSTANT_3, CONSTANT_4, CONSTANT_5, CONSTANT_6, CONSTANT_7, CONSTANT_8, CONSTANT_9, CONSTANT_10,
+        CONSTANT_11, CONSTANT_12, CONSTANT_13, CONSTANT_14, CONSTANT_15, CONSTANT_16, CONSTANT_17, CONSTANT_18, CONSTANT_19, CONSTANT_20,
+        CONSTANT_21, CONSTANT_22, CONSTANT_23, CONSTANT_24, CONSTANT_25, CONSTANT_26, CONSTANT_27, CONSTANT_28, CONSTANT_29, CONSTANT_30,
+        CONSTANT_31, CONSTANT_32, CONSTANT_33, CONSTANT_34, CONSTANT_35, CONSTANT_36, CONSTANT_37, CONSTANT_38, CONSTANT_39, CONSTANT_40,
+        CONSTANT_41, CONSTANT_42, CONSTANT_43, CONSTANT_44, CONSTANT_45, CONSTANT_46, CONSTANT_47, CONSTANT_48, CONSTANT_49, CONSTANT_50,
+        CONSTANT_51, CONSTANT_52, CONSTANT_53, CONSTANT_54, CONSTANT_55, CONSTANT_56, CONSTANT_57, CONSTANT_58, CONSTANT_59, CONSTANT_60,
+        CONSTANT_61, CONSTANT_62, CONSTANT_63, CONSTANT_64, CONSTANT_65, CONSTANT_66, CONSTANT_67, CONSTANT_68, CONSTANT_69, CONSTANT_70,
+        CONSTANT_71, CONSTANT_72, CONSTANT_73, CONSTANT_74, CONSTANT_75, CONSTANT_76, CONSTANT_77, CONSTANT_78, CONSTANT_79, CONSTANT_80,
+        CONSTANT_81, CONSTANT_82, CONSTANT_83, CONSTANT_84, CONSTANT_85, CONSTANT_86, CONSTANT_87, CONSTANT_88, CONSTANT_89, CONSTANT_90,
+        CONSTANT_91, CONSTANT_92, CONSTANT_93, CONSTANT_94, CONSTANT_95, CONSTANT_96, CONSTANT_97, CONSTANT_98, CONSTANT_99, CONSTANT_100,
+        CONSTANT_101, CONSTANT_102, CONSTANT_103, CONSTANT_104, CONSTANT_105, CONSTANT_106, CONSTANT_107, CONSTANT_108, CONSTANT_109, CONSTANT_110,
+        CONSTANT_111, CONSTANT_112, CONSTANT_113, CONSTANT_114, CONSTANT_115, CONSTANT_116, CONSTANT_117, CONSTANT_118, CONSTANT_119, CONSTANT_120,
+        CONSTANT_121, CONSTANT_122, CONSTANT_123, CONSTANT_124, CONSTANT_125, CONSTANT_126, CONSTANT_127, CONSTANT_128, CONSTANT_129, CONSTANT_130,
+        CONSTANT_131, CONSTANT_132, CONSTANT_133, CONSTANT_134, CONSTANT_135, CONSTANT_136, CONSTANT_137, CONSTANT_138, CONSTANT_139, CONSTANT_140,
+        CONSTANT_141, CONSTANT_142, CONSTANT_143, CONSTANT_144, CONSTANT_145, CONSTANT_146, CONSTANT_147, CONSTANT_148, CONSTANT_149, CONSTANT_150,
+        CONSTANT_151, CONSTANT_152, CONSTANT_153, CONSTANT_154, CONSTANT_155, CONSTANT_156, CONSTANT_157, CONSTANT_158, CONSTANT_159, CONSTANT_160,
+        CONSTANT_161, CONSTANT_162, CONSTANT_163, CONSTANT_164, CONSTANT_165, CONSTANT_166, CONSTANT_167, CONSTANT_168, CONSTANT_169, CONSTANT_170,
+        CONSTANT_171, CONSTANT_172, CONSTANT_173, CONSTANT_174, CONSTANT_175, CONSTANT_176, CONSTANT_177, CONSTANT_178, CONSTANT_179, CONSTANT_180,
+        CONSTANT_181, CONSTANT_182, CONSTANT_183, CONSTANT_184, CONSTANT_185, CONSTANT_186, CONSTANT_187, CONSTANT_188, CONSTANT_189, CONSTANT_190,
+        CONSTANT_191, CONSTANT_192, CONSTANT_193, CONSTANT_194, CONSTANT_195, CONSTANT_196, CONSTANT_197, CONSTANT_198, CONSTANT_199, CONSTANT_200,
+        CONSTANT_201, CONSTANT_202, CONSTANT_203, CONSTANT_204, CONSTANT_205, CONSTANT_206, CONSTANT_207, CONSTANT_208, CONSTANT_209, CONSTANT_210,
+        CONSTANT_211, CONSTANT_212, CONSTANT_213, CONSTANT_214, CONSTANT_215, CONSTANT_216, CONSTANT_217, CONSTANT_218, CONSTANT_219, CONSTANT_220,
+        CONSTANT_221, CONSTANT_222, CONSTANT_223, CONSTANT_224, CONSTANT_225, CONSTANT_226, CONSTANT_227, CONSTANT_228, CONSTANT_229, CONSTANT_230,
+        CONSTANT_231, CONSTANT_232, CONSTANT_233, CONSTANT_234, CONSTANT_235, CONSTANT_236, CONSTANT_237, CONSTANT_238, CONSTANT_239, CONSTANT_240,
+        CONSTANT_241, CONSTANT_242, CONSTANT_243, CONSTANT_244, CONSTANT_245, CONSTANT_246, CONSTANT_247, CONSTANT_248, CONSTANT_249, CONSTANT_250,
+        CONSTANT_251, CONSTANT_252, CONSTANT_253, CONSTANT_254, CONSTANT_255, CONSTANT_256, CONSTANT_257, CONSTANT_258, CONSTANT_259, CONSTANT_260
     }
 }
