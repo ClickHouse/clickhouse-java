@@ -227,6 +227,26 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case MultiPolygon:
                         strValue = row.getGeoMultiPolygon("field").toString();
                         break;
+                    case IntervalMicrosecond:
+                    case IntervalMillisecond:
+                    case IntervalSecond:
+                    case IntervalMinute:
+                    case IntervalHour:
+                        strValue = String.valueOf(row.getTemporalAmount("field"));
+                        break;
+                    case IntervalDay:
+                    case IntervalWeek:
+                    case IntervalMonth:
+                    case IntervalQuarter:
+                    case IntervalYear:
+                        Period period = (Period) value;
+                        long days = (period).getDays() + Math.round((period.toTotalMonths() * 30));
+                        value = Period.ofDays((int) days);
+                        period = (Period) row.getTemporalAmount("field");
+                        days = (period).getDays() + Math.round((period.toTotalMonths() * 30));
+                        strValue = Period.ofDays((int) days).toString();
+                        break;
+
                 }
                 if (value.getClass().isPrimitive()) {
                     Assert.assertEquals(strValue, String.valueOf(value));

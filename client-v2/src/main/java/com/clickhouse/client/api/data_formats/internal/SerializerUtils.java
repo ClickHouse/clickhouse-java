@@ -611,11 +611,17 @@ public class SerializerUtils {
                 case IntervalDay:
                     v = p.toTotalMonths() * 30 + p.getDays();
                     break;
+                case IntervalWeek:
+                    v = (p.toTotalMonths() * 30 + p.getDays()) / 7;
+                    break;
                 case IntervalMonth:
-                    v = p.toTotalMonths();
+                    v = p.toTotalMonths() + p.getDays() / 30;
+                    break;
+                case IntervalQuarter:
+                    v = (p.toTotalMonths() + (p.getDays() / 30)) / 3;
                     break;
                 case IntervalYear:
-                    v = p.toTotalMonths() / 12;
+                    v = (p.toTotalMonths() + (p.getDays() / 30)) / 12;
                     break;
                 default:
                     throw new UnsupportedOperationException("Cannot convert Period to " + column.getDataType());

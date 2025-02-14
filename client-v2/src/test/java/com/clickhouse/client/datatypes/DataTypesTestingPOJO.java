@@ -248,7 +248,7 @@ public class DataTypesTestingPOJO {
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
 
         intervalYear = Period.ofYears(random.nextInt(4000));
-        intervalQuarter = Period.ofDays(random.nextInt(1000));
+        intervalQuarter = Period.ofMonths(random.nextInt(10)  *3);
         intervalMonth = Period.ofMonths(random.nextInt(12));
         intervalWeek = Period.ofWeeks(random.nextInt(52));
         intervalDay = Period.ofDays(random.nextInt(30));
@@ -256,7 +256,7 @@ public class DataTypesTestingPOJO {
         intervalMinute = Duration.ofMinutes(random.nextInt(60));
         intervalSecond = Duration.ofSeconds(random.nextInt(60));
         intervalMillisecond =  Duration.ofMillis(random.nextInt());
-        intervalMicrosecond =  Duration.ofNanos(random.nextInt());
+        intervalMicrosecond =  Duration.ofNanos(random.nextInt() * 1000L);
 
         intervalNanosecond = Duration.ofNanos((random.nextInt()));
 

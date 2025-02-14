@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
@@ -212,17 +214,19 @@ public enum ClickHouseDataType {
         map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         map.put(Array, setOf(List.class, Object[].class, byte[].class, short[].class, int[].class, long[].class, boolean[].class));
 
-        map.put(IntervalYear, setOfAllNumberClasses);
-        map.put(IntervalQuarter, setOfAllNumberClasses);
-        map.put(IntervalMonth, setOfAllNumberClasses);
-        map.put(IntervalWeek, setOfAllNumberClasses);
-        map.put(IntervalDay, setOfAllNumberClasses);
-        map.put(IntervalHour, setOfAllNumberClasses);
-        map.put(IntervalMinute, setOfAllNumberClasses);
-        map.put(IntervalSecond, setOfAllNumberClasses);
-        map.put(IntervalMillisecond, setOfAllNumberClasses);
-        map.put(IntervalMicrosecond, setOfAllNumberClasses);
-        map.put(IntervalNanosecond, setOfAllNumberClasses);
+        Set<Class<?>> dateIntervalClasses = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(Period.class, Duration.class, byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class)));
+        Set<Class<?>> timeIntervalClasses = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(Duration.class, byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class, BigInteger.class)));
+        map.put(IntervalYear, dateIntervalClasses);
+        map.put(IntervalQuarter, dateIntervalClasses);
+        map.put(IntervalMonth, dateIntervalClasses);
+        map.put(IntervalWeek, dateIntervalClasses);
+        map.put(IntervalDay, dateIntervalClasses);
+        map.put(IntervalHour, timeIntervalClasses);
+        map.put(IntervalMinute, timeIntervalClasses);
+        map.put(IntervalSecond, timeIntervalClasses);
+        map.put(IntervalMillisecond, timeIntervalClasses);
+        map.put(IntervalMicrosecond, timeIntervalClasses);
+        map.put(IntervalNanosecond, timeIntervalClasses);
 
         return map;
     }

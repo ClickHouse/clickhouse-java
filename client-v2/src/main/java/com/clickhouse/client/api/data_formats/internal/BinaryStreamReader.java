@@ -251,7 +251,7 @@ public class BinaryStreamReader {
             case IntervalYear:
                 return Period.ofYears(v.intValue());
             case IntervalQuarter:
-                return Period.ofMonths(4 * v.intValue());
+                return Period.ofMonths(3 * v.intValue());
             case IntervalMonth:
                 return Period.ofMonths(v.intValue());
             case IntervalWeek:
@@ -265,7 +265,7 @@ public class BinaryStreamReader {
             case IntervalSecond:
                 return Duration.ofSeconds(v.longValue());
             case IntervalMicrosecond:
-                return Duration.ofNanos(1000 * v.longValue());
+                return Duration.ofNanos(v.longValue() * 1000);
             case IntervalMillisecond:
                 return Duration.ofMillis(v.longValue());
             case IntervalNanosecond:
