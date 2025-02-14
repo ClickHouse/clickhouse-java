@@ -22,6 +22,7 @@ public class SamplePOJO {
     private byte byteValue;
     private Byte boxedByte;
     private int int8;
+    private Integer int8_null;
     private int int8_default;
     private int int16;
     private Short boxedShort;
@@ -100,6 +101,7 @@ public class SamplePOJO {
         byteValue = (byte) random.nextInt();
         boxedByte = (byte) random.nextInt();
         int8 = random.nextInt(128);
+        int8_null = null;
         int16 = random.nextInt(32768);
         boxedShort = (short) random.nextInt();
         int32 = random.nextInt();
@@ -175,7 +177,7 @@ public class SamplePOJO {
         }
 
         array = Arrays.asList("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
-        tuple = Arrays.asList(uint64, int32, string);
+        tuple = Arrays.asList(uint64, int32, string, null);
         map = new HashMap<>();
         for (int i = 0; i < 10; i++) {
             map.put(String.valueOf((char) ('a' + i)), i + 1);
@@ -276,6 +278,14 @@ public class SamplePOJO {
 
     public void setInt8(int int8) {
         this.int8 = int8;
+    }
+
+    public Integer getInt8_null() {
+        return int8_null;
+    }
+
+    public void setInt8_null(Integer int8_null) {
+        this.int8_null = int8_null;
     }
 
     public int getInt8Default() {
@@ -721,6 +731,7 @@ public class SamplePOJO {
         return "CREATE TABLE " + tableName + " (" +
                 "byteValue Int8," +
                 "int8 Int8, " +
+                "int8_null Nullable(Int8), " +
                 "boxedByte Int8, " +
                 "int8_default Int8 DEFAULT 0, " +
                 "int16 Int16, " +
@@ -770,7 +781,7 @@ public class SamplePOJO {
                 "ipv4 IPv4, " +
                 "ipv6 IPv6, " +
                 "array Array(String), " +
-                "tuple Tuple(UInt64, Int32, String), " +
+                "tuple Tuple(UInt64, Int32, String, Nullable(Int16)), " +
                 "map Map(String, Int32), " +
                 "nested Nested (innerInt Int32, innerString String, " +
                 "innerNullableInt Nullable(Int32)), " +
