@@ -49,7 +49,11 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     protected boolean runQuery(String query) {
-        try (Connection connection = getJdbcConnection()) {
+        return runQuery(query, new Properties());
+    }
+
+    protected boolean runQuery(String query, Properties connProperties) {
+        try (Connection connection = getJdbcConnection(connProperties)) {
             try (Statement stmt = connection.createStatement()) {
                 return stmt.execute(query);
             }

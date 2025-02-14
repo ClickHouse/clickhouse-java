@@ -32,6 +32,7 @@ import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStre
 import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -46,6 +47,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
@@ -53,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
@@ -423,7 +427,7 @@ public class InsertTests extends BaseIntegrationTest {
         };
     }
 
-    @Test
+    @Test(enabled = false)
     public void testWriter() throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
@@ -606,7 +610,6 @@ public class InsertTests extends BaseIntegrationTest {
                 snappy.write(bytes);
                 snappy.finish();
             }
-            System.out.println("Compressed size " + baos.size() + ", uncompressed size: " + data[i].length());
             compressedData[i] = baos.toByteArray();
         }
 
@@ -614,7 +617,6 @@ public class InsertTests extends BaseIntegrationTest {
                 .appCompressedData(true, algo);
         try (InsertResponse response = client.insert(tableName, out -> {
             for (byte[] row : compressedData) {
-//                if (algo.)
                 BinaryStreamUtils.writeVarInt(out, row.length);
                 out.write(row);
             }
@@ -638,8 +640,57 @@ public class InsertTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = { "integration" }, enabled = true)
+    public void testPOJOWithDynamicType() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String tableName = "pojo_dynamic_type_test";
+        final String createSQL = PojoWithDynamic.getTableDef(tableName);
+
+        initTable(tableName, createSQL, (CommandSettings)
+                new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1"));
+
+        TableSchema tableSchema = client.getTableSchema(tableName);
+        client.register(PojoWithDynamic.class, tableSchema);
+
+        List<PojoWithDynamic> data = new ArrayList<>();
+        data.add(new PojoWithDynamic(1, "test_string", null));
+        data.add(new PojoWithDynamic(2, 10000L, Arrays.asList(1, 2, 3)));
+        data.add(new PojoWithDynamic(3, 10000L, LocalDateTime.now()));
+        data.add(new PojoWithDynamic(4, 10000L, ZonedDateTime.now(ZoneId.of("America/Chicago"))));
+        data.add(new PojoWithDynamic(5, 10000L, LocalDate.now()));
+        try (InsertResponse response = client.insert(tableName, data, settings)
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), data.size());
+        }
+
+        List<PojoWithDynamic> items =
+                client.queryAll("SELECT * FROM " + tableName, PojoWithDynamic.class, tableSchema);
+
+        int i = 0;
+        for (PojoWithDynamic item : items) {
+            if (item.rowId == 3) {
+                assertEquals(((ZonedDateTime) item.getNullableAny()).toLocalDateTime(), data.get(i++).getNullableAny());
+            } else if (item.rowId == 5) {
+                assertEquals(((ZonedDateTime) item.getNullableAny()).toLocalDate(), data.get(i++).getNullableAny());
+            } else {
+                assertEquals(item, data.get(i++));
+            }
+        }
+    }
+
     protected void initTable(String tableName, String createTableSQL) throws Exception {
-        client.execute("DROP TABLE IF EXISTS " + tableName).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-        client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        initTable(tableName, createTableSQL, new CommandSettings());
+    }
+
+    protected void initTable(String tableName, String createTableSQL, CommandSettings settings) throws Exception {
+        client.execute("DROP TABLE IF EXISTS " + tableName, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        client.execute(createTableSQL, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    private boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
 }

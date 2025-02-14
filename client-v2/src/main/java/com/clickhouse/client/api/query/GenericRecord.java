@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.*;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -131,6 +132,13 @@ public interface GenericRecord {
      */
     Duration getDuration(String colName);
 
+    /**
+     * Returns the value of the specified column as a TemporalAmount.
+     * Period is used for dates and Duration is used for times.
+     * @param colName
+     * @return TemporalAmount in the unit of column type.
+     */
+    TemporalAmount getTemporalAmount(String colName);
 
     /**
      * Returns the value of the specified column as an Inet4Address.
@@ -359,6 +367,13 @@ public interface GenericRecord {
      */
     Duration getDuration(int index);
 
+    /**
+     * Returns the value of the specified column as a TemporalAmount.
+     * Period is used for dates and Duration is used for times.
+     * @param index
+     * @return TemporalAmount in the unit of column type.
+     */
+    TemporalAmount getTemporalAmount(int index);
 
     /**
      * Returns the value of the specified column as an Inet4Address.
