@@ -48,9 +48,7 @@ jobs:
           EOF
       - name: Update Configuration
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
-            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.version }}\2|' \
-            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
+          sed -i 's|<revision>.*</revision>|<revision>${{ github.event.inputs.version }}</revision>|g' pom.xml
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
