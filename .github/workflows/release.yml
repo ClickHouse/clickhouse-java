@@ -6,7 +6,6 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "0.8.0-SNAPSHOT"
 
 env:
   CH_VERSION: "24.8"
