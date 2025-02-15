@@ -462,6 +462,12 @@ public class SerializerUtils {
     }
 
     private static void serializePrimitiveData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        //Handle null values
+        if (value == null && column.isNullable()) {//Only nullable columns can have null values
+            BinaryStreamUtils.writeNull(stream);
+            return;
+        }
+
         //Serialize the value to the stream based on the type
         switch (column.getDataType()) {
             case Int8:
