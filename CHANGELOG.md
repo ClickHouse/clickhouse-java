@@ -1,5 +1,28 @@
 ## Latest
 
+## 0.8.1 
+
+### New Features
+- [client-v2] - Added support for Variant Data Type for RowBinary format. Can be read into a POJO or using a reader.
+Writing is supported only for POJO. (https://github.com/ClickHouse/clickhouse-java/pull/2130)    
+- [client-v2] - Added support for Dynamic Data Type for RowBinary format. Can be read into a POJO or using a reader.
+  Writing is supported only for POJO. (https://github.com/ClickHouse/clickhouse-java/pull/2130)
+- [client-v2] - Added support for JSON Data Type for RowBinary format. Can be read into a POJO or using a reader.
+  Writing is supported only for POJO. (https://github.com/ClickHouse/clickhouse-java/pull/2130)
+- [client-v2] - Added support for `ZonedDateTime` in POJO serde. (https://github.com/ClickHouse/clickhouse-java/issues/2117)
+- [client-v2] - Added suport for micrometer metrics for Apache HTTP client connection pool. It is now possible to get metrics registered 
+in micrometer registry by calling `com.clickhouse.client.api.Client.Builder.registerClientMetrics(registry, groupName)`. (https://github.com/ClickHouse/clickhouse-java/issues/1901) 
+
+### Bug Fixes 
+- [client-v2] - Fixed `getTableSchema(tableName, databaseName)` now it doesn't ignore database name. (https://github.com/ClickHouse/clickhouse-java/issues/2139)
+- [client-v2] - Fixed `returnGeneratedValues` to not throw an exception. Keep in mind that ClickHouse doesn't support 
+returning anything in response for `INSERT` statements. This change was done just to make client usable with certain frameworks. (https://github.com/ClickHouse/clickhouse-java/issues/2121)
+- [jdbc-v2] - Fixed changing database by `USE` statement. (https://github.com/ClickHouse/clickhouse-java/issues/2137)
+- [jbdc-v2] - Fixed `ResultSetMetadata.getColumnClassName()` to return null instead of throwing exception. This change is done only 
+to allow certain frameworks work with the client. (https://github.com/ClickHouse/clickhouse-java/issues/2112)
+- [jdbc-v2] - Fixed using statements with `WITH` in JDBC v2. Previously was causing NPE. (https://github.com/ClickHouse/clickhouse-java/issues/2132) 
+- [repo] - Fixed failing Test in Windows when attempting to locate files with reserved characters in the file path. (https://github.com/ClickHouse/clickhouse-java/issues/2114)
+
 ## 0.8.0
 
 ### Highlights
