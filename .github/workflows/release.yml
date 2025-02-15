@@ -80,4 +80,10 @@ jobs:
           title: "Release v${{ github.event.inputs.version }}"
           files: |
             LICENSE
-            **/target/clickhouse*.jar
+            clickhouse-client/target/clickhouse*.jar
+            clickhouse-data/target/clickhouse*.jar
+            clickhouse-http-client/target/clickhouse*.jar
+            clickhouse-jdbc/target/clickhouse*.jar
+            clickhouse-r2dbc/target/clickhouse*.jar
+            client-v2/target/client-v2*.jar
+            jdbc-v2/target/jdbc-v2*.jar
