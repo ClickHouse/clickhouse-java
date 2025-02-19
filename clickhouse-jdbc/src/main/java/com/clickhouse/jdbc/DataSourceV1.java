@@ -13,6 +13,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.logging.Logger;
 
+@Deprecated
 public class DataSourceV1 extends JdbcWrapper implements DataSource {
     private final String url;
     private final Properties props;

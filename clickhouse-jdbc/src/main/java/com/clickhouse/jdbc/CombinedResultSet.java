@@ -25,6 +25,7 @@ import java.util.Map;
 /**
  * Wrapper of multiple ResultSets.
  */
+@Deprecated
 public class CombinedResultSet extends AbstractResultSet {
     private final ResultSet[] results;
 

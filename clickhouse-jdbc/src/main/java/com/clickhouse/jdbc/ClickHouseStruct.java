@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.clickhouse.data.ClickHouseChecker;
 
+@Deprecated
 public class ClickHouseStruct implements Struct {
     private final String typeName;
     private final Object[] values;

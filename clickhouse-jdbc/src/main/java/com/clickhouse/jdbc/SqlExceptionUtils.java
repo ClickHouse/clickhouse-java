@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseException;
 /**
  * Helper class for building {@link SQLException}.
  */
+@Deprecated
 public final class SqlExceptionUtils {
     public static final String SQL_STATE_CLIENT_ERROR = "HY000";
     public static final String SQL_STATE_OPERATION_CANCELLED = "HY008";

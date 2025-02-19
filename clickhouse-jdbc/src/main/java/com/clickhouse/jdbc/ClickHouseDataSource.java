@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
+@Deprecated
 public class ClickHouseDataSource implements javax.sql.DataSource, com.clickhouse.jdbc.JdbcV2Wrapper {
     private final DataSource dataSource;
     private final ClickHouseDriver driver;

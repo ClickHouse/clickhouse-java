@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.sql.SQLException;
 
+@Deprecated
 public abstract class JdbcWrapper {
     public <T> T unwrap(Class<T> iface) throws SQLException {
         if (iface.isAssignableFrom(getClass())) {

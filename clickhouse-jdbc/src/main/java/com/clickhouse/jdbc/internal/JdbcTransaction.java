@@ -14,6 +14,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
+@Deprecated
 public class JdbcTransaction {
     static final String ACTION_COMMITTED = "committed";
     static final String ACTION_ROLLBACK = "rolled back";

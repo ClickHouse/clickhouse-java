@@ -26,6 +26,7 @@ import com.clickhouse.data.ClickHouseUtils;
  * does not impact serialization and deserialization, which is handled
  * separately by {@link com.clickhouse.data.ClickHouseDataProcessor}.
  */
+@Deprecated
 public class JdbcTypeMapping {
     static final class AnsiTypeMapping extends JdbcTypeMapping {
         static String toAnsiSqlType(ClickHouseDataType dataType, int precision, int scale, TimeZone tz) {

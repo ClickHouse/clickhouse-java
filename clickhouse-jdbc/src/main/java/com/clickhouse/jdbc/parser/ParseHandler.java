@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@Deprecated
 public abstract class ParseHandler {
     /**
      * Handle macro like "#include('/tmp/template.sql')".

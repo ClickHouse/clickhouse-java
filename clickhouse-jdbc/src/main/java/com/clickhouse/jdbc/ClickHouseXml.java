@@ -10,6 +10,7 @@ import java.sql.SQLXML;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 
+@Deprecated
 public class ClickHouseXml implements SQLXML {
 
     @Override

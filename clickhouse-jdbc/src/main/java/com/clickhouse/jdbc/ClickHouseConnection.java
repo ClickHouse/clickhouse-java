@@ -24,6 +24,7 @@ import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
+@Deprecated
 public interface ClickHouseConnection extends Connection {
     static final String COLUMN_ELEMENT = "element";
     static final String COLUMN_ARRAY = "array";

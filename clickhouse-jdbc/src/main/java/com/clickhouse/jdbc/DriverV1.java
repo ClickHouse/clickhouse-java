@@ -32,6 +32,7 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
  * <li>{@code jdbc:clickhouse://localhost/system?protocol=grpc}</li>
  * </ul>
  */
+@Deprecated
 public class DriverV1 implements Driver {
     private static final Logger log = LoggerFactory.getLogger(DriverV1.class);
 

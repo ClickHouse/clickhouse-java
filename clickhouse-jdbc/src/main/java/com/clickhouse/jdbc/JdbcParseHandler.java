@@ -12,6 +12,7 @@ import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;
 
+@Deprecated
 public class JdbcParseHandler extends ParseHandler {
     private static final String SETTING_MUTATIONS_SYNC = "mutations_sync";
 

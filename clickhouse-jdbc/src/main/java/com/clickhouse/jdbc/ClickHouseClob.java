@@ -8,6 +8,7 @@ import java.sql.Clob;
 import java.sql.NClob;
 import java.sql.SQLException;
 
+@Deprecated
 public class ClickHouseClob implements NClob {
 
     @Override
