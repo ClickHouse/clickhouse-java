@@ -5,6 +5,7 @@ import java.util.Locale;
 
 import com.clickhouse.data.ClickHouseChecker;
 
+@Deprecated
 public final class ClickHouseDefaultOption implements ClickHouseOption {
     private final String name;
     private final String key;

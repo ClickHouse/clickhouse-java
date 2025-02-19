@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseDataConfig;
 /**
  * Generic client options.
  */
+@Deprecated
 public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Whether the client should run in async mode(e.g.

@@ -22,6 +22,7 @@ import com.clickhouse.logging.LoggerFactory;
  * also contains session ID and references to the connected server and client
  * for issuing queries.
  */
+@Deprecated
 public final class ClickHouseTransaction implements Serializable {
     /**
      * This class encapsulates transaction ID, which is defined as

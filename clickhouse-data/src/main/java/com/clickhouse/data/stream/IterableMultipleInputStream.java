@@ -12,6 +12,7 @@ import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 
+@Deprecated
 public final class IterableMultipleInputStream<T> extends AbstractByteArrayInputStream {
     private final Function<T, InputStream> func;
     private final Iterator<T> it;

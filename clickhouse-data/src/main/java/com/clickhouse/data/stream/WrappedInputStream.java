@@ -13,6 +13,7 @@ import com.clickhouse.data.ClickHousePassThruStream;
 /**
  * Wrapper of {@link java.io.InputStream} with buffer.
  */
+@Deprecated
 public class WrappedInputStream extends AbstractByteArrayInputStream {
     private final InputStream in;
 

@@ -1,6 +1,7 @@
 package com.clickhouse.data;
 
 @FunctionalInterface
+@Deprecated
 public interface ClickHouseRecordTransformer {
     /**
      * Updates values in the given record.

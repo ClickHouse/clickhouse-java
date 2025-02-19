@@ -18,6 +18,7 @@ import java.util.UUID;
  * array, and it uses {@link #position()} and {@link #length()} to define the
  * slice. You may think of it as a lite version of {@link java.nio.ByteBuffer}.
  */
+@Deprecated
 public final class ClickHouseByteBuffer implements Serializable {
     private static final long serialVersionUID = -8178041799873465082L;
 

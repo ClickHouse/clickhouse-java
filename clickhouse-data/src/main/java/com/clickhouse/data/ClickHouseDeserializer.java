@@ -10,6 +10,7 @@ import com.clickhouse.data.value.ClickHouseEmptyValue;
 /**
  * Functional interface for deserialization.
  */
+@Deprecated
 @FunctionalInterface
 public interface ClickHouseDeserializer {
     static class CompositeDeserializer implements ClickHouseDeserializer {

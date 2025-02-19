@@ -3,6 +3,7 @@ package com.clickhouse.data.value;
 /**
  * A wrapper class for unsigned {@code int}.
  */
+@Deprecated
 public final class UnsignedInteger extends Number implements Comparable<UnsignedInteger> {
     public static final int BYTES = Integer.BYTES;
 

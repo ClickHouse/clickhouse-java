@@ -5,6 +5,7 @@ import java.io.Serializable;
 /**
  * Configuration change listener.
  */
+@Deprecated
 public interface ClickHouseConfigChangeListener<T> {
     /**
      * Triggered when {@link ClickHouseOption} was changed. Removing an option is

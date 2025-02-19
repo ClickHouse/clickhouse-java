@@ -14,6 +14,7 @@ import com.clickhouse.data.ClickHouseChecker;
  * This interface defines how to build SSL context based on given configuration
  * and target server.
  */
+@Deprecated
 public interface ClickHouseSslContextProvider {
     /**
      * Get non-null SSL context provider.

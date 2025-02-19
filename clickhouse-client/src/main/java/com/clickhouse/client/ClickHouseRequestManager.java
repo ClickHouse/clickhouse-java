@@ -11,6 +11,7 @@ import com.clickhouse.data.ClickHouseUtils;
  * instantiate customized request manager first, and then fall back to default
  * implementation if no luck.
  */
+@Deprecated
 public class ClickHouseRequestManager {
     /**
      * Inner class for static initialization.

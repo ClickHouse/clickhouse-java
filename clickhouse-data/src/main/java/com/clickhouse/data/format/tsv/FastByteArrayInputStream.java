@@ -6,6 +6,7 @@ import java.io.InputStream;
 /**
  * Not synchronized quick version of {@link java.io.ByteArrayInputStream}
  */
+@Deprecated
 public final class FastByteArrayInputStream extends InputStream {
     private final byte[] buf;
 

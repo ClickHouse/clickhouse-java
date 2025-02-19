@@ -1,5 +1,6 @@
 package com.clickhouse.client.http;
 
+@Deprecated
 public class ClickHouseHttpProto {
 
 

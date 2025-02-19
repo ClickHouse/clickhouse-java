@@ -28,6 +28,7 @@ import com.clickhouse.data.value.UnsignedLong;
 /**
  * Wrapper of {@code long[]}.
  */
+@Deprecated
 public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> implements ClickHouseArraySequence {
     static final class UnsignedLongArrayValue extends ClickHouseLongArrayValue {
         @Override

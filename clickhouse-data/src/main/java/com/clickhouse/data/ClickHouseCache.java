@@ -8,6 +8,7 @@ import com.clickhouse.data.cache.JdkLruCache;
 /**
  * Wrapper interface depicts essential methods required by a client-side cache.
  */
+@Deprecated
 public interface ClickHouseCache<K, V> {
     /**
      * Default cache size.

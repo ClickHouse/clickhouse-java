@@ -6,6 +6,7 @@ import com.clickhouse.data.ClickHouseChecker;
 import java.io.IOException;
 import java.util.Queue;
 
+@Deprecated
 public class ByteArrayQueueInputStream extends AbstractByteArrayInputStream {
 
     private final Queue<byte[]> queue;

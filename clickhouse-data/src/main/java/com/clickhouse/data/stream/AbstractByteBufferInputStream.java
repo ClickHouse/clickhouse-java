@@ -19,6 +19,7 @@ import com.clickhouse.data.ClickHouseUtils;
 /**
  * {@link java.nio.ByteBuffer} backed input stream.
  */
+@Deprecated
 public abstract class AbstractByteBufferInputStream extends ClickHouseInputStream {
     protected ByteBuffer buffer;
 

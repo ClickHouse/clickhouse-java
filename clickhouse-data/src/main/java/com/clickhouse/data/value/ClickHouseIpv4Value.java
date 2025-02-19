@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link Inet4Address}.
  */
+@Deprecated
 public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
     public static final Inet4Address DEFAULT;
 

@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+@Deprecated
 public class UnsupportedProtocolException extends IllegalStateException {
     private final ClickHouseProtocol protocol;
 

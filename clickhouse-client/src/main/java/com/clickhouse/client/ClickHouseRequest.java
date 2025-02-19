@@ -48,6 +48,7 @@ import com.clickhouse.data.ClickHouseWriter;
  * Request object holding references to {@link ClickHouseClient},
  * {@link ClickHouseNode}, format, sql, options and settings etc. for execution.
  */
+@Deprecated
 @SuppressWarnings("squid:S119")
 public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implements Serializable {
     private static final Set<String> SPECIAL_SETTINGS;

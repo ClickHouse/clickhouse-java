@@ -8,6 +8,7 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+@Deprecated
 public final class ClickHouseByteUtils {
     // partial class
     private static final ByteUtils BU = new ByteUtils(ByteOrder.LITTLE_ENDIAN);

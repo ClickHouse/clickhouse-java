@@ -9,6 +9,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code byte}.
  */
+@Deprecated
 public class ClickHouseByteValue implements ClickHouseValue {
     /**
      * Unsigned version of {@code ClickHouseByteValue}.

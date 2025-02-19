@@ -5,6 +5,7 @@ import java.io.OutputStream;
 
 import com.clickhouse.data.ClickHouseDeferredValue;
 
+@Deprecated
 public final class DeferredOutputStream extends OutputStream {
     private final ClickHouseDeferredValue<OutputStream> ref;
     private OutputStream out;

@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code bool}.
  */
+@Deprecated
 public class ClickHouseBoolValue implements ClickHouseValue {
     private static final String ERROR_INVALID_NUMBER = "Boolean value can be only 1(true) or 0(false).";
 

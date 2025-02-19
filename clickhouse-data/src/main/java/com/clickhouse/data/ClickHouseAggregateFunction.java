@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Deprecated
 public enum ClickHouseAggregateFunction {
     // select concat(f.name, '(', f.case_insensitive ? 'true' : 'false',
     // a.names != '' ? concat(',', replaceAll(replaceRegexpAll(a.names,

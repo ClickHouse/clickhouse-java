@@ -30,6 +30,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContextProvider {
     static final String PEM_HEADER_PREFIX = "---BEGIN ";
     static final String PEM_HEADER_SUFFIX = " PRIVATE KEY---";

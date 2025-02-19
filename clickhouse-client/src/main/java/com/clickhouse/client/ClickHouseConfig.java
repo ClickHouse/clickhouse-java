@@ -31,6 +31,7 @@ import com.clickhouse.data.ClickHouseVersion;
  * An immutable class holding client-specific options like
  * {@link ClickHouseCredentials} and {@link ClickHouseNodeSelector} etc.
  */
+@Deprecated
 public class ClickHouseConfig implements ClickHouseDataConfig {
     static final class ClientOptions {
         static final ClientOptions INSTANCE = new ClientOptions();

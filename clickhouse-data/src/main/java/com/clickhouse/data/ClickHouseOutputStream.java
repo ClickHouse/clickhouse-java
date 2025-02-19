@@ -14,6 +14,7 @@ import com.clickhouse.data.stream.WrappedOutputStream;
  * Extended output stream for write optimization. It also acts as a factory
  * class providing static methods for creating output stream as needed.
  */
+@Deprecated
 public abstract class ClickHouseOutputStream extends OutputStream {
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";

@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link BigInteger}.
  */
+@Deprecated
 public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger> {
     /**
      * Create a new instance representing null value.

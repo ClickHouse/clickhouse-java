@@ -75,6 +75,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Created by wujianchao on 2022/12/1.
  */
+@Deprecated
 public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpConnectionImpl.class);
 

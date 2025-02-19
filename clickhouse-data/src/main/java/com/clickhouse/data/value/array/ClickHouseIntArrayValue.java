@@ -28,6 +28,7 @@ import com.clickhouse.data.value.UnsignedInteger;
 /**
  * Wrapper of {@code int[]}.
  */
+@Deprecated
 public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> implements ClickHouseArraySequence {
     static final class UnsignedIntArrayValue extends ClickHouseIntArrayValue {
         @Override

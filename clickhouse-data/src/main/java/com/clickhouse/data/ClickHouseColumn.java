@@ -55,6 +55,7 @@ import java.util.TimeZone;
 /**
  * This class represents a column defined in database.
  */
+@Deprecated
 public final class ClickHouseColumn implements Serializable {
     public static final String TYPE_NAME = "Column";
     public static final ClickHouseColumn[] EMPTY_ARRAY = new ClickHouseColumn[0];

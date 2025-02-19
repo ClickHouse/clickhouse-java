@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseUtils;
 /**
  * Byte-array backed input stream.
  */
+@Deprecated
 public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream {
     protected byte[] buffer;
     protected int position;

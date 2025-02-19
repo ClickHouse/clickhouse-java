@@ -22,6 +22,7 @@ import com.clickhouse.logging.LoggerFactory;
 /**
  * A stream response from server.
  */
+@Deprecated
 public class ClickHouseStreamResponse implements ClickHouseResponse {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStreamResponse.class);
 

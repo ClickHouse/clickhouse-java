@@ -3,6 +3,7 @@ package com.clickhouse.data;
 /**
  * This interface represents a generic array value.
  */
+@Deprecated
 public interface ClickHouseArraySequence extends ClickHouseValue {
     /**
      * Allocates an array according to given length. Same as

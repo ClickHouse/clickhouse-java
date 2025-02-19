@@ -36,6 +36,7 @@ import com.clickhouse.data.value.ClickHouseIpv6Value;
 /**
  * Help class for dealing with values.
  */
+@Deprecated
 public final class ClickHouseValues {
     public static final BigInteger BIGINT_HL_BOUNDARY = BigInteger.ONE.shiftLeft(64); // 2^64
     public static final BigInteger BIGINT_SL_BOUNDARY = BigInteger.valueOf(Long.MAX_VALUE);

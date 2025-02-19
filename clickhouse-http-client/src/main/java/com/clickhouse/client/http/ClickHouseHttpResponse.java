@@ -16,6 +16,7 @@ import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 
+@Deprecated
 public class ClickHouseHttpResponse {
     private static long getLongValue(Map<String, String> map, String key) {
         String value = map.get(key);

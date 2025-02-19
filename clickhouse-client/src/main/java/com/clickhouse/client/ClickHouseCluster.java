@@ -10,6 +10,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 public class ClickHouseCluster extends ClickHouseNodes {
     private static final long serialVersionUID = 8684489015067906319L;
 

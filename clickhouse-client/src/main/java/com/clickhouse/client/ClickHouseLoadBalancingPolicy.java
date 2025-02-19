@@ -20,6 +20,7 @@ import com.clickhouse.data.ClickHouseUtils;
  * get node from a managed list; 2) managing node's status; and 3) optionally
  * schedule background tasks like node discovery and health check.
  */
+@Deprecated
 public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
     static class DefaultPolicy extends ClickHouseLoadBalancingPolicy {
         @Override

@@ -35,6 +35,8 @@ import com.clickhouse.data.value.ClickHouseBitmap;
 /**
  * Utility class for dealing with binary stream and data.
  */
+
+@Deprecated
 public final class BinaryStreamUtils {
     public static final int U_INT8_MAX = (1 << 8) - 1;
     public static final int U_INT16_MAX = (1 << 16) - 1;

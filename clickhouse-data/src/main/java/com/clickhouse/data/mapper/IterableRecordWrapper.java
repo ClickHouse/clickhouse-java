@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 
+@Deprecated
 public final class IterableRecordWrapper<T> implements Iterator<T> {
     private final ClickHouseDataConfig config;
     private final List<ClickHouseColumn> columns;

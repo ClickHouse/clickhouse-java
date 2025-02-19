@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 public class NonBlockingInputStream extends AbstractByteBufferInputStream {
     private final AdaptiveQueue<ByteBuffer> queue;
     private final long timeout;

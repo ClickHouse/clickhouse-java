@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 final class CustomRecordMappers {
     static final class RecordConstructor extends AbstractRecordMapper {
         private final Constructor<?> constructor;

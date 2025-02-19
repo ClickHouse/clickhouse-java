@@ -8,6 +8,7 @@ import java.io.Serializable;
  * This class encapsulates custom input and output stream to ensure no
  * compression/decompression will be applied during execution.
  */
+@Deprecated
 public class ClickHousePassThruStream implements Serializable {
     private static final long serialVersionUID = -879012829388929569L;
 

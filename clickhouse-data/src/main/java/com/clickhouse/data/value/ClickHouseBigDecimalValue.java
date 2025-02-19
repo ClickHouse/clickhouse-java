@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link BigDecimal}.
  */
+@Deprecated
 public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal> {
     /**
      * Create a new instance representing null value.

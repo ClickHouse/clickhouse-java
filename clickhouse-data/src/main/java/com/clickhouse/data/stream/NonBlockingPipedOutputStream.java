@@ -24,6 +24,7 @@ import com.clickhouse.logging.LoggerFactory;
  * client. To avoid dead lock and high memory usage, please make sure writer and
  * reader are on two separate threads.
  */
+@Deprecated
 public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
     private static final Logger log = LoggerFactory.getLogger(NonBlockingPipedOutputStream.class);

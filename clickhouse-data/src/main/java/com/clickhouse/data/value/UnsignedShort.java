@@ -5,6 +5,7 @@ import java.util.Locale;
 /**
  * A wrapper class for unsigned {@code short}.
  */
+@Deprecated
 public final class UnsignedShort extends Number implements Comparable<UnsignedShort> {
     public static final int BYTES = Short.BYTES;
 

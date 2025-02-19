@@ -6,6 +6,7 @@ import java.util.function.Supplier;
  * Unified logger. Pay attention that the {@code format} follows standard
  * {@link java.util.Formatter}.
  */
+@Deprecated
 public interface Logger {
     /**
      * Error message for providing null logger.

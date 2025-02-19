@@ -5,6 +5,7 @@ import java.util.function.UnaryOperator;
 /**
  * Methods for renaming.
  */
+@Deprecated
 public enum ClickHouseRenameMethod {
     /**
      * No OP.

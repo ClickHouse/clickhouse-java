@@ -6,6 +6,7 @@ import java.util.Objects;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.ClickHouseValues;
 
+@Deprecated
 public abstract class ClickHouseObjectValue<T> implements ClickHouseValue {
     // a nested structure like Map might not be always serializable
     @SuppressWarnings("squid:S1948")

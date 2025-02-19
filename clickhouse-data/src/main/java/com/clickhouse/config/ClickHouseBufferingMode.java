@@ -3,6 +3,7 @@ package com.clickhouse.config;
 /**
  * Supported buffering mode for dealing with request and response.
  */
+@Deprecated
 public enum ClickHouseBufferingMode {
     // TODO Adaptive / Dynamic
 

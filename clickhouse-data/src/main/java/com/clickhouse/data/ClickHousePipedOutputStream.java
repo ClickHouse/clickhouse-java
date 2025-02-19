@@ -11,6 +11,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * SPSC(Single-producer single-consumer) channel for streaming.
  */
+@Deprecated
 public abstract class ClickHousePipedOutputStream extends ClickHouseOutputStream {
     /**
      * Handles async write result.

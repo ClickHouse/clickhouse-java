@@ -16,6 +16,7 @@ import com.clickhouse.data.compress.SnappySupport;
 import com.clickhouse.data.compress.XzSupport;
 import com.clickhouse.data.compress.ZstdSupport;
 
+@Deprecated
 public interface ClickHouseCompressionAlgorithm {
     static final String ERROR_FAILED_TO_WRAP_INPUT = "Failed to wrap input stream";
     static final String ERROR_FAILED_TO_WRAP_OUTPUT = "Failed to wrap output stream";

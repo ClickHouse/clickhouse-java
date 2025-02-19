@@ -2,6 +2,7 @@ package com.clickhouse.data;
 
 import java.nio.ByteOrder;
 
+@Deprecated
 public final class ByteUtils {
     public boolean equals(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
         int aLen = aToIndex - aFromIndex;

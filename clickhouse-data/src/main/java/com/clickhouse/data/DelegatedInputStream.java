@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Iterator;
 
+@Deprecated
 final class DelegatedInputStream extends ClickHouseInputStream {
     private final ClickHouseInputStream input;
 

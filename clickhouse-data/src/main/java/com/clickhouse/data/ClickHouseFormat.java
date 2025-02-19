@@ -6,6 +6,7 @@ import java.util.Locale;
  * All formats supported by ClickHouse. More information at:
  * https://clickhouse.com/docs/en/interfaces/formats/.
  */
+@Deprecated
 @SuppressWarnings("squid:S115")
 public enum ClickHouseFormat {
     // start with the most common ones

@@ -12,6 +12,7 @@ import com.clickhouse.client.ClickHouseNode.Status;
  * Node manager is responsible for managing list of nodes and their status. It
  * also runs scheduled tasks in background for node discovery and health check.
  */
+@Deprecated
 public interface ClickHouseNodeManager extends Function<ClickHouseNodeSelector, ClickHouseNode>, Serializable {
     /**
      * Gets a copy of nodes, which in most cases are in healthy status. However,

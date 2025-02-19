@@ -19,6 +19,7 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 /**
  * Reader from clickhouse in lz4.
  */
+@Deprecated
 public class Lz4InputStream extends AbstractByteArrayInputStream {
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
 

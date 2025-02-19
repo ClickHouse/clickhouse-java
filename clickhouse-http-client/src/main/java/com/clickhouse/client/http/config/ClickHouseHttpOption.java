@@ -9,6 +9,7 @@ import java.net.UnknownHostException;
 /**
  * Http client options.
  */
+@Deprecated
 public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
      * HTTP connection provider.

@@ -18,6 +18,7 @@ import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.ClickHouseValues;
 
+@Deprecated
 public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     private static final String DEFAULT_STRING_KEY = "1";
     private static final String DEFAULT_UUID_KEY = "00000000-0000-0000-0000-000000000000";

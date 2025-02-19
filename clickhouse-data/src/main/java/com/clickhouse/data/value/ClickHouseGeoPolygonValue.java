@@ -22,6 +22,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code Polygon}.
  */
+@Deprecated
 public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][]> {
     static final double[][][] EMPTY_VALUE = new double[0][][];
 

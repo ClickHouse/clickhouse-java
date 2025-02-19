@@ -13,6 +13,7 @@ import java.util.List;
 /**
  * "Attached" temporary table.
  */
+@Deprecated
 public class ClickHouseExternalTable implements Serializable {
     public static class Builder {
         private String name;

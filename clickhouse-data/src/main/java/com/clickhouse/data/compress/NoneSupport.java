@@ -14,6 +14,7 @@ import com.clickhouse.data.stream.EmptyOutputStream;
 import com.clickhouse.data.stream.WrappedInputStream;
 import com.clickhouse.data.stream.WrappedOutputStream;
 
+@Deprecated
 public final class NoneSupport {
     public static class DefaultImpl implements ClickHouseCompressionAlgorithm {
         @Override

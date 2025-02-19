@@ -28,6 +28,7 @@ import com.clickhouse.data.value.UnsignedByte;
 /**
  * Wrapper of {@code byte[]}.
  */
+@Deprecated
 public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> implements ClickHouseArraySequence {
     static final class UnsignedByteArrayValue extends ClickHouseByteArrayValue {
         @Override

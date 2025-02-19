@@ -11,6 +11,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 /**
  * Empty input stream produces nothing and it can never be closed.
  */
+@Deprecated
 public final class EmptyInputStream extends ClickHouseInputStream {
     public static final EmptyInputStream INSTANCE = new EmptyInputStream();
 

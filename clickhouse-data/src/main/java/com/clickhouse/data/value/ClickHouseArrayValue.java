@@ -18,6 +18,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of Array.
  */
+@Deprecated
 public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implements ClickHouseArraySequence {
     /**
      * Creates an empty array.

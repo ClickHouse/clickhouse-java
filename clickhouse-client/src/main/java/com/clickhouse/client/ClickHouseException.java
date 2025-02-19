@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
  * Exception thrown from ClickHouse server. See full list at
  * https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp.
  */
+@Deprecated
 public class ClickHouseException extends Exception {
     /**
      * Generated ID.

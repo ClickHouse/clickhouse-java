@@ -2,6 +2,7 @@ package com.clickhouse.data;
 
 import java.io.IOException;
 
+@Deprecated
 @FunctionalInterface
 public interface ClickHouseWriter {
     static final String TYPE_NAME = "Writer";

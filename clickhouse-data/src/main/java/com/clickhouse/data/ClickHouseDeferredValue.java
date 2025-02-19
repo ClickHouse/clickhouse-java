@@ -16,6 +16,7 @@ import java.util.function.Supplier;
  * {@link Supplier} or {@link Future} to retrieve value only when {@link #get()}
  * or {@link #getOptional()} was called.
  */
+@Deprecated
 public final class ClickHouseDeferredValue<T> implements Supplier<T> {
     /**
      * Wraps a future object.

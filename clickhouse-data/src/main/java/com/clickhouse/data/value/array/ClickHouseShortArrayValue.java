@@ -28,6 +28,7 @@ import com.clickhouse.data.value.UnsignedShort;
 /**
  * Wrapper of {@code short[]}.
  */
+@Deprecated
 public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> implements ClickHouseArraySequence {
     static final class UnsignedShortArrayValue extends ClickHouseShortArrayValue {
         @Override

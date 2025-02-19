@@ -22,6 +22,7 @@ import java.util.NoSuchElementException;
  * specific column or data type, data processor is a combination of both, and it
  * can handle more scenarios like separator between columns and rows.
  */
+@Deprecated
 public abstract class ClickHouseDataProcessor {
     protected static final class DefaultSerDe {
         public final ClickHouseColumn[] columns;

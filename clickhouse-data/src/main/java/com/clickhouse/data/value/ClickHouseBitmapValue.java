@@ -18,6 +18,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code Bitmap}.
  */
+@Deprecated
 public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitmap> {
     /**
      * Create a new instance representing empty value.

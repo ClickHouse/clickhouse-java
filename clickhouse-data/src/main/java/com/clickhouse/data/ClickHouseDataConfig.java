@@ -7,6 +7,7 @@ import java.io.Serializable;
 import java.math.RoundingMode;
 import java.util.TimeZone;
 
+@Deprecated
 public interface ClickHouseDataConfig extends Serializable {
     static class Wrapped implements ClickHouseDataConfig {
         private static final long serialVersionUID = -8358244156373920188L;

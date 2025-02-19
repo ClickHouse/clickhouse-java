@@ -25,6 +25,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of Nested.
  */
+@Deprecated
 public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
     /**
      * Creates an empty nested value.

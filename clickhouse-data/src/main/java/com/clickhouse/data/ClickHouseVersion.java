@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
  * and suffix like '-[testing|stable|lts]' will be ignored in parsing and
  * comparison.
  */
+@Deprecated
 public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, Serializable {
     private static final long serialVersionUID = 6721014333437055314L;
 

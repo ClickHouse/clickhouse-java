@@ -51,6 +51,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+@Deprecated
 public final class ClickHouseUtils {
     private static final boolean IS_UNIX;
     private static final boolean IS_WINDOWS;

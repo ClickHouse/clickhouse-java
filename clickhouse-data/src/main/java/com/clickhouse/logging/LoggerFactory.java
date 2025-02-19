@@ -5,6 +5,7 @@ import java.util.ServiceLoader;
 /**
  * Unified factory class to get logger.
  */
+@Deprecated
 public abstract class LoggerFactory {
     private static final LoggerFactory instance;
 

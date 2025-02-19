@@ -7,6 +7,7 @@ import java.util.logging.Level;
 /**
  * Adaptor for JDK logger.
  */
+@Deprecated
 public class JdkLogger implements Logger {
     private final java.util.logging.Logger logger;
 

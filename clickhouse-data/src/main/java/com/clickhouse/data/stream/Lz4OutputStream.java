@@ -14,6 +14,7 @@ import com.clickhouse.logging.LoggerFactory;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 
+@Deprecated
 public class Lz4OutputStream extends AbstractByteArrayOutputStream {
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
     private static final Logger log = LoggerFactory.getLogger(Lz4OutputStream.class);

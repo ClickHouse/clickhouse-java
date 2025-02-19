@@ -10,6 +10,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code float}.
  */
+@Deprecated
 public class ClickHouseFloatValue implements ClickHouseValue {
     /**
      * Create a new instance representing null value.

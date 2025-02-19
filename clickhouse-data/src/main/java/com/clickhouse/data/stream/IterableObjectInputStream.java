@@ -7,6 +7,7 @@ import java.util.function.Function;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 
+@Deprecated
 public class IterableObjectInputStream<T> extends AbstractByteArrayInputStream {
     private final Function<T, byte[]> func;
     private final Iterator<T> it;

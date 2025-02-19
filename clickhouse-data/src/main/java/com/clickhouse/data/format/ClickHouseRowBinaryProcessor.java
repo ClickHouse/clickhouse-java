@@ -31,6 +31,7 @@ import com.clickhouse.data.value.ClickHouseBitmapValue;
  * Data processor for handling {@link ClickHouseFormat#RowBinary} and
  * {@link ClickHouseFormat#RowBinaryWithNamesAndTypes} two formats.
  */
+@Deprecated
 public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
     public static class BitmapSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         private final ClickHouseDataType innerType;

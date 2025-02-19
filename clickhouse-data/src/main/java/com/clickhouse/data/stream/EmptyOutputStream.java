@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 /**
  * Empty output stream consumes nothing and it can never be closed.
  */
+@Deprecated
 public final class EmptyOutputStream extends ClickHouseOutputStream {
     public static final EmptyOutputStream INSTANCE = new EmptyOutputStream();
 
