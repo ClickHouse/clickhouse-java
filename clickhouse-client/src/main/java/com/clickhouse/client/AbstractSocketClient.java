@@ -33,6 +33,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+@Deprecated
 public class AbstractSocketClient implements AutoCloseable {
     static class SocketRequest {
         final ClickHouseConfig config;

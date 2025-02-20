@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 
+@Deprecated
 public interface ClickHouseStatement extends Statement {
     @Override
     ClickHouseConnection getConnection() throws SQLException;

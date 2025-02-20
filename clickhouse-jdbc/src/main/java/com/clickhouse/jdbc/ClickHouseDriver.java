@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
+@Deprecated
 public class ClickHouseDriver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDriver.class);
     private java.sql.Driver driver;

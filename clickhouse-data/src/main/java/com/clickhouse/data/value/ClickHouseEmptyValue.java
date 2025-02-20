@@ -9,6 +9,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of Nothing.
  */
+@Deprecated
 public final class ClickHouseEmptyValue implements ClickHouseValue {
     /**
      * Singleton.

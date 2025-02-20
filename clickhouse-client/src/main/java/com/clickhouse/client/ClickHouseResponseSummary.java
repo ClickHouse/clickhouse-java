@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Summary of ClickHouse response.
  */
+@Deprecated
 public class ClickHouseResponseSummary implements Serializable {
     private static final long serialVersionUID = 6241261266635143197L;
 

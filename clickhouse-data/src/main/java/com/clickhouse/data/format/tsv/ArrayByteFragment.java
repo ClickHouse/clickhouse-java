@@ -1,5 +1,6 @@
 package com.clickhouse.data.format.tsv;
 
+@Deprecated
 public final class ArrayByteFragment extends ByteFragment {
 
     private ArrayByteFragment(byte[] buf, int start, int len) {

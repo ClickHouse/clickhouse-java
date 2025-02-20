@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.parser;
 
+@Deprecated
 public final class ClickHouseSqlUtils {
     public static boolean isQuote(char ch) {
         return ch == '"' || ch == '\'' || ch == '`';

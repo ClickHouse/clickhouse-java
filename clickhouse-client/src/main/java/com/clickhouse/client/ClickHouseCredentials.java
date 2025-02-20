@@ -9,6 +9,7 @@ import com.clickhouse.data.ClickHouseChecker;
  * This encapsulates access token, certificate or user name password combination
  * for accessing ClickHouse.
  */
+@Deprecated
 public class ClickHouseCredentials implements Serializable {
     private static final long serialVersionUID = -8883041793709590486L;
 

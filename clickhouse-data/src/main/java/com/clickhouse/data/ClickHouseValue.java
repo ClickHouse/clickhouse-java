@@ -37,6 +37,7 @@ import java.util.UUID;
  * convenient methods for type conversion(e.g. use {@link #asDateTime()} to
  * convert an integer to {@link java.time.LocalDateTime}).
  */
+@Deprecated
 public interface ClickHouseValue extends Serializable {
     /**
      * Create a customized exception for unsupported type conversion.

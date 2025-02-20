@@ -42,6 +42,7 @@ import com.clickhouse.data.stream.WrappedInputStream;
  * creation as well as closing the stream when it reaches end of stream. This
  * class is also responsible for creating various input stream as needed.
  */
+@Deprecated
 public abstract class ClickHouseInputStream extends InputStream implements Iterable<ClickHouseByteBuffer> {
     protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";

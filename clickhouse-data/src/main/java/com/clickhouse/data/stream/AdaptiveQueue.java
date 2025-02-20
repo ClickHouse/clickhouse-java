@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
+@Deprecated
 public interface AdaptiveQueue<E> {
     // too slow
     static final class JctoolsSpscQueue<E> implements AdaptiveQueue<E> {

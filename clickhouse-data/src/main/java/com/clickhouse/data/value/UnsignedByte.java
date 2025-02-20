@@ -5,6 +5,7 @@ import java.util.Locale;
 /**
  * A wrapper class for unsigned {@code byte}.
  */
+@Deprecated
 public final class UnsignedByte extends Number implements Comparable<UnsignedByte> {
     public static final int BYTES = Byte.BYTES;
 

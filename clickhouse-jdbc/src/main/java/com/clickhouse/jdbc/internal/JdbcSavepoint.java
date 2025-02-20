@@ -5,6 +5,7 @@ import java.sql.Savepoint;
 
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
+@Deprecated
 public class JdbcSavepoint implements Savepoint {
     final int id;
     final String name;

@@ -5,6 +5,7 @@ import java.util.Locale;
 /**
  * Supported compression algoritms.
  */
+@Deprecated
 public enum ClickHouseCompression {
     NONE("", "", ""),
     BROTLI("application/x-brotli", "br", "br"),

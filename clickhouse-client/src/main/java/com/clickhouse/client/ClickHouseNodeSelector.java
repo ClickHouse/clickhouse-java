@@ -19,6 +19,7 @@ import com.clickhouse.logging.LoggerFactory;
  * {@link ClickHouseClient} according to preferred protocol(s); and 2) pick
  * suitable {@link ClickHouseNode} to connect to.
  */
+@Deprecated
 public class ClickHouseNodeSelector implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseNodeSelector.class);
     private static final long serialVersionUID = 488571984297086418L;

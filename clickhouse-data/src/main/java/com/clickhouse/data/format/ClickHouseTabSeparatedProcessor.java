@@ -24,6 +24,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.format.tsv.ByteFragment;
 
+@Deprecated
 public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     private static String[] toStringArray(ByteFragment headerFragment, byte delimitter) {
         if (delimitter == (byte) 0) {

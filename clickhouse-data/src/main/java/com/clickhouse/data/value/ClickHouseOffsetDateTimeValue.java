@@ -18,6 +18,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link OffsetDateTime}.
  */
+@Deprecated
 public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetDateTime> {
     /**
      * Default value.

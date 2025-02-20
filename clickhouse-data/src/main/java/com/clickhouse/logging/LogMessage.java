@@ -5,6 +5,7 @@ import java.util.Locale;
 /**
  * Log message with arguments and/or error.
  */
+@Deprecated
 public final class LogMessage {
     /**
      * Creates a log message with arguments. The latest argument could be a

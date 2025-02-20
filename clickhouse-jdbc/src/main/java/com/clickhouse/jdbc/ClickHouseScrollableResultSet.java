@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.clickhouse.client.ClickHouseResponse;
 
+@Deprecated
 public class ClickHouseScrollableResultSet extends ClickHouseResultSet {
 
 	private final List<byte[]> records;

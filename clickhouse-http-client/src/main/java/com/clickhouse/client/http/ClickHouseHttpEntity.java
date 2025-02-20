@@ -14,6 +14,7 @@ import java.util.List;
 /**
  * Used to encapsulate post request.
  */
+@Deprecated
 public class ClickHouseHttpEntity extends AbstractHttpEntity {
     private final ClickHouseConfig config;
     private final byte[] boundary;

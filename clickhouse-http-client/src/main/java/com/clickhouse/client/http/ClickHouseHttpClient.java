@@ -32,6 +32,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
+@Deprecated
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
 

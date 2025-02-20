@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code int}.
  */
+@Deprecated
 public class ClickHouseIntegerValue implements ClickHouseValue {
     /**
      * Unsigned version of {@code ClickHouseIntegerValue}.

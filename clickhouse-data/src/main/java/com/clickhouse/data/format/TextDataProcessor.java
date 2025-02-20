@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseSerializer;
 import com.clickhouse.data.ClickHouseValue;
 
+@Deprecated
 public interface TextDataProcessor {
     static class TextSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         private static final Map<String, TextSerDe> cache = new ConcurrentHashMap<>();

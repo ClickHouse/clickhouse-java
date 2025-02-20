@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.JdbcConfig;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
+@Deprecated
 public class ClickHouseJdbcUrlParser {
     public static class ConnectionInfo {
         private final String cacheKey;

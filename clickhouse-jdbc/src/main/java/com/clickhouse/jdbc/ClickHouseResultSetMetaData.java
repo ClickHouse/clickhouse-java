@@ -8,6 +8,7 @@ import java.util.Map;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
     public static ResultSetMetaData of(JdbcConfig config, String database, String table, List<ClickHouseColumn> columns,
             JdbcTypeMapping mapper, Map<String, Class<?>> typeMap) throws SQLException {

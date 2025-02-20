@@ -1,5 +1,6 @@
 package com.clickhouse.client.config;
 
+@Deprecated
 public enum ClickHouseHealthCheckMethod {
     /**
      * Ping is the protocol-specific approach for health check, which in general is

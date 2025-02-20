@@ -30,6 +30,7 @@ import com.clickhouse.client.ClickHouseSimpleResponse;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+@Deprecated
 public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseMetaData {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaData.class);
 

@@ -8,6 +8,7 @@ import java.util.Map;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
 
+@Deprecated
 public class ClickHouseArray implements Array {
     private final int columnIndex;
     private ClickHouseResultSet resultSet;

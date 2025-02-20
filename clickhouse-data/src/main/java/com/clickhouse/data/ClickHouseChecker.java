@@ -7,6 +7,8 @@ import java.util.Locale;
 /**
  * Utility class for validation.
  */
+
+@Deprecated
 public final class ClickHouseChecker {
     private static final String DEFAULT_NAME = "value";
     private static final String ERR_SHOULD_BETWEEN = "%s(%s) should be between %s and %s inclusive of both values";

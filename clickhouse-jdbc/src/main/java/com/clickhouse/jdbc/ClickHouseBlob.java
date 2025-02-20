@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.sql.Blob;
 import java.sql.SQLException;
 
+@Deprecated
 public class ClickHouseBlob implements Blob {
 
     @Override

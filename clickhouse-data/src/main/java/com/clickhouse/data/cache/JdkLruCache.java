@@ -12,6 +12,7 @@ import com.clickhouse.data.ClickHouseCache;
  * A simple thread-safe LRU cache based on LinkedHashMap. It's not as effient as
  * the one in Caffeine/Guava, but it requires no extra dependency.
  */
+@Deprecated
 public class JdkLruCache<K, V> implements ClickHouseCache<K, V> {
     static class LruCacheMap<K, V> extends LinkedHashMap<K, V> {
         private final int capacity;

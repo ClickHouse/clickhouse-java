@@ -18,6 +18,7 @@ import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 
+@Deprecated
 final class DynamicRecordMapper extends AbstractRecordMapper {
     static class PropertySetter implements BiConsumer<Object, ClickHouseValue> {
         private static final Map<String, Method> typedValues;

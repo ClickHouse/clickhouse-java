@@ -1,5 +1,6 @@
 package com.clickhouse.data.stream;
 
+@Deprecated
 @FunctionalInterface
 public interface CapacityPolicy {
     static class FixedCapacity implements CapacityPolicy {

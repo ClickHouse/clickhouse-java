@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 /**
  * Adaptor for slf4j logger.
  */
+@Deprecated
 public class Slf4jLogger implements Logger {
     private final org.slf4j.Logger logger;
 

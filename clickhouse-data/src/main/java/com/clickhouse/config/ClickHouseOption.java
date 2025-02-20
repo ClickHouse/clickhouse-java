@@ -13,6 +13,7 @@ import java.util.TimeZone;
  * composed of key, default value(which implies type of the value) and
  * description.
  */
+@Deprecated
 public interface ClickHouseOption extends Serializable {
     /**
      * Converts given string to key value pairs.

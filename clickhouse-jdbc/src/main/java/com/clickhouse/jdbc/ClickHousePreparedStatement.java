@@ -23,6 +23,7 @@ import java.sql.Types;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
+@Deprecated
 public interface ClickHousePreparedStatement extends PreparedStatement {
     @Override
     default void setNull(int parameterIndex, int sqlType) throws SQLException {

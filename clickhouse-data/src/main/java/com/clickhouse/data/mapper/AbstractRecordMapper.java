@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseUtils;
 
+@Deprecated
 public abstract class AbstractRecordMapper implements ClickHouseRecordMapper, WrappedMapper {
 
     static final class PropertyInfo {

@@ -9,6 +9,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code enum}.
  */
+@Deprecated
 public class ClickHouseEnumValue implements ClickHouseValue {
     /**
      * Create a new instance representing null value.

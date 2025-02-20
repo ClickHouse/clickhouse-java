@@ -38,6 +38,7 @@ import com.clickhouse.logging.LoggerFactory;
  * {@link ClickHouseLoadBalancingPolicy} is used to pickup available node and
  * moving node between lists according to its status.
  */
+@Deprecated
 public class ClickHouseNodes implements ClickHouseNodeManager {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseNodes.class);
     private static final long serialVersionUID = 4931904980127690349L;

@@ -9,6 +9,7 @@ import java.util.Map;
  * Default implementation of {@link com.clickhouse.data.ClickHouseRecord},
  * which is simply a combination of list of columns and array of values.
  */
+@Deprecated
 public class ClickHouseSimpleRecord implements ClickHouseRecord {
     public static final ClickHouseSimpleRecord EMPTY = new ClickHouseSimpleRecord(Collections.emptyList(),
             new ClickHouseValue[0]);

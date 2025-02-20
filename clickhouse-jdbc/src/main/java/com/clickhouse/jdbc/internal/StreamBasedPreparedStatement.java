@@ -34,6 +34,7 @@ import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
+@Deprecated
 public class StreamBasedPreparedStatement extends AbstractPreparedStatement implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(StreamBasedPreparedStatement.class);
 

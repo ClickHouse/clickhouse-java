@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
+@Deprecated
 public class ClickHouseStatementImpl extends JdbcWrapper
         implements ClickHouseConfigChangeListener<ClickHouseRequest<?>>, ClickHouseStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);

@@ -13,6 +13,7 @@ import com.clickhouse.data.ClickHouseUtils;
  * {@link java.nio.ByteBuffer} backed input stream with
  * {@link java.util.concurrent.BlockingQueue}.
  */
+@Deprecated
 public class BlockingInputStream extends AbstractByteBufferInputStream {
     private final BlockingQueue<ByteBuffer> queue;
     private final long timeout;

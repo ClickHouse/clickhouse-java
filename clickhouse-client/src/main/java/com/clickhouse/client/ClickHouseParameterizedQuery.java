@@ -29,6 +29,7 @@ import com.clickhouse.data.ClickHouseValues;
  * name", we have two parameters: {@code no} and {@code name}. Moreover, type of
  * the last parameter is {@code String}.
  */
+@Deprecated
 public class ClickHouseParameterizedQuery implements Serializable {
     private static final long serialVersionUID = 8108887349618342152L;
 

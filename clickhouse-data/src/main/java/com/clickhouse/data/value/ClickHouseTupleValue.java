@@ -26,6 +26,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of Tuple.
  */
+@Deprecated
 public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     /**
      * Wrap the given value.

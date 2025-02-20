@@ -60,6 +60,7 @@ import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;
 
+@Deprecated
 public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 

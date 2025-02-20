@@ -36,6 +36,7 @@ import com.clickhouse.data.ClickHouseRecord;
  * prefer to handle stream instead of deserialized data</li>
  * </ul>
  */
+@Deprecated
 public interface ClickHouseResponse extends AutoCloseable, Serializable {
     /**
      * Empty response that can never be closed.

@@ -9,6 +9,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+@Deprecated
 public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStream {
     private static final Logger log = LoggerFactory.getLogger(AbstractByteArrayOutputStream.class);
     protected final byte[] buffer;

@@ -43,6 +43,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 
+@Deprecated
 public class ClickHouseResultSet extends AbstractResultSet {
     private ClickHouseRecord currentRow;
     private Iterator<ClickHouseRecord> rowCursor;

@@ -13,6 +13,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.UnloadableClassLoader;
 
+@Deprecated
 public final class RecordMapperFactory {
     private static final AtomicReference<ClickHouseCache<Class<?>, WrappedMapper>> CACHED_MAPPERS = new AtomicReference<>();
 

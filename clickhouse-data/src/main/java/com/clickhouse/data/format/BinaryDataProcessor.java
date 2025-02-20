@@ -26,6 +26,7 @@ import com.clickhouse.data.value.ClickHouseIntegerValue;
 import com.clickhouse.data.value.ClickHouseLongValue;
 import com.clickhouse.data.value.ClickHouseShortValue;
 
+@Deprecated
 public interface BinaryDataProcessor {
     static class ArrayDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
         private final long length;

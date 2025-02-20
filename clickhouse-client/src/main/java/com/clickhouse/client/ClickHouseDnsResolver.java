@@ -13,6 +13,7 @@ import com.clickhouse.logging.LoggerFactory;
  * {@link com.clickhouse.client.config.ClickHouseDefaults#SRV_RESOLVE} is set to
  * {@code true}.
  */
+@Deprecated
 public class ClickHouseDnsResolver {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDnsResolver.class);
 

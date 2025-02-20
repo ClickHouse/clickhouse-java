@@ -10,6 +10,7 @@ import com.clickhouse.data.ClickHousePassThruStream;
 /**
  * Wrapper of {@link java.io.OutputStream}.
  */
+@Deprecated
 public class WrappedOutputStream extends AbstractByteArrayOutputStream {
     private final OutputStream output;
 

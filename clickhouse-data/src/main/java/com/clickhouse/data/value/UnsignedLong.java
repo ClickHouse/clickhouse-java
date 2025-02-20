@@ -5,6 +5,7 @@ import java.math.BigInteger;
 /**
  * A wrapper class for unsigned {@code long}.
  */
+@Deprecated
 public final class UnsignedLong extends Number implements Comparable<UnsignedLong> {
     public static final BigInteger MASK = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 

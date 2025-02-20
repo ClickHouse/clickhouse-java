@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
+@Deprecated
 public abstract class AbstractPreparedStatement extends ClickHouseStatementImpl implements PreparedStatement {
     protected AbstractPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
             int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {

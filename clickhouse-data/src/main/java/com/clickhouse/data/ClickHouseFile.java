@@ -13,6 +13,7 @@ import java.nio.file.Path;
  * Wrapper of {@link java.io.File} with additional information like compression
  * and format.
  */
+@Deprecated
 public class ClickHouseFile extends ClickHousePassThruStream {
     private static final long serialVersionUID = -2641191818870839568L;
 

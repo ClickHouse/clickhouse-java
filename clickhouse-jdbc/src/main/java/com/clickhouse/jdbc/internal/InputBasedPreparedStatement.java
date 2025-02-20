@@ -33,6 +33,7 @@ import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
+@Deprecated
 public class InputBasedPreparedStatement extends AbstractPreparedStatement implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(InputBasedPreparedStatement.class);
 

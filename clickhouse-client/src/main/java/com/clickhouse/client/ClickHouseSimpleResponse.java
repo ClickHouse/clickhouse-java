@@ -17,6 +17,7 @@ import java.util.TimeZone;
 /**
  * A simple response built on top of two lists: columns and records.
  */
+@Deprecated
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
     private static final long serialVersionUID = 6883452584393840649L;
 

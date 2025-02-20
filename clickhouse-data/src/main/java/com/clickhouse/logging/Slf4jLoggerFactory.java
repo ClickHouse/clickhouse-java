@@ -3,6 +3,7 @@ package com.clickhouse.logging;
 /**
  * Adaptor of slf4j logger factory.
  */
+@Deprecated
 public class Slf4jLoggerFactory extends LoggerFactory {
     @Override
     public Logger get(Class<?> clazz) {

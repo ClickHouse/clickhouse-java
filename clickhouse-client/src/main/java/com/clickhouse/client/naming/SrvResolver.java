@@ -13,6 +13,7 @@ import org.xbill.DNS.SRVRecord;
 import org.xbill.DNS.TextParseException;
 import org.xbill.DNS.Type;
 
+@Deprecated
 public class SrvResolver extends ClickHouseDnsResolver {
     private static final Logger log = LoggerFactory.getLogger(SrvResolver.class);
 

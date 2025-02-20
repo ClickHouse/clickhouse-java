@@ -12,6 +12,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
  * Cache based on Caffeine implementation. Please be aware that it's not really
  * a LRU cache.
  */
+@Deprecated
 public class CaffeineCache<K, V> implements ClickHouseCache<K, V> {
     private final Cache<K, V> cache;
     private final Function<K, V> loadFunc;

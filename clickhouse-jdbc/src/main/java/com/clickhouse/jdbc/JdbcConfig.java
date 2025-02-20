@@ -18,6 +18,7 @@ import com.clickhouse.logging.LoggerFactory;
 /**
  * JDBC-specific configuration.
  */
+@Deprecated
 public class JdbcConfig {
     private static final Logger log = LoggerFactory.getLogger(JdbcConfig.class);
 

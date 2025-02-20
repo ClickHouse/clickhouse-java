@@ -44,6 +44,7 @@ import com.clickhouse.data.value.ClickHouseLongValue;
 import com.clickhouse.data.value.ClickHouseStringValue;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 
+@Deprecated
 public final class Main {
     public static class Pojo {
         private byte b;

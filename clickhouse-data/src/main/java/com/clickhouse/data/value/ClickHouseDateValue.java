@@ -12,6 +12,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link LocalDate}.
  */
+@Deprecated
 public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     /**
      * Default date.

@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code long}.
  */
+@Deprecated
 public class ClickHouseLongValue implements ClickHouseValue {
     /**
      * Unsigned version of {@code ClickHouseLongValue}.

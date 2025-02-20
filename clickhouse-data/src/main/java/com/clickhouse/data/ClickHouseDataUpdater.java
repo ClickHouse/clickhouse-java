@@ -7,6 +7,7 @@ import java.io.IOException;
  * {@link ClickHouseInputStream#readCustom(ClickHouseDataUpdater)} and
  * {@link ClickHouseOutputStream#writeCustom(ClickHouseDataUpdater)}.
  */
+@Deprecated
 @FunctionalInterface
 public interface ClickHouseDataUpdater {
     /**

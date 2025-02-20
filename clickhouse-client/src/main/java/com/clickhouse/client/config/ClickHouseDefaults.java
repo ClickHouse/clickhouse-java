@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseDataConfig;
  * {@code -Ddefault_async=false} on the Java command line, or setting
  * environment variable {@code DEFAULT_ASYNC=false}.
  */
+@Deprecated
 public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default execution mode.

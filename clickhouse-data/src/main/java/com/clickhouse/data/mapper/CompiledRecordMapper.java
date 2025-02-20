@@ -10,6 +10,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseValue;
 
+@Deprecated
 public class CompiledRecordMapper extends AbstractRecordMapper {
     private final Constructor<?> constructor;
     private final PropertyInfo[] properties;

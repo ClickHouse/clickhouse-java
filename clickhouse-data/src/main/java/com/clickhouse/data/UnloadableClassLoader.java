@@ -10,6 +10,7 @@ import java.util.WeakHashMap;
  * class content(byte[]). The class will be only unloaded once there's no place
  * referring to the class name and GC is triggered.
  */
+@Deprecated
 public final class UnloadableClassLoader extends ClassLoader {
     public static final boolean HAS_ASM;
 

@@ -42,6 +42,7 @@ package com.clickhouse.data;
  * NOTE: The code is modified to be compatible with CityHash128 used in
  * ClickHouse
  */
+@Deprecated
 public class ClickHouseCityHash {
 
     private static final long k0 = 0xc3a5c85c97cb3127L;

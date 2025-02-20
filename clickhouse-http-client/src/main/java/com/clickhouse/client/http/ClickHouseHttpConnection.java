@@ -34,6 +34,7 @@ import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 import org.apache.hc.core5.http.HttpHeaders;
 
+@Deprecated
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnection.class);
 

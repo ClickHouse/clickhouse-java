@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+@Deprecated
 public class ClickHouseThreadFactory implements ThreadFactory {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseThreadFactory.class);
 

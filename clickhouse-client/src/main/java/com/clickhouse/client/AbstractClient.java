@@ -23,6 +23,7 @@ import com.clickhouse.logging.LoggerFactory;
  * Base class for implementing a thread-safe ClickHouse client. It uses
  * {@link ReadWriteLock} to manage access to underlying connection.
  */
+@Deprecated
 public abstract class AbstractClient<T> implements ClickHouseClient {
     private static final Logger log = LoggerFactory.getLogger(AbstractClient.class);
 

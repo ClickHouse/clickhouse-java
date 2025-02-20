@@ -9,6 +9,7 @@ import java.util.NoSuchElementException;
  * sometimes it could a (nested) column, a (semi-)structured object, or even the
  * whole data set.
  */
+@Deprecated
 public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializable {
     /**
      * Empty record.

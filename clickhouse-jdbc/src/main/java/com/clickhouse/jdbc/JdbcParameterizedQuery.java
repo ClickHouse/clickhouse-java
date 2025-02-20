@@ -13,6 +13,7 @@ import com.clickhouse.data.ClickHouseValues;
  * A parameterized query is a parsed query with parameters being extracted for
  * substitution.
  */
+@Deprecated
 public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
     /**
      * Creates an instance by parsing the given query.

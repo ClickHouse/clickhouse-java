@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link UUID}.
  */
+@Deprecated
 public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
     /**
      * Default value.

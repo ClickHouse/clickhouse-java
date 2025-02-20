@@ -16,6 +16,7 @@ import java.io.OutputStreamWriter;
 /**
  * Utility class for reading and writing objects in JSON format.
  */
+@Deprecated
 public final class JsonStreamUtils {
     private static final Gson gson = new Gson();
 

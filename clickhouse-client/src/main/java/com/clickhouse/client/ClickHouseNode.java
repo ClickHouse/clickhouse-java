@@ -45,6 +45,7 @@ import com.clickhouse.logging.LoggerFactory;
  * This class depicts a ClickHouse server, essentially a combination of host,
  * port and protocol, for client to connect.
  */
+@Deprecated
 public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHouseNode>, Serializable {
     /**
      * Node status.

@@ -6,6 +6,7 @@ import java.util.Iterator;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 
+@Deprecated
 public class IterableByteArrayInputStream extends AbstractByteArrayInputStream {
     private final Iterator<byte[]> it;
 

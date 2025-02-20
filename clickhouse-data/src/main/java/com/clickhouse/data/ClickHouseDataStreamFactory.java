@@ -24,6 +24,7 @@ import com.clickhouse.data.stream.NonBlockingPipedOutputStream;
 /**
  * Factory class for creating objects to handle data stream.
  */
+@Deprecated
 public class ClickHouseDataStreamFactory {
     protected static final class DefaultExecutors {
         protected static final ExecutorService executor;

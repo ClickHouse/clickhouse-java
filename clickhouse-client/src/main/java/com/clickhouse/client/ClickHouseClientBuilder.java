@@ -28,6 +28,7 @@ import com.clickhouse.logging.LoggerFactory;
  * {@link ClickHouseClient#builder()} for instantiation, and avoid
  * multi-threading as it's NOT thread-safe.
  */
+@Deprecated
 public class ClickHouseClientBuilder {
     /**
      * Dummy client which is only used by {@link Agent}.

@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+@Deprecated
 public class ClickHouseTransactionException extends ClickHouseException {
     public static final int ERROR_INVALID_TRANSACTION = 649;
     public static final int ERROR_UNKNOWN_STATUS_OF_TRANSACTION = 659;

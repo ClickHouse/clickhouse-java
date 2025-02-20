@@ -6,6 +6,7 @@ import java.io.IOException;
  * Generic factory interface for creating sockets used by the TCP and Apache
  * Http clients.
  */
+@Deprecated
 public interface ClickHouseSocketFactory {
     /**
      * Creates a new instance of the provided configuration and class type.

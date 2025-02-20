@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Map.Entry;
 
+@Deprecated
 public class ClickHouseSqlStatement {
     public static final String DEFAULT_DATABASE = "system";
     public static final String DEFAULT_TABLE = "unknown";

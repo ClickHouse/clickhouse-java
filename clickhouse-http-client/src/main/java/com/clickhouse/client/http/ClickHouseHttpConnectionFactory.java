@@ -13,6 +13,7 @@ import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+@Deprecated
 public final class ClickHouseHttpConnectionFactory {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnectionFactory.class);
 

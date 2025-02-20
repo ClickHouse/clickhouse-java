@@ -20,6 +20,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link String}.
  */
+@Deprecated
 public class ClickHouseStringValue implements ClickHouseValue {
     /**
      * Create a new instance representing null value.

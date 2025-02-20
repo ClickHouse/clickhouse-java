@@ -12,6 +12,7 @@ import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.stream.WrappedInputStream;
 import com.clickhouse.data.stream.WrappedOutputStream;
 
+@Deprecated
 public final class XzSupport {
     public static class DefaultImpl implements ClickHouseCompressionAlgorithm {
         protected int normalize(int level) {

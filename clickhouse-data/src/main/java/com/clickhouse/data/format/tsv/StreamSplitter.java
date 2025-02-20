@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
  * We have a stream of bytes and a separator as an input. We split the stream by
  * the separator and pass the byte arrays to output.
  */
+@Deprecated
 public class StreamSplitter {
     private static final int MAX_ARRAY_LENGTH = Integer.MAX_VALUE - 8;
     private static final int buflen = 65536;

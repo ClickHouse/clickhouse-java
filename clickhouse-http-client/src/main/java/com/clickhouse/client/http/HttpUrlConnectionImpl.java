@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 
+@Deprecated
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 

@@ -8,6 +8,7 @@ import java.util.List;
 /**
  * Functional interface for serializtion.
  */
+@Deprecated
 @FunctionalInterface
 public interface ClickHouseSerializer {
     static class CompositeSerializer implements ClickHouseSerializer {

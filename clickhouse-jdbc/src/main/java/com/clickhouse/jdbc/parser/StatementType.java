@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.parser;
 
+@Deprecated
 public enum StatementType {
     UNKNOWN(LanguageType.UNKNOWN, OperationType.UNKNOWN, false), // unknown statement
     ALTER(LanguageType.DDL, OperationType.UNKNOWN, false), // alter statement

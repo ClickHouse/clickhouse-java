@@ -13,6 +13,7 @@ import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.JdbcWrapper;
 
+@Deprecated
 public class ClickHouseParameterMetaData extends JdbcWrapper implements ParameterMetaData {
     protected final List<ClickHouseColumn> params;
     protected final JdbcTypeMapping mapper;

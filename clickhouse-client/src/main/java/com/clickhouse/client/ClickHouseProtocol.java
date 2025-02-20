@@ -7,6 +7,7 @@ import java.util.List;
 /**
  * This defines protocols can be used to connect to ClickHouse.
  */
+@Deprecated
 public enum ClickHouseProtocol {
     /**
      * Protocol detection is needed when establishing connection.

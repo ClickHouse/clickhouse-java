@@ -10,6 +10,7 @@ import com.clickhouse.data.mapper.RecordMapperFactory;
  * Functional interface for mapping {@link ClickHouseRecord} to customized
  * object.
  */
+@Deprecated
 @FunctionalInterface
 public interface ClickHouseRecordMapper {
     /**

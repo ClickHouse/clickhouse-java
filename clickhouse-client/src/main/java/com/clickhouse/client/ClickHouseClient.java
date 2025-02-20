@@ -57,6 +57,7 @@ import com.clickhouse.logging.LoggerFactory;
  * artifact, so that {@code java.util.SerivceLoader} can discover the
  * implementation properly in runtime.
  */
+@Deprecated
 public interface ClickHouseClient extends AutoCloseable {
     Logger LOG = LoggerFactory.getLogger(ClickHouseClient.class);
 

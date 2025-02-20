@@ -17,6 +17,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@link Instant}.
  */
+@Deprecated
 public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     /**
      * Default instant.

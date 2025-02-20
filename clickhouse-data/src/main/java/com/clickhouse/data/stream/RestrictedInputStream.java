@@ -16,6 +16,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
  * {@link WrappedInputStream}, the inner input stream remains open after calling
  * close().
  */
+@Deprecated
 public class RestrictedInputStream extends AbstractByteArrayInputStream {
     private final InputStream in;
 

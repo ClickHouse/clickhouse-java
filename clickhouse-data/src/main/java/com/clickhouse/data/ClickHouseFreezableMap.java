@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Freezable map. Once the map is freezed, all writes will be discarded without
  * any error.
  */
+@Deprecated
 public class ClickHouseFreezableMap<K, V> implements Map<K, V> {
     /**
      * Creates a freezable map with initial data and optional whitelisted keys.

@@ -10,6 +10,7 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code double}.
  */
+@Deprecated
 public class ClickHouseDoubleValue implements ClickHouseValue {
     /**
      * Create a new instance representing null value.

@@ -44,6 +44,7 @@ import com.clickhouse.jdbc.JdbcParameterizedQuery;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
+@Deprecated
 public class SqlBasedPreparedStatement extends AbstractPreparedStatement implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(SqlBasedPreparedStatement.class);
 

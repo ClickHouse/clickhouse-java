@@ -18,6 +18,7 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 
+@Deprecated
 public abstract class AbstractResultSet extends JdbcWrapper implements ResultSet {
     protected void ensureOpen() throws SQLException {
         if (isClosed()) {
