@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -252,7 +253,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
             if (this.executor == null) { // only initialize once
                 int threads = config.getMaxThreadsPerClient();
                 this.executor = threads < 1 ? ClickHouseClient.getExecutorService()
-                        : ClickHouseUtils.newThreadPool(this, threads, config.getMaxQueuedRequests());
+                        : ClickHouseUtils.newThreadPool(this, threads, threads, config.getMaxQueuedRequests(), TimeUnit.MINUTES.toMillis(10), true);
             }
 
             initialized = true;

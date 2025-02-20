@@ -1,7 +1,11 @@
 package com.clickhouse.data.mapper;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
+import org.apache.commons.lang3.stream.IntStreams;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -50,7 +54,9 @@ public class CustomRecordMappersTest {
     public void testCustomConstructor() throws Exception {
         ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> c = ClickHouseColumn.parse("id UInt32, name String");
-        ClickHouseRecord r = ClickHouseSimpleRecord.of(c,
+        HashMap<String, Integer> columnsIndex = IntStream.range(0, c.size()).boxed()
+                .collect(HashMap::new, (m, i) -> m.put(c.get(i).getColumnName(), i), HashMap::putAll);
+        ClickHouseRecord r = ClickHouseSimpleRecord.of(columnsIndex,
                 new ClickHouseValue[] { ClickHouseStringValue.ofNull(), ClickHouseStringValue.ofNull() });
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> new CustomRecordMappers.RecordConstructor(Object.class, null).mapTo(r, null));
@@ -68,7 +74,10 @@ public class CustomRecordMappersTest {
     public void testCustomCreator() throws Exception {
         ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> c = ClickHouseColumn.parse("id UInt32, name String");
-        ClickHouseRecord r = ClickHouseSimpleRecord.of(c,
+        HashMap<String, Integer> columnsIndex = IntStream.range(0, c.size()).boxed()
+                .collect(HashMap::new, (m, i) -> m.put(c.get(i).getColumnName(), i), HashMap::putAll);
+
+        ClickHouseRecord r = ClickHouseSimpleRecord.of(columnsIndex,
                 new ClickHouseValue[] { ClickHouseStringValue.ofNull(), ClickHouseStringValue.ofNull() });
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> new CustomRecordMappers.RecordCreator(Object.class, null).mapTo(r, null));

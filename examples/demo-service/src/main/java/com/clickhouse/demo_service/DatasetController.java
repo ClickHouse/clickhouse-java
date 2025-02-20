@@ -119,8 +119,8 @@ public class DatasetController {
             long duration = System.nanoTime() - start;
 
             // report metrics (only for demonstration purposes)
-            log.info(String.format("records: %d, read time: %d ms, client time: %d ms, server time: %d ms",
-                    result.size(), TimeUnit.NANOSECONDS.toMillis(duration),
+            log.info(String.format("records: %d, read time: %d ms (%d bytes), client time: %d ms, server time: %d ms",
+                    result.size(), TimeUnit.NANOSECONDS.toMillis(duration), response.getReadBytes(),
                     response.getMetrics().getMetric(ClientMetrics.OP_DURATION).getLong(),
                     TimeUnit.NANOSECONDS.toMillis(response.getServerTime())));
 

@@ -14,6 +14,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * This defines a data processor for dealing with serialization and
@@ -35,6 +37,7 @@ public abstract class ClickHouseDataProcessor {
         private final ClickHouseRecord currentRecord;
         private final Iterator<ClickHouseRecord> records;
         private final Iterator<ClickHouseValue> values;
+        private final Map<String, Integer> columnsIndex;
 
         DefaultSerDe(ClickHouseDataProcessor processor) throws IOException {
             if (processor.initialSettings == null || processor.initialSettings.isEmpty()) {
@@ -65,6 +68,7 @@ public abstract class ClickHouseDataProcessor {
                 }
             }
             this.columnList = Collections.unmodifiableList(Arrays.asList(this.columns));
+            this.columnsIndex = IntStream.range(0, columnList.size()).boxed().collect(Collectors.toMap(i->columnList.get(i).getColumnName() , i -> i));
 
             if (processor.input == null) {
                 this.currentRecord = ClickHouseRecord.EMPTY;
@@ -78,7 +82,7 @@ public abstract class ClickHouseDataProcessor {
                     this.serializers[i] = processor.getSerializer(processor.config, this.columns[i]);
                 }
             } else {
-                this.currentRecord = new ClickHouseSimpleRecord(this.columnList, this.templates);
+                this.currentRecord = new ClickHouseSimpleRecord(this.columnsIndex, this.templates);
 
                 this.records = ClickHouseChecker.nonNull(processor.initRecords(), "Records");
                 this.values = ClickHouseChecker.nonNull(processor.initValues(), "Values");
