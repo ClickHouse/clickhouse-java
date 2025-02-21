@@ -1,8 +1,6 @@
 package com.clickhouse.data;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -11,40 +9,35 @@ import java.util.Map;
  */
 @Deprecated
 public class ClickHouseSimpleRecord implements ClickHouseRecord {
-    public static final ClickHouseSimpleRecord EMPTY = new ClickHouseSimpleRecord(Collections.emptyList(),
+    public static final ClickHouseSimpleRecord EMPTY = new ClickHouseSimpleRecord(Collections.emptyMap(),
             new ClickHouseValue[0]);
 
-    private final List<ClickHouseColumn> columns;
+    private final Map<String, Integer> columnsIndex;
     private ClickHouseValue[] values;
-    private Map<String, Integer> columnsIndexes = null;
 
     /**
      * Creates a record object to wrap given values.
      *
-     * @param columns non-null list of columns
+     * @param columnsIndex index of columns ord numbers
      * @param values  non-null array of values
      * @return record
      */
-    public static ClickHouseRecord of(List<ClickHouseColumn> columns, ClickHouseValue[] values) {
-        if (columns == null || values == null) {
+    public static ClickHouseRecord of(Map<String, Integer> columnsIndex, ClickHouseValue[] values) {
+        if (columnsIndex == null || values == null) {
             throw new IllegalArgumentException("Non-null columns and values are required");
-        } else if (columns.size() != values.length) {
+        } else if (columnsIndex.size() != values.length) {
             throw new IllegalArgumentException(ClickHouseUtils.format(
-                    "Mismatched count: we have %d columns but we got %d values", columns.size(), values.length));
+                    "Mismatched count: we have %d columns but we got %d values", columnsIndex.size(), values.length));
         } else if (values.length == 0) {
             return EMPTY;
         }
 
-        return new ClickHouseSimpleRecord(columns, values);
+        return new ClickHouseSimpleRecord(columnsIndex, values);
     }
 
-    protected ClickHouseSimpleRecord(List<ClickHouseColumn> columns, ClickHouseValue[] values) {
-        this.columns = columns;
+    protected ClickHouseSimpleRecord(Map<String, Integer> columnsIndex, ClickHouseValue[] values) {
+        this.columnsIndex = columnsIndex;
         this.values = values;
-    }
-
-    protected List<ClickHouseColumn> getColumns() {
-        return columns;
     }
 
     protected ClickHouseValue[] getValues() {
@@ -77,7 +70,7 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
         for (int i = 0; i < len; i++) {
             vals[i] = values[i].copy();
         }
-        return new ClickHouseSimpleRecord(columns, vals);
+        return new ClickHouseSimpleRecord(columnsIndex, vals);
     }
 
     @Override
@@ -87,25 +80,15 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
 
     @Override
     public ClickHouseValue getValue(String name) {
-        if(columnsIndexes == null)
-            columnsIndexes = new HashMap<>(columns.size());
-
-        return getValue(columnsIndexes.computeIfAbsent(name, this::computeColumnIndex));
+        Integer index = columnsIndex.get(name);
+        if (index == null) {
+            throw new IllegalArgumentException(ClickHouseUtils.format("Unknown column name: %s", name));
+        }
+        return getValue(index);
     }
 
     @Override
     public int size() {
         return values.length;
-    }
-
-    private int computeColumnIndex(String name) {
-        int index = 0;
-        for (ClickHouseColumn c : columns) {
-            if (c.getColumnName().equalsIgnoreCase(name)) {
-                return index;
-            }
-            index++;
-        }
-        throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
     }
 }

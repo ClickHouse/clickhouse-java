@@ -442,7 +442,7 @@ public class ClickHouseClientBuilder {
                         lastError = e;
                     }
                 } catch (Throwable e) {
-                    log.warn("Skip %s due to: %s", c, e.getMessage());
+                    log.warn("Skip client due to exception: " + e.getMessage(), e);
                 }
             }
 

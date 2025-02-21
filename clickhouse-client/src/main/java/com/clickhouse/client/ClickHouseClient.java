@@ -956,7 +956,6 @@ public interface ClickHouseClient extends AutoCloseable {
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
-                    .option(ClickHouseClientOption.BUFFER_SIZE, 8) // actually 4 bytes should be enough
                     .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1) // enough with only one buffer
                     .format(ClickHouseFormat.TabSeparated)
                     .query("SELECT 1 FORMAT TabSeparated").execute()

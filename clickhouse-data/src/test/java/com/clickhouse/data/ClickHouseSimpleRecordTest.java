@@ -1,13 +1,15 @@
 package com.clickhouse.data;
 
-import java.util.Arrays;
-import java.util.Collections;
-
 import com.clickhouse.data.value.ClickHouseLongValue;
 import com.clickhouse.data.value.ClickHouseStringValue;
-
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ClickHouseSimpleRecordTest {
     @Test(groups = { "unit" })
@@ -16,29 +18,30 @@ public class ClickHouseSimpleRecordTest {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseSimpleRecord.of(null, new ClickHouseValue[0]));
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseSimpleRecord.of(Collections.emptyList(), null));
+                () -> ClickHouseSimpleRecord.of(Collections.emptyMap(), null));
 
         ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(null, null);
-        Assert.assertNull(record.getColumns());
         Assert.assertNull(record.getValues());
     }
 
     @Test(groups = { "unit" })
     public void testMismatchedColumnsAndValues() {
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseSimpleRecord
-                .of(Arrays.asList(ClickHouseColumn.of("a", "String")), new ClickHouseValue[0]));
 
-        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(Arrays.asList(ClickHouseColumn.of("a", "String")),
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseSimpleRecord
+                .of(Map.of("a", 0), new ClickHouseValue[0]));
+
+        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(Map.of("a", 0),
                 new ClickHouseValue[0]);
-        Assert.assertEquals(record.getColumns(), Arrays.asList(ClickHouseColumn.of("a", "String")));
         Assert.assertEquals(record.getValues(), new ClickHouseValue[0]);
     }
 
     @Test(groups = { "unit" })
     public void testGetValueByIndex() {
-        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(ClickHouseColumn.parse("a String, b UInt32"),
+        List<ClickHouseColumn> columnList = ClickHouseColumn.parse("a String, b UInt32");
+        Map<String, Integer> columnIndex = IntStream.range(0, columnList.size()).boxed().collect(Collectors.toMap(i->columnList.get(i).getColumnName() , i -> i));
+
+        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(columnIndex,
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true) });
-        Assert.assertEquals(record.getColumns(), ClickHouseColumn.parse("a String, b UInt32"));
         Assert.assertEquals(record.getValues(),
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true) });
 
@@ -60,18 +63,18 @@ public class ClickHouseSimpleRecordTest {
 
     @Test(groups = { "unit" })
     public void testGetValueByName() {
+        List<ClickHouseColumn> columnList = ClickHouseColumn.parse("`a One` String, `x木哈哈x` UInt32, test Nullable(String)");
+        Map<String, Integer> columnIndex = IntStream.range(0, columnList.size()).boxed().collect(Collectors.toMap(i->columnList.get(i).getColumnName() , i -> i));
         ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(
-                ClickHouseColumn.parse("`a One` String, `x木哈哈x` UInt32, test Nullable(String)"),
+                columnIndex,
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true),
                         ClickHouseStringValue.ofNull() });
-        Assert.assertEquals(record.getColumns(),
-                ClickHouseColumn.parse("`a One` String, `x木哈哈x` UInt32, test Nullable(String)"));
         Assert.assertEquals(record.getValues(), new ClickHouseValue[] { ClickHouseStringValue.of("123"),
                 ClickHouseLongValue.of(1L, true), ClickHouseStringValue.ofNull() });
 
-        Assert.assertEquals(record.getValue("A one"), ClickHouseStringValue.of("123"));
+        Assert.assertEquals(record.getValue("a One"), ClickHouseStringValue.of("123"));
         Assert.assertEquals(record.getValue("x木哈哈x"), ClickHouseLongValue.of(1L, true));
-        Assert.assertEquals(record.getValue("TEST"), ClickHouseStringValue.ofNull());
+        Assert.assertEquals(record.getValue("test"), ClickHouseStringValue.ofNull());
 
         Assert.assertThrows(IllegalArgumentException.class, () -> record.getValue(null));
         Assert.assertThrows(IllegalArgumentException.class, () -> record.getValue("non-exist"));

@@ -76,9 +76,9 @@ public class ClickHouseSimpleResponseTest {
                 ClickHouseColumn.parse("a Nullable(String), b UInt8, c String"),
                 new Object[][] { new Object[] { "aaa", 2, "ccc" }, null });
         ClickHouseRecord record = resp.firstRecord();
-        Assert.assertEquals(record.getValue("A"), ClickHouseStringValue.of("aaa"));
-        Assert.assertEquals(record.getValue("B"), ClickHouseByteValue.ofUnsigned(2));
-        Assert.assertEquals(record.getValue("C"), ClickHouseStringValue.of("ccc"));
+        Assert.assertEquals(record.getValue("a"), ClickHouseStringValue.of("aaa"));
+        Assert.assertEquals(record.getValue("b"), ClickHouseByteValue.ofUnsigned(2));
+        Assert.assertEquals(record.getValue("c"), ClickHouseStringValue.of("ccc"));
 
         ClickHouseRecord sameRecord = resp.firstRecord();
         Assert.assertTrue(record == sameRecord);
@@ -100,7 +100,7 @@ public class ClickHouseSimpleResponseTest {
                     break;
                 case 1:
                     Assert.assertEquals(r.getValue("a").asObject(), "aaa2");
-                    Assert.assertEquals(r.getValue("B").asObject(), UnsignedByte.valueOf((byte) 2));
+                    Assert.assertEquals(r.getValue("b").asObject(), UnsignedByte.valueOf((byte) 2));
                     Assert.assertEquals(r.getValue("c").asObject(), "ccc2");
                     break;
                 case 2:

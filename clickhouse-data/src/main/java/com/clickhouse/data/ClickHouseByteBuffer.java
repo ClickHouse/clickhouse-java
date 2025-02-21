@@ -87,8 +87,6 @@ public final class ClickHouseByteBuffer implements Serializable {
     public static ClickHouseByteBuffer of(byte[] bytes, int offset, int length) {
         if (bytes == null || bytes.length == 0 || length == 0) {
             return newInstance();
-        } else {
-            validate(bytes, offset, length);
         }
 
         return new ClickHouseByteBuffer(bytes, offset, length);
@@ -644,7 +642,7 @@ public final class ClickHouseByteBuffer implements Serializable {
         if (bytes == null || bytes.length == 0 || length == 0) {
             return reset();
         } else {
-            validate(bytes, offset, length);
+//            validate(bytes, offset, length);
         }
 
         if (bytes != this.array) {

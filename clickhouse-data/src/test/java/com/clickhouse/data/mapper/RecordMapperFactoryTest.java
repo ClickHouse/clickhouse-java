@@ -1,6 +1,8 @@
 package com.clickhouse.data.mapper;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -54,7 +56,10 @@ public class RecordMapperFactoryTest {
     public void testGetCustom() {
         ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("id UInt64, str Nullable(String)");
-        ClickHouseRecord r = ClickHouseSimpleRecord.of(columns,
+        HashMap<String, Integer> columnsIndex = IntStream.range(0, columns.size()).boxed()
+                .collect(HashMap::new, (m, i) -> m.put(columns.get(i).getColumnName(), i), HashMap::putAll);
+
+        ClickHouseRecord r = ClickHouseSimpleRecord.of(columnsIndex,
                 new ClickHouseValue[] { ClickHouseLongValue.ofUnsigned(5), ClickHouseStringValue.of("555...") });
         ClickHouseRecordMapper mapper = RecordMapperFactory.of(config, columns, Object.class);
         Assert.assertNotNull(mapper);

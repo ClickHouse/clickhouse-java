@@ -28,6 +28,7 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
@@ -38,8 +39,11 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.config.CharCodingConfig;
+import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -64,6 +68,8 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketOption;
+import java.net.SocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -111,7 +117,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
         log.debug("Connection reuse strategy: %s", poolReusePolicy.name());
         HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c, PoolConcurrencyPolicy.LAX,
-                poolReusePolicy, TimeValue.ofMilliseconds(connectionTTL));
+                poolReusePolicy, TimeValue.ofMilliseconds(connectionTTL), c.getReadBufferSize());
         int maxConnection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
 
         connManager.setMaxTotal(Integer.MAX_VALUE); // unlimited on global level
@@ -412,6 +418,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         private static final String PROVIDER = "Apache-HttpClient";
         private static final String USER_AGENT;
 
+        private static final Logger log = LoggerFactory.getLogger(HttpConnectionManager.class);
+
         static {
             String versionInfo = null;
             try {
@@ -424,12 +432,31 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
             USER_AGENT = ClickHouseClientOption.buildUserAgent(null,
                     versionInfo != null && !versionInfo.isEmpty() ? versionInfo : PROVIDER);
+
+            try {
+                Socket s = new Socket();
+                int defaultSoRcvBuf = s.getReceiveBufferSize();
+                int defaultSoSndBuf = s.getSendBufferSize();
+                s.setReceiveBufferSize(Integer.MAX_VALUE);
+                s.setSendBufferSize(Integer.MAX_VALUE);
+                int maxSoRcvBuf = s.getReceiveBufferSize();
+                int maxSoSndBuf = s.getSendBufferSize();
+
+                log.info("Default socket buffer (rcv/snd) size: %d/%d, max socket buffer (rcv/snd) size: %d/%d",
+                        defaultSoRcvBuf, defaultSoSndBuf, maxSoRcvBuf, maxSoSndBuf);
+            } catch (Exception e) { // NOSONAR
+                // ignore
+            }
         }
 
         public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config,
                                      PoolConcurrencyPolicy poolConcurrentcyPolicy, PoolReusePolicy poolReusePolicy,
-                                     TimeValue ttl) {
-            super(socketFactory, poolConcurrentcyPolicy, poolReusePolicy, ttl);
+                                     TimeValue ttl, int networkBufferSize) {
+            super(socketFactory, poolConcurrentcyPolicy, poolReusePolicy, ttl,
+                    new ManagedHttpClientConnectionFactory(Http1Config.custom()
+                            .setBufferSize(Math.min(1_000_000, networkBufferSize)).build(),
+                            CharCodingConfig.DEFAULT,
+                            DefaultHttpResponseParserFactory.INSTANCE));
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .setValidateAfterInactivity(config.getLongOption(ClickHouseHttpOption.AHC_VALIDATE_AFTER_INACTIVITY), TimeUnit.MILLISECONDS)

@@ -1,6 +1,8 @@
 package com.clickhouse.data.mapper;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -109,14 +111,17 @@ public class DynamicRecordMapperTest {
         // Assert.assertThrows(IllegalArgumentException.class,
         // () -> mapper.mapTo(ClickHouseSimpleRecord.of(columns, values),
         // PrivatePojo.class));
-        SimplePojo pojo = mapper.mapTo(ClickHouseSimpleRecord.of(columns, values), SimplePojo.class, new SimplePojo());
+        HashMap<String, Integer> columnsIndex = IntStream.range(0, columns.size()).boxed()
+                .collect(HashMap::new, (m, i) -> m.put(columns.get(i).getColumnName(), i), HashMap::putAll);
+
+        SimplePojo pojo = mapper.mapTo(ClickHouseSimpleRecord.of(columnsIndex, values), SimplePojo.class, new SimplePojo());
         Assert.assertNotNull(pojo, "Result should NOT be null");
         Assert.assertEquals(pojo.getId(), values[1].asInteger());
         Assert.assertEquals(pojo.getName(), "");
         Assert.assertEquals(pojo.getDescription(), values[2].asString());
 
         RecordPojo rpojo = RecordMapperFactory.of(config, columns, RecordPojo.class)
-                .mapTo(ClickHouseSimpleRecord.of(columns, values), RecordPojo.class);
+                .mapTo(ClickHouseSimpleRecord.of(columnsIndex, values), RecordPojo.class);
         Assert.assertNotNull(rpojo);
         Assert.assertEquals(rpojo.getId(), values[1].asInteger());
         Assert.assertEquals(rpojo.getName(), values[0].asString());

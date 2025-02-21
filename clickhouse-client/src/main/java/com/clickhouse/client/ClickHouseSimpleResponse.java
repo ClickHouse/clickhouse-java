@@ -12,7 +12,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * A simple response built on top of two lists: columns and records.
@@ -105,6 +108,9 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         }
 
         List<ClickHouseColumn> columns = response.getColumns();
+        Map<String, Integer> columnIndex = IntStream.range(0, columns.size()).boxed().
+                collect(Collectors.toMap(i->columns.get(i).getColumnName() , i -> i));
+
         int size = columns.size();
         List<ClickHouseRecord> records = new LinkedList<>();
         int rowIndex = 0;
@@ -114,7 +120,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
                 values[i] = r.getValue(i).copy();
             }
 
-            ClickHouseRecord rec = ClickHouseSimpleRecord.of(columns, values);
+            ClickHouseRecord rec = ClickHouseSimpleRecord.of(columnIndex, values);
             if (func != null) {
                 func.update(rowIndex, rec);
             }
@@ -142,11 +148,12 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, ClickHouseValue[][] values,
             ClickHouseResponseSummary summary, TimeZone timeZone) {
         this.columns = columns;
-
+        Map<String, Integer> columnIndex = IntStream.range(0, columns.size()).boxed().
+                collect(Collectors.toMap(i->columns.get(i).getColumnName() , i -> i));
         int len = values.length;
         List<ClickHouseRecord> list = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
-            list.add(ClickHouseSimpleRecord.of(columns, values[i]));
+            list.add(ClickHouseSimpleRecord.of(columnIndex, values[i]));
         }
 
         this.records = Collections.unmodifiableList(list);

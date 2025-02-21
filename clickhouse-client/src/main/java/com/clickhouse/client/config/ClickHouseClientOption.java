@@ -228,6 +228,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     MAX_THREADS_PER_CLIENT("max_threads_per_client", 0,
             "Size of thread pool for each client instance, 0 or negative number means the client will use shared thread pool."),
+
+    MAX_CORE_THREAD_TTL("max_core_thread_ttl", 0L,
+            "Maximum time in milliseconds a core thread can be idle before being terminated. 0 or negative number means immediate termination."),
+
     /**
      * Product name usered in user agent.
      */
@@ -447,7 +451,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     CONNECTION_TTL("connection_ttl", 0L,
             "Connection time to live in milliseconds. 0 or negative number means no limit."),
-    ;
+    MEASURE_REQUEST_TIME("debug_measure_request_time", false, "Whether to measure request time. If true, the time will be logged in debug mode.");
 
     private final String key;
     private final Serializable defaultValue;

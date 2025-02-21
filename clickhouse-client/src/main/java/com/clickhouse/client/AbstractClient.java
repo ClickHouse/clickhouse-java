@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -35,6 +36,8 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     private T connection = null;
 
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    private boolean measureRequestTime = false;
 
     private void ensureInitialized() {
         if (!initialized) {
@@ -240,8 +243,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     @Override
     public void init(ClickHouseConfig config) {
+        log.info("Initializing new client: %d", this.hashCode());
         ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
-
+        measureRequestTime = config.getBoolOption(ClickHouseClientOption.MEASURE_REQUEST_TIME);
         lock.writeLock().lock();
         try {
             Collection<ClickHouseProtocol> protocols = getSupportedProtocols();
@@ -252,8 +256,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                     config.getMetricRegistry().orElse(null));
             if (this.executor == null) { // only initialize once
                 int threads = config.getMaxThreadsPerClient();
+                long threadTTL = config.getLongOption(ClickHouseClientOption.MAX_CORE_THREAD_TTL);
                 this.executor = threads < 1 ? ClickHouseClient.getExecutorService()
-                        : ClickHouseUtils.newThreadPool(this, threads, config.getMaxQueuedRequests());
+                        : ClickHouseUtils.newThreadPool(this, threads, threads, config.getMaxQueuedRequests(), threadTTL, true);
             }
 
             initialized = true;
@@ -264,6 +269,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     @Override
     public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
+        final long start = System.nanoTime();
         // sealedRequest is an immutable copy of the original request
         final ClickHouseRequest<?> sealedRequest = request.seal();
 
@@ -274,6 +280,13 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                     return sendAsync(sealedRequest, args);
                 } catch (ClickHouseException | IOException e) {
                     throw new CompletionException(ClickHouseException.of(e, sealedRequest.getServer()));
+                } finally {
+                    if (measureRequestTime) {
+                        long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                        if (elapsed > 1000) {
+                            log.info("Request took long to execute: %s", elapsed);
+                        }
+                    }
                 }
             }, getExecutor());
         } else {
@@ -281,6 +294,13 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                 return CompletableFuture.completedFuture(send(sealedRequest));
             } catch (ClickHouseException | IOException e) {
                 return failedResponse(ClickHouseException.of(e, sealedRequest.getServer()));
+            } finally {
+                if (measureRequestTime) {
+                    long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                    if (elapsed > 1000) {
+                        log.info("Request took long to execute: %s", elapsed);
+                    }
+                }
             }
         }
     }
