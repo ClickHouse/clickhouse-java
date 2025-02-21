@@ -12,7 +12,7 @@ on:
 
 env:
   CHC_BRANCH: "main"
-  CHC_VERSION: "0.8.0"
+  CHC_VERSION: "0.8.1"
   CH_VERSION: "24.8"
 
 jobs:
