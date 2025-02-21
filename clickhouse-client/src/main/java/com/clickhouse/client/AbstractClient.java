@@ -282,7 +282,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                 } finally {
                     if (measureRequestTime) {
                         long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-                        if (measureRequestTime && elapsed > 1000) {
+                        if (elapsed > 1000) {
                             log.info("Request took long to execute: %s", elapsed);
                         }
                     }
