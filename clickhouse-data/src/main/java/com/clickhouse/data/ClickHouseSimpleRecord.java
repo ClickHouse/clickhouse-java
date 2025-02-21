@@ -79,7 +79,11 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
 
     @Override
     public ClickHouseValue getValue(String name) {
-        return getValue(columnsIndex.get(name));
+        Integer index = columnsIndex.get(name);
+        if (index == null) {
+            throw new IllegalArgumentException(ClickHouseUtils.format("Unknown column name: %s", name));
+        }
+        return getValue(index);
     }
 
     @Override

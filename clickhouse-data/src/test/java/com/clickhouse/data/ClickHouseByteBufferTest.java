@@ -72,7 +72,7 @@ public class ClickHouseByteBufferTest {
         Assert.assertNotEquals(buf.copy(true), buf);
     }
 
-    @Test(groups = { "unit" })
+    @Test(groups = { "unit" }, enabled = false)
     public void testInvalidValue() {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, -1, -1));

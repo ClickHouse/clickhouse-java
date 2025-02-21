@@ -68,6 +68,8 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketOption;
+import java.net.SocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -100,13 +102,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         if (c.isSsl()) {
             r.register("https", socketFactory.create(c, SSLConnectionSocketFactory.class));
         }
-//        int networkBufferSize = MapUtils.getInt(chConfiguration, "client_network_buffer_size");
-//        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
-//                Http1Config.custom()
-//                        .setBufferSize(networkBufferSize)
-//                        .build(),
-//                CharCodingConfig.DEFAULT,
-//                DefaultHttpResponseParserFactory.INSTANCE);
 
         long connectionTTL = config.getLongOption(ClickHouseClientOption.CONNECTION_TTL);
         log.debug("Connection TTL: %d ms", connectionTTL);
@@ -422,6 +417,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         private static final String PROVIDER = "Apache-HttpClient";
         private static final String USER_AGENT;
 
+        private static final Logger log = LoggerFactory.getLogger(HttpConnectionManager.class);
+
         static {
             String versionInfo = null;
             try {
@@ -434,6 +431,21 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
             USER_AGENT = ClickHouseClientOption.buildUserAgent(null,
                     versionInfo != null && !versionInfo.isEmpty() ? versionInfo : PROVIDER);
+
+            try {
+                Socket s = new Socket();
+                int defaultSoRcvBuf = s.getReceiveBufferSize();
+                int defaultSoSndBuf = s.getSendBufferSize();
+                s.setReceiveBufferSize(Integer.MAX_VALUE);
+                s.setSendBufferSize(Integer.MAX_VALUE);
+                int maxSoRcvBuf = s.getReceiveBufferSize();
+                int maxSoSndBuf = s.getSendBufferSize();
+
+                log.info("Default socket buffer (rcv/snd) size: %d/%d, max socket buffer (rcv/snd) size: %d/%d",
+                        defaultSoRcvBuf, defaultSoSndBuf, maxSoRcvBuf, maxSoSndBuf);
+            } catch (Exception e) { // NOSONAR
+                // ignore
+            }
         }
 
         public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config,

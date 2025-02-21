@@ -436,7 +436,6 @@ public class HttpAPIClientHelper {
                     httpResponse.close();
                 }
             }
-            LOG.info("content-length: " + httpResponse.getEntity().getContentLength());
             return httpResponse;
 
         } catch (UnknownHostException e) {
