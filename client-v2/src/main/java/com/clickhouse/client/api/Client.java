@@ -1939,6 +1939,26 @@ public class Client implements AutoCloseable {
      * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
      * Method however returns execution errors from a server or summary in case of successful execution. </p>
      *
+     * @param sql      - SQL command
+     * @param params   - query parameters
+     * @param settings  - execution settings
+     * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
+     */
+    public CompletableFuture<CommandResponse> execute(String sql, Map<String, Object> params, CommandSettings settings){
+        return query(sql, params, settings)
+                .thenApplyAsync(response -> {
+                    try {
+                        return new CommandResponse(response);
+                    } catch (Exception e) {
+                        throw new ClientException("Failed to get command response", e);
+                    }
+                });
+    }
+
+    /**
+     * <p>Executes a SQL command and doesn't care response. Useful for DDL statements, like `CREATE`, `DROP`, `ALTER`.
+     * Method however returns execution errors from a server or summary in case of successful execution. </p>
+     *
      * @param sql - SQL command
      * @return {@code CompletableFuture<CommandResponse>} - a promise to command response
      */
