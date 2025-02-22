@@ -1985,6 +1985,31 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testReadingSimpleAggregateFunction2() throws Exception {
+        final String tableName = "simple_aggregate_function_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), date SimpleAggregateFunction(anyLast, DateTime32)) " +
+                "ENGINE Memory;").get();
+
+
+        try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t2024-12-22T12:00:00".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals((Short) reader.getShort("lowest_value"), Short.parseShort("2"));
+            Assert.assertEquals((Long) reader.getLong("count"), Long.parseLong("3"));
+            Assert.assertEquals(reader.getLocalDateTime("date"), LocalDateTime.of(2024,12,22,12,00,00));
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testReadingEnumsAsStrings() throws Exception {
         final String tableName = "enums_as_strings_test_table";
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
