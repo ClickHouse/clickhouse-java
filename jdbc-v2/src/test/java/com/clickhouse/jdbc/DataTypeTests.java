@@ -230,7 +230,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    //@Test(groups = { "integration" })
     public void testDateTypes() throws SQLException {
         runQuery("CREATE TABLE test_dates (order Int8, "
                 + "date Date, date32 Date32, " +

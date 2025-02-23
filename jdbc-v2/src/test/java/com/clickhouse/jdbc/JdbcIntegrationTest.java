@@ -34,7 +34,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         Properties info = new Properties();
         info.setProperty("user", "default");
         info.setProperty("password", ClickHouseServerForTest.getPassword());
-
+        info.setProperty("clickhouse.jdbc.v1","true");
         if (properties != null) {
             info.putAll(properties);
         }

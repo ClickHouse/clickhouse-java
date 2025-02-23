@@ -38,6 +38,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private volatile String lastQueryId;
     private String schema;
     private int maxRows;
+    boolean insertMode = false;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -460,11 +461,24 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int[] executeBatch() throws SQLException {
         checkClosed();
         List<Integer> results = new ArrayList<>();
-
-        for(String sql : batch) {
-            results.add(executeUpdate(sql));
+        if (this.insertMode) {
+            // write insert into as batch to avoid multiple requests
+            StringBuilder sb = new StringBuilder();
+            String insertIntoSql = batch.remove(0);
+            sb.append(insertIntoSql).append(" ");
+            for (String sql : batch) {
+                sb.append(sql).append(",");
+            }
+            sb.setCharAt(sb.length() - 1, ';');
+            results.add(executeUpdate(sb.toString()));
+            // clear batch and re-add insert into
+            batch.clear();
+            batch.add(insertIntoSql);
+        } else {
+            for (String sql : batch) {
+                results.add(executeUpdate(sql));
+            }
         }
-
         return results.stream().mapToInt(i -> i).toArray();
     }
 
@@ -621,5 +635,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
      */
     public String getLastQueryId() {
         return lastQueryId;
+    }
+
+    public void setInsertMode(boolean insertMode) {
+        this.insertMode = insertMode;
+    }
+
+    public boolean isInsertMode() {
+        return insertMode;
     }
 }

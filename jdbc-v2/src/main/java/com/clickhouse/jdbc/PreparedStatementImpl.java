@@ -59,9 +59,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     Object [] parameters;
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
-        this.originalSql = sql;
+        this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = sql.split("\\?");
+        this.sqlSegments = originalSql.split("\\?");
+        this.setInsertMode(originalSql.toLowerCase().startsWith("insert into"));
+        if (this.isInsertMode()) {
+            String insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
+            addBatch(insertIntoSQL);
+        }
 
         //Create an array of objects to store the parameters
         if (originalSql.contains("?")) {
@@ -83,6 +88,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             }
         }
         LOG.trace("Compiled SQL: {}", sb);
+        return sb.toString();
+    }
+
+    private String valuesSql() {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < parameters.length; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(parameters[i]);
+        }
+        sb.append(")");
+        LOG.trace("Compiled Value SQL: {}", sb);
         return sb.toString();
     }
 
@@ -228,7 +246,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        addBatch(compileSql());
+        if (this.isInsertMode()) {
+            addBatch(valuesSql());
+        } else {
+            addBatch(compileSql());
+        }
     }
 
     @Override
