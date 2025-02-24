@@ -823,7 +823,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testDynamicTypesSimpleStatement() throws SQLException {
-        if (earlierThan(24, 8) || isCloud()) {
+        if (earlierThan(24, 8)) {
             return;
         }
 
@@ -941,7 +941,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testVariantTypesSimpleStatement() throws SQLException {
-        if (earlierThan(24, 8) || isCloud()) {
+        if (earlierThan(24, 8)) {
             return;
         }
 
