@@ -38,8 +38,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private volatile String lastQueryId;
     private String schema;
     private int maxRows;
-    boolean insertMode = false;
-
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
         this.queryTimeout = 0;
@@ -620,13 +618,5 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
      */
     public String getLastQueryId() {
         return lastQueryId;
-    }
-
-    public void setInsertMode(boolean insertMode) {
-        this.insertMode = insertMode;
-    }
-
-    public boolean isInsertMode() {
-        return insertMode;
     }
 }

@@ -60,13 +60,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String [] sqlSegments;
     Object [] parameters;
     String insertIntoSQL;
+
+    StatementType statementType;
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = originalSql.split("\\?");
-        this.setInsertMode(originalSql.toLowerCase().startsWith("insert into"));
-        if (this.isInsertMode()) {
+        this.statementType = parseStatementType(originalSql);
+
+        if (statementType == StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
         }
 
@@ -248,7 +251,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        if (this.isInsertMode()) {
+        if (statementType == StatementType.INSERT) {
             addBatch(valuesSql());
         } else {
             addBatch(compileSql());
@@ -258,7 +261,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
-        if (this.insertMode) {
+        if (statementType == StatementType.INSERT && !batch.isEmpty()) {
             List<Integer> results = new ArrayList<>();
             // write insert into as batch to avoid multiple requests
             StringBuilder sb = new StringBuilder();
