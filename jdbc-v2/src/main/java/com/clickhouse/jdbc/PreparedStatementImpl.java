@@ -38,9 +38,11 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Map;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
@@ -57,6 +59,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String originalSql;
     String [] sqlSegments;
     Object [] parameters;
+    String insertIntoSQL;
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
         this.originalSql = sql.trim();
@@ -64,8 +67,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.sqlSegments = originalSql.split("\\?");
         this.setInsertMode(originalSql.toLowerCase().startsWith("insert into"));
         if (this.isInsertMode()) {
-            String insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
-            addBatch(insertIntoSQL);
+            insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
         }
 
         //Create an array of objects to store the parameters
@@ -250,6 +252,28 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             addBatch(valuesSql());
         } else {
             addBatch(compileSql());
+        }
+    }
+
+    @Override
+    public int[] executeBatch() throws SQLException {
+        checkClosed();
+        if (this.insertMode) {
+            List<Integer> results = new ArrayList<>();
+            // write insert into as batch to avoid multiple requests
+            StringBuilder sb = new StringBuilder();
+            sb.append(insertIntoSQL).append(" ");
+            for (String sql : batch) {
+                sb.append(sql).append(",");
+            }
+            sb.setCharAt(sb.length() - 1, ';');
+            results.add(executeUpdate(sb.toString()));
+            // clear batch and re-add insert into
+            batch.clear();
+            return results.stream().mapToInt(i -> i).toArray();
+        } else {
+            // run executeBatch
+            return super.executeBatch();
         }
     }
 
