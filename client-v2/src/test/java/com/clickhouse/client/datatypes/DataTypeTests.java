@@ -183,9 +183,10 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY () SETTINGS allow_experimental_variant_type=1");
+            b.append(")) Engine = MergeTree ORDER BY ()");
 
-            client.execute(b.toString());
+            client.execute(b.toString(),
+                    (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1"));
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
             Object value = null;
@@ -621,7 +622,8 @@ public class DataTypeTests extends BaseIntegrationTest {
         actualFields[0] = "rowId Int32";
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, actualFields), (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
+        client.execute(tableDefinition(table, actualFields),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
