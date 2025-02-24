@@ -823,14 +823,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testDynamicTypesSimpleStatement() throws SQLException {
-        if (earlierThan(24, 8) || isCloud()) {
+        if (earlierThan(24, 8)) {
             return;
         }
 
         Properties properties = new Properties();
-        if (!isCloud()) {
-            properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
-        }
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
         runQuery("CREATE TABLE test_dynamic (order Int8, "
                 + "dynamic Dynamic"
                 + ") ENGINE = MergeTree ORDER BY ()",
@@ -941,14 +939,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testVariantTypesSimpleStatement() throws SQLException {
-        if (earlierThan(24, 8) || isCloud()) {
+        if (earlierThan(24, 8)) {
             return;
         }
 
         Properties properties = new Properties();
-        if (!isCloud()) {
-            properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
-        }
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
         runQuery("CREATE TABLE test_variant (order Int8, "
                         + "v Variant(String, Int32)"
                         + ") ENGINE = MergeTree ORDER BY ()",
