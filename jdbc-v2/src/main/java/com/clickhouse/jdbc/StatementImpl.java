@@ -33,12 +33,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected boolean closed;
     private ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
-    private List<String> batch;
+    protected List<String> batch;
     private String lastSql;
     private volatile String lastQueryId;
     private String schema;
     private int maxRows;
-
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
         this.queryTimeout = 0;
@@ -460,11 +459,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int[] executeBatch() throws SQLException {
         checkClosed();
         List<Integer> results = new ArrayList<>();
-
-        for(String sql : batch) {
+        for (String sql : batch) {
             results.add(executeUpdate(sql));
         }
-
         return results.stream().mapToInt(i -> i).toArray();
     }
 

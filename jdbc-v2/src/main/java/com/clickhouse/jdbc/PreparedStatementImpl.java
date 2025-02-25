@@ -38,9 +38,11 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Map;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
@@ -57,11 +59,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String originalSql;
     String [] sqlSegments;
     Object [] parameters;
+    String insertIntoSQL;
+
+    StatementType statementType;
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
-        this.originalSql = sql;
+        this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = sql.split("\\?");
+        this.sqlSegments = originalSql.split("\\?");
+        this.statementType = parseStatementType(originalSql);
+
+        if (statementType == StatementType.INSERT) {
+            insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
+        }
 
         //Create an array of objects to store the parameters
         if (originalSql.contains("?")) {
@@ -83,6 +93,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             }
         }
         LOG.trace("Compiled SQL: {}", sb);
+        return sb.toString();
+    }
+
+    private String valuesSql() {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < parameters.length; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(parameters[i]);
+        }
+        sb.append(")");
+        LOG.trace("Compiled Value SQL: {}", sb);
         return sb.toString();
     }
 
@@ -228,7 +251,33 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        addBatch(compileSql());
+        if (statementType == StatementType.INSERT) {
+            addBatch(valuesSql());
+        } else {
+            addBatch(compileSql());
+        }
+    }
+
+    @Override
+    public int[] executeBatch() throws SQLException {
+        checkClosed();
+        if (statementType == StatementType.INSERT && !batch.isEmpty()) {
+            List<Integer> results = new ArrayList<>();
+            // write insert into as batch to avoid multiple requests
+            StringBuilder sb = new StringBuilder();
+            sb.append(insertIntoSQL).append(" ");
+            for (String sql : batch) {
+                sb.append(sql).append(",");
+            }
+            sb.setCharAt(sb.length() - 1, ';');
+            results.add(executeUpdate(sb.toString()));
+            // clear batch and re-add insert into
+            batch.clear();
+            return results.stream().mapToInt(i -> i).toArray();
+        } else {
+            // run executeBatch
+            return super.executeBatch();
+        }
     }
 
     @Override

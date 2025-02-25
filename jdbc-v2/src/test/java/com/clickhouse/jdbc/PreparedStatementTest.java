@@ -8,6 +8,7 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.ZoneId;
@@ -275,5 +276,41 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
         assertEquals(count, 100);
+    }
+
+    @Test(groups = { "integration" })
+    void testInsert() throws Exception {
+        int ROWS = 100000;
+        try (Connection conn = getJdbcConnection()) {
+            for (int j = 0; j < 10; j++) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("CREATE TABLE insert_batch (`id` UInt32, `name` String) ENGINE = Memory");
+                }
+                String insertQuery = "INSERT INTO insert_batch (id, name) VALUES (?,?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
+                    for (int i = 0; i < ROWS; i++) {
+                        stmt.setInt(1, i);
+                        stmt.setString(2, "name" + i);
+                        stmt.addBatch();
+                    }
+                    long startBatchTime = System.currentTimeMillis();
+                    stmt.executeBatch();
+                    long endBatchTime = System.currentTimeMillis();
+                    System.out.println("Insertion Time for Final Batch: " + (endBatchTime - startBatchTime) + " ms");
+                }
+                // count rows
+                try (Statement stmt = conn.createStatement()) {
+                    try (ResultSet rs = stmt.executeQuery("SELECT count(*) FROM insert_batch")) {
+                        assertTrue(rs.next());
+                        assertEquals(rs.getInt(1), ROWS);
+                    }
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP TABLE insert_batch");
+                }
+
+            }
+
+        }
     }
 }
