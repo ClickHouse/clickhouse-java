@@ -142,7 +142,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
-        if (isVersionMatch("(,24.8]") || isCloud()) {
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
 
@@ -183,9 +183,10 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY () SETTINGS enable_variant_type=1");
+            b.append(")) Engine = MergeTree ORDER BY ()");
 
-            client.execute(b.toString());
+            client.execute(b.toString(),
+                    (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1"));
             client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
             Object value = null;
@@ -396,7 +397,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testDynamicWithPrimitives() throws Exception {
-        if (isVersionMatch("(,24.8]") || isCloud()) {
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
 
@@ -588,14 +589,14 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
-        if (isVersionMatch("(,24.8]") || isCloud()) {
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
 
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("enable_dynamic_type", "1")).get();
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -612,7 +613,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     private void testVariantWith(String withWhat, String[] fields, Object[] values, String[] expectedStrValues) throws Exception {
-        if (isVersionMatch("(,24.8]") || isCloud()) {
+        if (isVersionMatch("(,24.8]")) {
             return;
         }
 
@@ -621,7 +622,8 @@ public class DataTypeTests extends BaseIntegrationTest {
         actualFields[0] = "rowId Int32";
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, actualFields), (CommandSettings) new CommandSettings().serverSetting("enable_variant_type", "1")).get();
+        client.execute(tableDefinition(table, actualFields),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 

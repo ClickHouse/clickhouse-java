@@ -433,8 +433,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             USER_AGENT = ClickHouseClientOption.buildUserAgent(null,
                     versionInfo != null && !versionInfo.isEmpty() ? versionInfo : PROVIDER);
 
-            try {
-                Socket s = new Socket();
+            try (Socket s = new Socket()) {
                 int defaultSoRcvBuf = s.getReceiveBufferSize();
                 int defaultSoSndBuf = s.getSendBufferSize();
                 s.setReceiveBufferSize(Integer.MAX_VALUE);
@@ -446,6 +445,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                         defaultSoRcvBuf, defaultSoSndBuf, maxSoRcvBuf, maxSoSndBuf);
             } catch (Exception e) { // NOSONAR
                 // ignore
+                log.warn("Failed to get default socket buffer size", e);
             }
         }
 
