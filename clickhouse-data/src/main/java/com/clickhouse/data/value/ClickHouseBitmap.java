@@ -20,7 +20,6 @@ import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseDataType;
 
-@Deprecated
 public abstract class ClickHouseBitmap {
     private static final int[] EMPTY_INT_ARRAY = new int[0];
     private static final long[] EMPTY_LONG_ARRAY = new long[0];

@@ -19,7 +19,6 @@ import com.clickhouse.data.ClickHouseValues;
 /**
  * Wrapper class of {@code Point}.
  */
-@Deprecated
 public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
     /**
      * Creats a point of origin.
