@@ -61,18 +61,6 @@ public class DatasetController {
         datasetQuerySchema = chDirectClient.getTableSchemaFromQuery(DATASET_QUERY);
         chDirectClient.register(VirtualDatasetRecord.class, datasetQuerySchema);
         log.info("Dataset schema: " + datasetQuerySchema.getColumns());
-
-        pool = new BasicObjectsPool<>(new ConcurrentLinkedDeque<>(), 100) {
-            @Override
-            ObjectsPreparedCollection<VirtualDatasetRecord> create() {
-                return new ObjectsPreparedCollection<>(new LinkedList<>(), MAX_LIMIT) {
-                    @Override
-                    VirtualDatasetRecord create() {
-                        return new VirtualDatasetRecord();
-                    }
-                };
-            }
-        };
     }
 
     /**
@@ -124,7 +112,7 @@ public class DatasetController {
                     response.getMetrics().getMetric(ClientMetrics.OP_DURATION).getLong(),
                     TimeUnit.NANOSECONDS.toMillis(response.getServerTime())));
 
-            return result.stream().findFirst().stream().collect(Collectors.toCollection(ArrayList::new));
+            return result;
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch dataset", e);
         }
@@ -195,6 +183,25 @@ public class DatasetController {
     private CalculationResult readToPOJO(int limit, boolean cache) {
         final String query = DATASET_QUERY + " LIMIT " + limit;
         List<VirtualDatasetRecord> result = null;
+
+        if (cache) {
+            synchronized (this) {
+                if (pool == null) {
+                    pool = new BasicObjectsPool<>(new ConcurrentLinkedDeque<>(), 100) {
+                        @Override
+                        ObjectsPreparedCollection<VirtualDatasetRecord> create() {
+                            return new ObjectsPreparedCollection<>(new LinkedList<>(), MAX_LIMIT) {
+                                @Override
+                                VirtualDatasetRecord create() {
+                                    return new VirtualDatasetRecord();
+                                }
+                            };
+                        }
+                    };
+                }
+            }
+        }
+
         Supplier<VirtualDatasetRecord> objectsPool = cache ? this.pool.lease()
                 : VirtualDatasetRecord::new;
         try  {

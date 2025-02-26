@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4InputStream extends InputStream {
 
@@ -20,7 +19,13 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     private final InputStream in;
 
-    private ByteBuffer buffer;
+    private byte[] outBuffer;
+
+    private int position = 0;
+
+    private int limit = 0;
+
+    private byte[] inBuffer;
 
     private byte[] tmpBuffer = new byte[1];
 
@@ -29,8 +34,8 @@ public class ClickHouseLZ4InputStream extends InputStream {
         super();
         this.decompressor = decompressor;
         this.in = in;
-        this.buffer = ByteBuffer.allocate(bufferSize);
-        this.buffer.limit(0);
+        this.outBuffer = new byte[bufferSize];
+        this.inBuffer = new byte[bufferSize];
     }
 
     @Override
@@ -55,8 +60,9 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
         int readBytes = 0;
         do {
-            int remaining = Math.min(len - readBytes, buffer.remaining());
-            buffer.get(b, off + readBytes, remaining);
+            int remaining = Math.min(len - readBytes, limit - position);
+            System.arraycopy(outBuffer, position, b, off + readBytes, remaining);
+            position += remaining;
             readBytes += remaining;
         } while (readBytes < len && refill() != -1);
 
@@ -109,30 +115,33 @@ public class ClickHouseLZ4InputStream extends InputStream {
         int uncompressedSize = getInt32(headerBuff, 21);
 
         int offset = 9;
-        final byte[] block =  new byte[compressedSizeWithHeader];
-        block[0] = MAGIC;
-        setInt32(block, 1, compressedSizeWithHeader);
-        setInt32(block, 5, uncompressedSize);
+        if (inBuffer.length < compressedSizeWithHeader) {
+            LOG.debug("compressed buff too small, new size: {}", compressedSizeWithHeader);
+        }
+        inBuffer = inBuffer.length >= compressedSizeWithHeader ? inBuffer : new byte[(int) (compressedSizeWithHeader * 1.5)];
+        inBuffer[0] = MAGIC;
+        setInt32(inBuffer, 1, compressedSizeWithHeader);
+        setInt32(inBuffer, 5, uncompressedSize);
         // compressed data: compressed_size - 9 bytes
         int remaining = compressedSizeWithHeader - offset;
 
-        readFully = readFully(block, offset, remaining);
+        readFully = readFully(inBuffer, offset, remaining);
         if (!readFully) {
             throw new EOFException("Unexpected end of stream");
         }
 
-        long[] real = ClickHouseCityHash.cityHash128(block, 0, compressedSizeWithHeader);
+        long[] real = ClickHouseCityHash.cityHash128(inBuffer, 0, compressedSizeWithHeader);
         if (real[0] != getInt64(headerBuff, 0) || real[1] != ClickHouseByteUtils.getInt64(headerBuff, 8)) {
             throw new ClientException("Corrupted stream: checksum mismatch");
         }
 
-        if (buffer.capacity() < uncompressedSize) {
-            buffer = ByteBuffer.allocate(uncompressedSize);
-            LOG.warn("Buffer size is too small, reallocate buffer with size: " + uncompressedSize);
+        if (outBuffer.length < uncompressedSize) {
+            outBuffer = new byte[uncompressedSize];
+            LOG.debug("uncompressed buff too small, new size: {}", uncompressedSize);
         }
-        decompressor.decompress(ByteBuffer.wrap(block), offset,  buffer, 0, uncompressedSize);
-        buffer.position(0);
-        buffer.limit(uncompressedSize);
+        decompressor.decompress(inBuffer, offset, outBuffer, 0, uncompressedSize);
+        position = 0;
+        limit = uncompressedSize;
         return uncompressedSize;
     }
 
