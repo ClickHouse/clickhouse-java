@@ -47,7 +47,6 @@ import com.clickhouse.data.value.UnsignedShort;
  * ClickHouse, but for the sake of this driver, we treat these data types as
  * modifiers for the underlying base data types.
  */
-@Deprecated
 @SuppressWarnings("squid:S115")
 public enum ClickHouseDataType {
     Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false,0x2D, "BOOLEAN"),
