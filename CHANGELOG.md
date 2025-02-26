@@ -1,5 +1,16 @@
 ## Latest
 
+## 0.8.2
+
+### New Features
+
+### Bug Fixes
+- [jdbc-v2] - Significantly improved performance of JDBC inserts. (https://github.com/ClickHouse/clickhouse-java/pull/2165)
+- [client-v1] - Removed unnecessary object creation and added executor pool configuration (https://github.com/ClickHouse/clickhouse-java/pull/2164)
+
+### Miscellaneous
+- [client-v1] - Deprecated the old client, though it is still available. We've not yet set a date for its removal, this more serves as a head's up.
+
 ## 0.8.1 
 
 ### New Features
