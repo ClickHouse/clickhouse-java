@@ -73,7 +73,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
     protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
 
-    protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
+    protected volatile boolean nextRecordEmpty = true;
 
     /**
      * Reads next record into POJO object using set of serializers.
@@ -170,11 +170,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected void readNextRecord() {
         initialState = false;
         try {
-            nextRecordEmpty.set(true);
+            nextRecordEmpty = true;
             if (!readRecord(nextRecord)) {
                 endReached();
             } else {
-                nextRecordEmpty.compareAndSet(true, false);
+                nextRecordEmpty = false;
             }
         } catch (IOException e) {
             endReached();
@@ -188,7 +188,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         }
 
-        if (!nextRecordEmpty.get()) {
+        if (!nextRecordEmpty) {
             Map<String, Object> tmp = currentRecord;
             currentRecord = nextRecord;
             nextRecord = tmp;

@@ -21,9 +21,8 @@ public class DbConfiguration {
                 // sets the maximum number of connections to the server at a time
                 // this is important for services handling many concurrent requests to ClickHouse
                 .setMaxConnections(100)
-                .setSocketTcpNodelay(true)
-                .setLZ4UncompressedBufferSize(1 * 1024 * 1024) // 1MB buffer size
-                .setClientNetworkBufferSize(1 * 1024 * 1024) // 1MB buffer size
+                .setLZ4UncompressedBufferSize(10 * 1024 * 1024) // 10MB buffer size
+                .setClientNetworkBufferSize(10 * 1024 * 1024) // 10MB buffer size
                 .allowBinaryReaderToReuseBuffers(true) // using buffer pool for binary reader
                 .build();
     }
