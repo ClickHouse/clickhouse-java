@@ -153,6 +153,28 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
 
     @Test (groups = { "integration" })
+    public void writeMissingFieldsTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  int8 Int8, int8_nullable Nullable(Int8), int8_default Int8 DEFAULT 3 " +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        System.out.println("Random seed: " + seed);
+
+        Field[][] rows = new Field[][] {{
+                new Field("id", 1), //Row ID
+                new Field("int8", rand.nextInt(256) - 128)//Missing the nullable and default fields
+        }};
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+
+    @Test (groups = { "integration" })
     public void writeNumbersTest() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
