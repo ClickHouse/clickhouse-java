@@ -1,7 +1,7 @@
 <div align="center">
 <p>
-    <a href="https://github.com/ClickHouse/clickhouse-java/releases/latest"><img src="https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?include_prereleases&label=Latest%20Release"/></a>
-    <a href="https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/"><img src="https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org"/></a>
+    <a href="https://github.com/ClickHouse/clickhouse-java/releases/latest"><img src="https://img.shields.io/github/v/release/ClickHouse/clickhouse-java?include_prereleases&label=Latest%20Release&color=green"/></a>
+    <a href="https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/"><img src="https://img.shields.io/nexus/s/com.clickhouse/clickhouse-java?label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org&color=green"/></a>
     <a href="https://github.com/ClickHouse/clickhouse-java/releases/"><img src="https://img.shields.io/github/downloads/ClickHouse/clickhouse-java/latest/total"/></a>
 </p>
 <p><img src="https://github.com/ClickHouse/clickhouse-js/blob/a332672bfb70d54dfd27ae1f8f5169a6ffeea780/.static/logo.svg" width="200px" align="center"></p>
@@ -22,8 +22,9 @@ Table of Contents
 
 ## About the Project
 
-This repository is of the official Java Client and JDBC for ClickHouse Database (https://github.com/ClickHouse/Clickhouse) source code. Java Client is the core component and provides an API to interact with the database. In 2023, this component and its API were refactored into a new component, `client-v2`. Both versions are available, but the older one will be deprecated soon. However, it will receive security and critical bug fixes. The new `client-v2` has a stable API, and we are working on performance and feature parity to make it production-ready.   
-The JDBC driver component is an implementation of JDBC API. It uses Java Client API to interact with the database server. 
+This is a repo of the Java Client and JDBC Driver for ClickHouse Database (https://github.com/ClickHouse/Clickhouse) supported by the ClickHouse team. The Java Client is the core component that provides an API to interact with the database via HTTP Protocol.    
+The JDBC driver component implements the JDBC specification and communicates with ClickHouse using the Java Client API. 
+Historically, there are two versions of both components. The previous version of the Java client required a significant rewrite, so we decided to create a new one, `client-v2`, not to disturb anyone's work and to give time for migration. The JDBC driver also required changes to be compatible with the new client and comply more with JDBC specs, and we created `jdbc-v2`. This component will replace an old version (to keep the artifact name).
 
 ## Client Features
 
