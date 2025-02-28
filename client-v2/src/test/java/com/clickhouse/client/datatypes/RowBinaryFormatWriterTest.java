@@ -77,6 +77,36 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         assertEquals(String.valueOf(actual), String.valueOf(expected));
     }
 
+    private void writeTest(String tableName, String tableCreate, Field[][] rows) throws Exception {
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            for (Field[] row : rows) {
+                for (Field field : row) {
+                    w.setValue(schema.nameToColumnIndex(field.name), field.value);
+                }
+                w.commitRow();
+            }
+        }, format, settings).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\" ORDER BY id" );
+
+        int id = 1;
+        for (GenericRecord record : records) {
+            Map<String, Object> row = record.getValues();
+            //Validate data
+            for (Field field : rows[id - 1]) {
+                assertEqualsKinda(row.get(field.name), field.getValue());
+            }
+            id++;
+        }
+    }
+
 
 
     @Test (groups = { "integration" })
@@ -104,181 +134,67 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  decimal128 Decimal(36, 8), decimal128_nullable Nullable(Decimal(36, 8)), decimal128_default Decimal(36, 8) DEFAULT 3, " +
                 "  decimal256 Decimal(74, 10), decimal256_nullable Nullable(Decimal(74, 10)), decimal256_default Decimal(74, 10) DEFAULT 3" +
                 "  ) Engine = MergeTree ORDER BY id";
-        initTable(tableName, tableCreate, new CommandSettings());
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
         Random rand = new Random(seed);
         System.out.println("Random seed: " + seed);
 
-        Object[][] rows = new Object[][] {
-                {1,
-                        rand.nextInt(256) - 128, null, null, //Int8
-                        rand.nextInt(65536) - 32768, null, null, //Int16
-                        rand.nextInt(), null, null, //Int32
-                        rand.nextLong(), null, null, //Int64
-                        new BigInteger(127, rand), null, null, //Int128
-                        new BigInteger(255, rand), null, null, //Int256
-                        rand.nextInt(256), null, null, //UInt8
-                        rand.nextInt(65536), null, null, //UInt16
-                        rand.nextInt() & 0xFFFFFFFFL, null, null, //UInt32
-                        BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE)), null, null, //UInt64
-                        new BigInteger(128, rand), null, null, //UInt128
-                        new BigInteger(256, rand), null, null, //UInt256
-                        rand.nextFloat(), null, null, //Float32
-                        rand.nextDouble(), null, null, //Float64
-                        new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(10,100)), null, null,  //Decimal(4)
-                        new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(1000, 10000)), null, null, //Decimal32
-                        new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000)), null, null, //Decimal64
-                        new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000)), null, null, //Decimal128
-                        new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L)), null, null //Decimal256
-                },
-                {2,
-                        rand.nextInt(256) - 128, null, null, //Int8
-                        rand.nextInt(65536) - 32768, null, null, //Int16
-                        rand.nextInt(), null, null, //Int32
-                        rand.nextLong(), null, null, //Int64
-                        new BigInteger(127, rand), null, null, //Int128
-                        new BigInteger(255, rand), null, null, //Int256
-                        rand.nextInt(256), null, null, //UInt8
-                        rand.nextInt(65536), null, null, //UInt16
-                        rand.nextInt() & 0xFFFFFFFFL, null, null, //UInt32
-                        BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE)), null, null, //UInt64
-                        new BigInteger(128, rand), null, null, //UInt128
-                        new BigInteger(256, rand), null, null, //UInt256
-                        rand.nextFloat(), null, null, //Float32
-                        rand.nextDouble(), null, null, //Float64
-                        new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(10,100)), null, null,  //Decimal(4)
-                        new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(1000, 10000)), null, null, //Decimal32
-                        new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000)), null, null, //Decimal64
-                        new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000)), null, null, //Decimal128
-                        new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L)), null, null //Decimal256
-                },
+        Field[][] rows = new Field[][] {{
+                new Field("id", 1),
+                new Field("int8", rand.nextInt(256) - 128), new Field("int8_nullable"), new Field("int8_default").set(3), //Int8
+                new Field("int16", rand.nextInt(65536) - 32768), new Field("int16_nullable"), new Field("int16_default").set(3), //Int16
+                new Field("int32", rand.nextInt()), new Field("int32_nullable"), new Field("int32_default").set(3), //Int32
+                new Field("int64", rand.nextLong()), new Field("int64_nullable"), new Field("int64_default").set(3), //Int64
+                new Field("int128", new BigInteger(127, rand)), new Field("int128_nullable"), new Field("int128_default").set(3), //Int128
+                new Field("int256", new BigInteger(255, rand)), new Field("int256_nullable"), new Field("int256_default").set(3), //Int256
+                new Field("uint8", rand.nextInt(256)), new Field("uint8_nullable"), new Field("uint8_default").set(3), //UInt8
+                new Field("uint16", rand.nextInt(65536)), new Field("uint16_nullable"), new Field("uint16_default").set(3), //UInt16
+                new Field("uint32", rand.nextInt() & 0xFFFFFFFFL), new Field("uint32_nullable"), new Field("uint32_default").set(3), //UInt32
+                new Field("uint64", BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE))), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
+                new Field("uint128", new BigInteger(128, rand)), new Field("uint128_nullable"), new Field("uint128_default").set(3), //UInt128
+                new Field("uint256", new BigInteger(256, rand)), new Field("uint256_nullable"), new Field("uint256_default").set(3), //UInt256
+                new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
+                new Field("float64", rand.nextDouble()), new Field("float64_nullable"), new Field("float64_default").set("3.0"), //Float64
+                new Field("decimal", new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100))), new Field("decimal_nullable"), new Field("decimal_default").set("3.00"),  //Decimal(4)
+                new Field("decimal32", new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000))), new Field("decimal32_nullable"), new Field("decimal32_default").set("3.0000"), //Decimal32
+                new Field("decimal64", new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000))), new Field("decimal64_nullable"), new Field("decimal64_default").set("3.000000"), //Decimal64
+                new Field("decimal128", new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000))), new Field("decimal128_nullable"), new Field("decimal128_default").set("3.00000000"), //Decimal128
+                new Field("decimal256", new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L))), new Field("decimal256_nullable"), new Field("decimal256_default").set("3.0000000000") //Decimal256
+            }
         };
 
-        TableSchema schema = client.getTableSchema(tableName);
-
-        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
-        try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
-            for (Object[] row : rows) {
-                for (int i = 0; i < row.length; i++) {
-                    w.setValue(i + 1, row[i]);
-                }
-                w.commitRow();
-            }
-        }, format, settings).get()) {
-            System.out.println("Rows written: " + response.getWrittenRows());
-        }
-
-        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
-
-        int id = 1;
-        for (GenericRecord record : records) {
-            Map<String, Object> r = record.getValues();
-            assertEquals(r.get("id"), id);
-            assertEqualsKinda(r.get("int8"), String.valueOf(rows[id - 1][1]));
-            assertEqualsKinda(r.get("int8_nullable"), rows[id - 1][2]);
-            assertEqualsKinda(r.get("int8_default"), 3);
-            assertEqualsKinda(r.get("int16"), rows[id - 1][4]);
-            assertEqualsKinda(r.get("int16_nullable"), rows[id - 1][5]);
-            assertEqualsKinda(r.get("int16_default"), 3);
-            assertEqualsKinda(r.get("int32"), rows[id - 1][7]);
-            assertEqualsKinda(r.get("int32_nullable"), rows[id - 1][8]);
-            assertEqualsKinda(r.get("int32_default"), 3);
-            assertEqualsKinda(r.get("int64"), rows[id - 1][10]);
-            assertEqualsKinda(r.get("int64_nullable"), rows[id - 1][11]);
-            assertEqualsKinda(r.get("int64_default"), 3);
-            assertEqualsKinda(r.get("int128"), rows[id - 1][13]);
-            assertEqualsKinda(r.get("int128_nullable"), rows[id - 1][14]);
-            assertEqualsKinda(r.get("int128_default"), 3);
-            assertEqualsKinda(r.get("int256"), rows[id - 1][16]);
-            assertEqualsKinda(r.get("int256_nullable"), rows[id - 1][17]);
-            assertEqualsKinda(r.get("int256_default"), 3);
-            assertEqualsKinda(r.get("uint8"), rows[id - 1][19]);
-            assertEqualsKinda(r.get("uint8_nullable"), rows[id - 1][20]);
-            assertEqualsKinda(r.get("uint8_default"), 3);
-            assertEqualsKinda(r.get("uint16"), rows[id - 1][22]);
-            assertEqualsKinda(r.get("uint16_nullable"), rows[id - 1][23]);
-            assertEqualsKinda(r.get("uint16_default"), 3);
-            assertEqualsKinda(r.get("uint32"), rows[id - 1][25]);
-            assertEqualsKinda(r.get("uint32_nullable"), rows[id - 1][26]);
-            assertEqualsKinda(r.get("uint32_default"), 3);
-            assertEqualsKinda(r.get("uint64"), rows[id - 1][28]);
-            assertEqualsKinda(r.get("uint64_nullable"), rows[id - 1][29]);
-            assertEqualsKinda(r.get("uint64_default"), 3);
-            assertEqualsKinda(r.get("uint128"), rows[id - 1][31]);
-            assertEqualsKinda(r.get("uint128_nullable"), rows[id - 1][32]);
-            assertEqualsKinda(r.get("uint128_default"), 3);
-            assertEqualsKinda(r.get("uint256"), rows[id - 1][34]);
-            assertEqualsKinda(r.get("uint256_nullable"), rows[id - 1][35]);
-            assertEqualsKinda(r.get("uint256_default"), 3);
-            assertEqualsKinda(r.get("float32"), rows[id - 1][37]);
-            assertEqualsKinda(r.get("float32_nullable"), rows[id - 1][38]);
-            assertEqualsKinda(r.get("float32_default"), 3.0);
-            assertEqualsKinda(r.get("float64"), rows[id - 1][40]);
-            assertEqualsKinda(r.get("float64_nullable"), rows[id - 1][41]);
-            assertEqualsKinda(r.get("float64_default"), 3.0);
-            assertEqualsKinda(r.get("decimal"), rows[id - 1][43]);
-            assertEqualsKinda(r.get("decimal_nullable"), rows[id - 1][44]);
-            assertEqualsKinda(r.get("decimal_default"), "3.00");
-            assertEqualsKinda(r.get("decimal32"), rows[id - 1][46]);
-            assertEqualsKinda(r.get("decimal32_nullable"), rows[id - 1][47]);
-            assertEqualsKinda(r.get("decimal32_default"), "3.0000");
-            assertEqualsKinda(r.get("decimal64"), rows[id - 1][49]);
-            assertEqualsKinda(r.get("decimal64_nullable"), rows[id - 1][50]);
-            assertEqualsKinda(r.get("decimal64_default"), "3.000000");
-            assertEqualsKinda(r.get("decimal128"), rows[id - 1][52]);
-            assertEqualsKinda(r.get("decimal128_nullable"), rows[id - 1][53]);
-            assertEqualsKinda(r.get("decimal128_default"), "3.00000000");
-            assertEqualsKinda(r.get("decimal256"), rows[id - 1][55]);
-            assertEqualsKinda(r.get("decimal256_nullable"), rows[id - 1][56]);
-            assertEqualsKinda(r.get("decimal256_default"), "3.0000000000");
-            id++;
-        }
+        writeTest(tableName, tableCreate, rows);
     }
 
-//    @Test
-//    public void testAdvancedWriter() throws Exception {
-//        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
-//        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
-//                " (name String, " +
-//                "  v1 Float32, " +
-//                "  v2 Float32, " +
-//                "  attrs Nullable(String), " +
-//                "  corrected_time DateTime('UTC') DEFAULT now()," +
-//                "  special_attr Nullable(Int8) DEFAULT -1)" +
-//                "  Engine = MergeTree ORDER by ()";
-//
-//        initTable(tableName, tableCreate);
-//
-//        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
-//        Object[][] rows = new Object[][] {
-//                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
-//                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
-//                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null},
-//                {"foo4", 0.8f, 0.5f, null, null, null},
-//        };
-//
-//        TableSchema schema = client.getTableSchema(tableName);
-//
-//        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
-//        try (InsertResponse response = client.insert(tableName, out -> {
-//            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
-//            for (Object[] row : rows) {
-//                for (int i = 0; i < row.length; i++) {
-//                    w.setValue(i + 1, row[i]);
-//                }
-//                w.commitRow();
-//            }
-//        }, format, new InsertSettings()).get()) {
-//            System.out.println("Rows written: " + response.getWrittenRows());
-//        }
-//
-//        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
-//
-//        for (GenericRecord record : records) {
-//            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
-//        }
-//    }
+
+    private static class Field {
+        String name;
+        Object value;
+        Object defaultValue;
+
+        Field(String name) {
+            this.name = name;
+            this.value = null;
+            this.defaultValue = null;
+        }
+
+        Field(String name, Object value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        public Field set(Object defaultValue) {//For default value for comparison purposes
+            this.defaultValue = defaultValue;
+            return this;
+        }
+
+        public Object getValue() {
+            if (value == null && defaultValue != null) {
+                return defaultValue;
+            }
+
+            return value;
+        }
+    }
 }
