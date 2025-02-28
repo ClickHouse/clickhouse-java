@@ -22,6 +22,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -75,6 +76,14 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
     private static void assertEqualsKinda(Object actual, Object expected) {
+        if (actual instanceof ZonedDateTime) {
+            actual = ((ZonedDateTime) actual).toInstant().getEpochSecond();
+        }
+
+        if (expected instanceof ZonedDateTime) {
+            expected = ((ZonedDateTime) expected).toInstant().getEpochSecond();
+        }
+
         assertEquals(String.valueOf(actual), String.valueOf(expected));
     }
 
@@ -102,11 +111,36 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             Map<String, Object> row = record.getValues();
             //Validate data
             for (Field field : rows[id - 1]) {
-                assertEqualsKinda(row.get(field.name), field.getValue());
+                assertEqualsKinda(row.get(field.name), field.comparisonValue);
             }
             id++;
         }
     }
+
+    private static class Field {
+        String name;
+        Object value;
+        Object comparisonValue;
+
+        Field(String name) {
+            this.name = name;
+            this.value = null;
+            this.comparisonValue = null;
+        }
+
+        Field(String name, Object value) {
+            this.name = name;
+            this.value = value;
+            this.comparisonValue = value;
+        }
+
+        public Field set(Object comparisonValue) {//For comparison purposes
+            this.comparisonValue = comparisonValue;
+            return this;
+        }
+    }
+
+
 
 
 
@@ -223,33 +257,27 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
 
-    private static class Field {
-        String name;
-        Object value;
-        Object defaultValue;
+    @Test (groups = { "integration" })
+    public void writeDatetimeTests() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  datetime DateTime, datetime_nullable Nullable(DateTime), datetime_default DateTime DEFAULT '2020-01-01 00:00:00', " +
+                "  datetime64 DateTime64, datetime64_nullable Nullable(DateTime64), datetime64_default DateTime64 DEFAULT '2025-01-01 00:00:00', " +
+                "  date Date, date_nullable Nullable(Date), date_default Date DEFAULT '2020-01-01', " +
+                "  date32 Date32, date32_nullable Nullable(Date32), date32_default Date32 DEFAULT '2025-01-01', " +
+                "  ) Engine = MergeTree ORDER BY id";
 
-        Field(String name) {
-            this.name = name;
-            this.value = null;
-            this.defaultValue = null;
-        }
+        // Insert random (valid) values
+        Field[][] rows = new Field[][] {{
+                    new Field("id", 1), //Row ID
+                    new Field("datetime", ZonedDateTime.now()), new Field("datetime_nullable"), new Field("datetime_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]")), //DateTime
+                    new Field("datetime64", ZonedDateTime.now()), new Field("datetime64_nullable"), new Field("datetime64_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]")), //DateTime64
+                    new Field("date", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date_nullable"), new Field("date_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]").toEpochSecond()), //Date
+                    new Field("date32", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date32_nullable"), new Field("date32_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]").toEpochSecond()) //Date
+                }
+        };
 
-        Field(String name, Object value) {
-            this.name = name;
-            this.value = value;
-        }
-
-        public Field set(Object defaultValue) {//For default value for comparison purposes
-            this.defaultValue = defaultValue;
-            return this;
-        }
-
-        public Object getValue() {
-            if (value == null && defaultValue != null) {
-                return defaultValue;
-            }
-
-            return value;
-        }
+        writeTest(tableName, tableCreate, rows);
     }
 }
