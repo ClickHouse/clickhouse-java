@@ -84,6 +84,14 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             expected = ((ZonedDateTime) expected).toInstant().getEpochSecond();
         }
 
+        if (actual instanceof Object[]) {
+            actual = List.of((Object[]) actual);
+        }
+
+        if (expected instanceof Object[]) {
+            expected = List.of((Object[]) expected);
+        }
+
         assertEquals(String.valueOf(actual), String.valueOf(expected));
     }
 
@@ -225,7 +233,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
     @Test (groups = { "integration" })
     public void writeStringsTest() throws Exception {
-        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableName = "rowBinaryFormatWriterTest_writeStringsTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  string String, string_nullable Nullable(String), string_default String DEFAULT '3', " +
@@ -259,7 +267,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
     @Test (groups = { "integration" })
     public void writeDatetimeTests() throws Exception {
-        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableName = "rowBinaryFormatWriterTest_writeDatetimeTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  datetime DateTime, datetime_nullable Nullable(DateTime), datetime_default DateTime DEFAULT '2020-01-01 00:00:00', " +
@@ -275,6 +283,24 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                     new Field("datetime64", ZonedDateTime.now()), new Field("datetime64_nullable"), new Field("datetime64_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]")), //DateTime64
                     new Field("date", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date_nullable"), new Field("date_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]").toEpochSecond()), //Date
                     new Field("date32", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date32_nullable"), new Field("date32_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]").toEpochSecond()) //Date
+                }
+        };
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+    @Test (groups = { "integration" })
+    public void writeTupleTests() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeTuplesTests_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  tuple Tuple(Int8, Int16), tuple_default Tuple(Int8, Int16) DEFAULT (3, 4), " +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        // Insert random (valid) values
+        Field[][] rows = new Field[][] {{
+                    new Field("id", 1), //Row ID
+                    new Field("tuple", List.of((byte) 1, (short) 2)).set(new Object[]{(byte) 1, (short) 2}), new Field("tuple_default").set(List.of((byte) 3, (short) 4)) //Tuple
                 }
         };
 
