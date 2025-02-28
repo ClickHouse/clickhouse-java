@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -141,7 +142,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         System.out.println("Random seed: " + seed);
 
         Field[][] rows = new Field[][] {{
-                new Field("id", 1),
+                new Field("id", 1), //Row ID
                 new Field("int8", rand.nextInt(256) - 128), new Field("int8_nullable"), new Field("int8_default").set(3), //Int8
                 new Field("int16", rand.nextInt(65536) - 32768), new Field("int16_nullable"), new Field("int16_default").set(3), //Int16
                 new Field("int32", rand.nextInt()), new Field("int32_nullable"), new Field("int32_default").set(3), //Int32
@@ -161,7 +162,61 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 new Field("decimal64", new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000))), new Field("decimal64_nullable"), new Field("decimal64_default").set("3.000000"), //Decimal64
                 new Field("decimal128", new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000))), new Field("decimal128_nullable"), new Field("decimal128_default").set("3.00000000"), //Decimal128
                 new Field("decimal256", new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L))), new Field("decimal256_nullable"), new Field("decimal256_default").set("3.0000000000") //Decimal256
-            }
+        }, {
+                new Field("id", 2), //Row ID
+                new Field("int8", rand.nextInt(256) - 128), new Field("int8_nullable"), new Field("int8_default").set(3), //Int8
+                new Field("int16", rand.nextInt(65536) - 32768), new Field("int16_nullable"), new Field("int16_default").set(3), //Int16
+                new Field("int32", rand.nextInt()), new Field("int32_nullable"), new Field("int32_default").set(3), //Int32
+                new Field("int64", rand.nextLong()), new Field("int64_nullable"), new Field("int64_default").set(3), //Int64
+                new Field("int128", new BigInteger(127, rand)), new Field("int128_nullable"), new Field("int128_default").set(3), //Int128
+                new Field("int256", new BigInteger(255, rand)), new Field("int256_nullable"), new Field("int256_default").set(3), //Int256
+                new Field("uint8", rand.nextInt(256)), new Field("uint8_nullable"), new Field("uint8_default").set(3), //UInt8
+                new Field("uint16", rand.nextInt(65536)), new Field("uint16_nullable"), new Field("uint16_default").set(3), //UInt16
+                new Field("uint32", rand.nextInt() & 0xFFFFFFFFL), new Field("uint32_nullable"), new Field("uint32_default").set(3), //UInt32
+                new Field("uint64", BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE))), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
+                new Field("uint128", new BigInteger(128, rand)), new Field("uint128_nullable"), new Field("uint128_default").set(3), //UInt128
+                new Field("uint256", new BigInteger(256, rand)), new Field("uint256_nullable"), new Field("uint256_default").set(3), //UInt256
+                new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
+                new Field("float64", rand.nextDouble()), new Field("float64_nullable"), new Field("float64_default").set("3.0"), //Float64
+                new Field("decimal", new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100))), new Field("decimal_nullable"), new Field("decimal_default").set("3.00"),  //Decimal(4)
+                new Field("decimal32", new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000))), new Field("decimal32_nullable"), new Field("decimal32_default").set("3.0000"), //Decimal32
+                new Field("decimal64", new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000))), new Field("decimal64_nullable"), new Field("decimal64_default").set("3.000000"), //Decimal64
+                new Field("decimal128", new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000))), new Field("decimal128_nullable"), new Field("decimal128_default").set("3.00000000"), //Decimal128
+                new Field("decimal256", new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L))), new Field("decimal256_nullable"), new Field("decimal256_default").set("3.0000000000") //Decimal256
+        }};
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+
+    @Test (groups = { "integration" })
+    public void writeStringsTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  string String, string_nullable Nullable(String), string_default String DEFAULT '3', " +
+                "  fixed_string FixedString(10), fixed_string_nullable Nullable(FixedString(10)), fixed_string_default FixedString(10) DEFAULT 'tenletters', " +
+                "  uuid UUID, uuid_nullable Nullable(UUID), uuid_default UUID DEFAULT '61f0c404-5cb3-11e7-907b-a6006ad3dba0', " +
+                "  enum8 Enum8('a' = 1, 'b' = 2), enum8_nullable Nullable(Enum8('a' = 1, 'b' = 2)), enum8_default Enum8('a' = 1, 'b' = 2) DEFAULT 'a', " +
+                "  enum16 Enum16('a' = 1, 'b' = 2), enum16_nullable Nullable(Enum16('a' = 1, 'b' = 2)), enum16_default Enum16('a' = 1, 'b' = 2) DEFAULT 'a', " +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        // Insert random (valid) values
+        Field[][] rows = new Field[][] {{
+                    new Field("id", 1), //Row ID
+                    new Field("string", RandomStringUtils.randomAlphabetic(1024)), new Field("string_nullable"), new Field("string_default").set("3"), //String
+                    new Field("fixed_string", RandomStringUtils.randomAlphabetic(10)), new Field("fixed_string_nullable"), new Field("fixed_string_default").set("tenletters"), //FixedString
+                    new Field("uuid", UUID.randomUUID()), new Field("uuid_nullable"), new Field("uuid_default").set("61f0c404-5cb3-11e7-907b-a6006ad3dba0"), //UUID
+                    new Field("enum8", "a"), new Field("enum8_nullable"), new Field("enum8_default").set("a"), //Enum8
+                    new Field("enum16", "b"), new Field("enum16_nullable"), new Field("enum16_default").set("a") //Enum16
+                }, {
+                    new Field("id", 2), //Row ID
+                    new Field("string", RandomStringUtils.randomAlphabetic(1024)), new Field("string_nullable"), new Field("string_default").set("3"), //String
+                    new Field("fixed_string", RandomStringUtils.randomAlphabetic(10)), new Field("fixed_string_nullable"), new Field("fixed_string_default").set("tenletters"), //FixedString
+                    new Field("uuid", UUID.randomUUID()), new Field("uuid_nullable"), new Field("uuid_default").set("61f0c404-5cb3-11e7-907b-a6006ad3dba0"), //UUID
+                    new Field("enum8", "a"), new Field("enum8_nullable"), new Field("enum8_default").set("a"), //Enum8
+                    new Field("enum16", "b"), new Field("enum16_nullable"), new Field("enum16_default").set("a") //Enum16
+                }
         };
 
         writeTest(tableName, tableCreate, rows);
