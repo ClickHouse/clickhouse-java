@@ -62,7 +62,17 @@ public class JDBCSelectBenchmark extends JDBCBenchmarkBase {
     @State(Scope.Thread)
     public static class SelectState {
         @Param({"off16", "str", "p_int8", "p_int16", "p_int32", "p_int64", "p_float32", "p_float64", "p_bool"})
+        // For research purpose, we only select one column (running the benchmark with all columns will take too long)
+        // @Param({"off16"})
         String columnName;
+        @Param({"t", "f"})
+        String onlyConnection;
+        public boolean isOnlyConnection(String onlyConnection) {
+            if (onlyConnection.equals("t")) {
+                return true;
+            }
+            return false;
+        }
         @Setup(Level.Trial)
         public void setup() throws SQLException {
 //            LOGGER.info("Setting up select state");
@@ -73,9 +83,14 @@ public class JDBCSelectBenchmark extends JDBCBenchmarkBase {
 //            LOGGER.info("Tearing down select state");
         }
     }
-    void selectData(Connection conn, String table, String filed, int limit) throws SQLException {
+    void selectData(Connection conn, String table, String filed, int limit, boolean onlyConnection) throws SQLException {
         Statement stmt = conn.createStatement();
         ResultSet rs = stmt.executeQuery(String.format("SELECT * FROM %s LIMIT %d", table, limit));
+        if (onlyConnection) {
+            rs.next();
+            rs.close();
+            return;
+        }
         while (rs.next()) {
             rs.getString(filed);
         }
@@ -84,12 +99,12 @@ public class JDBCSelectBenchmark extends JDBCBenchmarkBase {
     @Warmup(iterations = 1, time = 5, timeUnit = TimeUnit.SECONDS)
     @Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
     public void selectV1(SelectState state) throws SQLException {
-        selectData(jdbcV1, tableName, state.columnName, limit);
+        selectData(jdbcV1, tableName, state.columnName, limit, state.isOnlyConnection(state.onlyConnection));
     }
     @Benchmark
     @Warmup(iterations = 1, time = 5, timeUnit = TimeUnit.SECONDS)
     @Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
     public void selectV2(SelectState state) throws SQLException {
-        selectData(jdbcV2, tableName, state.columnName, limit);
+        selectData(jdbcV2, tableName, state.columnName, limit, state.isOnlyConnection(state.onlyConnection));
     }
 }
