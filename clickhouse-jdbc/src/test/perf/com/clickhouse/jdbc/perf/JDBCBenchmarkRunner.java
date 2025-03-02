@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.perf;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -30,6 +31,8 @@ public class JDBCBenchmarkRunner {
                 .warmupTime(TimeValue.seconds(5))
                 .measurementIterations(1)
                 .measurementTime(TimeValue.seconds(5))
+                .resultFormat(ResultFormatType.JSON)
+                .result("jmh-jdbc-results.json")
                 .build();
         new Runner(opt).run();
     }
