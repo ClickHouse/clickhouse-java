@@ -70,7 +70,7 @@ Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/
 
 | Component                 | Maven Central Link | Javadoc Link | Documentation Link | 
 |---------------------------|--------------------|--------------|---------------------|
-| ClickHouse Java Client V2 | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/client-v2)](https://mvnrepository.com/artifact/com.clickhouse/client-v2) | [![javadoc](https://javadoc.io/badge2/com.clickhouse/client-v2/javadoc.svg)](https://javadoc.io/doc/com.clickhouse/client-v2) | [docs](https://clickhouse.com/docs/integrations/java/client-v2) | 
+| ClickHouse Java Client V2 | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/client-v2)](https://mvnrepository.com/artifact/com.clickhouse/client-v2) | [![javadoc](https://javadoc.io/badge2/com.clickhouse/client-v2/javadoc.svg)](https://javadoc.io/doc/com.clickhouse/client-v2) | [docs](https://clickhouse.com/docs/integrations/java) | 
 
 ### Examples
 
@@ -85,7 +85,7 @@ Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/
 
 | Component | Maven Central Link | Javadoc Link | Documentation Link |
 |-----------|--------------------|--------------|--------------------|
-| ClickHouse JDBC Driver | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-jdbc)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) |[![javadoc](https://javadoc.io/badge2/com.clickhouse/clickhouse-jdbc/javadoc.svg)](https://javadoc.io/doc/com.clickhouse/clickhouse-jdbc)|[docs](https://clickhouse.com/docs/integrations/java/jdbc-v2)|
+| ClickHouse JDBC Driver | [![Maven Central](https://img.shields.io/maven-central/v/com.clickhouse/clickhouse-jdbc)](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) |[![javadoc](https://javadoc.io/badge2/com.clickhouse/clickhouse-jdbc/javadoc.svg)](https://javadoc.io/doc/com.clickhouse/clickhouse-jdbc)|[docs](https://clickhouse.com/docs/integrations/language-clients/java/jdbc)|
 
 ### Examples
 
