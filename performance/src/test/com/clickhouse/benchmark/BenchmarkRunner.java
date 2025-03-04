@@ -120,6 +120,7 @@ public class BenchmarkRunner {
                 .compressClientRequest(true)
                 .useHttpCompression(true)
                 .setDefaultDatabase(useDatabase ? DB_NAME : "default")
+                .useAsyncRequests(false)
                 .build()) {
             client.queryAll(query);
         }
@@ -133,6 +134,7 @@ public class BenchmarkRunner {
                 .compressClientRequest(true)
                 .useHttpCompression(true)
                 .setDefaultDatabase(DB_NAME)
+                .useAsyncRequests(false)
                 .build()) {
             return client.getTableSchema(tableName);
         }
@@ -146,6 +148,7 @@ public class BenchmarkRunner {
                 .compressClientRequest(true)
                 .useHttpCompression(true)
                 .setDefaultDatabase(DB_NAME)
+                .useAsyncRequests(false)
                 .build()) {
             client.insert(tableName, dataStream, format);
         }
