@@ -56,6 +56,17 @@
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-client</artifactId>
+            <version>${revision}</version>
+            <type>test-jar</type>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
         </dependency>
