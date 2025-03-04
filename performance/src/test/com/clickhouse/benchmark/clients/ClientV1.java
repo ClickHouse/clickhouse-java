@@ -1,21 +1,13 @@
 package com.clickhouse.benchmark.clients;
 
 
-import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
-import com.clickhouse.data.format.BinaryStreamUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -30,7 +22,11 @@ import org.slf4j.LoggerFactory;
 public class ClientV1 extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientV1.class);
     ClickHouseClient client;
-    DataSet dataSet;
+
+    @Setup(Level.Trial)
+    public void setup() throws Exception {
+        super.setup();
+    }
 
     @Setup(Level.Iteration)
     public void setUpIteration() {

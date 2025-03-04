@@ -10,31 +10,28 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.data.ClickHouseFormat;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 
 import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 
-@State(Scope.Benchmark)
 public class BenchmarkBase {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkBase.class);
     public static final String DB_NAME = "benchmarks";
     public final DataSet dataSet = new SimpleDataSet();
 
-    @Setup(Level.Trial)
-    public void setUpTrial() throws Exception {
+    public void setup() throws Exception {
+        LOGGER.debug("BenchmarkBase setup()");
         BaseIntegrationTest.setupClickHouseContainer();
         runQuery("CREATE DATABASE IF NOT EXISTS " + DB_NAME, false);
         DataSets.initializeTables(dataSet);
     }
-    @TearDown(Level.Trial)
-    public void tearDownTrial() {
+
+    public void tearDown() {
         runQuery("DROP DATABASE IF EXISTS " + DB_NAME, false);
         BaseIntegrationTest.teardownClickHouseContainer();
     }
@@ -62,9 +59,7 @@ public class BenchmarkBase {
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .compressClientRequest(true)
-                .useHttpCompression(true)
                 .setDefaultDatabase(useDatabase ? DB_NAME : "default")
-                .useAsyncRequests(false)
                 .build()) {
             client.queryAll(query);
         }
@@ -77,11 +72,13 @@ public class BenchmarkBase {
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .compressClientRequest(true)
-                .useHttpCompression(true)
                 .setDefaultDatabase(DB_NAME)
-                .useAsyncRequests(false)
-                .build()) {
-            client.insert(tableName, dataStream, format);
+                .build();
+             InsertResponse response = client.insert(tableName, dataStream, format).get()) {
+            LOGGER.info("Rows inserted: {}", response.getWrittenRows());
+        } catch (Exception e) {
+            LOGGER.error("Error inserting data: ", e);
+            throw new RuntimeException("Error inserting data", e);
         }
     }
 }

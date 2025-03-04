@@ -28,6 +28,11 @@ public class ClientV2 extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientV2.class);
     Client client;
 
+    @Setup(Level.Trial)
+    public void setup() throws Exception {
+        super.setup();
+    }
+
     @Setup(Level.Iteration)
     public void setUpIteration() {
         LOGGER.info("Setup Each Invocation");
@@ -39,7 +44,6 @@ public class ClientV2 extends BenchmarkBase {
                 .setPassword(getPassword())
                 .compressClientRequest(true)
                 .setMaxRetries(0)
-                .useHttpCompression(true)
                 .setDefaultDatabase(DB_NAME)
                 .build();
     }
