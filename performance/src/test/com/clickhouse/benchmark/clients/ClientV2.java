@@ -33,6 +33,7 @@ public class ClientV2 {
                 .compressClientRequest(true)
                 .setMaxRetries(0)
                 .useHttpCompression(true)
+                .setDefaultDatabase(BenchmarkRunner.DB_NAME)
                 .build();
     }
 
@@ -48,7 +49,7 @@ public class ClientV2 {
     @Benchmark
     public void query(DataSet dataSet) {
         try {
-            try(QueryResponse response = client.query("SELECT * FROM `" + BenchmarkRunner.DB_NAME + "`.`" + dataSet.tableName + "`").get()) {
+            try(QueryResponse response = client.query("SELECT * FROM `" + dataSet.tableName + "`").get()) {
                 ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     notNull(reader.readValue(1));

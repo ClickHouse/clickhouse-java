@@ -20,11 +20,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.concurrent.TimeUnit;
 
 
 public class BenchmarkRunner {
+    public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss").toFormatter();
     private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkRunner.class);
     public static final String DB_NAME = "benchmarks";
     public static final long SMALL_SIZE = 500;
