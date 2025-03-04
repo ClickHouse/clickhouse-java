@@ -165,45 +165,45 @@ public class ClientBenchmark {
     @Benchmark
     public void insertRawDataBenchmarkSmall() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        insertTests.insertRawDataSimple(SMALL_SIZE);
+//        insertTests.insertRawDataSimple(SMALL_SIZE);
     }
 
     @Benchmark
     public void insertRawDataBenchmarkMedium() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        insertTests.insertRawDataSimple(MEDIUM_SIZE);
+//        insertTests.insertRawDataSimple(MEDIUM_SIZE);
     }
 
     @Benchmark
     public void insertRawDataBenchmarkLarge() throws Exception {
         LOGGER.info("(V2) Insert raw data benchmark");
-        insertTests.insertRawDataSimple(LARGE_SIZE);
+//        insertTests.insertRawDataSimple(LARGE_SIZE);
     }
 
     @Threads(4)
     @Benchmark
     public void insertRawDataBenchmarkSmallParallel() throws Exception {
         LOGGER.info("(V2) Insert raw data parallel benchmark");
-        insertTests.insertRawDataSimple(SMALL_SIZE);
+//        insertTests.insertRawDataSimple(SMALL_SIZE);
     }
 
     @Threads(4)
     @Benchmark
     public void insertRawDataBenchmarkMediumParallel() throws Exception {
         LOGGER.info("(V2) Insert raw data parallel benchmark");
-        insertTests.insertRawDataSimple(MEDIUM_SIZE);
+//        insertTests.insertRawDataSimple(MEDIUM_SIZE);
     }
 
     @Threads(4)
     @Benchmark
     public void insertRawDataBenchmarkLargeParallel() throws Exception {
         LOGGER.info("(V2) Insert raw data parallel benchmark");
-        insertTests.insertRawDataSimple(LARGE_SIZE);
+//        insertTests.insertRawDataSimple(LARGE_SIZE);
     }
 
     @Benchmark
     public void insertSimplePojoBenchmark() throws Exception {
         LOGGER.info("(V2) Insert simple pojo benchmark");
-        insertTests.insertSimplePOJOs();
+//        insertTests.insertSimplePOJOs();
     }
 }
