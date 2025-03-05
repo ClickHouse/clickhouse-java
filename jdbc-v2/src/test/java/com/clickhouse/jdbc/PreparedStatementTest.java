@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
@@ -281,16 +282,24 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     void testInsert() throws Exception {
         int ROWS = 100000;
+        String payload = RandomStringUtils.random(1024, true, true);
         try (Connection conn = getJdbcConnection()) {
             for (int j = 0; j < 10; j++) {
                 try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("CREATE TABLE insert_batch (`id` UInt32, `name` String) ENGINE = Memory");
+                    stmt.execute("CREATE TABLE insert_batch ( `off16` Int16, `str` String, `p_int8` Int8, `p_int16` Int16, `p_int32` Int32, `p_int64` Int64, `p_float32` Float32, `p_float64` Float64, `p_bool` Bool) ENGINE = Memory");
                 }
-                String insertQuery = "INSERT INTO insert_batch (id, name) VALUES (?,?)";
+                String insertQuery = "INSERT INTO insert_batch (off16, str, p_int8, p_int16, p_int32, p_int64, p_float32, p_float64, p_bool) VALUES (?,?,?,?,?,?,?,?,?)";
                 try (PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
                     for (int i = 0; i < ROWS; i++) {
-                        stmt.setInt(1, i);
-                        stmt.setString(2, "name" + i);
+                        stmt.setShort(1, (short) i);
+                        stmt.setString(2, payload);
+                        stmt.setByte(3, (byte)i);
+                        stmt.setShort(4, (short)i);
+                        stmt.setInt(5, i);
+                        stmt.setLong(6, (long)i);
+                        stmt.setFloat(7, (float)(i*0.1));
+                        stmt.setDouble(8, (double)(i*0.1));
+                        stmt.setBoolean(9, true);
                         stmt.addBatch();
                     }
                     long startBatchTime = System.currentTimeMillis();
