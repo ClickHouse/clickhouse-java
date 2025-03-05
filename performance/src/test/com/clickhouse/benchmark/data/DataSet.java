@@ -15,7 +15,7 @@ public interface DataSet {
     int getSize();
 
     String getCreateTableString();
-
+    String getTrucateTableString();
     ClickHouseFormat getFormat();
 
     TableSchema getSchema();

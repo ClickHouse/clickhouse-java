@@ -35,7 +35,7 @@ public class BenchmarkBase {
         DataSet dataSet;
     }
 
-    public void setup(DataState dataState) throws Exception {
+    public void setup(DataState dataState, boolean insertData) throws Exception {
         LOGGER.info("Setup BenchmarkBase using " + dataState.datasetSourceName + " dataset.");
         if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
             dataState.datasetSourceName = "simple";
@@ -49,7 +49,7 @@ public class BenchmarkBase {
         LOGGER.debug("BenchmarkBase setup(). Data source " + dataState.datasetSourceName);
         BaseIntegrationTest.setupClickHouseContainer();
         runQuery("CREATE DATABASE IF NOT EXISTS " + DB_NAME, false);
-        DataSets.initializeTables(dataState.dataSet);
+        DataSets.initializeTables(dataState.dataSet, insertData);
     }
 
     public void tearDown() {

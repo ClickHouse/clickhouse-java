@@ -48,6 +48,7 @@
         <module>clickhouse-jdbc</module>
         <module>jdbc-v2</module>
         <module>clickhouse-r2dbc</module>
+        <module>performance</module>
 
 <!-- Not working. Disabled       <module>clickhouse-benchmark</module>-->
     </modules>

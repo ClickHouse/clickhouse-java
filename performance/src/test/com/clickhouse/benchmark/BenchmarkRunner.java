@@ -2,6 +2,7 @@ package com.clickhouse.benchmark;
 
 import com.clickhouse.benchmark.clients.ClientV1;
 import com.clickhouse.benchmark.clients.ClientV2;
+import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.JdbcV1;
 import com.clickhouse.benchmark.clients.JdbcV2;
 import com.clickhouse.benchmark.data.DataSet;
@@ -41,8 +42,9 @@ public class BenchmarkRunner {
 
         Options opt = new OptionsBuilder()
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
-                .include(ClientV1.class.getSimpleName())
-                .include(ClientV2.class.getSimpleName())
+//                .include(ClientV1.class.getSimpleName())
+//                .include(ClientV2.class.getSimpleName())
+                .include(InsertClient.class.getSimpleName())
 //                .include(JdbcV1.class.getSimpleName())
 //                .include(JdbcV2.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging

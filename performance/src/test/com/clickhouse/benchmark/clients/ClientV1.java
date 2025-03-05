@@ -26,7 +26,7 @@ public class ClientV1 extends BenchmarkBase {
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) throws Exception {
-        super.setup(dataState);
+        super.setup(dataState, true);
     }
 
     @Setup(Level.Iteration)
@@ -69,30 +69,30 @@ public class ClientV1 extends BenchmarkBase {
         }
     }
 
-    @Benchmark
-    public void insert(DataState dataState, V1State state) {
-        try {
-            ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (ClickHouseResponse response = client.read(getServer())
-                    .write()
-                    .option(ClickHouseClientOption.ASYNC, false)
-                    .format(format)
-                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
-                    .data(out -> {
-                        for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
-                            out.write(bytes);
-                        }
-                    })
-                    .executeAndWait()) {
-                ClickHouseResponseSummary summary = response.getSummary();
-                if (summary.getWrittenRows() <= 0) {
-                    throw new IllegalStateException("Rows written: " + summary.getWrittenRows());
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error: ", e);
-        }
-    }
+//    @Benchmark
+//    public void insert(DataState dataState, V1State state) {
+//        try {
+//            ClickHouseFormat format = dataState.dataSet.getFormat();
+//            try (ClickHouseResponse response = client.read(getServer())
+//                    .write()
+//                    .option(ClickHouseClientOption.ASYNC, false)
+//                    .format(format)
+//                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
+//                    .data(out -> {
+//                        for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
+//                            out.write(bytes);
+//                        }
+//                    })
+//                    .executeAndWait()) {
+//                ClickHouseResponseSummary summary = response.getSummary();
+//                if (summary.getWrittenRows() <= 0) {
+//                    throw new IllegalStateException("Rows written: " + summary.getWrittenRows());
+//                }
+//            }
+//        } catch (Exception e) {
+//            LOGGER.error("Error: ", e);
+//        }
+//    }
 
 //    @Benchmark
 //    public void insert() {

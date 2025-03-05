@@ -29,7 +29,7 @@ public class ClientV2 extends BenchmarkBase {
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) throws Exception {
-        super.setup(dataState);
+        super.setup(dataState, true);
     }
 
     @Setup(Level.Iteration)
@@ -81,23 +81,23 @@ public class ClientV2 extends BenchmarkBase {
         }
     }
 
-    @Benchmark
-    public void insert(DataState dataState, V2State state) {
-        try {
-            ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (InsertResponse response = client.insert(dataState.dataSet.getTableName(), out -> {
-                for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
-                    out.write(bytes);
-
-                }
-                out.close();
-            }, format, new InsertSettings()).get()) {
-                if (response.getWrittenRows() <= 0) {
-                    throw new IllegalStateException("Rows written: " + response.getWrittenRows());
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error: ", e);
-        }
-    }
+//    @Benchmark
+//    public void insert(DataState dataState, V2State state) {
+//        try {
+//            ClickHouseFormat format = dataState.dataSet.getFormat();
+//            try (InsertResponse response = client.insert(dataState.dataSet.getTableName(), out -> {
+//                for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
+//                    out.write(bytes);
+//
+//                }
+//                out.close();
+//            }, format, new InsertSettings()).get()) {
+//                if (response.getWrittenRows() <= 0) {
+//                    throw new IllegalStateException("Rows written: " + response.getWrittenRows());
+//                }
+//            }
+//        } catch (Exception e) {
+//            LOGGER.error("Error: ", e);
+//        }
+//    }
 }

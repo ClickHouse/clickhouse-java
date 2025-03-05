@@ -2,6 +2,8 @@ package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -14,7 +16,7 @@ import java.util.Map;
 
 public class FileDataSet implements DataSet{
 
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileDataSet.class);
     private final String name;
 
     private final String createTableStmt;
@@ -62,9 +64,9 @@ public class FileDataSet implements DataSet{
                 }
 
             }
-
             this.name = name;
             this.createTableStmt = createStatement != null ? createStatement.toString() : null;
+            LOGGER.info("Read " + lines.size() + " lines from " + srcFile.getAbsolutePath());
 
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to read file: " + srcFile.getAbsolutePath(), e);
@@ -89,6 +91,10 @@ public class FileDataSet implements DataSet{
     @Override
     public String getCreateTableString() {
         return createTableStmt;
+    }
+    @Override
+    public String getTrucateTableString() {
+        return "TRUNCATE TABLE " + getTableName();
     }
 
     @Override

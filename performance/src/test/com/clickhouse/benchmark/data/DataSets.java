@@ -24,10 +24,12 @@ public class DataSets {
         return sets.get(name);
     }
 
-    public static void initializeTables(DataSet set) {
+    public static void initializeTables(DataSet set, boolean insertData) {
         BenchmarkBase.runQuery(set.getCreateTableString(), true);
         ClickHouseFormat format = set.getFormat();
-        BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
+        if (insertData) {
+            BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
+        }
     }
 
     public static List<byte[]> convert(List<Map<String, Object>> data, ClickHouseFormat format) {

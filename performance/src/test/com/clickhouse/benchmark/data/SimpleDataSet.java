@@ -1,14 +1,10 @@
 package com.clickhouse.benchmark.data;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -99,7 +95,10 @@ public class SimpleDataSet implements DataSet {
                 "ENGINE = MergeTree\n" +
                 "PRIMARY KEY (pickup_datetime, dropoff_datetime);";
     }
-
+    @Override
+    public String getTrucateTableString() {
+        return "TRUNCATE TABLE " + getTableName();
+    }
     @Override
     public ClickHouseFormat getFormat() {
         return ClickHouseFormat.JSONEachRow;
