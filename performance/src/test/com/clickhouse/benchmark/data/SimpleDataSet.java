@@ -101,6 +101,11 @@ public class SimpleDataSet implements DataSet {
     }
 
     @Override
+    public ClickHouseFormat getFormat() {
+        return ClickHouseFormat.JSONEachRow;
+    }
+
+    @Override
     public TableSchema getSchema() {
         TableSchema schema = new TableSchema();
         schema.setTableName(tableName);
@@ -129,31 +134,6 @@ public class SimpleDataSet implements DataSet {
         return List.of(ClickHouseFormat.JSONEachRow);
     }
 
-    @Override
-    public InputStream getInputStream(ClickHouseFormat format) {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            for (byte[] bytes : getBytesList(format)) {
-                bos.write(bytes);
-            }
-            return new ByteArrayInputStream(bos.toByteArray());
-        } catch (Exception e) {
-            LOGGER.error("Error: ", e);
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    @Override
-    public InputStream getInputStream(int rowId, ClickHouseFormat format) {
-        switch (format) {
-            case JSONEachRow:
-                return new ByteArrayInputStream(jsonBytes.get(rowId));
-            default:
-                LOGGER.error("Unsupported format: " + format);
-                throw new IllegalArgumentException("Unsupported format: " + format);
-        }
-    }
 
     @Override
     public List<byte[]> getBytesList(ClickHouseFormat format) {

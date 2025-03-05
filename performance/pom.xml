@@ -188,6 +188,7 @@
                                 <argument>-classpath</argument>
                                 <classpath />
                                 <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
+                                <argument>--dataset=file://dataset_1741150759025.csv</argument>
                                 <argument>.*</argument>
                             </arguments>
                         </configuration>

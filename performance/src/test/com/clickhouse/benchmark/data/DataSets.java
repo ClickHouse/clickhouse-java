@@ -26,7 +26,8 @@ public class DataSets {
 
     public static void initializeTables(DataSet set) {
         BenchmarkBase.runQuery(set.getCreateTableString(), true);
-        BenchmarkBase.insertData(set.getTableName(), set.getInputStream(ClickHouseFormat.JSONEachRow), ClickHouseFormat.JSONEachRow);
+        ClickHouseFormat format = set.getFormat();
+        BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
     }
 
     public static List<byte[]> convert(List<Map<String, Object>> data, ClickHouseFormat format) {

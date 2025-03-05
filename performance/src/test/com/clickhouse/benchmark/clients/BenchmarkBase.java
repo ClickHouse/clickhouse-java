@@ -1,8 +1,8 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.DataSets;
+import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
@@ -12,6 +12,9 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,13 +25,30 @@ import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 public class BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkBase.class);
     public static final String DB_NAME = "benchmarks";
-    public final DataSet dataSet = new SimpleDataSet();
 
-    public void setup() throws Exception {
-        LOGGER.debug("BenchmarkBase setup()");
+    @State(Scope.Benchmark)
+    public static class DataState {
+        @Param({"simple"})
+        String datasetSourceName;
+        ClickHouseFormat format = ClickHouseFormat.JSONEachRow;
+
+        DataSet dataSet;
+    }
+
+    public void setup(DataState dataState) throws Exception {
+        if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
+            dataState.datasetSourceName = "simple";
+            dataState.dataSet = new SimpleDataSet();
+        } else if (dataState.datasetSourceName.startsWith("file://")) {
+
+            dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()));
+            dataState.datasetSourceName = dataState.dataSet.getName();
+        }
+
+        LOGGER.debug("BenchmarkBase setup(). Data source " + dataState.datasetSourceName);
         BaseIntegrationTest.setupClickHouseContainer();
         runQuery("CREATE DATABASE IF NOT EXISTS " + DB_NAME, false);
-        DataSets.initializeTables(dataSet);
+        DataSets.initializeTables(dataState.dataSet);
     }
 
     public void tearDown() {

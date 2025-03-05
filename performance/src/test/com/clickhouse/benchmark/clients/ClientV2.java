@@ -1,8 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
-import com.clickhouse.benchmark.data.DataSets;
-import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -11,6 +8,8 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.stream.NonBlockingPipedOutputStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -29,8 +28,8 @@ public class ClientV2 extends BenchmarkBase {
     Client client;
 
     @Setup(Level.Trial)
-    public void setup() throws Exception {
-        super.setup();
+    public void setup(DataState dataState) throws Exception {
+        super.setup(dataState);
     }
 
     @Setup(Level.Iteration)
@@ -44,6 +43,10 @@ public class ClientV2 extends BenchmarkBase {
                 .setPassword(getPassword())
                 .compressClientRequest(true)
                 .setMaxRetries(0)
+                .setLZ4UncompressedBufferSize(2 * 1024 * 1024)
+                .setClientNetworkBufferSize(20 * 1024 * 1024)
+                .setSocketRcvbuf(2 * 1024 * 1024)
+                .setSocketSndbuf(2 * 1024 * 1024)
                 .setDefaultDatabase(DB_NAME)
                 .build();
     }
@@ -65,9 +68,9 @@ public class ClientV2 extends BenchmarkBase {
 
 
     @Benchmark
-    public void query(V2State state) {
+    public void query(DataState dataState, V2State state) {
         try {
-            try(QueryResponse response = client.query("SELECT * FROM `" + dataSet.getTableName() + "`").get()) {
+            try(QueryResponse response = client.query("SELECT * FROM `" + dataState.dataSet.getTableName() + "`").get()) {
                 ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     notNull(reader.readValue(1));
@@ -79,13 +82,16 @@ public class ClientV2 extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insert(V2State state) {
+    public void insert(DataState dataState, V2State state) {
         try {
-            try (InsertResponse response = client.insert(dataSet.getTableName(), out -> {
-                for (byte[] bytes: dataSet.getBytesList(state.format)) {
+            ClickHouseFormat format = dataState.dataSet.getFormat();
+            try (InsertResponse response = client.insert(dataState.dataSet.getTableName(), out -> {
+                for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                     out.write(bytes);
+
                 }
-            }, state.format, new InsertSettings()).get()) {
+                out.close();
+            }, format, new InsertSettings()).get()) {
                 if (response.getWrittenRows() <= 0) {
                     throw new IllegalStateException("Rows written: " + response.getWrittenRows());
                 }

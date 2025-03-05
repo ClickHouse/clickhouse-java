@@ -6,6 +6,7 @@ import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -24,14 +25,15 @@ public class ClientV1 extends BenchmarkBase {
     ClickHouseClient client;
 
     @Setup(Level.Trial)
-    public void setup() throws Exception {
-        super.setup();
+    public void setup(DataState dataState) throws Exception {
+        super.setup(dataState);
     }
 
     @Setup(Level.Iteration)
     public void setUpIteration() {
         LOGGER.info("Setup Each Invocation");
-        client = ClickHouseClient.newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
+        client = ClickHouseClient
+                .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
     }
 
     @TearDown(Level.Iteration)
@@ -51,11 +53,12 @@ public class ClientV1 extends BenchmarkBase {
 
 
     @Benchmark
-    public void query(V1State state) {
+    public void query(DataState dataState, V1State state) {
         try {
             try (ClickHouseResponse response = client.read(getServer())
-                    .query("SELECT * FROM `" + DB_NAME + "`.`" + dataSet.getTableName() + "`")
+                    .query("SELECT * FROM `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .option(ClickHouseClientOption.ASYNC, false)
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
                     notNull(record.getValue(0));
@@ -67,14 +70,16 @@ public class ClientV1 extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insert(V1State state) {
+    public void insert(DataState dataState, V1State state) {
         try {
+            ClickHouseFormat format = dataState.dataSet.getFormat();
             try (ClickHouseResponse response = client.read(getServer())
                     .write()
-                    .format(state.format)
-                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataSet.getTableName() + "`")
+                    .option(ClickHouseClientOption.ASYNC, false)
+                    .format(format)
+                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
                     .data(out -> {
-                        for (byte[] bytes: dataSet.getBytesList(state.format)) {
+                        for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                             out.write(bytes);
                         }
                     })
