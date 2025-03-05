@@ -311,6 +311,15 @@ public class ClickHouseServerForTest {
         return network;
     }
 
+    public static String getUsername() {
+        // For cloud, the username is set in environment variable
+        if (isCloud) {
+            return System.getenv("CLICKHOUSE_CLOUD_USERNAME") == null ? "default" : System.getenv("CLICKHOUSE_CLOUD_USERNAME");
+        } else {
+            return "default";
+        }
+    }
+
     public static String getPassword() {
         // For cloud, the password is set in environment variable
         if (isCloud) {

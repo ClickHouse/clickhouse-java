@@ -53,3 +53,5 @@ profile.html
 
 # test configuration
 **/test/resources/test.properties
+performance/jmh-simple-results.json
+*.csv
