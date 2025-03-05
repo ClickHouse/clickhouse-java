@@ -36,6 +36,7 @@ public class BenchmarkBase {
     }
 
     public void setup(DataState dataState) throws Exception {
+        LOGGER.info("Setup BenchmarkBase using " + dataState.datasetSourceName + " dataset.");
         if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
