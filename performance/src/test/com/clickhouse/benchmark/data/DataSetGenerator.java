@@ -152,7 +152,7 @@ public class DataSetGenerator {
     // Generates an abstract CREATE TABLE statement with column names replaced by col1, col2, ...
     private static String generateAbstractCreateTable(String tableName, List<Column> columns) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CREATE TABLE ").append(tableName).append(" (\n");
+        sb.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
         for (int i = 0; i < columns.size(); i++) {
             Column col = columns.get(i);
             sb.append("   col").append(i + 1).append(" ").append(col.type);
