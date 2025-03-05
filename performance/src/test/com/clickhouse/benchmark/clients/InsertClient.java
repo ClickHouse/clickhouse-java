@@ -53,10 +53,6 @@ public class InsertClient extends BenchmarkBase {
                 .setPassword(getPassword())
                 .compressClientRequest(true)
                 .setMaxRetries(0)
-                .setLZ4UncompressedBufferSize(2 * 1024 * 1024)
-                .setClientNetworkBufferSize(20 * 1024 * 1024)
-                .setSocketRcvbuf(2 * 1024 * 1024)
-                .setSocketSndbuf(2 * 1024 * 1024)
                 .setDefaultDatabase(DB_NAME)
                 .build();
 

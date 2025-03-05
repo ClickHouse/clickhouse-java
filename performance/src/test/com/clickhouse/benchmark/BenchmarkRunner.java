@@ -55,7 +55,7 @@ public class BenchmarkRunner {
                 .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(10))
-                .measurementIterations(3)
+                .measurementIterations(10)
                 .jvmArgs("-Xms6g", "-Xmx6g")
                 .measurementTime(TimeValue.seconds(10))
                 .resultFormat(ResultFormatType.JSON)
