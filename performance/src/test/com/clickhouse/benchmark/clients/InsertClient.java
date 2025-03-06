@@ -1,9 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.api.Client;
@@ -37,64 +33,16 @@ import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 @State(Scope.Benchmark)
 public class InsertClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(InsertClient.class);
-    ClickHouseClient clientV1;
-    Client clientV2;
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) throws Exception {
         super.setup(dataState, false);
     }
 
-    @Setup(Level.Iteration)
-    public void setUpIteration() {
-        LOGGER.info("Setup Each Invocation");
-        clientV1 = ClickHouseClient
-                .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
-        ClickHouseNode node = getServer();
-        clientV2 = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setMaxRetries(0)
-                .setDefaultDatabase(DB_NAME)
-                .build();
-
-    }
-
-    @TearDown(Level.Iteration)
-    public void tearDownIteration() {
-        if (clientV1 != null) {
-            clientV1.close();
-            clientV1 = null;
-        }
-        if (clientV2 != null) {
-            clientV2.close();
-            clientV2 = null;
-        }
-    }
 
     @TearDown(Level.Invocation)
     public void tearDownIteration(DataState dataState) throws InterruptedException {
-        try {
-            try(QueryResponse response = clientV2.query("SELECT count(*) FROM `" + dataState.dataSet.getTableName() + "`").get()) {
-                ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
-                while (reader.next() != null) {//Compiler optimization avoidance
-                    BigInteger count = reader.readValue(1);
-                    if (count.longValue() != dataState.dataSet.getSize()) {
-                        throw new IllegalStateException("Rows written: " + count + " Expected " +
-                                dataState.dataSet.getSize() + " rows");
-                    }
-                }
-            }
-            try(QueryResponse response = clientV2.query("TRUNCATE TABLE IF EXISTS `" + dataState.dataSet.getTableName() + "`").get()) {
-                ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
-                while (reader.next() != null) {//Compiler optimization avoidance
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error: ", e);
-        }
+        verifyRowsInsertedAndCleanup(dataState.dataSet);
     }
 
     @Benchmark

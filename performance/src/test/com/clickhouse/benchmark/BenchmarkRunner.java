@@ -1,21 +1,8 @@
 package com.clickhouse.benchmark;
 
-import com.clickhouse.benchmark.clients.ClientV1;
-import com.clickhouse.benchmark.clients.ClientV2;
+
 import com.clickhouse.benchmark.clients.InsertClient;
-import com.clickhouse.benchmark.clients.JdbcV1;
-import com.clickhouse.benchmark.clients.JdbcV2;
-import com.clickhouse.benchmark.data.DataSet;
-import com.clickhouse.benchmark.data.DataSets;
-import com.clickhouse.benchmark.data.SimpleDataSet;
-import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.benchmark.clients.QueryClient;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
@@ -42,11 +29,8 @@ public class BenchmarkRunner {
 
         Options opt = new OptionsBuilder()
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
-//                .include(ClientV1.class.getSimpleName())
-//                .include(ClientV2.class.getSimpleName())
+                .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
-//                .include(JdbcV1.class.getSimpleName())
-//                .include(JdbcV2.class.getSimpleName())
                 .forks(0) // must be a fork. No fork only for debugging
                 .mode(Mode.AverageTime)
                 .timeUnit(TimeUnit.MILLISECONDS)

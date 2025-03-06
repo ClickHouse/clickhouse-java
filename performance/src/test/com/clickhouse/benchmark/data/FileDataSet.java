@@ -25,6 +25,7 @@ public class FileDataSet implements DataSet{
     private final String name;
 
     private final String createTableStmt;
+    private final TableSchema schema;
 
     private final Map<String, String> metadata = new HashMap<>();
 
@@ -73,6 +74,7 @@ public class FileDataSet implements DataSet{
             }
             this.name = name;
             this.createTableStmt = createStatement != null ? createStatement.toString() : null;
+            this.schema = DataSets.parseSchema(createTableStmt);
             LOGGER.info("Read " + lines.size() + " lines from " + srcFile.getAbsolutePath());
 
         } catch (Exception e) {
