@@ -5,32 +5,66 @@ import com.clickhouse.benchmark.data.DataSets;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.util.List;
 
 import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 
+@State(Scope.Benchmark)
 public class BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkBase.class);
     public static final String DB_NAME = "benchmarks";
+
+    protected ClickHouseClient clientV1;
+    protected Client clientV2;
+    @Setup(Level.Iteration)
+    public void setUpIteration() {
+        clientV1 = getClientV1();
+        clientV2 = getClientV2();
+
+    }
+
+    @TearDown(Level.Iteration)
+    public void tearDownIteration() {
+        if (clientV1 != null) {
+            clientV1.close();
+            clientV1 = null;
+        }
+        if (clientV2 != null) {
+            clientV2.close();
+            clientV2 = null;
+        }
+    }
 
     @State(Scope.Benchmark)
     public static class DataState {
         @Param({"simple"})
         String datasetSourceName;
         ClickHouseFormat format = ClickHouseFormat.JSONEachRow;
+        @Param({"1000000"})
+        int limit;
 
         DataSet dataSet;
     }
@@ -57,6 +91,7 @@ public class BenchmarkBase {
         BaseIntegrationTest.teardownClickHouseContainer();
     }
 
+
     //Connection parameters
     public static String getPassword() {
         return ClickHouseServerForTest.getPassword();
@@ -67,39 +102,59 @@ public class BenchmarkBase {
     public static ClickHouseNode getServer() {
         return ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
     }
-    public static void notNull(Object obj) {
-        if (obj == null) {
-            throw new IllegalStateException("Null value");
+    public static void isNotNull(Object obj, boolean doWeCare) {
+        if (obj == null && doWeCare) {
+            throw new RuntimeException("Object is null");
         }
     }
 
-    public static void runQuery(String query, boolean useDatabase) {
-        ClickHouseNode node = getServer();
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setDefaultDatabase(useDatabase ? DB_NAME : "default")
-                .build()) {
-            client.queryAll(query);
+    public static List<GenericRecord> runQuery(String query, boolean useDatabase) {
+        try (Client client = getClientV2(useDatabase)) {
+            return client.queryAll(query);
         }
     }
 
     public static void insertData(String tableName, InputStream dataStream, ClickHouseFormat format) {
-        ClickHouseNode node = getServer();
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setDefaultDatabase(DB_NAME)
-                .build();
+        try (Client client = getClientV2();
              InsertResponse response = client.insert(tableName, dataStream, format).get()) {
             LOGGER.info("Rows inserted: {}", response.getWrittenRows());
         } catch (Exception e) {
             LOGGER.error("Error inserting data: ", e);
             throw new RuntimeException("Error inserting data", e);
         }
+    }
+
+    public static void verifyRowsInsertedAndCleanup(DataSet dataSet) {
+        try {
+            List<GenericRecord> records = runQuery("SELECT count(*) FROM `" + dataSet.getTableName() + "`", true);
+            BigInteger count = records.get(0).getBigInteger(1);
+            if (count.longValue() != dataSet.getSize()) {
+                throw new IllegalStateException("Rows written: " + count + " Expected " + dataSet.getSize() + " rows");
+            }
+            runQuery("TRUNCATE TABLE IF EXISTS `" + dataSet.getTableName() + "`", true);
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    protected static ClickHouseClient getClientV1() {
+        //We get a new client so that closing won't affect other subsequent calls
+        return ClickHouseClient.newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
+    }
+
+    protected static Client getClientV2() {
+        return getClientV2(true);
+    }
+    protected static Client getClientV2(boolean useDatabase) {
+        ClickHouseNode node = getServer();
+        //We get a new client so that closing won't affect other subsequent calls
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .setUsername(getUsername())
+                .setPassword(getPassword())
+                .compressClientRequest(true)
+                .setMaxRetries(0)
+                .setDefaultDatabase(useDatabase ? DB_NAME : "default")
+                .build();
     }
 }
