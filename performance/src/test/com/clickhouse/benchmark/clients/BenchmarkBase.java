@@ -14,6 +14,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
@@ -126,7 +127,6 @@ public class BenchmarkBase {
                     ClickHouseOutputStream.of(new ByteArrayOutputStream()), response.getColumns(), Collections.emptyMap());
             assert dataProcessor.getColumns() != null;
             dataSet.setClickHouseDataProcessor(dataProcessor);
-
             ArrayList<ClickHouseRecord> records = new ArrayList<>();
             for (ClickHouseRecord record : response.records()) {
                 records.add(record);

@@ -1,17 +1,21 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.shaded.com.google.common.collect.Table;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +29,8 @@ public class FileDataSet implements DataSet{
     private final Map<String, String> metadata = new HashMap<>();
 
     private List<byte[]> lines =null;
+
+    private List<Map<String, Object>> data;
 
     public FileDataSet(String filePath) {
         File srcFile = new File(filePath);
@@ -98,9 +104,10 @@ public class FileDataSet implements DataSet{
         return "TRUNCATE TABLE " + getTableName();
     }
 
+    private TableSchema tableSchema = new TableSchema();
     @Override
     public TableSchema getSchema() {
-        return new TableSchema(); //TODO: parse from create statement or get by client
+        return tableSchema;
     }
 
     @Override
@@ -115,7 +122,7 @@ public class FileDataSet implements DataSet{
 
     @Override
     public List<Map<String, Object>> getRows() {
-        return Collections.emptyList();
+        return data;
     }
 
     @Override
@@ -133,6 +140,18 @@ public class FileDataSet implements DataSet{
     @Override
     public void setClickHouseRecords(List<ClickHouseRecord> records) {
         this.clickHouseRecords = records;
+        List<ClickHouseColumn> columns = tableSchema.getColumns();
+        data = new ArrayList<>(records.size());
+        for (ClickHouseRecord record : records) {
+            Iterator<ClickHouseValue> vIter = record.iterator();
+            int i = 0;
+            Map<String, Object> row = new HashMap<>();
+            while (vIter.hasNext()) {
+                ClickHouseValue v = vIter.next();
+                row.put(columns.get(i++).getColumnName(), v.asObject());
+            }
+            data.add(row);
+        }
     }
 
     private ClickHouseDataProcessor dataProcessor;
@@ -145,6 +164,9 @@ public class FileDataSet implements DataSet{
     @Override
     public void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor) {
         this.dataProcessor = dataProcessor;
+        for (ClickHouseColumn column : dataProcessor.getColumns()) {
+            tableSchema.addColumn(column.getColumnName(), column.getOriginalTypeName());
+        }
     }
 
     @Override

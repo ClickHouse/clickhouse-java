@@ -28,7 +28,7 @@ public class SimpleDataSet implements DataSet {
 
     public SimpleDataSet() {
         tableName = name + "_dataset_" + UUID.randomUUID().toString().replaceAll("-", "");
-        size = 10;
+        size = 100000;
 
         data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
