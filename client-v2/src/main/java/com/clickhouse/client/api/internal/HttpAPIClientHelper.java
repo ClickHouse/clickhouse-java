@@ -136,7 +136,7 @@ public class HttpAPIClientHelper {
         boolean usingClientCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), "false").equalsIgnoreCase("true");
         boolean usingServerCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "false").equalsIgnoreCase("true");
         boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
-        LOG.info("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
+        LOG.debug("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
 
         defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey()), ClientFaultCause.class);
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
@@ -227,7 +227,7 @@ public class HttpAPIClientHelper {
             default:
                 throw new ClientMisconfigurationException("Unknown connection reuse strategy: " + connectionReuseStrategy);
         }
-        LOG.info("Connection reuse strategy: {}", connectionReuseStrategy);
+        LOG.debug("Connection reuse strategy: {}", connectionReuseStrategy);
 
         connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have

@@ -1,8 +1,10 @@
 package com.clickhouse.benchmark;
 
 
+import com.clickhouse.benchmark.clients.BenchmarkBase;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.QueryClient;
+import com.clickhouse.benchmark.data.DataSet;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
@@ -31,16 +33,16 @@ public class BenchmarkRunner {
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
-                .forks(0) // must be a fork. No fork only for debugging
+                .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.AverageTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(1)
+                .warmupIterations(3)
                 .warmupTime(TimeValue.seconds(10))
-                .measurementIterations(10)
-                .jvmArgs("-Xms6g", "-Xmx6g")
+                .measurementIterations(5)
+                .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(10))
                 .resultFormat(ResultFormatType.JSON)
                 .result("jmh-simple-results.json")
@@ -66,4 +68,15 @@ public class BenchmarkRunner {
         return argMap;
     }
 
+    public static String getSelectQuery(DataSet dataSet) {
+        return "SELECT * FROM `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    }
+
+    public static String getSelectCountQuery(DataSet dataSet) {
+        return "SELECT COUNT(*) FROM `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    }
+
+    public static String getInsertQuery(DataSet dataSet) {
+        return "INSERT INTO `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    }
 }

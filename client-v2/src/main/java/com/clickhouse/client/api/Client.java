@@ -1007,7 +1007,7 @@ public class Client implements AutoCloseable {
                 }
 
                 try {
-                    LOG.info("Using timezone: {} instead of server one", ZoneId.of(useTimeZoneValue));
+                    LOG.debug("Using timezone: {} instead of server one", ZoneId.of(useTimeZoneValue));
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Invalid timezone value: " + useTimeZoneValue);
                 }
@@ -1017,7 +1017,7 @@ public class Client implements AutoCloseable {
                 }
 
                 try {
-                    LOG.info("Using server timezone: {}", ZoneId.of(serverTimeZoneValue));
+                    LOG.debug("Using server timezone: {}", ZoneId.of(serverTimeZoneValue));
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Invalid server timezone value: " + serverTimeZoneValue);
                 }

@@ -52,7 +52,6 @@ public class SimpleDataSet implements DataSet {
             row.put("dropoff_ntaname", "NTA2");
             data.add(row);
         }
-        LOGGER.info("Created {} rows of data", data.size());
 
         jsonBytes = DataSets.convert(data, ClickHouseFormat.JSONEachRow);
     }

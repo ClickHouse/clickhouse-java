@@ -243,7 +243,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     @Override
     public void init(ClickHouseConfig config) {
-        log.info("Initializing new client: %d", this.hashCode());
+        log.debug("Initializing new client: %d", this.hashCode());
         ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
         measureRequestTime = config.getBoolOption(ClickHouseClientOption.MEASURE_REQUEST_TIME);
         lock.writeLock().lock();

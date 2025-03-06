@@ -1,5 +1,6 @@
 package com.clickhouse.benchmark.clients;
 
+import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.DataSets;
 import com.clickhouse.benchmark.data.FileDataSet;
@@ -12,13 +13,12 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
@@ -34,12 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.math.BigInteger;
 import java.util.List;
-
-import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
@@ -71,8 +70,7 @@ public class BenchmarkBase {
     public static class DataState {
         @Param({"simple"})
         String datasetSourceName;
-        ClickHouseFormat format = ClickHouseFormat.JSONEachRow;
-        @Param({"1000000"})
+        @Param({"300000", "220000", "100000", "10000"})
         int limit;
 
         DataSet dataSet;
@@ -84,7 +82,7 @@ public class BenchmarkBase {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
         } else if (dataState.datasetSourceName.startsWith("file://")) {
-            dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()));
+            dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
             dataState.datasetSourceName = dataState.dataSet.getName();
         }
 
@@ -101,6 +99,9 @@ public class BenchmarkBase {
 
 
     //Connection parameters
+    public static boolean isCloud() {
+        return false;
+    }
     public static String getPassword() {
         return ClickHouseServerForTest.getPassword();
     }
@@ -134,7 +135,7 @@ public class BenchmarkBase {
 
     public static void verifyRowsInsertedAndCleanup(DataSet dataSet) {
         try {
-            List<GenericRecord> records = runQuery("SELECT count(*) FROM `" + dataSet.getTableName() + "`", true);
+            List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(dataSet), true);
             BigInteger count = records.get(0).getBigInteger(1);
             if (count.longValue() != dataSet.getSize()) {
                 throw new IllegalStateException("Rows written: " + count + " Expected " + dataSet.getSize() + " rows");
@@ -166,12 +167,12 @@ public class BenchmarkBase {
                 .build();
     }
 
-    public static void loadClickHouseRecords(String tableName, DataSet dataSet) {
+    public static void loadClickHouseRecords(DataSet dataSet) {
         ClickHouseNode node = getServer();
 
         try (ClickHouseClient clientV1 = ClickHouseClient
                 .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
-             ClickHouseResponse response = clientV1.read(node).query("SELECT * FROM " + DB_NAME + "." + tableName)
+             ClickHouseResponse response = clientV1.read(node).query(BenchmarkRunner.getSelectQuery(dataSet))
                      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                      .executeAndWait()) {
 

@@ -1,5 +1,6 @@
 package com.clickhouse.benchmark.clients;
 
+import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -28,12 +29,12 @@ public class QueryClient extends BenchmarkBase {
     public void queryV1(DataState dataState) {
         try {
             try (ClickHouseResponse response = clientV1.read(getServer())
-                    .query("SELECT * FROM `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "` LIMIT " + dataState.limit)
+                    .query(BenchmarkRunner.getSelectQuery(dataState.dataSet))
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .option(ClickHouseClientOption.ASYNC, false)
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
-                    for (int i = 0; i < dataState.dataSet.getSchema().getColumns().size(); i++) {
+                    for (int i = 0; i < dataState.limit; i++) {
                         isNotNull(record.getValue(i), false);
                     }
                 }
@@ -46,10 +47,10 @@ public class QueryClient extends BenchmarkBase {
     @Benchmark
     public void queryV2(DataState dataState) {
         try {
-            try(QueryResponse response = clientV2.query("SELECT * FROM `" + dataState.dataSet.getTableName() + "` LIMIT " + dataState.limit).get()) {
+            try(QueryResponse response = clientV2.query(BenchmarkRunner.getSelectQuery(dataState.dataSet)).get()) {
                 ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
-                    for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
+                    for (int i = 1; i <= dataState.limit; i++) {
                         isNotNull(reader.readValue(1), false);
                     }
                 }

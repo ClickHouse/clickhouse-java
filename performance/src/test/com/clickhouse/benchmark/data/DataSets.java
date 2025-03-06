@@ -63,7 +63,7 @@ public class DataSets {
 
         BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
         if (!insertData) {
-            BenchmarkBase.loadClickHouseRecords(set.getTableName(), set);
+            BenchmarkBase.loadClickHouseRecords(set);
             BenchmarkBase.runQuery("TRUNCATE TABLE " + set.getTableName(), true);
         }
     }

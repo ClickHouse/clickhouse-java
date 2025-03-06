@@ -33,7 +33,7 @@ public class FileDataSet implements DataSet{
 
     private List<Map<String, Object>> data;
 
-    public FileDataSet(String filePath) {
+    public FileDataSet(String filePath, int limit) {
         File srcFile = new File(filePath);
 
         try (BufferedReader r = new BufferedReader(new java.io.FileReader(srcFile))) {
@@ -44,6 +44,7 @@ public class FileDataSet implements DataSet{
             boolean doneCreateStatement = false;
             boolean isMetadata = false;
             boolean isData = false;
+            int lineNumber = 0;
             while ((line = r.readLine()) != null) {
                 if (name == null) {
                     name = line.trim();
@@ -61,12 +62,14 @@ public class FileDataSet implements DataSet{
                     String[] parts = line.split("=");
                     metadata.put(parts[0].toLowerCase().trim(), parts[1].trim());
                 } else if (line.startsWith("DATA>>")) {
-                    int rows = Integer.parseInt(metadata.get("rows"));
-                    lines = new ArrayList<>(rows);
+                    //Integer.parseInt(metadata.get("rows"))
+                    lines = new ArrayList<>(limit);
                     isData = true;
                 } else if (isData) {
-                    line = line + "\n"; // not optimal but ok for now.
-                    lines.add(line.getBytes());
+                    if (lineNumber++ < limit) {//If limit > rows in file, we'll just read all the rows.
+                        line = line + "\n"; // not optimal but ok for now.
+                        lines.add(line.getBytes());
+                    }
                 } else {
                     throw new IllegalArgumentException("Invalid file format: " + srcFile.getAbsolutePath());
                 }
