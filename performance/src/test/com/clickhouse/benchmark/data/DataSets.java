@@ -12,8 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class DataSets {
@@ -36,15 +34,12 @@ public class DataSets {
      */
     public static TableSchema parseSchema(String createTableStatement) {//TODO: Consider replacing this, as it's not very robust.
         TableSchema schema = new TableSchema();
-        LOGGER.info("Creating table from: {}", createTableStatement);
-
         if (createTableStatement == null || createTableStatement.isEmpty()) {
             return schema;
         }
 
         try {
             createTableStatement = createTableStatement.substring(createTableStatement.indexOf("(") + 1, createTableStatement.indexOf(") Engine")).trim();
-            LOGGER.info("Substring: {}", createTableStatement);
             BufferedReader br = new BufferedReader(new StringReader(createTableStatement));
             br.lines().forEach(line -> {
                 line = line.trim();
@@ -83,7 +78,6 @@ public class DataSets {
                     bytes.add(json.getBytes(StandardCharsets.UTF_8));
                 }
                 return bytes;
-//                return data.stream().map(Map::toString).map(String::getBytes).collect(Collectors.toList());
             default:
                 throw new IllegalArgumentException("Unsupported format: " + format);
         }
