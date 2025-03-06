@@ -215,7 +215,7 @@ public class InsertClient extends BenchmarkBase {
                             }
                             w.commitRow();
                         }
-                        out.flush();
+                        out.close();
                     })
                     .executeAndWait()) {
                 ClickHouseResponseSummary summary = response.getSummary();
