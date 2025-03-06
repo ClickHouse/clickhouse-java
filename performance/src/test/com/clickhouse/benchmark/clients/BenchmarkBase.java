@@ -5,20 +5,30 @@ import com.clickhouse.benchmark.data.DataSets;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 
@@ -41,7 +51,6 @@ public class BenchmarkBase {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
         } else if (dataState.datasetSourceName.startsWith("file://")) {
-
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()));
             dataState.datasetSourceName = dataState.dataSet.getName();
         }
@@ -97,6 +106,33 @@ public class BenchmarkBase {
                 .build();
              InsertResponse response = client.insert(tableName, dataStream, format).get()) {
             LOGGER.info("Rows inserted: {}", response.getWrittenRows());
+        } catch (Exception e) {
+            LOGGER.error("Error inserting data: ", e);
+            throw new RuntimeException("Error inserting data", e);
+        }
+    }
+
+    public static void loadClickHouseRecords(String tableName, DataSet dataSet) {
+        ClickHouseNode node = getServer();
+
+        try (ClickHouseClient clientV1 = ClickHouseClient
+                .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
+             ClickHouseResponse response = clientV1.read(node).query("SELECT * FROM " + DB_NAME + "." + tableName)
+                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                     .executeAndWait()) {
+
+            // Create a data processor to serialize data in ClientV1 tests
+            ClickHouseDataProcessor dataProcessor= new ClickHouseRowBinaryProcessor(clientV1.getConfig(), null,
+                    ClickHouseOutputStream.of(new ByteArrayOutputStream()), response.getColumns(), Collections.emptyMap());
+            assert dataProcessor.getColumns() != null;
+            dataSet.setClickHouseDataProcessor(dataProcessor);
+
+            ArrayList<ClickHouseRecord> records = new ArrayList<>();
+            for (ClickHouseRecord record : response.records()) {
+                records.add(record);
+            }
+
+            dataSet.setClickHouseRecords(records);
         } catch (Exception e) {
             LOGGER.error("Error inserting data: ", e);
             throw new RuntimeException("Error inserting data", e);

@@ -11,14 +11,14 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseSerializer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -92,15 +92,9 @@ public class InsertClient extends BenchmarkBase {
             LOGGER.error("Error: ", e);
         }
     }
-    @State(Scope.Thread)
-    public static class InsertState {
-        @Param({"simple"})
-        String dataSetName;
-        ClickHouseFormat format = ClickHouseFormat.JSONEachRow;
-    }
 
     @Benchmark
-    public void insertV1(DataState dataState, InsertState state) {
+    public void insertV1(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
             try (ClickHouseResponse response = clientV1.read(getServer())
@@ -125,7 +119,7 @@ public class InsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV2(DataState dataState, InsertState state) {
+    public void insertV2(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
             try (InsertResponse response = clientV2.insert(dataState.dataSet.getTableName(), out -> {
@@ -140,6 +134,37 @@ public class InsertClient extends BenchmarkBase {
                 }
             }
         } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV1RowBinary(DataState dataState) {
+        try {
+            ClickHouseFormat format = ClickHouseFormat.RowBinary;
+            try (ClickHouseResponse response = clientV1.read(getServer())
+                    .write()
+                    .option(ClickHouseClientOption.ASYNC, false)
+                    .format(format)
+                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
+                    .data(out -> {
+                        ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
+                        ClickHouseSerializer[] serializers = p.getSerializers(clientV1.getConfig(), p.getColumns());
+
+                        for (ClickHouseRecord record : dataState.dataSet.getClickHouseRecords()) {
+                            for (int i = 0; i < serializers.length; i++) {
+                                serializers[i].serialize(record.getValue(i), out);
+                            }
+                        }
+
+                    })
+                    .executeAndWait()) {
+                ClickHouseResponseSummary summary = response.getSummary();
+                if (summary.getWrittenRows() <= 0) {
+                    throw new RuntimeException("Rows written: " + summary.getWrittenRows());
+                }
+            }
+        } catch ( Exception e) {
             LOGGER.error("Error: ", e);
         }
     }

@@ -1,13 +1,14 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -120,6 +121,30 @@ public class FileDataSet implements DataSet{
     @Override
     public ClickHouseFormat getFormat() {
         return ClickHouseFormat.CSV;
+    }
+
+    private List<ClickHouseRecord> clickHouseRecords;
+
+    @Override
+    public List<ClickHouseRecord> getClickHouseRecords() {
+        return clickHouseRecords;
+    }
+
+    @Override
+    public void setClickHouseRecords(List<ClickHouseRecord> records) {
+        this.clickHouseRecords = records;
+    }
+
+    private ClickHouseDataProcessor dataProcessor;
+
+    @Override
+    public ClickHouseDataProcessor getClickHouseDataProcessor() {
+        return dataProcessor;
+    }
+
+    @Override
+    public void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor) {
+        this.dataProcessor = dataProcessor;
     }
 
     @Override

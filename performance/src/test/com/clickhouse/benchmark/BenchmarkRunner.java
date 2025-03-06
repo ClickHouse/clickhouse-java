@@ -47,7 +47,7 @@ public class BenchmarkRunner {
                 .include(InsertClient.class.getSimpleName())
 //                .include(JdbcV1.class.getSimpleName())
 //                .include(JdbcV2.class.getSimpleName())
-                .forks(1) // must be a fork. No fork only for debugging
+                .forks(0) // must be a fork. No fork only for debugging
                 .mode(Mode.AverageTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)
