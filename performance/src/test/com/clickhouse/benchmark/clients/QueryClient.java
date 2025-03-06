@@ -34,7 +34,7 @@ public class QueryClient extends BenchmarkBase {
                     .option(ClickHouseClientOption.ASYNC, false)
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
-                    for (int i = 0; i < dataState.limit; i++) {
+                    for (int i = 0; i < dataState.dataSet.getSchema().getColumns().size(); i++) {
                         isNotNull(record.getValue(i), false);
                     }
                 }
@@ -50,7 +50,7 @@ public class QueryClient extends BenchmarkBase {
             try(QueryResponse response = clientV2.query(BenchmarkRunner.getSelectQuery(dataState.dataSet)).get()) {
                 ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
-                    for (int i = 1; i <= dataState.limit; i++) {
+                    for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
                         isNotNull(reader.readValue(1), false);
                     }
                 }
