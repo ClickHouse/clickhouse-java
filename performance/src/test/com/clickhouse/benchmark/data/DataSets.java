@@ -60,8 +60,11 @@ public class DataSets {
     public static void initializeTables(DataSet set, boolean insertData) {
         BenchmarkBase.runQuery(set.getCreateTableString(), true);
         ClickHouseFormat format = set.getFormat();
-        if (insertData) {
-            BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
+
+        BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
+        if (!insertData) {
+            BenchmarkBase.loadClickHouseRecords(set.getTableName(), set);
+            BenchmarkBase.runQuery("TRUNCATE TABLE " + set.getTableName(), true);
         }
     }
 

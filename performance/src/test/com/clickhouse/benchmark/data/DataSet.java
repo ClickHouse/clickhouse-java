@@ -1,7 +1,9 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,4 +43,12 @@ public interface DataSet {
     List<byte[]> getBytesList(ClickHouseFormat format);
 
     List<Map<String, Object>> getRows();
+
+    List<ClickHouseRecord> getClickHouseRecords();
+
+    void setClickHouseRecords(List<ClickHouseRecord> records);
+
+    void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor);
+
+    ClickHouseDataProcessor getClickHouseDataProcessor();
 }

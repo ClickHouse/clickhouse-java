@@ -31,7 +31,7 @@ public class BenchmarkRunner {
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
-                .forks(1) // must be a fork. No fork only for debugging
+                .forks(0) // must be a fork. No fork only for debugging
                 .mode(Mode.AverageTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)

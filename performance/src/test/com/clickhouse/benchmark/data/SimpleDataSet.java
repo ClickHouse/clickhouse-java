@@ -1,7 +1,9 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,10 +97,12 @@ public class SimpleDataSet implements DataSet {
                 "ENGINE = MergeTree\n" +
                 "PRIMARY KEY (pickup_datetime, dropoff_datetime);";
     }
+
     @Override
     public String getTrucateTableString() {
         return "TRUNCATE TABLE " + getTableName();
     }
+
     @Override
     public ClickHouseFormat getFormat() {
         return ClickHouseFormat.JSONEachRow;
@@ -148,5 +152,31 @@ public class SimpleDataSet implements DataSet {
     @Override
     public List<Map<String, Object>> getRows() {
         return data;
+    }
+
+
+    private List<ClickHouseRecord> clickHouseRecords;
+
+    @Override
+    public List<ClickHouseRecord> getClickHouseRecords() {
+        return clickHouseRecords;
+    }
+
+    @Override
+    public void setClickHouseRecords(List<ClickHouseRecord> records) {
+        clickHouseRecords = records;
+    }
+
+
+    private ClickHouseDataProcessor dataProcessor;
+
+    @Override
+    public ClickHouseDataProcessor getClickHouseDataProcessor() {
+        return dataProcessor;
+    }
+
+    @Override
+    public void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor) {
+        this.dataProcessor = dataProcessor;
     }
 }
