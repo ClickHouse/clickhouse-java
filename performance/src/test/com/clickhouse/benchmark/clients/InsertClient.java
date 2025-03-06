@@ -44,17 +44,8 @@ public class InsertClient extends BenchmarkBase {
     @Setup(Level.Iteration)
     public void setUpIteration() {
         LOGGER.info("Setup Each Invocation");
-        clientV1 = ClickHouseClient
-                .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
-        ClickHouseNode node = getServer();
-        clientV2 = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setMaxRetries(0)
-                .setDefaultDatabase(DB_NAME)
-                .build();
+        clientV1 = getClientV1();
+        clientV2 = getClientV2();
 
     }
 
@@ -72,7 +63,7 @@ public class InsertClient extends BenchmarkBase {
 
     @TearDown(Level.Invocation)
     public void tearDownIteration(DataState dataState) throws InterruptedException {
-        try {
+        try (Client clientV2 = getClientV2()) {
             try(QueryResponse response = clientV2.query("SELECT count(*) FROM `" + dataState.dataSet.getTableName() + "`").get()) {
                 ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
@@ -92,15 +83,10 @@ public class InsertClient extends BenchmarkBase {
             LOGGER.error("Error: ", e);
         }
     }
-    @State(Scope.Thread)
-    public static class InsertState {
-        @Param({"simple"})
-        String dataSetName;
-        ClickHouseFormat format = ClickHouseFormat.JSONEachRow;
-    }
+
 
     @Benchmark
-    public void insertV1(DataState dataState, InsertState state) {
+    public void insertV1(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
             try (ClickHouseResponse response = clientV1.read(getServer())
@@ -125,7 +111,7 @@ public class InsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV2(DataState dataState, InsertState state) {
+    public void insertV2(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
             try (InsertResponse response = clientV2.insert(dataState.dataSet.getTableName(), out -> {

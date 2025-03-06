@@ -5,6 +5,8 @@ import com.clickhouse.benchmark.data.DataSets;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
@@ -67,39 +69,46 @@ public class BenchmarkBase {
     public static ClickHouseNode getServer() {
         return ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
     }
-    public static void notNull(Object obj) {
-        if (obj == null) {
-            throw new IllegalStateException("Null value");
+    public static void isNotNull(Object obj, boolean doWeCare) {
+        if (obj == null && doWeCare) {
+            throw new RuntimeException("Object is null");
         }
     }
 
     public static void runQuery(String query, boolean useDatabase) {
-        ClickHouseNode node = getServer();
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setDefaultDatabase(useDatabase ? DB_NAME : "default")
-                .build()) {
+        try (Client client = getClientV2(useDatabase)) {
             client.queryAll(query);
         }
     }
 
     public static void insertData(String tableName, InputStream dataStream, ClickHouseFormat format) {
-        ClickHouseNode node = getServer();
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername(getUsername())
-                .setPassword(getPassword())
-                .compressClientRequest(true)
-                .setDefaultDatabase(DB_NAME)
-                .build();
+        try (Client client = getClientV2();
              InsertResponse response = client.insert(tableName, dataStream, format).get()) {
             LOGGER.info("Rows inserted: {}", response.getWrittenRows());
         } catch (Exception e) {
             LOGGER.error("Error inserting data: ", e);
             throw new RuntimeException("Error inserting data", e);
         }
+    }
+
+    protected static ClickHouseClient getClientV1() {
+        //We get a new client so that closing won't affect other subsequent calls
+        return ClickHouseClient.newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
+    }
+
+    protected static Client getClientV2() {
+        return getClientV2(true);
+    }
+    protected static Client getClientV2(boolean useDatabase) {
+        ClickHouseNode node = getServer();
+        //We get a new client so that closing won't affect other subsequent calls
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .setUsername(getUsername())
+                .setPassword(getPassword())
+                .compressClientRequest(true)
+                .setMaxRetries(0)
+                .setDefaultDatabase(useDatabase ? DB_NAME : "default")
+                .build();
     }
 }
