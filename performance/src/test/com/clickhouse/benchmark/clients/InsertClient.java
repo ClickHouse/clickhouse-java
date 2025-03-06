@@ -145,34 +145,34 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
-    public void insertV1WithV2RowBinaryWriter(DataState dataState) {
-        try {
-            ClickHouseFormat format = ClickHouseFormat.RowBinary;
-            try (ClickHouseResponse response = clientV1.read(getServer())
-                    .write()
-                    .option(ClickHouseClientOption.ASYNC, false)
-                    .format(format)
-                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
-                    .data(out -> {
-                        RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
-                        List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
-                        for (Map<String, Object> row : dataState.dataSet.getRows()) {
-                            for (ClickHouseColumn column : columns) {
-                                w.setValue(column.getColumnName(),row.get(column.getColumnName()));
-                            }
-                            w.commitRow();
-                        }
-                        out.close();
-                    })
-                    .executeAndWait()) {
-                ClickHouseResponseSummary summary = response.getSummary();
-                if (summary.getWrittenRows() <= 0) {
-                    throw new RuntimeException("Rows written: " + summary.getWrittenRows());
-                }
-            }
-        } catch ( Exception e) {
-            LOGGER.error("Error: ", e);
-        }
-    }
+//    @Benchmark
+//    public void insertV1WithV2RowBinaryWriter(DataState dataState) {
+//        try {
+//            ClickHouseFormat format = ClickHouseFormat.RowBinary;
+//            try (ClickHouseResponse response = clientV1.read(getServer())
+//                    .write()
+//                    .option(ClickHouseClientOption.ASYNC, false)
+//                    .format(format)
+//                    .query("INSERT INTO `" + DB_NAME + "`.`" + dataState.dataSet.getTableName() + "`")
+//                    .data(out -> {
+//                        RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
+//                        List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
+//                        for (Map<String, Object> row : dataState.dataSet.getRows()) {
+//                            for (ClickHouseColumn column : columns) {
+//                                w.setValue(column.getColumnName(),row.get(column.getColumnName()));
+//                            }
+//                            w.commitRow();
+//                        }
+//                        out.close();
+//                    })
+//                    .executeAndWait()) {
+//                ClickHouseResponseSummary summary = response.getSummary();
+//                if (summary.getWrittenRows() <= 0) {
+//                    throw new RuntimeException("Rows written: " + summary.getWrittenRows());
+//                }
+//            }
+//        } catch ( Exception e) {
+//            LOGGER.error("Error: ", e);
+//        }
+//    }
 }
