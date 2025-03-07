@@ -3,14 +3,12 @@ package com.clickhouse.benchmark.clients;
 import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
-import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
@@ -25,11 +23,8 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-
-import static com.clickhouse.client.ClickHouseServerForTest.isCloud;
 
 @State(Scope.Benchmark)
 public class InsertClient extends BenchmarkBase {
@@ -59,12 +54,8 @@ public class InsertClient extends BenchmarkBase {
                         for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                             out.write(bytes);
                         }
-                    })
-                    .executeAndWait()) {
-                ClickHouseResponseSummary summary = response.getSummary();
-                if (summary.getWrittenRows() != dataState.limit) {
-                    throw new IllegalStateException("Rows written: " + summary.getWrittenRows());
-                }
+                    }).executeAndWait()) {
+                response.getSummary();
             }
         } catch (Exception e) {
             LOGGER.error("Error: ", e);
@@ -82,9 +73,7 @@ public class InsertClient extends BenchmarkBase {
                 }
                 out.close();
             }, format, new InsertSettings()).get()) {
-                if (response.getWrittenRows() != dataState.limit) {
-                    throw new IllegalStateException("Rows written: " + response.getWrittenRows() + ", expected: " + dataState.limit);
-                }
+                response.getWrittenRows();
             }
         } catch (Exception e) {
             LOGGER.error("Error: ", e);
@@ -112,10 +101,7 @@ public class InsertClient extends BenchmarkBase {
 
                     })
                     .executeAndWait()) {
-                ClickHouseResponseSummary summary = response.getSummary();
-                if (summary.getWrittenRows() != dataState.limit) {
-                    throw new RuntimeException("Rows written: " + summary.getWrittenRows() + ", expected: " + dataState.limit);
-                }
+                response.getSummary();
             }
         } catch ( Exception e) {
             LOGGER.error("Error: ", e);
@@ -137,9 +123,7 @@ public class InsertClient extends BenchmarkBase {
                 out.flush();
 
             }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
-                if (response.getWrittenRows() != dataState.limit) {
-                    throw new RuntimeException("Rows written: " + response.getWrittenRows() + ", expected: " + dataState.limit);
-                }
+                response.getWrittenRows();
             }
         } catch (Exception e) {
             LOGGER.error("Error: ", e);

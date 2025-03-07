@@ -17,6 +17,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseFormat;
@@ -39,6 +40,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.math.BigInteger;
 import java.util.List;
+
+import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
+import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
@@ -82,34 +86,42 @@ public class BenchmarkBase {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
         } else if (dataState.datasetSourceName.startsWith("file://")) {
+
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
             dataState.datasetSourceName = dataState.dataSet.getName();
         }
 
         LOGGER.debug("BenchmarkBase setup(). Data source " + dataState.datasetSourceName);
-        BaseIntegrationTest.setupClickHouseContainer();
+        //BaseIntegrationTest.setupClickHouseContainer();
         runQuery("CREATE DATABASE IF NOT EXISTS " + DB_NAME, false);
         DataSets.initializeTables(dataState.dataSet, insertData);
+        syncQuery(dataState.dataSet);
     }
 
     public void tearDown() {
         runQuery("DROP DATABASE IF EXISTS " + DB_NAME, false);
-        BaseIntegrationTest.teardownClickHouseContainer();
+        //BaseIntegrationTest.teardownClickHouseContainer();
     }
 
 
     //Connection parameters
     public static boolean isCloud() {
-        return false;
+        return true;
     }
     public static String getPassword() {
-        return ClickHouseServerForTest.getPassword();
+        return "";
     }
     public static String getUsername() {
         return "default";
     }
     public static ClickHouseNode getServer() {
-        return ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
+        return ClickHouseNode.builder(ClickHouseNode.builder().build())
+                .address(ClickHouseProtocol.HTTP, new InetSocketAddress("", 8443))
+                .credentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
+                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
+                .database(DB_NAME)
+                .build();
+//        return ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
     }
     public static void isNotNull(Object obj, boolean doWeCare) {
         if (obj == null && doWeCare) {
@@ -123,10 +135,21 @@ public class BenchmarkBase {
         }
     }
 
+    public static void syncQuery(DataSet dataSet) {
+        if (isCloud()) {
+            LOGGER.debug("{}", getSyncQuery(dataSet.getTableName()));
+            runQuery(getSyncQuery(dataSet.getTableName()), true);
+        }
+    }
+
     public static void insertData(String tableName, InputStream dataStream, ClickHouseFormat format) {
         try (Client client = getClientV2();
-             InsertResponse response = client.insert(tableName, dataStream, format).get()) {
-            LOGGER.info("Rows inserted: {}", response.getWrittenRows());
+             InsertResponse ignored = client.insert(tableName, dataStream, format).get()) {
+            if (isCloud()) {
+                runQuery(getSyncQuery(tableName), true);
+            }
+            List<GenericRecord> count = runQuery("SELECT COUNT(*) FROM `" + DB_NAME + "`.`" + tableName + "`", true);
+            LOGGER.info("Rows written: {}", count.get(0).getBigInteger(1));
         } catch (Exception e) {
             LOGGER.error("Error inserting data: ", e);
             throw new RuntimeException("Error inserting data", e);
@@ -135,12 +158,14 @@ public class BenchmarkBase {
 
     public static void verifyRowsInsertedAndCleanup(DataSet dataSet) {
         try {
+            syncQuery(dataSet);
             List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(dataSet), true);
             BigInteger count = records.get(0).getBigInteger(1);
             if (count.longValue() != dataSet.getSize()) {
                 throw new IllegalStateException("Rows written: " + count + " Expected " + dataSet.getSize() + " rows");
             }
             runQuery("TRUNCATE TABLE IF EXISTS `" + dataSet.getTableName() + "`", true);
+            syncQuery(dataSet);
         } catch (Exception e) {
             LOGGER.error("Error: ", e);
         }
@@ -168,11 +193,11 @@ public class BenchmarkBase {
     }
 
     public static void loadClickHouseRecords(DataSet dataSet) {
-        ClickHouseNode node = getServer();
+        syncQuery(dataSet);
 
-        try (ClickHouseClient clientV1 = ClickHouseClient
-                .newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
-             ClickHouseResponse response = clientV1.read(node).query(BenchmarkRunner.getSelectQuery(dataSet))
+        try (ClickHouseClient clientV1 = getClientV1();
+             ClickHouseResponse response = clientV1.read(getServer())
+                     .query(BenchmarkRunner.getSelectQuery(dataSet))
                      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                      .executeAndWait()) {
 
@@ -185,6 +210,7 @@ public class BenchmarkBase {
             for (ClickHouseRecord record : response.records()) {
                 records.add(record);
             }
+            LOGGER.info("Rows read size: {}", records.size());
 
             dataSet.setClickHouseRecords(records);
         } catch (Exception e) {

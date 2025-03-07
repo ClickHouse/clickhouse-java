@@ -14,6 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.clickhouse.benchmark.clients.BenchmarkBase.insertData;
+import static com.clickhouse.benchmark.clients.BenchmarkBase.loadClickHouseRecords;
+import static com.clickhouse.benchmark.clients.BenchmarkBase.runQuery;
+import static com.clickhouse.benchmark.clients.BenchmarkBase.syncQuery;
+
 public class DataSets {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSets.class);
     private static final Map<String, DataSet> sets;
@@ -58,13 +63,14 @@ public class DataSets {
     }
 
     public static void initializeTables(DataSet set, boolean insertData) {
-        BenchmarkBase.runQuery(set.getCreateTableString(), true);
+        runQuery(set.getCreateTableString(), true);
         ClickHouseFormat format = set.getFormat();
 
-        BenchmarkBase.insertData(set.getTableName(), set.getInputStream(format), format);
+        insertData(set.getTableName(), set.getInputStream(format), format);
         if (!insertData) {
-            BenchmarkBase.loadClickHouseRecords(set);
-            BenchmarkBase.runQuery("TRUNCATE TABLE " + set.getTableName(), true);
+            loadClickHouseRecords(set);
+            runQuery("TRUNCATE TABLE " + set.getTableName(), true);
+            syncQuery(set);
         }
     }
 

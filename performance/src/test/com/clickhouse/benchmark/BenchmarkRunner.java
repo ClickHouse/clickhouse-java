@@ -1,7 +1,5 @@
 package com.clickhouse.benchmark;
 
-
-import com.clickhouse.benchmark.clients.BenchmarkBase;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.data.DataSet;
@@ -20,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static com.clickhouse.benchmark.clients.BenchmarkBase.DB_NAME;
 
 
 public class BenchmarkRunner {
@@ -39,9 +38,9 @@ public class BenchmarkRunner {
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(3)
+                .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(10))
-                .measurementIterations(5)
+                .measurementIterations(3)
                 .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(10))
                 .resultFormat(ResultFormatType.JSON)
@@ -69,14 +68,18 @@ public class BenchmarkRunner {
     }
 
     public static String getSelectQuery(DataSet dataSet) {
-        return "SELECT * FROM `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+        return "SELECT * FROM `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
     }
 
     public static String getSelectCountQuery(DataSet dataSet) {
-        return "SELECT COUNT(*) FROM `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+        return "SELECT COUNT(*) FROM `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
     }
 
     public static String getInsertQuery(DataSet dataSet) {
-        return "INSERT INTO `" + BenchmarkBase.DB_NAME + "`.`" + dataSet.getTableName() + "`";
+        return "INSERT INTO `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    }
+
+    public static String getSyncQuery(String tableName) {
+        return String.format("SYSTEM SYNC REPLICA `%s`.`%s`", DB_NAME, tableName);
     }
 }

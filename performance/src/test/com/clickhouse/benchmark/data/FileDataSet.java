@@ -34,6 +34,7 @@ public class FileDataSet implements DataSet{
     private List<Map<String, Object>> data;
 
     public FileDataSet(String filePath, int limit) {
+        LOGGER.info("Reading file {}", filePath);
         File srcFile = new File(filePath);
 
         try (BufferedReader r = new BufferedReader(new java.io.FileReader(srcFile))) {
@@ -73,13 +74,11 @@ public class FileDataSet implements DataSet{
                 } else {
                     throw new IllegalArgumentException("Invalid file format: " + srcFile.getAbsolutePath());
                 }
-
             }
             this.name = name;
             this.createTableStmt = createStatement != null ? createStatement.toString() : null;
             this.schema = DataSets.parseSchema(createTableStmt);
             LOGGER.info("Read " + lines.size() + " lines from " + srcFile.getAbsolutePath());
-
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to read file: " + srcFile.getAbsolutePath(), e);
         }
