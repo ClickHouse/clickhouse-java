@@ -56,3 +56,4 @@ profile.html
 performance/jmh-simple-results.json
 *.csv
 *.sql
+*.json

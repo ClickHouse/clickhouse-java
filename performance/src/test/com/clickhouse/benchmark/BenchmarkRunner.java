@@ -2,7 +2,6 @@ package com.clickhouse.benchmark;
 
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.QueryClient;
-import com.clickhouse.benchmark.data.DataSet;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
@@ -18,7 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.clickhouse.benchmark.clients.BenchmarkBase.DB_NAME;
+import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
+import static com.clickhouse.benchmark.TestEnvironment.isCloud;
 
 
 public class BenchmarkRunner {
@@ -38,13 +38,13 @@ public class BenchmarkRunner {
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(1)
+                .warmupIterations(3)
                 .warmupTime(TimeValue.seconds(10))
-                .measurementIterations(3)
+                .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(10))
                 .resultFormat(ResultFormatType.JSON)
-                .result("jmh-simple-results.json")
+                .result(String.format("jmh-results-%s-%s.json", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .build();
 
         new Runner(opt).run();
@@ -67,16 +67,16 @@ public class BenchmarkRunner {
         return argMap;
     }
 
-    public static String getSelectQuery(DataSet dataSet) {
-        return "SELECT * FROM `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    public static String getSelectQuery(String tableName) {
+        return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "`";
     }
 
-    public static String getSelectCountQuery(DataSet dataSet) {
-        return "SELECT COUNT(*) FROM `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    public static String getSelectCountQuery(String tableName) {
+        return String.format("SELECT COUNT(*) FROM `%s`.`%s`", DB_NAME, tableName);
     }
 
-    public static String getInsertQuery(DataSet dataSet) {
-        return "INSERT INTO `" + DB_NAME + "`.`" + dataSet.getTableName() + "`";
+    public static String getInsertQuery(String tableName) {
+        return String.format("INSERT INTO `%s`.`%s`", DB_NAME, tableName);
     }
 
     public static String getSyncQuery(String tableName) {
