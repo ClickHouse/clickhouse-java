@@ -40,10 +40,12 @@ import java.util.List;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
 import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
+import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
 import static com.clickhouse.benchmark.TestEnvironment.getPassword;
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
 import static com.clickhouse.benchmark.TestEnvironment.getUsername;
 import static com.clickhouse.benchmark.TestEnvironment.isCloud;
+import static com.clickhouse.benchmark.TestEnvironment.setupEnvironment;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
@@ -72,7 +74,7 @@ public class BenchmarkBase {
 
     @State(Scope.Benchmark)
     public static class DataState {
-        @Param({"file://dataset_500k.csv"})
+        @Param({"simple"})
         String datasetSourceName;
         @Param({"300000", "220000", "100000", "10000"})
         int limit;
@@ -85,6 +87,8 @@ public class BenchmarkBase {
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) {
+        setupEnvironment();
+
         LOGGER.info("Setup benchmarks using dataset: {}", dataState.datasetSourceName);
         if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
             dataState.dataSet = new SimpleDataSet();
@@ -99,7 +103,7 @@ public class BenchmarkBase {
 
     @Setup(Level.Trial)
     public void tearDown() {
-        //cleanupEnvironment();
+//        cleanupEnvironment();
     }
 
 
@@ -107,8 +111,12 @@ public class BenchmarkBase {
         LOGGER.info("Initializing tables: {}, {}", dataState.tableNameFilled, dataState.tableNameEmpty);
         LOGGER.debug("Create {}: {}", dataState.tableNameFilled, dataState.dataSet.getCreateTableString(dataState.tableNameFilled));
         LOGGER.debug("Create {}: {}", dataState.tableNameEmpty, dataState.dataSet.getCreateTableString(dataState.tableNameEmpty));
+        //Truncate tables if they exist
+        truncateTable(dataState.tableNameEmpty);
+        truncateTable(dataState.tableNameFilled);
         runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameEmpty), dataState.tableNameEmpty);
         runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameFilled), dataState.tableNameFilled);
+        //A happy side effect of the above is that the tables are created if they don't exist, and if they do they are truncated + synced
 
         ClickHouseFormat format = dataState.dataSet.getFormat();
         LOGGER.debug("Inserting data into table: {}, format: {}", dataState.tableNameFilled, format);

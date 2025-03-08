@@ -16,15 +16,11 @@ import static com.clickhouse.benchmark.clients.BenchmarkBase.runQuery;
 
 public class TestEnvironment {
     private static final Logger LOGGER = LoggerFactory.getLogger(TestEnvironment.class);
-    public static final String DB_NAME;
+    public static final String DB_NAME = "jmh_benchmarks";
     private static final String CLICKHOUSE_DOCKER_IMAGE = "clickhouse/clickhouse-server:latest";
     private static ClickHouseNode serverNode;
     private static ClickHouseContainer container;
 
-    static {
-        DB_NAME = "benchmarks_" + System.currentTimeMillis();
-        setupEnvironment();
-    }
 
     //Environment Variables
     public static boolean isCloud() {

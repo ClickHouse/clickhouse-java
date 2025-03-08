@@ -27,7 +27,6 @@ public class BenchmarkRunner {
         LOGGER.info("Starting Benchmarks");
         Map<String, String> argMap = parseArguments(args);
 
-
         Options opt = new OptionsBuilder()
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
                 .include(QueryClient.class.getSimpleName())
