@@ -1,12 +1,9 @@
 package com.clickhouse.benchmark.clients;
 
 import com.clickhouse.benchmark.BenchmarkRunner;
-import com.clickhouse.benchmark.TestEnvironment;
 import com.clickhouse.benchmark.data.DataSet;
-import com.clickhouse.benchmark.data.DataSets;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
-import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
@@ -40,7 +37,6 @@ import java.util.List;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
 import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
-import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
 import static com.clickhouse.benchmark.TestEnvironment.getPassword;
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
 import static com.clickhouse.benchmark.TestEnvironment.getUsername;
@@ -111,12 +107,11 @@ public class BenchmarkBase {
         LOGGER.info("Initializing tables: {}, {}", dataState.tableNameFilled, dataState.tableNameEmpty);
         LOGGER.debug("Create {}: {}", dataState.tableNameFilled, dataState.dataSet.getCreateTableString(dataState.tableNameFilled));
         LOGGER.debug("Create {}: {}", dataState.tableNameEmpty, dataState.dataSet.getCreateTableString(dataState.tableNameEmpty));
-        //Truncate tables if they exist
-        truncateTable(dataState.tableNameEmpty);
-        truncateTable(dataState.tableNameFilled);
         runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameEmpty), dataState.tableNameEmpty);
         runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameFilled), dataState.tableNameFilled);
-        //A happy side effect of the above is that the tables are created if they don't exist, and if they do they are truncated + synced
+        //Truncate tables if they existed
+        truncateTable(dataState.tableNameEmpty);
+        truncateTable(dataState.tableNameFilled);
 
         ClickHouseFormat format = dataState.dataSet.getFormat();
         LOGGER.debug("Inserting data into table: {}, format: {}", dataState.tableNameFilled, format);
@@ -152,6 +147,7 @@ public class BenchmarkBase {
             runQuery(getSyncQuery(tableName));
         }
     }
+
 
     public static void truncateTable(String tableName) {
         LOGGER.info("Truncating table: {}", tableName);
