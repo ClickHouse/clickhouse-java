@@ -2,6 +2,7 @@ package com.clickhouse.benchmark;
 
 
 import com.clickhouse.benchmark.clients.BenchmarkBase;
+import com.clickhouse.benchmark.clients.Components;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.data.DataSet;
@@ -31,17 +32,19 @@ public class BenchmarkRunner {
 
         Options opt = new OptionsBuilder()
                 .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
-                .include(QueryClient.class.getSimpleName())
-                .include(InsertClient.class.getSimpleName())
+//                .include(QueryClient.class.getSimpleName())
+//                .include(InsertClient.class.getSimpleName())
+                .include(Components.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.AverageTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(3)
+                .addProfiler("async", "libPath=/Users/mark.zitnik/Downloads/async-profiler-3.0-macos/lib/libasyncProfiler.dylib;output=flamegraph;dir=profile-results;event=alloc")
+                .warmupIterations(0)
                 .warmupTime(TimeValue.seconds(10))
-                .measurementIterations(5)
+                .measurementIterations(3)
                 .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(10))
                 .resultFormat(ResultFormatType.JSON)

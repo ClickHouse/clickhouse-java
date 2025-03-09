@@ -49,6 +49,7 @@ public class BenchmarkBase {
     protected Client clientV2;
     @Setup(Level.Iteration)
     public void setUpIteration() {
+//        ClickHouseServerForTest.beforeSuite();
         clientV1 = getClientV1();
         clientV2 = getClientV2();
 
@@ -70,7 +71,8 @@ public class BenchmarkBase {
     public static class DataState {
         @Param({"simple"})
         String datasetSourceName;
-        @Param({"300000", "220000", "100000", "10000"})
+//        @Param({"300000", "220000", "100000", "10000"})
+        @Param({"100000", "10000"})
         int limit;
 
         DataSet dataSet;
@@ -134,11 +136,18 @@ public class BenchmarkBase {
     }
 
     public static void verifyRowsInsertedAndCleanup(DataSet dataSet) {
+        verifyRowsInsertedAndCleanup(dataSet, true);
+
+    }
+
+    public static void verifyRowsInsertedAndCleanup(DataSet dataSet, boolean checkRows) {
         try {
-            List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(dataSet), true);
-            BigInteger count = records.get(0).getBigInteger(1);
-            if (count.longValue() != dataSet.getSize()) {
-                throw new IllegalStateException("Rows written: " + count + " Expected " + dataSet.getSize() + " rows");
+            if (checkRows) {
+                List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(dataSet), true);
+                BigInteger count = records.get(0).getBigInteger(1);
+                if (count.longValue() != dataSet.getSize()) {
+                    throw new IllegalStateException("Rows written: " + count + " Expected " + dataSet.getSize() + " rows");
+                }
             }
             runQuery("TRUNCATE TABLE IF EXISTS `" + dataSet.getTableName() + "`", true);
         } catch (Exception e) {
