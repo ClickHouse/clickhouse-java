@@ -82,6 +82,7 @@ public class BenchmarkBase {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
         } else if (dataState.datasetSourceName.startsWith("file://")) {
+            LOGGER.info("Loading data from file " + dataState.datasetSourceName + " with limit " + dataState.limit);
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
             dataState.datasetSourceName = dataState.dataSet.getName();
         }

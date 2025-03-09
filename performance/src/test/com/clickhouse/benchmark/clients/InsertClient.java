@@ -63,7 +63,7 @@ public class InsertClient extends BenchmarkBase {
                     .executeAndWait()) {
                 ClickHouseResponseSummary summary = response.getSummary();
                 if (summary.getWrittenRows() != dataState.limit) {
-                    throw new IllegalStateException("Rows written: " + summary.getWrittenRows());
+                    throw new IllegalStateException("Rows written: " + summary.getWrittenRows() + ", expected: " + dataState.limit);
                 }
             }
         } catch (Exception e) {
