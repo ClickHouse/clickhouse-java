@@ -8,11 +8,14 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.clickhouse.ClickHouseContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.Collections;
 
 import static com.clickhouse.benchmark.clients.BenchmarkBase.runQuery;
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 public class TestEnvironment {
     private static final Logger LOGGER = LoggerFactory.getLogger(TestEnvironment.class);
@@ -40,7 +43,7 @@ public class TestEnvironment {
             if (isCloud()) {//Default handling for ClickHouse Cloud
                 port = "8443";
             } else {
-                port = String.valueOf(container.getFirstMappedPort());
+                port = String.valueOf(container.getMappedPort(8123));
             }
         }
 
@@ -80,19 +83,22 @@ public class TestEnvironment {
         if (isCloud()) {
             LOGGER.info("Using ClickHouse Cloud");
             container = null;
-            serverNode = ClickHouseNode.builder(ClickHouseNode.builder().build())
-                    .address(ClickHouseProtocol.HTTP, new InetSocketAddress(getHost(), getPort()))
-                    .credentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
-                    .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), "true"))
-                    .database(DB_NAME)
-                    .build();
         } else {
             LOGGER.info("Using ClickHouse Docker container");
-            container = new ClickHouseContainer(CLICKHOUSE_DOCKER_IMAGE).withPassword(getPassword()).withEnv("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1");
+            container = new ClickHouseContainer(CLICKHOUSE_DOCKER_IMAGE)
+                    .withPassword("testing_password")
+                    .withEnv("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
+                    .withExposedPorts(8123, 8443)
+                    .waitingFor(Wait.forHttp("/ping").forPort(8123).forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
             container.start();
-
-            serverNode = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
         }
+
+        serverNode = ClickHouseNode.builder(ClickHouseNode.builder().build())
+                .address(ClickHouseProtocol.HTTP, new InetSocketAddress(getHost(), getPort()))
+                .credentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
+                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), isCloud() ? "true" : "false"))
+                .database(DB_NAME)
+                .build();
 
         createDatabase();
     }
