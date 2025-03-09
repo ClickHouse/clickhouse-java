@@ -55,3 +55,5 @@ profile.html
 **/test/resources/test.properties
 performance/jmh-simple-results.json
 *.csv
+*.sql
+*.json

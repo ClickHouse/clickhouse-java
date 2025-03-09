@@ -8,7 +8,6 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.shaded.com.google.common.collect.Table;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -25,7 +24,7 @@ public class FileDataSet implements DataSet{
     private final String name;
 
     private final String createTableStmt;
-    private final TableSchema schema;
+    private TableSchema schema = new TableSchema();
 
     private final Map<String, String> metadata = new HashMap<>();
 
@@ -34,6 +33,7 @@ public class FileDataSet implements DataSet{
     private List<Map<String, Object>> data;
 
     public FileDataSet(String filePath, int limit) {
+        LOGGER.info("Reading file {}", filePath);
         File srcFile = new File(filePath);
 
         try (BufferedReader r = new BufferedReader(new java.io.FileReader(srcFile))) {
@@ -73,13 +73,11 @@ public class FileDataSet implements DataSet{
                 } else {
                     throw new IllegalArgumentException("Invalid file format: " + srcFile.getAbsolutePath());
                 }
-
             }
             this.name = name;
             this.createTableStmt = createStatement != null ? createStatement.toString() : null;
-            this.schema = DataSets.parseSchema(createTableStmt);
-            LOGGER.info("Read " + lines.size() + " lines from " + srcFile.getAbsolutePath());
-
+//            this.schema = DataSets.parseSchema(createTableStmt);
+            LOGGER.info("Read {} lines from {}", lines.size(), srcFile.getAbsolutePath());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to read file: " + srcFile.getAbsolutePath(), e);
         }
@@ -91,28 +89,18 @@ public class FileDataSet implements DataSet{
     }
 
     @Override
-    public String getTableName() {
-        return "data_" + name;
-    }
-
-    @Override
     public int getSize() {
         return lines.size();
     }
 
     @Override
-    public String getCreateTableString() {
-        return createTableStmt;
-    }
-    @Override
-    public String getTrucateTableString() {
-        return "TRUNCATE TABLE " + getTableName();
+    public String getCreateTableString(String tableName) {
+        return String.format("CREATE TABLE IF NOT EXISTS %s %s", tableName, createTableStmt);
     }
 
-    private TableSchema tableSchema = new TableSchema();
     @Override
     public TableSchema getSchema() {
-        return tableSchema;
+        return schema;
     }
 
     @Override
@@ -145,7 +133,7 @@ public class FileDataSet implements DataSet{
     @Override
     public void setClickHouseRecords(List<ClickHouseRecord> records) {
         this.clickHouseRecords = records;
-        List<ClickHouseColumn> columns = tableSchema.getColumns();
+        List<ClickHouseColumn> columns = schema.getColumns();
         data = new ArrayList<>(records.size());
         for (ClickHouseRecord record : records) {
             Iterator<ClickHouseValue> vIter = record.iterator();
@@ -169,8 +157,9 @@ public class FileDataSet implements DataSet{
     @Override
     public void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor) {
         this.dataProcessor = dataProcessor;
+        this.schema = new TableSchema();
         for (ClickHouseColumn column : dataProcessor.getColumns()) {
-            tableSchema.addColumn(column.getColumnName(), column.getOriginalTypeName());
+            schema.addColumn(column.getColumnName(), column.getOriginalTypeName());
         }
     }
 

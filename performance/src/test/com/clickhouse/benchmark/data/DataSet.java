@@ -13,11 +13,9 @@ import java.util.Map;
 
 public interface DataSet {
     String getName();
-    String getTableName();
     int getSize();
 
-    String getCreateTableString();
-    String getTrucateTableString();
+    String getCreateTableString(String tableName);
     ClickHouseFormat getFormat();
 
     TableSchema getSchema();
