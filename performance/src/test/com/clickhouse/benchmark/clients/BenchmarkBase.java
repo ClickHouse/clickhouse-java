@@ -37,6 +37,7 @@ import java.util.List;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
 import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
+import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
 import static com.clickhouse.benchmark.TestEnvironment.getPassword;
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
 import static com.clickhouse.benchmark.TestEnvironment.getUsername;
@@ -97,9 +98,9 @@ public class BenchmarkBase {
         initializeTables(dataState);
     }
 
-    @Setup(Level.Trial)
+    @TearDown(Level.Trial)
     public void tearDown() {
-//        cleanupEnvironment();
+        cleanupEnvironment();
     }
 
 
