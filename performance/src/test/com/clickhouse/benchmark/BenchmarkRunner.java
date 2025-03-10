@@ -28,7 +28,7 @@ public class BenchmarkRunner {
         Map<String, String> argMap = parseArguments(args);
 
         Options opt = new OptionsBuilder()
-                .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
+//                .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
