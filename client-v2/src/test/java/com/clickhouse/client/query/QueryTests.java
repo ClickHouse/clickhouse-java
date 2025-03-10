@@ -1561,7 +1561,9 @@ public class QueryTests extends BaseIntegrationTest {
     public void testExecuteQueryParam() throws ExecutionException, InterruptedException, TimeoutException {
 
         final String table = "execute_query_test";
-        Map<String, Object> query_param = Map.of("table_name",table, "engine","MergeTree");
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
         client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
         client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()", query_param)
                 .get(10, TimeUnit.SECONDS);
@@ -1575,7 +1577,9 @@ public class QueryTests extends BaseIntegrationTest {
 
         final String table = "execute_query_test";
         String q1Id = UUID.randomUUID().toString();
-        Map<String, Object> query_param = Map.of("table_name",table, "engine","MergeTree");
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
         client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
         client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()",
                         query_param, (CommandSettings) new CommandSettings().setQueryId(q1Id))
