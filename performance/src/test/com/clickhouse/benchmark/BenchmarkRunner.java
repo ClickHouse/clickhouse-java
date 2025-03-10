@@ -28,11 +28,10 @@ public class BenchmarkRunner {
         Map<String, String> argMap = parseArguments(args);
 
         Options opt = new OptionsBuilder()
-//                .param("datasetSourceName", argMap.getOrDefault("dataset", "simple"))
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
-                .mode(Mode.AverageTime)
+                .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)
                 .addProfiler(GCProfiler.class)
@@ -41,7 +40,7 @@ public class BenchmarkRunner {
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
-                .measurementTime(TimeValue.seconds(10))
+                .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
                 .resultFormat(ResultFormatType.JSON)
                 .result(String.format("jmh-results-%s-%s.json", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .build();
