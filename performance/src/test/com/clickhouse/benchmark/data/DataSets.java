@@ -1,7 +1,5 @@
 package com.clickhouse.benchmark.data;
 
-import com.clickhouse.benchmark.clients.BenchmarkBase;
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

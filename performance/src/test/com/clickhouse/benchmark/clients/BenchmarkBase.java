@@ -71,7 +71,7 @@ public class BenchmarkBase {
 
     @State(Scope.Benchmark)
     public static class DataState {
-        @Param({"simple"})
+        @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
         @Param({"300000", "220000", "100000", "10000"})
         int limit;
@@ -89,10 +89,8 @@ public class BenchmarkBase {
         LOGGER.info("Setup benchmarks using dataset: {}", dataState.datasetSourceName);
         if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
             dataState.dataSet = new SimpleDataSet();
-            dataState.datasetSourceName = "simple";
         } else if (dataState.datasetSourceName.startsWith("file://")) {
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
-            dataState.datasetSourceName = dataState.dataSet.getName();
         }
 
         initializeTables(dataState);
