@@ -47,6 +47,13 @@
             <artifactId>testng</artifactId>
             <version>${testng.version}</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.testcontainers/clickhouse -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>clickhouse</artifactId>
+            <version>${testcontainers.version}</version>
+        </dependency>
+
 
         <!-- Performance Test Dependencies -->
         <dependency>
