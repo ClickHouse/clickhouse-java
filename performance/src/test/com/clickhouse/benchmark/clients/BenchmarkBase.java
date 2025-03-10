@@ -93,19 +93,26 @@ public class BenchmarkBase {
             this.limit = limit;
         }
 
+        public void setTableNameFilled(String tableNameFilled) {
+            this.tableNameFilled = tableNameFilled;
+        }
+
+        public void setTableNameEmpty(String tableNameEmpty) {
+            this.tableNameEmpty = tableNameEmpty;
+        }
+
     }
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) {
         setupEnvironment();
         LOGGER.info("Setup benchmarks using dataset: {}", dataState.datasetSourceName);
-        if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
+        if (dataState.dataSet == null && "simple".equals(dataState.datasetSourceName)) {
             dataState.dataSet = new SimpleDataSet();
         } else if (dataState.dataSet == null && dataState.datasetSourceName.startsWith("file://")) {
             LOGGER.info("Loading data from file " + dataState.datasetSourceName + " with limit " + dataState.limit);
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
         }
-
         initializeTables(dataState);
     }
 
