@@ -63,17 +63,12 @@ public class SimpleDataSet implements DataSet {
     }
 
     @Override
-    public String getTableName() {
-        return tableName;
-    }
-
-    @Override
     public int getSize() {
         return size;
     }
 
     @Override
-    public String getCreateTableString() {
+    public String getCreateTableString(String tableName) {
         return "CREATE TABLE IF NOT EXISTS " + tableName + " (\n" +
                 "    trip_id             UInt32,\n" +
                 "    pickup_datetime     DateTime DEFAULT now(),\n" +
@@ -95,11 +90,6 @@ public class SimpleDataSet implements DataSet {
                 ")\n" +
                 "ENGINE = MergeTree\n" +
                 "PRIMARY KEY (pickup_datetime, dropoff_datetime);";
-    }
-
-    @Override
-    public String getTrucateTableString() {
-        return "TRUNCATE TABLE " + getTableName();
     }
 
     @Override
