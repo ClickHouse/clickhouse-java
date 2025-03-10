@@ -72,16 +72,28 @@ public class BenchmarkBase {
         String datasetSourceName;
         @Param({"300000", "220000", "100000", "10000"})
         int limit;
-
         DataSet dataSet;
+
+        public void setDataSet(DataSet dataSet) {
+            this.dataSet = dataSet;
+        }
+
+        public void setDatasetSourceName(String datasetSourceName) {
+            this.datasetSourceName = datasetSourceName;
+        }
+
+        public void setLimit(int limit) {
+            this.limit = limit;
+        }
+
     }
 
     public void setup(DataState dataState, boolean insertData) throws Exception {
         LOGGER.info("Setup BenchmarkBase using " + dataState.datasetSourceName + " dataset.");
-        if ("simple".equals(dataState.datasetSourceName) && dataState.dataSet == null) {
+        if (dataState.dataSet == null && "simple".equals(dataState.datasetSourceName)) {
             dataState.datasetSourceName = "simple";
             dataState.dataSet = new SimpleDataSet();
-        } else if (dataState.datasetSourceName.startsWith("file://")) {
+        } else if (dataState.dataSet == null && dataState.datasetSourceName.startsWith("file://")) {
             LOGGER.info("Loading data from file " + dataState.datasetSourceName + " with limit " + dataState.limit);
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
             dataState.datasetSourceName = dataState.dataSet.getName();
