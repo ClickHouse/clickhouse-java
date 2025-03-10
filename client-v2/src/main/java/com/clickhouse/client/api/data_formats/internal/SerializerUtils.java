@@ -737,7 +737,9 @@ public class SerializerUtils {
     }
 
     public static BigDecimal convertToBigDecimal(Object value) {
-        if (value instanceof BigInteger) {
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        } else if (value instanceof BigInteger) {
             return new BigDecimal((BigInteger) value);
         } else if (value instanceof Number) {
             return BigDecimal.valueOf(((Number) value).doubleValue());
