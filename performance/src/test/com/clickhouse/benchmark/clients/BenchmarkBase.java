@@ -81,6 +81,9 @@ public class BenchmarkBase {
         String tableNameFilled;
         @Param({"data_empty"})
         String tableNameEmpty;
+
+        @Param({"true"})
+        boolean useClientCompression = true;
         DataSet dataSet;
 
         public void setDataSet(DataSet dataSet) {
