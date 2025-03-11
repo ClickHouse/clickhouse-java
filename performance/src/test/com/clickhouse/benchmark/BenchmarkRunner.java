@@ -1,5 +1,7 @@
 package com.clickhouse.benchmark;
 
+
+import com.clickhouse.benchmark.clients.Components;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.QueryClient;
 import org.openjdk.jmh.annotations.Mode;
@@ -30,6 +32,7 @@ public class BenchmarkRunner {
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
+                .include(Components.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
