@@ -17,14 +17,11 @@ public class Components extends BenchmarkBase {
     @Benchmark
     public void CompressingOutputStreamV1(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); ClickHouseOutputStream out =
-                new Lz4OutputStream(baos, 4 * 8196, null)) {
+                new Lz4OutputStream(baos, 8196, null)) {
             for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
                 out.write(bytes);
             }
-            int size = baos.size();
-            LOGGER.info("Compressed size: " + size);
         } catch (Exception e) {
             LOGGER.error("Error: ", e);
         }
@@ -35,10 +32,9 @@ public class Components extends BenchmarkBase {
     @Benchmark
     public void CompressingOutputStreamV2(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
-                factory.fastCompressor(), 4 * 8196)) {
+                factory.fastCompressor(),  8196)) {
             for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
                 out.write(bytes);
             }

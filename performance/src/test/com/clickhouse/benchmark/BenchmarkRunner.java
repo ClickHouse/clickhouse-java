@@ -39,7 +39,7 @@ public class BenchmarkRunner {
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(0)
+                .warmupIterations(3)
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")

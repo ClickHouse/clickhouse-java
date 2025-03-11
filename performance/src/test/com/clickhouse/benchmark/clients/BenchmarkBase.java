@@ -52,7 +52,6 @@ public class BenchmarkBase {
     protected Client clientV2;
     @Setup(Level.Iteration)
     public void setUpIteration() {
-//        ClickHouseServerForTest.beforeSuite();
         clientV1 = getClientV1();
         clientV2 = getClientV2();
 
@@ -74,8 +73,7 @@ public class BenchmarkBase {
     public static class DataState {
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-//        @Param({"300000", "220000", "100000", "10000"})
-        @Param({"100000", "10000"})
+        @Param({"300000", "220000", "100000", "10000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
