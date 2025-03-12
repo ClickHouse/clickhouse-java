@@ -42,7 +42,7 @@ public class InsertClient extends BenchmarkBase {
             try (ClickHouseResponse response = clientV1.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
-                    .option(ClickHouseClientOption.COMPRESS, dataState.useClientCompression)
+                    .option(ClickHouseClientOption.DECOMPRESS, dataState.useClientCompression)
                     .format(format)
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
