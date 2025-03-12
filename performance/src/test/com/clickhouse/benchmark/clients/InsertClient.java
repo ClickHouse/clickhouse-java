@@ -57,7 +57,7 @@ public class InsertClient extends BenchmarkBase {
             try (ClickHouseResponse response = clientV1.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
-                    .option(ClickHouseClientOption.COMPRESS, dataState.useClientCompression)
+                    .option(ClickHouseClientOption.DECOMPRESS, false)
                     .format(format)
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
@@ -81,7 +81,46 @@ public class InsertClient extends BenchmarkBase {
                     out.write(bytes);
                 }
                 out.close();
-            }, format, new InsertSettings().compressClientRequest(dataState.useClientCompression)).get()) {
+            }, format, new InsertSettings().compressClientRequest(false)).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV1Compressed(DataState dataState) {
+        try {
+            ClickHouseFormat format = dataState.dataSet.getFormat();
+            try (ClickHouseResponse response = clientV1.read(getServer())
+                    .write()
+                    .option(ClickHouseClientOption.ASYNC, false)
+                    .option(ClickHouseClientOption.DECOMPRESS, true)
+                    .format(format)
+                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .data(out -> {
+                        for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
+                            out.write(bytes);
+                        }
+                    }).executeAndWait()) {
+                response.getSummary();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2Compressed(DataState dataState) {
+        try {
+            ClickHouseFormat format = dataState.dataSet.getFormat();
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
+                    out.write(bytes);
+                }
+                out.close();
+            }, format, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
@@ -97,6 +136,7 @@ public class InsertClient extends BenchmarkBase {
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
+                    .option(ClickHouseClientOption.DECOMPRESS, false)
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
@@ -131,7 +171,8 @@ public class InsertClient extends BenchmarkBase {
                 }
                 out.flush();
 
-            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()
+                    .compressClientRequest(false)).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {

@@ -12,6 +12,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseFormat;
@@ -77,11 +78,10 @@ public class BenchmarkBase {
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
+
         @Param({"data_empty"})
         String tableNameEmpty;
 
-        @Param({"true"})
-        boolean useClientCompression = true;
         DataSet dataSet;
 
         public void setDataSet(DataSet dataSet) {
