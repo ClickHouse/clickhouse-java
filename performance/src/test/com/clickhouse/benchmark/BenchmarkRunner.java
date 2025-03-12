@@ -32,7 +32,7 @@ public class BenchmarkRunner {
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getSimpleName())
                 .include(InsertClient.class.getSimpleName())
-                .include(Components.class.getSimpleName())
+//                .include(Components.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
