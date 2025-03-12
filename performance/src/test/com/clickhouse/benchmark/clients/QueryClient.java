@@ -29,7 +29,7 @@ public class QueryClient extends BenchmarkBase {
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
                     for (int i = 0; i < dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        isNotNull(record.getValue(i).asObject(), false);
+                        isNotNull(record.getValue(i), false);
                     }
                 }
             }
