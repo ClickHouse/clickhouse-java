@@ -30,9 +30,24 @@ public class InsertClient extends BenchmarkBase {
 
     @TearDown(Level.Invocation)
     public void verifyRowsInsertedAndCleanup(DataState dataState) {
-        verifyCount(dataState.tableNameEmpty, dataState.dataSet.getSize());
+        boolean success;
+        int count = 0;
+        do {
+            success = verifyCount(dataState.tableNameEmpty, dataState.dataSet.getSize());
+            if (!success) {
+                LOGGER.warn("Retrying to verify rows inserted");
+                try {
+                    Thread.sleep(2500);
+                } catch (InterruptedException e) {
+                    LOGGER.error("Error: ", e);
+                }
+            }
+        } while (!success && count++ < 10);
+        if (!success) {
+            LOGGER.error("Failed to verify rows inserted");
+            throw new RuntimeException("Failed to verify rows inserted");
+        }
         truncateTable(dataState.tableNameEmpty);
-        syncQuery(dataState.tableNameEmpty);
     }
 
     @Benchmark

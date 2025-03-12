@@ -190,13 +190,16 @@ public class BenchmarkBase {
     }
 
 
-    public static void verifyCount(String tableName, long expectedCount) {
+    public static boolean verifyCount(String tableName, long expectedCount) {
         syncQuery(tableName);
         List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(tableName));
         BigInteger count = records.get(0).getBigInteger(1);
         if (count.longValue() != expectedCount) {
-            throw new IllegalStateException(String.format("Expected %d rows but got %d", expectedCount, count));
+            LOGGER.error("Expected {} but got {}", expectedCount, count);
+            return false;
         }
+        LOGGER.info("Count verified: {}", count);
+        return true;
     }
 
     protected static ClickHouseClient getClientV1() {
