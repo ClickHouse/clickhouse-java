@@ -57,7 +57,6 @@ public class InsertClient extends BenchmarkBase {
             try (ClickHouseResponse response = clientV1.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
-                    .option(ClickHouseClientOption.DECOMPRESS, false)
                     .format(format)
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
@@ -81,7 +80,7 @@ public class InsertClient extends BenchmarkBase {
                     out.write(bytes);
                 }
                 out.close();
-            }, format, new InsertSettings().compressClientRequest(false)).get()) {
+            }, format, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
@@ -120,7 +119,8 @@ public class InsertClient extends BenchmarkBase {
                     out.write(bytes);
                 }
                 out.close();
-            }, format, new InsertSettings()).get()) {
+            }, format, new InsertSettings()
+                    .compressClientRequest(true)).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
@@ -136,7 +136,6 @@ public class InsertClient extends BenchmarkBase {
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
-                    .option(ClickHouseClientOption.DECOMPRESS, false)
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
@@ -171,8 +170,7 @@ public class InsertClient extends BenchmarkBase {
                 }
                 out.flush();
 
-            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()
-                    .compressClientRequest(false)).get()) {
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
