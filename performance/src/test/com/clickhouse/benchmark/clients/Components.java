@@ -108,9 +108,11 @@ public class Components extends BenchmarkBase {
         try {
             RowBinaryFormatWriter w = new RowBinaryFormatWriter(empty, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
             List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
-            for (Map<String, Object> row : dataState.dataSet.getRows()) {
-                for (ClickHouseColumn column : columns) {
-                    w.setValue(column.getColumnName(),row.get(column.getColumnName()));
+            for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                int index = 0;
+                for (Object value : row) {
+                    w.setValue(columns.get(index).getColumnName(), value);
+                    index++;
                 }
                 w.commitRow();
             }

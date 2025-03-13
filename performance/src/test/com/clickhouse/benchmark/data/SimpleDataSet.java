@@ -155,6 +155,10 @@ public class SimpleDataSet implements DataSet {
         return data.subList(0, numRows);
     }
     @Override
+    public List<List<Object>> getRowsOrdered() {
+        return null;
+    }
+    @Override
     public List<ClickHouseRecord> getClickHouseRecordsLimit(int numRows) {
         return clickHouseRecords.subList(0, numRows);
     }
