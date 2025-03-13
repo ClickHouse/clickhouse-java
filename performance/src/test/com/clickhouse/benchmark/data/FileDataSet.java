@@ -117,6 +117,14 @@ public class FileDataSet implements DataSet{
     public List<Map<String, Object>> getRows() {
         return data;
     }
+    @Override
+    public List<Map<String, Object>> getRowsLimit(int numRows) {
+        return data.subList(0, numRows);
+    }
+    @Override
+    public List<ClickHouseRecord> getClickHouseRecordsLimit(int numRows) {
+        return clickHouseRecords.subList(0, numRows);
+    }
 
     @Override
     public ClickHouseFormat getFormat() {
