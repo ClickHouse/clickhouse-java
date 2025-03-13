@@ -86,7 +86,6 @@ public class Components extends BenchmarkBase {
     @Benchmark
     public void SerializerOutputStreamV1(DataState dataState) {
         OutputStream empty = createEmptyOutputStream();
-
         try {
             ClickHouseOutputStream chos = ClickHouseOutputStream.of(empty);
             ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
@@ -107,11 +106,10 @@ public class Components extends BenchmarkBase {
         OutputStream empty = createEmptyOutputStream();
         try {
             RowBinaryFormatWriter w = new RowBinaryFormatWriter(empty, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
-            List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
             for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
-                int index = 0;
+                int index = 1;
                 for (Object value : row) {
-                    w.setValue(columns.get(index).getColumnName(), value);
+                    w.setValue(index, value);
                     index++;
                 }
                 w.commitRow();
