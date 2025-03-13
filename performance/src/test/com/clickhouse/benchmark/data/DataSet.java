@@ -44,6 +44,11 @@ public interface DataSet {
 
     List<ClickHouseRecord> getClickHouseRecords();
 
+    List<Map<String, Object>> getRowsLimit(int numRows);
+
+    List<ClickHouseRecord> getClickHouseRecordsLimit(int numRows);
+    List<List<Object>> getRowsOrdered();
+
     void setClickHouseRecords(List<ClickHouseRecord> records);
 
     void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor);

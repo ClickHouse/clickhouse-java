@@ -150,7 +150,18 @@ public class SimpleDataSet implements DataSet {
     public List<ClickHouseRecord> getClickHouseRecords() {
         return clickHouseRecords;
     }
-
+    @Override
+    public List<Map<String, Object>> getRowsLimit(int numRows) {
+        return data.subList(0, numRows);
+    }
+    @Override
+    public List<List<Object>> getRowsOrdered() {
+        return null;
+    }
+    @Override
+    public List<ClickHouseRecord> getClickHouseRecordsLimit(int numRows) {
+        return clickHouseRecords.subList(0, numRows);
+    }
     @Override
     public void setClickHouseRecords(List<ClickHouseRecord> records) {
         clickHouseRecords = records;

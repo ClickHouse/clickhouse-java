@@ -162,19 +162,22 @@ public class InsertClient extends BenchmarkBase {
             try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
                 RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
                 List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
-                for (Map<String, Object> row : dataState.dataSet.getRows()) {
-                    for (ClickHouseColumn column : columns) {
-                        w.setValue(column.getColumnName(),row.get(column.getColumnName()));
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
                     }
                     w.commitRow();
                 }
                 out.flush();
 
-            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings().compressClientRequest(true)).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
             LOGGER.error("Error: ", e);
         }
     }
+
 }

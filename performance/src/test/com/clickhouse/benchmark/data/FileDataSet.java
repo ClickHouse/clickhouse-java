@@ -31,6 +31,7 @@ public class FileDataSet implements DataSet{
     private List<byte[]> lines =null;
 
     private List<Map<String, Object>> data;
+    private List<List<Object>> dataOrdered;
 
     public FileDataSet(String filePath, int limit) {
         LOGGER.info("Reading file {}", filePath);
@@ -117,7 +118,18 @@ public class FileDataSet implements DataSet{
     public List<Map<String, Object>> getRows() {
         return data;
     }
-
+    @Override
+    public List<Map<String, Object>> getRowsLimit(int numRows) {
+        return data.subList(0, numRows);
+    }
+    @Override
+    public List<ClickHouseRecord> getClickHouseRecordsLimit(int numRows) {
+        return clickHouseRecords.subList(0, numRows);
+    }
+    @Override
+    public List<List<Object>> getRowsOrdered() {
+        return dataOrdered;
+    }
     @Override
     public ClickHouseFormat getFormat() {
         return ClickHouseFormat.CSV;
@@ -134,17 +146,24 @@ public class FileDataSet implements DataSet{
     public void setClickHouseRecords(List<ClickHouseRecord> records) {
         this.clickHouseRecords = records;
         List<ClickHouseColumn> columns = schema.getColumns();
+        dataOrdered = new ArrayList<>(records.size());
         data = new ArrayList<>(records.size());
         for (ClickHouseRecord record : records) {
             Iterator<ClickHouseValue> vIter = record.iterator();
             int i = 0;
             Map<String, Object> row = new HashMap<>();
+            List<Object> rowOrdered = new ArrayList<>(columns.size());
             while (vIter.hasNext()) {
                 ClickHouseValue v = vIter.next();
                 row.put(columns.get(i++).getColumnName(), v.asObject());
+
+                rowOrdered.add(v.asObject());
             }
             data.add(row);
+            dataOrdered.add(rowOrdered);
+
         }
+
     }
 
     private ClickHouseDataProcessor dataProcessor;
