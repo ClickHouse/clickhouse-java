@@ -125,7 +125,7 @@ public class TableSchema {
         if (index == null) {
             throw new NoSuchColumnException("Result has no column with name '" + name + "'");
         }
-        return colIndex.get(name).intValue();
+        return index;
     }
 
     @Override
