@@ -29,6 +29,8 @@ public class RowBinaryFormatWriter {
 
     private final Object[] row;
 
+    private final boolean defaultSupport;
+
     public RowBinaryFormatWriter(OutputStream out, TableSchema tableSchema, ClickHouseFormat format) {
         if (format != ClickHouseFormat.RowBinary && format != ClickHouseFormat.RowBinaryWithDefaults) {
             throw new IllegalArgumentException("Only RowBinary and RowBinaryWithDefaults are supported");
@@ -37,6 +39,7 @@ public class RowBinaryFormatWriter {
         this.out = out;
         this.tableSchema = tableSchema;
         this.row = new Object[tableSchema.getColumns().size()];
+        this.defaultSupport = format == ClickHouseFormat.RowBinaryWithDefaults;
     }
 
     public void setValue(String column, Object value) {
@@ -48,12 +51,11 @@ public class RowBinaryFormatWriter {
     }
 
     public void commitRow() throws IOException {
-
         List<ClickHouseColumn> columnList = tableSchema.getColumns();
         for (int i = 0; i < row.length; i++) {
             ClickHouseColumn column = columnList.get(i);
 
-            if (RowBinaryFormatSerializer.writeValuePreamble(out, true, column, row[i])) {
+            if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
                 SerializerUtils.serializeData(out, row[i], column);
             }
         }
