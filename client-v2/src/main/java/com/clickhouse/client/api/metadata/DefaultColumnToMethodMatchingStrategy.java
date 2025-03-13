@@ -29,9 +29,9 @@ public class DefaultColumnToMethodMatchingStrategy implements ColumnToMethodMatc
         this("^(get|is|has).+", "^(set).+", "^(get|set|is|has)|_", "[-_.]");
     }
 
-    public DefaultColumnToMethodMatchingStrategy(String getterPatternRegEx, String setterPaternRegEx, String methodReplacePatternRegEx, String columnReplacePatternRegEx) {
+    public DefaultColumnToMethodMatchingStrategy(String getterPatternRegEx, String setterPatternRegEx, String methodReplacePatternRegEx, String columnReplacePatternRegEx) {
         this.getterPattern = Pattern.compile(getterPatternRegEx);
-        this.setterPattern = Pattern.compile(setterPaternRegEx);
+        this.setterPattern = Pattern.compile(setterPatternRegEx);
         this.methodReplacePattern = Pattern.compile(methodReplacePatternRegEx);
         this.columnReplacePattern = Pattern.compile(columnReplacePatternRegEx);
     }
