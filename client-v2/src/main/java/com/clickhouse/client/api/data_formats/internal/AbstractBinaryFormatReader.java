@@ -222,8 +222,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
-
-            switch (column.getDataType()) {
+            ClickHouseDataType columnDataType = column.getDataType();
+            if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
+                columnDataType = column.getNestedColumns().get(0).getDataType();
+            }
+            switch (columnDataType) {
                 case Int8:
                 case Int16:
                 case UInt8:
@@ -378,7 +381,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public Instant getInstant(String colName) {
         int colIndex = schema.nameToIndex(colName);
         ClickHouseColumn column = schema.getColumns().get(colIndex);
-        switch (column.getDataType()) {
+        ClickHouseDataType columnDataType = column.getDataType();
+        if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
+            columnDataType = column.getNestedColumns().get(0).getDataType();
+        }
+        switch (columnDataType) {
             case Date:
             case Date32:
                 LocalDate data = readValue(colName);
@@ -402,7 +409,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public ZonedDateTime getZonedDateTime(String colName) {
         int colIndex = schema.nameToIndex(colName);
         ClickHouseColumn column = schema.getColumns().get(colIndex);
-        switch (column.getDataType()) {
+        ClickHouseDataType columnDataType = column.getDataType();
+        if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
+            columnDataType = column.getNestedColumns().get(0).getDataType();
+        }
+        switch (columnDataType) {
             case DateTime:
             case DateTime64:
             case Date:
