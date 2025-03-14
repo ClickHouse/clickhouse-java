@@ -140,13 +140,11 @@ public class InsertClient extends BenchmarkBase {
                     .data(out -> {
                         ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
                         ClickHouseSerializer[] serializers = p.getSerializers(clientV1.getConfig(), p.getColumns());
-
                         for (ClickHouseRecord record : dataState.dataSet.getClickHouseRecords()) {
                             for (int i = 0; i < serializers.length; i++) {
                                 serializers[i].serialize(record.getValue(i), out);
                             }
                         }
-
                     })
                     .executeAndWait()) {
                 response.getSummary();
@@ -161,7 +159,6 @@ public class InsertClient extends BenchmarkBase {
         try {
             try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
                 RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
-                List<ClickHouseColumn> columns = dataState.dataSet.getSchema().getColumns();
                 for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
                     int index = 1;
                     for (Object value : row) {
@@ -172,7 +169,7 @@ public class InsertClient extends BenchmarkBase {
                 }
                 out.flush();
 
-            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings().compressClientRequest(true)).get()) {
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
