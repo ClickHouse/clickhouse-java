@@ -9,9 +9,9 @@ import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
 
-    public static final int UNCOMPRESSED_BUFF_SIZE = 8192;
+    public static final int UNCOMPRESSED_BUFF_SIZE = 64 * 1024; // 64K is most optimal for LZ4 compression
 
-    private final ByteBuffer buffer;
+    private final ByteBuffer inBuffer;
 
     private final OutputStream out;
 
@@ -26,16 +26,27 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {
         super();
-        this.buffer = ByteBuffer.allocate(bufferSize);
+        this.inBuffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
         this.compressor = compressor;
-        this.compressedBuffer = ByteBuffer.allocate(compressor.maxCompressedLength(buffer.capacity()) + HEADER_LEN);
+        this.compressedBuffer = ByteBuffer.allocate(compressor.maxCompressedLength(inBuffer.capacity()) + HEADER_LEN);
     }
 
     @Override
     public void write(int b) throws IOException {
-        tmpBuffer[0] = (byte) b;
-        write(tmpBuffer, 0, 1);
+        if (inBuffer.remaining() == 0) {
+            flush();
+        }
+        inBuffer.put((byte) b);
+    }
+
+    @Override
+    public void write(byte[] b) throws IOException {
+        if (b.length == 1) {
+            write(b[0]);
+        } else {
+            write(b, 0, b.length);
+        }
     }
 
     @Override
@@ -54,23 +65,23 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
         int writtenBytes = 0;
         do {
-            int remaining = Math.min(len - writtenBytes, buffer.remaining());
-            buffer.put(b, off + writtenBytes, remaining);
-            writtenBytes += remaining;
-            if (buffer.remaining() == 0) {
-                flush();
+            if (inBuffer.remaining() == 0) {
+                flush(); // flush will make inBuffer clear
             }
+            int remaining = Math.min(len - writtenBytes, inBuffer.remaining());
+            inBuffer.put(b, off + writtenBytes, remaining);
+            writtenBytes += remaining;
         } while (writtenBytes < len);
     }
 
     @Override
     public void flush() throws IOException {
-        if (buffer.position() > 0) {
+        if (inBuffer.position() > 0) {
             compressedBuffer.clear();
             compressedBuffer.put(16, ClickHouseLZ4InputStream.MAGIC);
-            int uncompressedLen = buffer.position();
-            buffer.flip();
-            int compressed = compressor.compress(buffer, 0, uncompressedLen, compressedBuffer, 25,
+            int uncompressedLen = inBuffer.position();
+            inBuffer.flip();
+            int compressed = compressor.compress(inBuffer, 0, uncompressedLen, compressedBuffer, 25,
                     compressedBuffer.remaining() - 25);
             int compressedSizeWithHeader = compressed + 9;
             ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 17, compressedSizeWithHeader); // compressed size with header
@@ -80,7 +91,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
             setInt64(compressedBuffer.array(), 8, hash[1]);
             compressedBuffer.flip();
             out.write(compressedBuffer.array(), 0, compressed + 25);
-            buffer.clear();
+            inBuffer.clear();
         }
     }
 
