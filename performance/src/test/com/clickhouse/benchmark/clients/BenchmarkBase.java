@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.math.BigInteger;
@@ -72,6 +73,7 @@ public class BenchmarkBase {
 
     @State(Scope.Benchmark)
     public static class DataState {
+
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
         @Param({"300000", "220000", "100000", "10000"})
@@ -83,6 +85,8 @@ public class BenchmarkBase {
         String tableNameEmpty;
 
         DataSet dataSet;
+
+        ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
 
         public void setDataSet(DataSet dataSet) {
             this.dataSet = dataSet;
