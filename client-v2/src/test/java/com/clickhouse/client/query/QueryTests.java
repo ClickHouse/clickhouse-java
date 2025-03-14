@@ -74,12 +74,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1560,6 +1555,38 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
         }
         Assert.assertEquals(allRecords.size(), 2);
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecuteQueryParam() throws ExecutionException, InterruptedException, TimeoutException {
+
+        final String table = "execute_query_test";
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()", query_param)
+                .get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecuteQueryParamCommandSettings() throws ExecutionException, InterruptedException, TimeoutException {
+
+        final String table = "execute_query_test";
+        String q1Id = UUID.randomUUID().toString();
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()",
+                        query_param, (CommandSettings) new CommandSettings().setQueryId(q1Id))
+                .get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
     }
 
     @Test(groups = {"integration"})
