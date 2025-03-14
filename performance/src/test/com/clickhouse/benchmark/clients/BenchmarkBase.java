@@ -216,7 +216,6 @@ public class BenchmarkBase {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername(getUsername())
                 .setPassword(getPassword())
-                .compressClientRequest(true)
                 .setMaxRetries(0)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
