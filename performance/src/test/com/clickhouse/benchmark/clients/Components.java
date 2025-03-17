@@ -84,7 +84,7 @@ public class Components extends BenchmarkBase {
             }
         };
     }
-//    @Benchmark
+    @Benchmark
     public void SerializerOutputStreamV1(DataState dataState) {
         OutputStream empty = createEmptyOutputStream();
         try {
@@ -102,7 +102,7 @@ public class Components extends BenchmarkBase {
         }
     }
 
-//    @Benchmark
+    @Benchmark
     public void SerializerOutputStreamV2(DataState dataState) {
         OutputStream empty = createEmptyOutputStream();
         try {
