@@ -6,18 +6,15 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
-import com.clickhouse.data.ClickHouseDeserializer;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
-import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseSerializer;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
@@ -56,7 +53,7 @@ public class Components extends BenchmarkBase {
     }
 
 
-    //    @Benchmark
+    @Benchmark
     public void CompressingOutputStreamV1(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); ClickHouseOutputStream out =
@@ -71,7 +68,7 @@ public class Components extends BenchmarkBase {
 
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
 
-    //    @Benchmark
+    @Benchmark
     public void CompressingOutputStreamV2(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -115,7 +112,7 @@ public class Components extends BenchmarkBase {
         };
     }
 
-    //    @Benchmark
+    @Benchmark
     public void SerializerOutputStreamV1(DataState dataState) {
         OutputStream empty = createEmptyOutputStream();
         try {
@@ -133,7 +130,7 @@ public class Components extends BenchmarkBase {
         }
     }
 
-    //    @Benchmark
+    @Benchmark
     public void SerializerOutputStreamV2(DataState dataState) {
         OutputStream empty = createEmptyOutputStream();
         try {

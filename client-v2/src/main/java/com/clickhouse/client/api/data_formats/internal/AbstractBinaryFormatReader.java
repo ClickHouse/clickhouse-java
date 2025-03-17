@@ -11,7 +11,6 @@ import com.clickhouse.client.api.query.POJOSetter;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseEnum;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -27,13 +26,20 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
 import java.util.function.Function;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
@@ -49,8 +55,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private TableSchema schema;
     private ClickHouseColumn[] columns;
     private Map[] convertions;
-    private volatile boolean hasNext = true;
-    private volatile boolean initialState = true; // reader is in initial state, no records have been read yet
+    private boolean hasNext = true;
+    private boolean initialState = true; // reader is in initial state, no records have been read yet
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
@@ -70,10 +76,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
     }
 
-    protected Map<String, Object> currentRecord = new ConcurrentHashMap<>();
-    protected Map<String, Object> nextRecord = new ConcurrentHashMap<>();
+    protected Map<String, Object> currentRecord = new HashMap<>();
+    protected Map<String, Object> nextRecord = new HashMap<>();
 
-    protected AtomicBoolean nextRecordEmpty = new AtomicBoolean(true);
+    protected boolean nextRecordEmpty = true;
 
     /**
      * Reads next record into POJO object using set of serializers.
@@ -170,11 +176,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     protected void readNextRecord() {
         initialState = false;
         try {
-            nextRecordEmpty.set(true);
+            nextRecordEmpty = true;
             if (!readRecord(nextRecord)) {
                 endReached();
             } else {
-                nextRecordEmpty.compareAndSet(true, false);
+                nextRecordEmpty = false;
             }
         } catch (IOException e) {
             endReached();
@@ -188,7 +194,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         }
 
-        if (!nextRecordEmpty.get()) {
+        if (!nextRecordEmpty) {
             Map<String, Object> tmp = currentRecord;
             currentRecord = nextRecord;
             nextRecord = tmp;
