@@ -74,12 +74,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1563,6 +1558,38 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testExecuteQueryParam() throws ExecutionException, InterruptedException, TimeoutException {
+
+        final String table = "execute_query_test";
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()", query_param)
+                .get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecuteQueryParamCommandSettings() throws ExecutionException, InterruptedException, TimeoutException {
+
+        final String table = "execute_query_test";
+        String q1Id = UUID.randomUUID().toString();
+        Map<String, Object> query_param = new HashMap<>();
+        query_param.put("table_name",table);
+        query_param.put("engine","MergeTree");
+        client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()",
+                        query_param, (CommandSettings) new CommandSettings().setQueryId(q1Id))
+                .get(10, TimeUnit.SECONDS);
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertNotNull(schema);
+    }
+
+    @Test(groups = {"integration"})
     public void testGetTableSchema() throws Exception {
 
         final String table = "table_schema_test";
@@ -1981,6 +2008,31 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals((Short) reader.readValue("lowest_value"), Short.parseShort("2"));
             Assert.assertEquals((Long) reader.readValue("count"), Long.parseLong("3"));
             Assert.assertEquals(String.valueOf((LinkedHashMap) reader.readValue("mp")), "{1=2}");
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadingSimpleAggregateFunction2() throws Exception {
+        final String tableName = "simple_aggregate_function_test_table";
+        client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        client.execute("CREATE TABLE `" + tableName + "` " +
+                "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), date SimpleAggregateFunction(anyLast, DateTime32)) " +
+                "ENGINE Memory;").get();
+
+
+        try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t2024-12-22T12:00:00".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        try (QueryResponse queryResponse = client.query("SELECT * FROM " + tableName + " LIMIT 1").get(30, TimeUnit.SECONDS)) {
+
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getByte("idx"), Byte.valueOf("1"));
+            Assert.assertEquals((Short) reader.getShort("lowest_value"), Short.parseShort("2"));
+            Assert.assertEquals((Long) reader.getLong("count"), Long.parseLong("3"));
+            Assert.assertEquals(reader.getLocalDateTime("date"), LocalDateTime.of(2024,12,22,12,00,00));
             Assert.assertFalse(reader.hasNext());
         }
     }
