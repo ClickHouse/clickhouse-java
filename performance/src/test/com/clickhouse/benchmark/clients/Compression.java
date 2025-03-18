@@ -14,11 +14,13 @@ import java.io.ByteArrayOutputStream;
 public class Compression extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(Compression.class);
 
+    static final int COMPRESS_BUFFER_SIZE = 64 * 1024; // 64K
+
     @Benchmark
     public void CompressingOutputStreamV1(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); ClickHouseOutputStream out =
-                new Lz4OutputStream(baos, 8196, null)) {
+                new Lz4OutputStream(baos, COMPRESS_BUFFER_SIZE, null)) {
             for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
                 out.write(bytes);
             }
@@ -34,7 +36,7 @@ public class Compression extends BenchmarkBase {
         DataSet dataSet = dataState.dataSet;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
-                     factory.fastCompressor(), 8196)) {
+                     factory.fastCompressor(), COMPRESS_BUFFER_SIZE)) {
             for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
                 out.write(bytes);
             }
