@@ -58,6 +58,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     String originalSql;
     String [] sqlSegments;
+    String [] valueSegments;
     Object [] parameters;
     String insertIntoSQL;
 
@@ -71,6 +72,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         if (statementType == StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
+            valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
         }
 
         //Create an array of objects to store the parameters
@@ -84,10 +86,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.defaultCalendar = connection.defaultCalendar;
     }
 
-    private String compileSql() {
+    private String compileSql(String []segments) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < sqlSegments.length; i++) {
-            sb.append(sqlSegments[i]);
+        for (int i = 0; i < segments.length; i++) {
+            sb.append(segments[i]);
             if (i < parameters.length) {
                 sb.append(parameters[i]);
             }
@@ -95,30 +97,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         LOG.trace("Compiled SQL: {}", sb);
         return sb.toString();
     }
-
-    private String valuesSql() {
-        StringBuilder sb = new StringBuilder("(");
-        for (int i = 0; i < parameters.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(parameters[i]);
-        }
-        sb.append(")");
-        LOG.trace("Compiled Value SQL: {}", sb);
-        return sb.toString();
-    }
-
     @Override
     public ResultSet executeQuery() throws SQLException {
         checkClosed();
-        return executeQuery(compileSql());
+        return executeQuery(compileSql(sqlSegments));
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         checkClosed();
-        return executeUpdate(compileSql());
+        return executeUpdate(compileSql(sqlSegments));
     }
 
     @Override
@@ -245,17 +233,18 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public boolean execute() throws SQLException {
         checkClosed();
-        return execute(compileSql());
+        return execute(compileSql(sqlSegments));
     }
 
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
         if (statementType == StatementType.INSERT) {
-            addBatch(valuesSql());
+            addBatch(compileSql(valueSegments));
         } else {
-            addBatch(compileSql());
+            addBatch(compileSql(sqlSegments));
         }
+
     }
 
     @Override

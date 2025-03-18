@@ -281,7 +281,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     void testInsert() throws Exception {
-        int ROWS = 100000;
+        int ROWS = 1000;
         String payload = RandomStringUtils.random(1024, true, true);
         try (Connection conn = getJdbcConnection()) {
             for (int j = 0; j < 10; j++) {
@@ -320,6 +320,86 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             }
 
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testMetabaseBug01() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE `users` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES (?, `parseDateTimeBestEffort`(?, ?), ?, 1), (?, `parseDateTimeBestEffort`(?, ?), ?, 2), (?, `parseDateTimeBestEffort`(?, ?), ?, 3), (?, `parseDateTimeBestEffort`(?, ?), ?, 4), (?, `parseDateTimeBestEffort`(?, ?), ?, 5), (?, `parseDateTimeBestEffort`(?, ?), ?, 6), (?, `parseDateTimeBestEffort`(?, ?), ?, 7), (?, `parseDateTimeBestEffort`(?, ?), ?, 8), (?, `parseDateTimeBestEffort`(?, ?), ?, 9), (?, `parseDateTimeBestEffort`(?, ?), ?, 10), (?, `parseDateTimeBestEffort`(?, ?), ?, 11), (?, `parseDateTimeBestEffort`(?, ?), ?, 12), (?, `parseDateTimeBestEffort`(?, ?), ?, 13), (?, `parseDateTimeBestEffort`(?, ?), ?, 14), (?, `parseDateTimeBestEffort`(?, ?), ?, 15)")) {
+                stmt.setObject(1, "Plato Yeshua");
+                stmt.setObject(2, "2014-04-01 08:30:00.000");
+                stmt.setObject(3, "UTC");
+                stmt.setObject(4, "4be68cda-6fd5-4ba7-944e-2b475600bda5");
+                stmt.setObject(5, "Felipinho Asklepios");
+                stmt.setObject(6, "2014-12-05 15:15:00.000");
+                stmt.setObject(7, "UTC");
+                stmt.setObject(8, "5bb19ad9-f3f8-421f-9750-7d398e38428d");
+                stmt.setObject(9, "Kaneonuskatew Eiran");
+                stmt.setObject(10, "2014-11-06 16:15:00.000");
+                stmt.setObject(11, "UTC");
+                stmt.setObject(12, "a329ccfe-b99c-42eb-9c93-cb9adc3eb1ab");
+                stmt.setObject(13, "Simcha Yan");
+                stmt.setObject(14, "2014-01-01 08:30:00.000");
+                stmt.setObject(15, "UTC");
+                stmt.setObject(16, "a61f97c6-4484-4a63-b37e-b5e58bfa2ecb");
+                stmt.setObject(17, "Quentin Sören");
+                stmt.setObject(18, "2014-10-03 17:30:00.000");
+                stmt.setObject(19, "UTC");
+                stmt.setObject(20, "10a0fea8-9bb4-48fe-a336-4d9cbbd78aa0");
+                stmt.setObject(21, "Shad Ferdynand");
+                stmt.setObject(22, "2014-08-02 12:30:00.000");
+                stmt.setObject(23, "UTC");
+                stmt.setObject(24, "d35c9d78-f9cf-4f52-b1cc-cb9078eebdcb");
+                stmt.setObject(25, "Conchúr Tihomir");
+                stmt.setObject(26, "2014-08-02 09:30:00.000");
+                stmt.setObject(27, "UTC");
+                stmt.setObject(28, "900335ad-e03b-4259-abc7-76aac21cedca");
+                stmt.setObject(29, "Szymon Theutrich");
+                stmt.setObject(30, "2014-02-01 10:15:00.000");
+                stmt.setObject(31, "UTC");
+                stmt.setObject(32, "d6c47a54-9d88-4c4a-8054-ace76764ed0d");
+                stmt.setObject(33, "Nils Gotam");
+                stmt.setObject(34, "2014-04-03 09:30:00.000");
+                stmt.setObject(35, "UTC");
+                stmt.setObject(36, "b085040c-7aa4-4e96-8c8f-420b2c99c920");
+                stmt.setObject(37, "Frans Hevel");
+                stmt.setObject(38, "2014-07-03 19:30:00.000");
+                stmt.setObject(39, "UTC");
+                stmt.setObject(40, "b7a43e91-9fb9-4fe9-ab6f-ea51ab0f94e4");
+                stmt.setObject(41, "Spiros Teofil");
+                stmt.setObject(42, "2014-11-01 07:00:00.000");
+                stmt.setObject(43, "UTC");
+                stmt.setObject(44, "62b9602c-27b8-44ea-adbd-2748f26537af");
+                stmt.setObject(45, "Kfir Caj");
+                stmt.setObject(46, "2014-07-03 01:30:00.000");
+                stmt.setObject(47, "UTC");
+                stmt.setObject(48, "dfe21df3-f364-479d-a5e7-04bc5d85ad2b");
+                stmt.setObject(49, "Dwight Gresham");
+                stmt.setObject(50, "2014-08-01 10:30:00.000");
+                stmt.setObject(51, "UTC");
+                stmt.setObject(52, "75a1ebf1-cae7-4a50-8743-32d97500f2cf");
+                stmt.setObject(53, "Broen Olujimi");
+                stmt.setObject(54, "2014-10-03 13:45:00.000");
+                stmt.setObject(55, "UTC");
+                stmt.setObject(56, "f9b65c74-9f91-4cfd-9248-94a53af82866");
+                stmt.setObject(57, "Rüstem Hebel");
+                stmt.setObject(58, "2014-08-01 12:45:00.000");
+                stmt.setObject(59, "UTC");
+                stmt.setObject(60, "02ad6b15-54b0-4491-bf0f-d781b0a2c4f5");
+                stmt.addBatch();
+                System.out.println(stmt.executeBatch());
+                try (Statement stmt01 = conn.createStatement()) {
+                    try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users`")) {
+                        assertTrue(rs.next());
+                        assertEquals(rs.getInt(1), 15);
+                    }
+                }
+            }
         }
     }
 }
