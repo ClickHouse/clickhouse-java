@@ -328,8 +328,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE `users` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
+                stmt.execute("CREATE TABLE `users_tmp` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
+                stmt.execute("CREATE TABLE `users_tmp01` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
+                stmt.execute("CREATE TABLE `users_tmp02` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
             }
-
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES (?, `parseDateTimeBestEffort`(?, ?), ?, 1), (?, `parseDateTimeBestEffort`(?, ?), ?, 2), (?, `parseDateTimeBestEffort`(?, ?), ?, 3), (?, `parseDateTimeBestEffort`(?, ?), ?, 4), (?, `parseDateTimeBestEffort`(?, ?), ?, 5), (?, `parseDateTimeBestEffort`(?, ?), ?, 6), (?, `parseDateTimeBestEffort`(?, ?), ?, 7), (?, `parseDateTimeBestEffort`(?, ?), ?, 8), (?, `parseDateTimeBestEffort`(?, ?), ?, 9), (?, `parseDateTimeBestEffort`(?, ?), ?, 10), (?, `parseDateTimeBestEffort`(?, ?), ?, 11), (?, `parseDateTimeBestEffort`(?, ?), ?, 12), (?, `parseDateTimeBestEffort`(?, ?), ?, 13), (?, `parseDateTimeBestEffort`(?, ?), ?, 14), (?, `parseDateTimeBestEffort`(?, ?), ?, 15)")) {
                 stmt.setObject(1, "Plato Yeshua");
                 stmt.setObject(2, "2014-04-01 08:30:00.000");
@@ -392,12 +394,61 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(59, "UTC");
                 stmt.setObject(60, "02ad6b15-54b0-4491-bf0f-d781b0a2c4f5");
                 stmt.addBatch();
-                System.out.println(stmt.executeBatch());
-                try (Statement stmt01 = conn.createStatement()) {
-                    try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users`")) {
-                        assertTrue(rs.next());
-                        assertEquals(rs.getInt(1), 15);
-                    }
+                stmt.executeBatch();
+            }
+            try (Statement stmt01 = conn.createStatement()) {
+                try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users`")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 15);
+                }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users_tmp` SELECT * FROM `users` WHERE id = ?")) {
+                stmt.setInt(1, 1);
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.addBatch();
+                stmt.setInt(1, 3);
+                stmt.addBatch();
+                stmt.executeBatch();
+            }
+
+            try (Statement stmt01 = conn.createStatement()) {
+                try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp`")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 3);
+                }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users_tmp01` SELECT * FROM `users` WHERE id = ?")) {
+                stmt.setInt(1, 1);
+                stmt.addBatch();
+                stmt.executeBatch();
+            }
+
+            try (Statement stmt01 = conn.createStatement()) {
+                try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp01`")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 1);
+                }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users_tmp02` (`name`, `last_login`, `password`, `id`) VALUES (?, `parseDateTimeBestEffort`(?, ?), ?, ?)")) {
+                for (int i=0; i < 10; i++) {
+                    stmt.setObject(1, "Plato Yeshua");
+                    stmt.setObject(2, "2014-04-01 08:30:00.000");
+                    stmt.setObject(3, "UTC");
+                    stmt.setObject(4, "4be68cda-6fd5-4ba7-944e-2b475600bda5");
+                    stmt.setObject(5, i);
+                    stmt.addBatch();
+                }
+                stmt.executeBatch();
+            }
+
+            try (Statement stmt01 = conn.createStatement()) {
+                try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp02`")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 10);
                 }
             }
         }
