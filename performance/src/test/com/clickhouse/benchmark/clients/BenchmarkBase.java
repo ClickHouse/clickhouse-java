@@ -12,9 +12,8 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
@@ -30,9 +29,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.math.BigInteger;
 import java.util.List;
 
 import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
@@ -72,6 +72,7 @@ public class BenchmarkBase {
 
     @State(Scope.Benchmark)
     public static class DataState {
+
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
         @Param({"300000", "220000", "100000", "10000"})
@@ -83,6 +84,8 @@ public class BenchmarkBase {
         String tableNameEmpty;
 
         DataSet dataSet;
+
+        ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
 
         public void setDataSet(DataSet dataSet) {
             this.dataSet = dataSet;
