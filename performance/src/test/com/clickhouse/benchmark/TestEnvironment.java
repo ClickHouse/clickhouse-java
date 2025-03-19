@@ -99,11 +99,11 @@ public class TestEnvironment {
                 .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), isCloud() ? "true" : "false"))
                 .database(DB_NAME)
                 .build();
-
         createDatabase();
     }
 
     public static void cleanupEnvironment() {
+        LOGGER.info("Cleaning up ClickHouse test environment...");
         if (isCloud()) {
             dropDatabase();
         }

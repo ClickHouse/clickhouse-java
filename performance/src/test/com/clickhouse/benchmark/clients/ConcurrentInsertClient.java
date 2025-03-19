@@ -27,70 +27,78 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
-@Threads(3)
-@State(Scope.Thread)
+@Threads(2)
+@State(Scope.Benchmark)
 public class ConcurrentInsertClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentInsertClient.class);
-    private static final AtomicInteger GLOBAL_ID = new AtomicInteger(0);
-    private final ThreadLocal<Integer> invocationId = new ThreadLocal<>();
-    @State(Scope.Benchmark)
-    public static class GlobalState {
-        ClickHouseClient clientV1Global = BenchmarkBase.getClientV1();
-        Client clientV2Global = BenchmarkBase.getClientV2();
-        ClickHouseClient getClientV1() {
-            return clientV1Global;
+    private static ClickHouseClient clientV1Shared;
+    private static Client clientV2Shared;
+    @Setup(Level.Trial)
+    public void setUpIteration() {
+        clientV1Shared = getClientV1();
+        clientV2Shared = getClientV2();
+    }
+    @TearDown(Level.Trial)
+    public void tearDownIteration() {
+        if (clientV1Shared != null) {
+            clientV1Shared.close();
+            clientV1Shared = null;
         }
-        Client getClientV2() {
-            return clientV2Global;
+        if (clientV2Shared != null) {
+            clientV2Shared.close();
+            clientV2Shared = null;
         }
     }
+    @State(Scope.Thread)
+    public static class ThreadLocalState {
+        public String createTableName() {
+            String name = Thread.currentThread().getName();
+            int index = name.lastIndexOf("-");
+            String id = name.substring(index + 1);
+            return String.format("%s_%s", "concurrent_data_empty", id);
+        }
+        @Setup(Level.Invocation)
+        public void setup() {
+            DataSet dataSet = DataState.getDataSet();
+            String tableName = createTableName();
+            LOGGER.warn("setup create table name: " + tableName);
+            // create table
+            String createTableString = dataSet.getCreateTableString(tableName);
+            runAndSyncQuery(createTableString, tableName);
+        }
 
-    private String createTableName(int id) {
-        return String.format("%s_%d", "concurrent_data_empty", id);
-    }
-
-    @Setup(Level.Invocation)
-    public void setup() throws InterruptedException {
-        int id = GLOBAL_ID.incrementAndGet();
-        invocationId.set(id);
-        DataSet dataSet = DataState.getDataSet();
-        String tableName = createTableName(id);
-        LOGGER.warn("setup create table name: " + tableName);
-        // create table
-        String createTableString = dataSet.getCreateTableString(tableName);
-        runAndSyncQuery(createTableString, tableName);
-    }
-    @TearDown(Level.Invocation)
-    public void verifyRowsInsertedAndCleanup(DataState dataState) throws InterruptedException {
-        boolean success;
-        String tableName = createTableName(invocationId.get());
-        LOGGER.warn("TearDown: " + tableName);
-        int count = 0;
-        do {
-            success = verifyCount(tableName, dataState.dataSet.getSize());
-            if (!success) {
-                LOGGER.warn("Retrying to verify rows inserted");
-                try {
-                    Thread.sleep(2500);
-                } catch (InterruptedException e) {
-                    LOGGER.error("Error: ", e);
+        @TearDown(Level.Invocation)
+        public void verifyRowsInsertedAndCleanup(DataState dataState) {
+            String tableName = createTableName();
+            boolean success;
+            LOGGER.warn("TearDown: " + tableName);
+            int count = 0;
+            do {
+                success = verifyCount(tableName, dataState.dataSet.getSize());
+                if (!success) {
+                    LOGGER.warn("Retrying to verify rows inserted");
+                    try {
+                        Thread.sleep(2500);
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Error: ", e);
+                    }
                 }
+            } while (!success && count++ < 10);
+            if (!success) {
+                LOGGER.error("Failed to verify rows inserted");
+                throw new RuntimeException("Failed to verify rows inserted");
             }
-        } while (!success && count++ < 10);
-        if (!success) {
-            LOGGER.error("Failed to verify rows inserted");
-            throw new RuntimeException("Failed to verify rows inserted");
+            truncateTable(tableName);
         }
-        truncateTable(tableName);
     }
+
+
     @Benchmark
-    public void insertV1(DataState dataState, GlobalState globalState) {
-        int id = invocationId.get();
-        String tableName = createTableName(id);
-//        System.out.println(Thread.currentThread().getName() + " is executing insertV1:[" + id + "] " + globalState.getClientV1().hashCode());
+    public void insertV1(DataState dataState, ThreadLocalState threadLocalState) {
+        String tableName = threadLocalState.createTableName();
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (ClickHouseResponse response = globalState.getClientV1().read(getServer())
+            try (ClickHouseResponse response = getClientV1().read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
@@ -108,19 +116,17 @@ public class ConcurrentInsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV2(DataState dataState, GlobalState globalState) {
-        int id = invocationId.get();
-//        System.out.println(Thread.currentThread().getName() + " is executing insertV2:[" + id + "] " + globalState.getClientV2().hashCode());
-        String tableName = createTableName(id);
+    public void insertV2(DataState dataState, ThreadLocalState threadLocalState) {
+        String tableName = threadLocalState.createTableName();
         LOGGER.warn("insertV2: " + tableName);
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (InsertResponse response = globalState.getClientV2().insert(tableName, out -> {
+            try (InsertResponse response = clientV2Shared.insert(tableName, out -> {
                 for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                     out.write(bytes);
                 }
                 out.close();
-            }, format, new InsertSettings().setDeduplicationToken("insert_v2")).get()) {
+            }, format, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
@@ -129,15 +135,15 @@ public class ConcurrentInsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV1Compressed(DataState dataState, GlobalState globalState) {
+    public void insertV1Compressed(DataState dataState, ThreadLocalState threadLocalState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (ClickHouseResponse response = globalState.getClientV1().read(getServer())
+            try (ClickHouseResponse response = clientV1Shared.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .option(ClickHouseClientOption.DECOMPRESS, true)
                     .format(format)
-                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .query(BenchmarkRunner.getInsertQuery(threadLocalState.createTableName()))
                     .data(out -> {
                         for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                             out.write(bytes);
@@ -150,10 +156,10 @@ public class ConcurrentInsertClient extends BenchmarkBase {
         }
     }
     @Benchmark
-    public void insertV2Compressed(DataState dataState, GlobalState globalState) {
+    public void insertV2Compressed(DataState dataState, ThreadLocalState threadLocalState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (InsertResponse response = globalState.getClientV2().insert(dataState.tableNameEmpty, out -> {
+            try (InsertResponse response = clientV2Shared.insert(threadLocalState.createTableName(), out -> {
                 for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                     out.write(bytes);
                 }
@@ -168,17 +174,17 @@ public class ConcurrentInsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV1RowBinary(DataState dataState, GlobalState globalState) {
+    public void insertV1RowBinary(DataState dataState, ThreadLocalState threadLocalState) {
         try {
             ClickHouseFormat format = ClickHouseFormat.RowBinary;
-            try (ClickHouseResponse response = globalState.getClientV1().read(getServer())
+            try (ClickHouseResponse response = clientV1Shared.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
-                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .query(BenchmarkRunner.getInsertQuery(threadLocalState.createTableName()))
                     .data(out -> {
                         ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
-                        ClickHouseSerializer[] serializers = p.getSerializers(clientV1.getConfig(), p.getColumns());
+                        ClickHouseSerializer[] serializers = p.getSerializers(clientV1Shared.getConfig(), p.getColumns());
                         for (ClickHouseRecord record : dataState.dataSet.getClickHouseRecords()) {
                             for (int i = 0; i < serializers.length; i++) {
                                 serializers[i].serialize(record.getValue(i), out);
@@ -194,9 +200,9 @@ public class ConcurrentInsertClient extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertV2RowBinary(DataState dataState, GlobalState globalState) {
+    public void insertV2RowBinary(DataState dataState, ThreadLocalState threadLocalState) {
         try {
-            try (InsertResponse response = globalState.getClientV2().insert(dataState.tableNameEmpty, out -> {
+            try (InsertResponse response = clientV2Shared.insert(threadLocalState.createTableName(), out -> {
                 RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
                 for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
                     int index = 1;
