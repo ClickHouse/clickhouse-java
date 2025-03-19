@@ -127,11 +127,11 @@ public class BinaryStreamReader {
                 case UInt8:
                     return (T) Short.valueOf(readUnsignedByte());
                 case Int16:
-                    return (T) Short.valueOf(readShortLE());
+                    return (T) (Short)readShortLE();
                 case UInt16:
-                    return (T) Integer.valueOf(readUnsignedShortLE());
+                    return (T) (Integer)readUnsignedShortLE();
                 case Int32:
-                    return (T) Integer.valueOf(readIntLE());
+                    return (T) (Integer)readIntLE();
                 case UInt32:
                     return (T) (Long)(readUnsignedIntLE());
                 case Int64:
