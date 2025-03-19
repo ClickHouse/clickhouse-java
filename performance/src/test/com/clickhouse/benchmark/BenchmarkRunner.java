@@ -33,9 +33,9 @@ public class BenchmarkRunner {
 
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getSimpleName())
-                .include(InsertClient.class.getSimpleName())
-                .include(Compression.class.getSimpleName())
-                .include(Serializers.class.getSimpleName())
+//                .include(InsertClient.class.getSimpleName())
+//                .include(Compression.class.getSimpleName())
+//                .include(Serializers.class.getSimpleName())
                 .include(Deserializers.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
