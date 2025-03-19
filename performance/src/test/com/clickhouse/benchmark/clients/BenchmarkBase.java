@@ -55,7 +55,6 @@ public class BenchmarkBase {
     public void setUpIteration() {
         clientV1 = getClientV1();
         clientV2 = getClientV2();
-
     }
 
     @TearDown(Level.Iteration)
