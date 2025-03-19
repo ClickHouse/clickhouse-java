@@ -21,7 +21,7 @@ public class QueryClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryClient.class);
 
     @Benchmark
-    public void queryV1(DataState dataState) {
+    public void queryV1(DataState dataState, Blackhole blackhole) {
         try {
             try (ClickHouseResponse response = clientV1.read(getServer())
                     .query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled))
@@ -30,7 +30,7 @@ public class QueryClient extends BenchmarkBase {
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
                     for (int i = 0; i < dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        isNotNull(record.getValue(i), false);
+                        blackhole.consume(record.getValue(i).asObject());
                     }
                 }
             }
@@ -46,7 +46,7 @@ public class QueryClient extends BenchmarkBase {
                 ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        isNotNull(reader.readValue(1), false);
+                        blackhole.consume(reader.readValue(1));
                     }
                 }
             }
