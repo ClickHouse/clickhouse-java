@@ -5,14 +5,17 @@ import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
@@ -75,7 +78,8 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-        @Param({"300000", "220000", "100000", "10000"})
+//        @Param({"300000", "220000", "100000", "10000"})
+        @Param({"300000", "100000", "10000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;

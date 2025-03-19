@@ -8,6 +8,7 @@ import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.clients.Serializers;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
+import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
 import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
@@ -33,17 +34,18 @@ public class BenchmarkRunner {
 
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getSimpleName())
-                .include(InsertClient.class.getSimpleName())
-                .include(Compression.class.getSimpleName())
-                .include(Serializers.class.getSimpleName())
-                .include(Deserializers.class.getSimpleName())
+//                .include(InsertClient.class.getSimpleName())
+//                .include(Compression.class.getSimpleName())
+//                .include(Serializers.class.getSimpleName())
+//                .include(Deserializers.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(3)
+//                .addProfiler(JavaFlightRecorderProfiler.class)
+                .warmupIterations(0)
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")

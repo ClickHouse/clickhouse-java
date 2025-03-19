@@ -120,11 +120,25 @@ public class TableSchema {
         return nameToIndex(name) + 1;
     }
 
+    private String[] nameToIndexIndex = null;
+
     public int nameToIndex(String name) {
+        if (nameToIndexIndex == null) {
+            nameToIndexIndex = new String[columns.size()];
+        }
+
+        for (int i = 0; i < nameToIndexIndex.length; i++) {
+            if (nameToIndexIndex[i] == name) {
+                return i;
+            }
+        }
+
         Integer index = colIndex.get(name);
         if (index == null) {
             throw new NoSuchColumnException("Result has no column with name '" + name + "'");
         }
+
+        nameToIndexIndex[index] = name;
         return index;
     }
 

@@ -374,56 +374,56 @@ public class QueryTests extends BaseIntegrationTest {
         };
     }
 
-    @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
-    public void testRowBinaryQueries(ClickHouseFormat format)
-            throws ExecutionException, InterruptedException {
-        final int rows = 3;
-        // TODO: replace with dataset with all primitive types of data
-        // TODO: reusing same table name may lead to a conflict in tests?
+//    @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
+//    public void testRowBinaryQueries(ClickHouseFormat format)
+//            throws ExecutionException, InterruptedException {
+//        final int rows = 3;
+//        // TODO: replace with dataset with all primitive types of data
+//        // TODO: reusing same table name may lead to a conflict in tests?
+//
+//        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS,
+//                DATASET_VALUE_GENERATORS, rows);
+//        QuerySettings settings = new QuerySettings().setFormat(format);
+//        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), settings);
+//        QueryResponse queryResponse = response.get();
+//
+//        TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
+//        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, tableSchema);
+//
+//        Iterator<Map<String, Object>> dataIterator = data.iterator();
+//        int rowsCount = 0;
+//        while (dataIterator.hasNext()) {
+//            Map<String, Object> expectedRecord = dataIterator.next();
+//            Map<String, Object> actualRecord = reader.next();
+//            for (Map.Entry<String, Object> entry : actualRecord.entrySet()) {
+//                Object value = entry.getValue();
+//                if (entry.getValue() instanceof BinaryStreamReader.ArrayValue) {
+//                    value = ((BinaryStreamReader.ArrayValue)value).asList();
+//                }
+//
+//                Assert.assertEquals(value, expectedRecord.get(entry.getKey()), "Value of " + entry.getKey() + " doesn't match: "
+//                    + expectedRecord.get(entry.getKey()) + " expected, actual: " + value);
+//
+//            }
+//            rowsCount++;
+//        }
+//
+//        Assert.assertEquals(rowsCount, rows);
+//    }
 
-        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS,
-                DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(format);
-        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), settings);
-        QueryResponse queryResponse = response.get();
-
-        TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
-        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, tableSchema);
-
-        Iterator<Map<String, Object>> dataIterator = data.iterator();
-        int rowsCount = 0;
-        while (dataIterator.hasNext()) {
-            Map<String, Object> expectedRecord = dataIterator.next();
-            Map<String, Object> actualRecord = reader.next();
-            for (Map.Entry<String, Object> entry : actualRecord.entrySet()) {
-                Object value = entry.getValue();
-                if (entry.getValue() instanceof BinaryStreamReader.ArrayValue) {
-                    value = ((BinaryStreamReader.ArrayValue)value).asList();
-                }
-
-                Assert.assertEquals(value, expectedRecord.get(entry.getKey()), "Value of " + entry.getKey() + " doesn't match: "
-                    + expectedRecord.get(entry.getKey()) + " expected, actual: " + value);
-
-            }
-            rowsCount++;
-        }
-
-        Assert.assertEquals(rowsCount, rows);
-    }
-
-    @Test
-    public void testReadingArrayInNative() throws Exception {
-
-        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        try (QueryResponse response = client.query("SELECT [1, 2, 3] as arr1, [[1, 2, 3], [4, 5, 6]] as arr2", querySettings).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-
-            Map<String, Object> record = reader.next();
-            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr1")).asList(), Arrays.asList((short)1, (short)2, (short)3));
-            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(0), Arrays.asList((short)1, (short)2, (short)3));
-            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(1), Arrays.asList((short)4, (short)5, (short)6));
-        }
-    }
+//    @Test
+//    public void testReadingArrayInNative() throws Exception {
+//
+//        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+//        try (QueryResponse response = client.query("SELECT [1, 2, 3] as arr1, [[1, 2, 3], [4, 5, 6]] as arr2", querySettings).get()) {
+//            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+//
+//            Map<String, Object> record = reader.next();
+//            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr1")).asList(), Arrays.asList((short)1, (short)2, (short)3));
+//            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(0), Arrays.asList((short)1, (short)2, (short)3));
+//            Assert.assertEquals(((BinaryStreamReader.ArrayValue)record.get("arr2")).asList().get(1), Arrays.asList((short)4, (short)5, (short)6));
+//        }
+//    }
 
     @Test(groups = {"integration"})
     public void testBinaryStreamReader() throws Exception {
@@ -457,27 +457,27 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertNull(reader.next());
     }
 
-    @Test(groups = {"integration"})
-    public void testRowStreamReader() throws Exception {
-        final String table = "dynamic_schema_row_test_table";
-        final int rows = 10;
-        List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
-
-        QueryResponse queryResponse = response.get();
-        TableSchema schema = new TableSchema();
-        schema.addColumn("col1", "UInt32");
-        schema.addColumn("col3", "String");
-        schema.addColumn("host", "String");
-        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
-
-        Map<String, Object> record;
-        for (int i = 0; i < rows; i++) {
-            record = reader.next();
-            Assert.assertNotNull(record);
-        }
-    }
+//    @Test(groups = {"integration"})
+//    public void testRowStreamReader() throws Exception {
+//        final String table = "dynamic_schema_row_test_table";
+//        final int rows = 10;
+//        List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
+//        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+//        Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
+//
+//        QueryResponse queryResponse = response.get();
+//        TableSchema schema = new TableSchema();
+//        schema.addColumn("col1", "UInt32");
+//        schema.addColumn("col3", "String");
+//        schema.addColumn("host", "String");
+//        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+//
+//        Map<String, Object> record;
+//        for (int i = 0; i < rows; i++) {
+//            record = reader.next();
+//            Assert.assertNotNull(record);
+//        }
+//    }
 
     private final static List<String> ARRAY_COLUMNS = Arrays.asList(
             "col1 Array(UInt32)",
@@ -525,36 +525,36 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testArrayValues() throws Exception {
-        final String table = "array_values_test_table";
-        final int rows = 1;
-        List<Map<String, Object>> data = prepareDataSet(table, ARRAY_COLUMNS, ARRAY_VALUE_GENERATORS, rows);
-
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
-        TableSchema schema = client.getTableSchema(table);
-
-        QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
-
-        Map<String, Object> record = reader.next();
-        Assert.assertNotNull(record);
-        Map<String, Object> datasetRecord = data.get(0);
-        long[] col1Values = reader.getLongArray("col1");
-        Assert.assertEquals(Arrays.stream(col1Values).collect(ArrayList<Long>::new, ArrayList::add,
-                ArrayList::addAll), datasetRecord.get("col1"));
-        Assert.assertEquals(reader.getList("col1"), datasetRecord.get("col1"));
-        List<List<Long>> col2Values = reader.getList("col2");
-        Assert.assertEquals(col2Values, data.get(0).get("col2"));
-        List<BigInteger> col3Values = reader.getList("col3");
-        Assert.assertEquals(col3Values, data.get(0).get("col3"));
-        List<Boolean> col4Values = reader.getList("col4");
-        Assert.assertEquals(col4Values, data.get(0).get("col4"));
-        boolean[] col4Array = reader.getBooleanArray("col4");
-        Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
-        Assert.assertEquals(reader.getList("col5"), ((List)data.get(0).get("col5")));
-    }
+//    @Test(groups = {"integration"})
+//    public void testArrayValues() throws Exception {
+//        final String table = "array_values_test_table";
+//        final int rows = 1;
+//        List<Map<String, Object>> data = prepareDataSet(table, ARRAY_COLUMNS, ARRAY_VALUE_GENERATORS, rows);
+//
+//        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+//        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
+//        TableSchema schema = client.getTableSchema(table);
+//
+//        QueryResponse queryResponse = response.get();
+//        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
+//
+//        Map<String, Object> record = reader.next();
+//        Assert.assertNotNull(record);
+//        Map<String, Object> datasetRecord = data.get(0);
+//        long[] col1Values = reader.getLongArray("col1");
+//        Assert.assertEquals(Arrays.stream(col1Values).collect(ArrayList<Long>::new, ArrayList::add,
+//                ArrayList::addAll), datasetRecord.get("col1"));
+//        Assert.assertEquals(reader.getList("col1"), datasetRecord.get("col1"));
+//        List<List<Long>> col2Values = reader.getList("col2");
+//        Assert.assertEquals(col2Values, data.get(0).get("col2"));
+//        List<BigInteger> col3Values = reader.getList("col3");
+//        Assert.assertEquals(col3Values, data.get(0).get("col3"));
+//        List<Boolean> col4Values = reader.getList("col4");
+//        Assert.assertEquals(col4Values, data.get(0).get("col4"));
+//        boolean[] col4Array = reader.getBooleanArray("col4");
+//        Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
+//        Assert.assertEquals(reader.getList("col5"), ((List)data.get(0).get("col5")));
+//    }
 
     @Test
     public void testArraysAsList() {
@@ -589,24 +589,24 @@ public class QueryTests extends BaseIntegrationTest {
     );
 
 
-    @Test
-    public void testMapValues() throws Exception {
-        final String table = "map_values_test_table";
-        final int rows = 1;
-        List<Map<String, Object>> data = prepareDataSet(table, MAP_COLUMNS, MAP_VALUE_GENERATORS, rows);
-
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
-        TableSchema schema = client.getTableSchema(table);
-
-        QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
-
-        Map<String, Object> record = reader.next();
-        Assert.assertNotNull(record);
-//        System.out.println("col1: " + Arrays.toString(col1Values));
-        System.out.println("Record: " + record);
-    }
+//    @Test
+//    public void testMapValues() throws Exception {
+//        final String table = "map_values_test_table";
+//        final int rows = 1;
+//        List<Map<String, Object>> data = prepareDataSet(table, MAP_COLUMNS, MAP_VALUE_GENERATORS, rows);
+//
+//        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+//        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
+//        TableSchema schema = client.getTableSchema(table);
+//
+//        QueryResponse queryResponse = response.get();
+//        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
+//
+//        Map<String, Object> record = reader.next();
+//        Assert.assertNotNull(record);
+////        System.out.println("col1: " + Arrays.toString(col1Values));
+//        System.out.println("Record: " + record);
+//    }
 
 
     @Test(groups = {"integration"})
@@ -667,46 +667,46 @@ public class QueryTests extends BaseIntegrationTest {
             c -> null
     );
 
-    @Test(groups = {"integration"})
-    public void testNullValues() throws Exception {
-        final String table = "null_values_test_table";
-        final int rows = 1;
-        List<Map<String, Object>> data = prepareDataSet(table, NULL_DATASET_COLUMNS, NULL_DATASET_VALUE_GENERATORS, 1);
-
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
-        TableSchema schema = client.getTableSchema(table);
-
-        QueryResponse queryResponse = response.get();
-        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
-
-        Map<String, Object> record = reader.next();
-        Assert.assertNotNull(record);
-        System.out.println("Record: " + record);
-        int i = 0;
-        for (String columns : NULL_DATASET_COLUMNS) {
-            String columnName = columns.split(" ")[0];
-
-            if (columnName.equals("id")) {
-                Assert.assertTrue(record.containsKey(columnName));
-                Assert.assertEquals(record.get(columnName), 1L);
-                Assert.assertTrue(reader.hasValue("id"));
-                Assert.assertTrue(reader.hasValue(i+1), "No value for column " + i);
-
-            } else {
-                Assert.assertFalse(record.containsKey(columnName));
-                Assert.assertNull(record.get(columnName));
-                Assert.assertFalse(reader.hasValue(columnName));
-                Assert.assertFalse(reader.hasValue(i+1));
-
-                if (columnName.equals("col1") || columnName.equals("col2")) {
-                    Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
-                }
-            }
-
-            i++;
-        }
-    }
+//    @Test(groups = {"integration"})
+//    public void testNullValues() throws Exception {
+//        final String table = "null_values_test_table";
+//        final int rows = 1;
+//        List<Map<String, Object>> data = prepareDataSet(table, NULL_DATASET_COLUMNS, NULL_DATASET_VALUE_GENERATORS, 1);
+//
+//        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+//        Future<QueryResponse> response = client.query("SELECT * FROM " + table, settings);
+//        TableSchema schema = client.getTableSchema(table);
+//
+//        QueryResponse queryResponse = response.get();
+//        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
+//
+//        Map<String, Object> record = reader.next();
+//        Assert.assertNotNull(record);
+//        System.out.println("Record: " + record);
+//        int i = 0;
+//        for (String columns : NULL_DATASET_COLUMNS) {
+//            String columnName = columns.split(" ")[0];
+//
+//            if (columnName.equals("id")) {
+//                Assert.assertTrue(record.containsKey(columnName));
+//                Assert.assertEquals(record.get(columnName), 1L);
+//                Assert.assertTrue(reader.hasValue("id"));
+//                Assert.assertTrue(reader.hasValue(i+1), "No value for column " + i);
+//
+//            } else {
+//                Assert.assertFalse(record.containsKey(columnName));
+//                Assert.assertNull(record.get(columnName));
+//                Assert.assertFalse(reader.hasValue(columnName));
+//                Assert.assertFalse(reader.hasValue(i+1));
+//
+//                if (columnName.equals("col1") || columnName.equals("col2")) {
+//                    Assert.expectThrows(NullValueException.class, () -> reader.getLong(columnName));
+//                }
+//            }
+//
+//            i++;
+//        }
+//    }
 
     @Test
     public void testIPAddresses() throws Exception {

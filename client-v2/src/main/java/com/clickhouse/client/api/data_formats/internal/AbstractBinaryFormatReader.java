@@ -76,8 +76,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
     }
 
-    protected Map<String, Object> currentRecord = new HashMap<>();
-    protected Map<String, Object> nextRecord = new HashMap<>();
+    protected Object[] currentRecord;
+    protected Object[] nextRecord;
 
     protected boolean nextRecordEmpty = true;
 
@@ -150,17 +150,39 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return true;
     }
 
+    public boolean readRecord(Object[] record) throws IOException {
+        boolean firstColumn = true;
+        for (int i = 0; i < columns.length; i++) {
+            try {
+                Object val = binaryStreamReader.readValue(columns[i]);
+                if (val != null) {
+                    record[i] = val;
+                } else {
+                    record[i] = null;
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            }
+        }
+        return true;
+    }
+
     @Override
     public <T> T readValue(int colIndex) {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        return (T) currentRecord.get(getSchema().columnIndexToName(colIndex));
+        return (T) currentRecord[colIndex - 1];
     }
 
     @Override
     public <T> T readValue(String colName) {
-        return (T) currentRecord.get(colName);
+        return (T) currentRecord[getSchema().nameToIndex(colName)];
     }
 
     @Override
@@ -189,13 +211,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public Map<String, Object> next() {
+    public Object[] next() {
         if (!hasNext) {
             return null;
         }
 
         if (!nextRecordEmpty) {
-            Map<String, Object> tmp = currentRecord;
+            Object[] tmp = currentRecord;
             currentRecord = nextRecord;
             nextRecord = tmp;
             readNextRecord();
@@ -225,6 +247,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.schema = schema;
         this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
+
+        this.currentRecord = new Object[columns.length];
+        this.nextRecord = new Object[columns.length];
 
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
@@ -533,13 +558,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().columnIndexToName(colIndex));
+        return currentRecord[colIndex] != null;
     }
 
     @Override
     public boolean hasValue(String colName) {
-        getSchema().getColumnByName(colName);
-        return currentRecord.containsKey(colName);
+        return currentRecord[getSchema().nameToIndex(colName)] != null;
     }
 
     @Override

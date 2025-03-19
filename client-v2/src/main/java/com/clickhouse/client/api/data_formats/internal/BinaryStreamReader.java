@@ -370,10 +370,12 @@ public class BinaryStreamReader {
      */
     public static long readLongLE(InputStream input, byte[] buff) throws IOException {
         readNBytes(input, buff, 0, 8);
-        return (long) (buff[0] & 0xFF) | (long) (buff[1] & 0xFF) << 8 | (long) (buff[2] & 0xFF) << 16
-                | (long) (buff[3] & 0xFF) << 24 | (long) (buff[4] & 0xFF) << 32 | (long) (buff[5] & 0xFF) << 40
-                | (long) (buff[6] & 0xFF) << 48 | (long) (buff[7] & 0xFF) << 56;
-    }
+
+        return (0xFFL & buff[0]) | ((0xFFL & buff[1]) << 8) | ((0xFFL & buff[2]) << 16)
+                | ((0xFFL & buff[3]) << 24) | ((0xFFL & buff[4]) << 32)
+                | ((0xFFL & buff[5]) << 40) | ((0xFFL & buff[6]) << 48)
+                | ((0xFFL & buff[7]) << 56);
+        }
 
     /**
      * Read byte from the internal input stream.

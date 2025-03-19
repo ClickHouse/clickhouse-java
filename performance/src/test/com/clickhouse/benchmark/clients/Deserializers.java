@@ -61,24 +61,24 @@ public class Deserializers extends BenchmarkBase {
         }
     }
 
-    @Benchmark
-    public void DeserializerOutputStreamV2(DataState dataState, Blackhole blackhole) {
-        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
-        try {
-            RowBinaryWithNamesAndTypesFormatReader r = new RowBinaryWithNamesAndTypesFormatReader(input,
-                    new QuerySettings()
-                            .setUseTimeZone("UTC")
-                            .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes), new BinaryStreamReader.DefaultByteBufferAllocator());
-
-            Map<String, Object> row;
-            while ((row = r.next()) != null) {
-                for (String column : row.keySet()) {
-                    blackhole.consume(row.get(column));
-                }
-            }
-
-        } catch (Exception e) {
-            LOGGER.error("Error: ", e);
-        }
-    }
+//    @Benchmark
+//    public void DeserializerOutputStreamV2(DataState dataState, Blackhole blackhole) {
+//        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
+//        try {
+//            RowBinaryWithNamesAndTypesFormatReader r = new RowBinaryWithNamesAndTypesFormatReader(input,
+//                    new QuerySettings()
+//                            .setUseTimeZone("UTC")
+//                            .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes), new BinaryStreamReader.DefaultByteBufferAllocator());
+//
+//            Map<String, Object> row;
+//            while ((row = r.next()) != null) {
+//                for (String column : row.keySet()) {
+//                    blackhole.consume(row.get(column));
+//                }
+//            }
+//
+//        } catch (Exception e) {
+//            LOGGER.error("Error: ", e);
+//        }
+//    }
 }

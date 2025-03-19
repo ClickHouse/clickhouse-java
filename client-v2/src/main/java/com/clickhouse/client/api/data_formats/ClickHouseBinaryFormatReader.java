@@ -55,7 +55,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      *
      * @return reference to a map filled with column values or null if no more records are available
      */
-    Map<String, Object> next();
+    Object[] next();
 
     /**
      * Reads column with name `colName` as a string.
