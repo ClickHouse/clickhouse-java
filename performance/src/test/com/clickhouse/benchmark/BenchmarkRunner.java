@@ -48,7 +48,7 @@ public class BenchmarkRunner {
                 .warmupIterations(3)
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
-//                .jvmArgs("-Xms8g", "-Xmx8g")
+                .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
                 .resultFormat(ResultFormatType.JSON)
 //                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
