@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -132,9 +133,9 @@ public class BinaryStreamReader {
                 case Int32:
                     return (T) Integer.valueOf(readIntLE());
                 case UInt32:
-                    return (T) Long.valueOf(readUnsignedIntLE());
+                    return (T) (Long)(readUnsignedIntLE());
                 case Int64:
-                    return (T) Long.valueOf(readLongLE());
+                    return (T) (Long)(readLongLE());
                 case UInt64:
                     return (T) readBigIntegerLE(INT64_SIZE, true);
                 case Int128:
@@ -156,9 +157,9 @@ public class BinaryStreamReader {
                 case Decimal256:
                     return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), scale);
                 case Float32:
-                    return (T) Float.valueOf(readFloatLE());
+                    return (T) (Float)readFloatLE();
                 case Float64:
-                    return (T) Double.valueOf(readDoubleLE());
+                    return (T) (Double)readDoubleLE();
                 case Bool:
                     return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
                 case Enum8: {
@@ -874,8 +875,8 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public static ZonedDateTime readDate(InputStream input, byte[] buff, TimeZone tz) throws IOException {
-        LocalDate d = LocalDate.ofEpochDay(readUnsignedShortLE(input, buff));
-        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
+        Instant instant = Instant.ofEpochSecond(TimeUnit.DAYS.toSeconds(readUnsignedShortLE(input, buff)));
+        return ZonedDateTime.ofInstant(instant, tz.toZoneId());
     }
 
     /**
