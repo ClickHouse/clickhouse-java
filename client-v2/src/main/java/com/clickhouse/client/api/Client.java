@@ -1866,7 +1866,7 @@ public class Client implements AutoCloseable {
      */
     public TableSchema getTableSchema(String table, String database) {
         final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
-        return getTableSchemaImpl(sql, table, null, database);
+        return getTableSchemaImpl(sql, table, null, database, null);
     }
 
     /**
@@ -1875,16 +1875,22 @@ public class Client implements AutoCloseable {
      * @return table schema for the query
      */
     public TableSchema getTableSchemaFromQuery(String sql) {
-        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
-        return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase());
+        return getTableSchemaFromQuery(sql, null);
     }
 
-    private TableSchema getTableSchemaImpl(String describeQuery, String name, String originalQuery, String database) {
+    public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
+        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);
+    }
+
+    private TableSchema getTableSchemaImpl(
+            String describeQuery, String name, String originalQuery, String database, Map<String, Object> queryParams) {
         int operationTimeout = getOperationTimeout();
 
         QuerySettings settings = new QuerySettings().setDatabase(database);
-        try (QueryResponse response = operationTimeout == 0 ? query(describeQuery, settings).get() :
-                query(describeQuery, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+        try (QueryResponse response = operationTimeout == 0
+                ? query(describeQuery, queryParams, settings).get()
+                : query(describeQuery, queryParams, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
