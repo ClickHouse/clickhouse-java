@@ -14,7 +14,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Object[]> {
+public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Map<String, Object>> {
 
     public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream, QuerySettings querySettings,
                                                   BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
