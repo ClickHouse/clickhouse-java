@@ -90,8 +90,6 @@ public class ClickHouseLZ4InputStream extends InputStream {
         return true;
     }
 
-    private byte[] cachedBuff = null;
-
     private int refill() throws IOException {
 
         // read header
@@ -111,9 +109,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
         int uncompressedSize = getInt32(headerBuff, 21);
 
         int offset = 9;
-        final byte[] block = cachedBuff == null || cachedBuff.length <= uncompressedSize ?
-                new byte[compressedSizeWithHeader] : cachedBuff;
-        cachedBuff = block;
+        final byte[] block =  new byte[compressedSizeWithHeader];
         block[0] = MAGIC;
         setInt32(block, 1, compressedSizeWithHeader);
         setInt32(block, 5, uncompressedSize);

@@ -875,8 +875,8 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public static ZonedDateTime readDate(InputStream input, byte[] buff, TimeZone tz) throws IOException {
-        Instant instant = Instant.ofEpochSecond(TimeUnit.DAYS.toSeconds(readUnsignedShortLE(input, buff)));
-        return ZonedDateTime.ofInstant(instant, tz.toZoneId());
+        LocalDate d = LocalDate.ofEpochDay(readUnsignedShortLE(input, buff));
+        return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
     }
 
     /**
