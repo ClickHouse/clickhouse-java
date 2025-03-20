@@ -56,11 +56,11 @@ public class MixedWorkload extends BenchmarkBase {
         }
     }
 
-    @State(Scope.Thread)
-    public static class MixedWorkloadState {
-        @Param({"true", "false"})
-        public boolean alternate;
-    }
+//    @State(Scope.Thread)
+//    public static class MixedWorkloadState {
+//        @Param({"true", "false"})
+//        public boolean alternate;
+//    }
 
 
     @TearDown(Level.Iteration)
