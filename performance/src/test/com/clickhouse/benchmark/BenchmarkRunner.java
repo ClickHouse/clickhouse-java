@@ -1,7 +1,12 @@
 package com.clickhouse.benchmark;
 
+import com.clickhouse.benchmark.clients.Compression;
 import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
 import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
+import com.clickhouse.benchmark.clients.Deserializers;
+import com.clickhouse.benchmark.clients.InsertClient;
+import com.clickhouse.benchmark.clients.QueryClient;
+import com.clickhouse.benchmark.clients.Serializers;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
@@ -28,13 +33,13 @@ public class BenchmarkRunner {
         Map<String, String> argMap = parseArguments(args);
 
         Options opt = new OptionsBuilder()
-//                .include(QueryClient.class.getSimpleName())
-//                .include(InsertClient.class.getSimpleName())
+                .include(QueryClient.class.getSimpleName())
+                .include(InsertClient.class.getSimpleName())
                 .include(ConcurrentInsertClient.class.getSimpleName())
                 .include(ConcurrentQueryClient.class.getSimpleName())
-//                .include(Compression.class.getSimpleName())
-//                .include(Serializers.class.getSimpleName())
-//                .include(Deserializers.class.getSimpleName())
+                .include(Compression.class.getSimpleName())
+                .include(Serializers.class.getSimpleName())
+                .include(Deserializers.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
@@ -43,10 +48,10 @@ public class BenchmarkRunner {
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(5))
                 .measurementIterations(3)
-                .jvmArgs("-Xms10g", "-Xmx10g")
+                .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(isCloud() ? 30 : 5))
                 .resultFormat(ResultFormatType.JSON)
-//                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
+                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .result(String.format("jmh-results-%s-%s.json", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .build();
 
@@ -72,6 +77,10 @@ public class BenchmarkRunner {
 
     public static String getSelectQuery(String tableName) {
         return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "`";
+    }
+
+    public static String getSelectQueryWithLimit(String tableName, int limit) {
+        return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "` LIMIT " + limit;
     }
 
     public static String getSelectCountQuery(String tableName) {

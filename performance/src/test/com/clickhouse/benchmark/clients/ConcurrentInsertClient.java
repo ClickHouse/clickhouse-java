@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
-@Threads(2)
+@Threads(3)
 @State(Scope.Benchmark)
 public class ConcurrentInsertClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentInsertClient.class);
@@ -98,7 +98,7 @@ public class ConcurrentInsertClient extends BenchmarkBase {
         String tableName = threadLocalState.createTableName();
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
-            try (ClickHouseResponse response = getClientV1().read(getServer())
+            try (ClickHouseResponse response = clientV1Shared.read(getServer())
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
