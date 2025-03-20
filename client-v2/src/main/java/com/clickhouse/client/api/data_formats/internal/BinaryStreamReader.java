@@ -306,6 +306,9 @@ public class BinaryStreamReader {
         return (T) value;
     }
 
+
+    private byte[] int16Buff = new byte[INT16_SIZE];
+
     /**
      * Read a short value in little-endian from the internal input stream.
      *
@@ -313,7 +316,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public short readShortLE() throws IOException {
-        return readShortLE(input, bufferAllocator.allocate(INT16_SIZE));
+        return readShortLE(input, int16Buff);
     }
 
     /**
@@ -329,13 +332,15 @@ public class BinaryStreamReader {
         return (short) (buff[0] & 0xFF | (buff[1] & 0xFF) << 8);
     }
 
+    private byte[] int32Buff = new byte[INT32_SIZE];
+
     /**
      * Reads an int value in little-endian from the internal input stream.
      * @return int value
      * @throws IOException when IO error occurs
      */
     public int readIntLE() throws IOException {
-        return readIntLE(input, bufferAllocator.allocate(INT32_SIZE));
+        return readIntLE(input, int32Buff);
     }
 
     /**
@@ -351,6 +356,8 @@ public class BinaryStreamReader {
         return (buff[0] & 0xFF) | (buff[1] & 0xFF) << 8 | (buff[2] & 0xFF) << 16 | (buff[3] & 0xFF) << 24;
     }
 
+    private byte[] int64Buff = new byte[INT64_SIZE];
+
     /**
      * Reads a long value in little-endian from the internal input stream.
      *
@@ -358,7 +365,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public long readLongLE() throws IOException {
-        return readLongLE(input, bufferAllocator.allocate(INT64_SIZE));
+        return readLongLE(input, int64Buff);
     }
 
     /**
@@ -402,7 +409,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public int readUnsignedShortLE() throws IOException {
-        return readUnsignedShortLE(input, bufferAllocator.allocate(INT16_SIZE));
+        return readUnsignedShortLE(input, int16Buff);
     }
 
     /**
@@ -484,6 +491,7 @@ public class BinaryStreamReader {
         return Float.intBitsToFloat(readIntLE());
     }
 
+    private static final byte[] B1 = new byte[8];
     /**
      * Reads a double value from the internal input stream.
      * @return double value
