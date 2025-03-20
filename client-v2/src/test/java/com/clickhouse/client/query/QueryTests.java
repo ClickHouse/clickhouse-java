@@ -1638,8 +1638,10 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testGetTableSchemaFromQueryWithParams() {
+        Map<String, Object> queryParams = new HashMap<>();
+        queryParams.put("param1", 2);
         TableSchema schema = client.getTableSchemaFromQuery("SELECT toUInt32(1) as col1, {param1:String} as col2",
-                Map.of("param1", "value"));
+                queryParams);
         Assert.assertNotNull(schema);
         Assert.assertEquals(schema.getColumns().size(), 2);
         Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "col1");
