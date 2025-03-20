@@ -5,15 +5,19 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseSerializer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Group;
 import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -23,9 +27,11 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
 
-@Threads(2)
+@Threads(3)
 @State(Scope.Benchmark)
 public class MixedWorkload extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(MixedWorkload.class);
@@ -33,13 +39,13 @@ public class MixedWorkload extends BenchmarkBase {
     private ClickHouseClient clientV1Shared;
     private Client clientV2Shared;
     @Setup(Level.Trial)
-    public void setUpIteration() {
+    public void setUpTrial() {
         clientV1Shared = getClientV1();
         clientV2Shared = getClientV2();
     }
 
     @TearDown(Level.Trial)
-    public void tearDownIteration() {
+    public void tearDownTrial() {
         if (clientV1Shared != null) {
             clientV1Shared.close();
             clientV1Shared = null;
@@ -50,15 +56,19 @@ public class MixedWorkload extends BenchmarkBase {
         }
     }
 
+//    @State(Scope.Thread)
+//    public static class MixedWorkloadState {
+//        @Param({"true", "false"})
+//        public boolean alternate;
+//    }
+
+
     @TearDown(Level.Iteration)
     public void teardownIteration(DataState dataState) {
         truncateTable(dataState.tableNameEmpty);
     }
 
-//    @State(Scope.Thread)
-//    public static class MixedWorkloadState {
-//
-//    }
+
 
     @Benchmark
     @Group("mixed_v1")
@@ -78,6 +88,33 @@ public class MixedWorkload extends BenchmarkBase {
                 response.getSummary();
             }
         } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    @Group("mixed_v1")
+    public void insertV1RowBinary(DataState dataState) {
+        try {
+            ClickHouseFormat format = ClickHouseFormat.RowBinary;
+            try (ClickHouseResponse response = clientV1Shared.read(getServer())
+                    .write()
+                    .option(ClickHouseClientOption.ASYNC, false)
+                    .format(format)
+                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .data(out -> {
+                        ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
+                        ClickHouseSerializer[] serializers = p.getSerializers(clientV1Shared.getConfig(), p.getColumns());
+                        for (ClickHouseRecord record : dataState.dataSet.getClickHouseRecords()) {
+                            for (int i = 0; i < serializers.length; i++) {
+                                serializers[i].serialize(record.getValue(i), out);
+                            }
+                        }
+                    })
+                    .executeAndWait()) {
+                response.getSummary();
+            }
+        } catch ( Exception e) {
             LOGGER.error("Error: ", e);
         }
     }
@@ -104,6 +141,9 @@ public class MixedWorkload extends BenchmarkBase {
 
 
 
+
+
+
     @Benchmark
     @Group("mixed_v2")
     public void insertV2(DataState dataState) {
@@ -115,6 +155,30 @@ public class MixedWorkload extends BenchmarkBase {
                 }
                 out.close();
             }, format, new InsertSettings()).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    @Group("mixed_v2")
+    public void insertV2RowBinary(DataState dataState) {
+        try {
+            try (InsertResponse response = clientV2Shared.insert(dataState.tableNameEmpty, out -> {
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.commitRow();
+                }
+                out.flush();
+
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {
