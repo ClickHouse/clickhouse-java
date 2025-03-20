@@ -19,6 +19,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,10 @@ public class MixedWorkload extends BenchmarkBase {
         truncateTable(dataState.tableNameEmpty);
     }
 
+//    @State(Scope.Thread)
+//    public static class MixedWorkloadState {
+//
+//    }
 
     @Benchmark
     @Group("mixed_v1")
@@ -79,7 +84,7 @@ public class MixedWorkload extends BenchmarkBase {
 
     @Benchmark
     @Group("mixed_v1")
-    public void queryV1(DataState dataState) {
+    public void queryV1(DataState dataState, Blackhole blackhole) {
         try {
             try (ClickHouseResponse response = clientV1Shared.read(getServer())
                     .query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled))
@@ -88,7 +93,7 @@ public class MixedWorkload extends BenchmarkBase {
                     .executeAndWait()) {
                 for (ClickHouseRecord record: response.records()) {//Compiler optimization avoidance
                     for (int i = 0; i < dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        isNotNull(record.getValue(i), false);
+                        blackhole.consume(record.getValue(i).asObject());
                     }
                 }
             }
@@ -119,13 +124,13 @@ public class MixedWorkload extends BenchmarkBase {
 
     @Benchmark
     @Group("mixed_v2")
-    public void queryV2(DataState dataState) {
+    public void queryV2(DataState dataState, Blackhole blackhole) {
         try {
-            try(QueryResponse response = clientV2Shared.query(BenchmarkRunner.getSelectQuery(dataState.tableNameEmpty)).get()) {
+            try(QueryResponse response = clientV2Shared.query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled)).get()) {
                 ClickHouseBinaryFormatReader reader = clientV2Shared.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        isNotNull(reader.readValue(1), false);
+                        blackhole.consume(reader.readValue(1));
                     }
                 }
             }
