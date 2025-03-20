@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -126,15 +127,15 @@ public class BinaryStreamReader {
                 case UInt8:
                     return (T) Short.valueOf(readUnsignedByte());
                 case Int16:
-                    return (T) Short.valueOf(readShortLE());
+                    return (T) (Short)readShortLE();
                 case UInt16:
-                    return (T) Integer.valueOf(readUnsignedShortLE());
+                    return (T) (Integer)readUnsignedShortLE();
                 case Int32:
-                    return (T) Integer.valueOf(readIntLE());
+                    return (T) (Integer)readIntLE();
                 case UInt32:
-                    return (T) Long.valueOf(readUnsignedIntLE());
+                    return (T) (Long)(readUnsignedIntLE());
                 case Int64:
-                    return (T) Long.valueOf(readLongLE());
+                    return (T) (Long)(readLongLE());
                 case UInt64:
                     return (T) readBigIntegerLE(INT64_SIZE, true);
                 case Int128:
@@ -156,9 +157,9 @@ public class BinaryStreamReader {
                 case Decimal256:
                     return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), scale);
                 case Float32:
-                    return (T) Float.valueOf(readFloatLE());
+                    return (T) (Float)readFloatLE();
                 case Float64:
-                    return (T) Double.valueOf(readDoubleLE());
+                    return (T) (Double)readDoubleLE();
                 case Bool:
                     return (T) Boolean.valueOf(readByteOrEOF(input) == 1);
                 case Enum8: {
@@ -305,6 +306,9 @@ public class BinaryStreamReader {
         return (T) value;
     }
 
+
+    private byte[] int16Buff = new byte[INT16_SIZE];
+
     /**
      * Read a short value in little-endian from the internal input stream.
      *
@@ -312,7 +316,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public short readShortLE() throws IOException {
-        return readShortLE(input, bufferAllocator.allocate(INT16_SIZE));
+        return readShortLE(input, int16Buff);
     }
 
     /**
@@ -328,13 +332,15 @@ public class BinaryStreamReader {
         return (short) (buff[0] & 0xFF | (buff[1] & 0xFF) << 8);
     }
 
+    private byte[] int32Buff = new byte[INT32_SIZE];
+
     /**
      * Reads an int value in little-endian from the internal input stream.
      * @return int value
      * @throws IOException when IO error occurs
      */
     public int readIntLE() throws IOException {
-        return readIntLE(input, bufferAllocator.allocate(INT32_SIZE));
+        return readIntLE(input, int32Buff);
     }
 
     /**
@@ -350,6 +356,8 @@ public class BinaryStreamReader {
         return (buff[0] & 0xFF) | (buff[1] & 0xFF) << 8 | (buff[2] & 0xFF) << 16 | (buff[3] & 0xFF) << 24;
     }
 
+    private byte[] int64Buff = new byte[INT64_SIZE];
+
     /**
      * Reads a long value in little-endian from the internal input stream.
      *
@@ -357,7 +365,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public long readLongLE() throws IOException {
-        return readLongLE(input, bufferAllocator.allocate(INT64_SIZE));
+        return readLongLE(input, int64Buff);
     }
 
     /**
@@ -370,10 +378,12 @@ public class BinaryStreamReader {
      */
     public static long readLongLE(InputStream input, byte[] buff) throws IOException {
         readNBytes(input, buff, 0, 8);
-        return (long) (buff[0] & 0xFF) | (long) (buff[1] & 0xFF) << 8 | (long) (buff[2] & 0xFF) << 16
-                | (long) (buff[3] & 0xFF) << 24 | (long) (buff[4] & 0xFF) << 32 | (long) (buff[5] & 0xFF) << 40
-                | (long) (buff[6] & 0xFF) << 48 | (long) (buff[7] & 0xFF) << 56;
-    }
+
+        return (0xFFL & buff[0]) | ((0xFFL & buff[1]) << 8) | ((0xFFL & buff[2]) << 16)
+                | ((0xFFL & buff[3]) << 24) | ((0xFFL & buff[4]) << 32)
+                | ((0xFFL & buff[5]) << 40) | ((0xFFL & buff[6]) << 48)
+                | ((0xFFL & buff[7]) << 56);
+        }
 
     /**
      * Read byte from the internal input stream.
@@ -399,7 +409,7 @@ public class BinaryStreamReader {
      * @throws IOException when IO error occurs
      */
     public int readUnsignedShortLE() throws IOException {
-        return readUnsignedShortLE(input, bufferAllocator.allocate(INT16_SIZE));
+        return readUnsignedShortLE(input, int16Buff);
     }
 
     /**
@@ -481,6 +491,7 @@ public class BinaryStreamReader {
         return Float.intBitsToFloat(readIntLE());
     }
 
+    private static final byte[] B1 = new byte[8];
     /**
      * Reads a double value from the internal input stream.
      * @return double value

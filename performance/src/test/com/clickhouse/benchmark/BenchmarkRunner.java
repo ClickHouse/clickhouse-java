@@ -10,6 +10,7 @@ import com.clickhouse.benchmark.clients.Serializers;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.profile.GCProfiler;
+import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
 import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
@@ -49,7 +50,7 @@ public class BenchmarkRunner {
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
-                .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
+                .measurementTime(TimeValue.seconds(isCloud() ? 30 : 120))
                 .resultFormat(ResultFormatType.JSON)
 //                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .result(String.format("jmh-results-%s-%s.json", isCloud() ? "cloud" : "local", System.currentTimeMillis()))

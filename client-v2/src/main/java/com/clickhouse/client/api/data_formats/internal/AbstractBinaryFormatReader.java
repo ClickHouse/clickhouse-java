@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.POJOSetter;
@@ -22,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -34,13 +36,19 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
@@ -76,8 +84,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
     }
 
-    protected Map<String, Object> currentRecord = new HashMap<>();
-    protected Map<String, Object> nextRecord = new HashMap<>();
+    protected Object[] currentRecord;
+    protected Object[] nextRecord;
 
     protected boolean nextRecordEmpty = true;
 
@@ -150,17 +158,39 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return true;
     }
 
+    protected boolean readRecord(Object[] record) throws IOException {
+        boolean firstColumn = true;
+        for (int i = 0; i < columns.length; i++) {
+            try {
+                Object val = binaryStreamReader.readValue(columns[i]);
+                if (val != null) {
+                    record[i] = val;
+                } else {
+                    record[i] = null;
+                }
+                firstColumn = false;
+            } catch (EOFException e) {
+                if (firstColumn) {
+                    endReached();
+                    return false;
+                }
+                throw e;
+            }
+        }
+        return true;
+    }
+
     @Override
     public <T> T readValue(int colIndex) {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        return (T) currentRecord.get(getSchema().columnIndexToName(colIndex));
+        return (T) currentRecord[colIndex - 1];
     }
 
     @Override
     public <T> T readValue(String colName) {
-        return (T) currentRecord.get(colName);
+        return (T) currentRecord[getSchema().nameToIndex(colName)];
     }
 
     @Override
@@ -195,16 +225,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
 
         if (!nextRecordEmpty) {
-            Map<String, Object> tmp = currentRecord;
+            Object[] tmp = currentRecord;
             currentRecord = nextRecord;
             nextRecord = tmp;
             readNextRecord();
-            return currentRecord;
+            return new RecordWrapper(currentRecord, schema);
         } else {
             try {
                 if (readRecord(currentRecord)) {
                     readNextRecord();
-                    return currentRecord;
+                    return new RecordWrapper(currentRecord, schema);
                 } else {
                     currentRecord = null;
                     return null;
@@ -225,6 +255,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.schema = schema;
         this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
+
+        this.currentRecord = new Object[columns.length];
+        this.nextRecord = new Object[columns.length];
 
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
@@ -533,13 +566,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord.containsKey(getSchema().columnIndexToName(colIndex));
+        return currentRecord[colIndex - 1] != null;
     }
 
     @Override
     public boolean hasValue(String colName) {
-        getSchema().getColumnByName(colName);
-        return currentRecord.containsKey(colName);
+        return currentRecord[getSchema().nameToIndex(colName)] != null;
     }
 
     @Override
@@ -777,5 +809,109 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public void close() throws Exception {
         input.close();
+    }
+
+    private static class RecordWrapper implements Map<String, Object> {
+
+        private final WeakReference<Object[]> recordRef;
+
+        private final WeakReference<TableSchema> schemaRef;
+
+        int size;
+        public RecordWrapper(Object[] record, TableSchema schema) {
+            this.recordRef = new WeakReference<>(record);
+            this.schemaRef = new WeakReference<>(schema);
+            this.size = record.length;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return size == 0;
+        }
+
+        @Override
+        @SuppressWarnings("ConstantConditions")
+        public boolean containsKey(Object key) {
+            if (key instanceof String) {
+                return recordRef.get()[schemaRef.get().nameToIndex((String)key)] != null;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            for (Object obj : recordRef.get()) {
+                if (obj == value) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        @SuppressWarnings("ConstantConditions")
+        public Object get(Object key) {
+            if (key instanceof String) {
+                 try {
+                     int index = schemaRef.get().nameToIndex((String) key);
+                     if (index < size) {
+                         return recordRef.get()[index];
+                     }
+                 } catch (NoSuchColumnException e) {
+                     return null;
+                 }
+            }
+
+            return null;
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            throw new UnsupportedOperationException("Record is read-only");
+        }
+
+        @Override
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException("Record is read-only");
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ?> m) {
+            throw new UnsupportedOperationException("Record is read-only");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("Record is read-only");
+        }
+
+        @Override
+        @SuppressWarnings("ConstantConditions")
+        public Set<String> keySet() {
+            // TODO: create a view in Schema
+            return schemaRef.get().getColumns().stream().map(ClickHouseColumn::getColumnName).collect(Collectors.toSet());
+        }
+
+        @Override
+        @SuppressWarnings("ConstantConditions")
+        public Collection<Object> values() {
+            return Arrays.asList(recordRef.get());
+        }
+
+        @Override
+        @SuppressWarnings("ConstantConditions")
+        public Set<Entry<String, Object>> entrySet() {
+            int i = 0;
+            Set<Entry<String, Object>> entrySet = new HashSet<>();
+            for (ClickHouseColumn column : schemaRef.get().getColumns()) {
+                entrySet.add( new AbstractMap.SimpleImmutableEntry(column.getColumnName(), recordRef.get()[i++]));
+            }
+            return entrySet;
+        }
     }
 }

@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class Deserializers extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(Deserializers.class);
@@ -70,10 +69,10 @@ public class Deserializers extends BenchmarkBase {
                             .setUseTimeZone("UTC")
                             .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes), new BinaryStreamReader.DefaultByteBufferAllocator());
 
-            Map<String, Object> row;
-            while ((row = r.next()) != null) {
-                for (String column : row.keySet()) {
-                    blackhole.consume(row.get(column));
+            final int columnCount = dataState.dataSet.getSchema().getColumns().size();
+            while (r.next() != null) {
+                for (int i = 1; i <= columnCount; i++) {
+                    blackhole.consume(r.readValue(i));
                 }
             }
 
