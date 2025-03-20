@@ -19,14 +19,12 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.shaded.org.apache.commons.io.input.UnsynchronizedByteArrayInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class Deserializers extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(Deserializers.class);
@@ -46,7 +44,7 @@ public class Deserializers extends BenchmarkBase {
 
     @Benchmark
     public void DeserializerOutputStreamV1(DataState dataState, Blackhole blackhole) {
-        InputStream input = new UnsynchronizedByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
+        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
         try {
             ClickHouseConfig config = new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes));
             ClickHouseDataProcessor p = new ClickHouseRowBinaryProcessor(config,
@@ -64,7 +62,7 @@ public class Deserializers extends BenchmarkBase {
 
     @Benchmark
     public void DeserializerOutputStreamV2(DataState dataState, Blackhole blackhole) {
-        InputStream input = new UnsynchronizedByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
+        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
         try {
             RowBinaryWithNamesAndTypesFormatReader r = new RowBinaryWithNamesAndTypesFormatReader(input,
                     new QuerySettings()
