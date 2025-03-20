@@ -78,8 +78,7 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-//        @Param({"300000", "220000", "100000", "10000"})
-        @Param({"300000", "100000", "10000"})
+        @Param({"300000", "220000", "100000", "10000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
@@ -224,6 +223,7 @@ public class BenchmarkBase {
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .setMaxRetries(0)
+                .allowBinaryReaderToReuseBuffers(true)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }

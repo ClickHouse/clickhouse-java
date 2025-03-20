@@ -19,6 +19,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.shaded.org.apache.commons.io.input.UnsynchronizedByteArrayInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -45,7 +46,7 @@ public class Deserializers extends BenchmarkBase {
 
     @Benchmark
     public void DeserializerOutputStreamV1(DataState dataState, Blackhole blackhole) {
-        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
+        InputStream input = new UnsynchronizedByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
         try {
             ClickHouseConfig config = new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes));
             ClickHouseDataProcessor p = new ClickHouseRowBinaryProcessor(config,
@@ -63,17 +64,17 @@ public class Deserializers extends BenchmarkBase {
 
     @Benchmark
     public void DeserializerOutputStreamV2(DataState dataState, Blackhole blackhole) {
-        InputStream input = new ByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
+        InputStream input = new UnsynchronizedByteArrayInputStream(dataState.datasetAsRowBinaryWithNamesAndTypes.array());
         try {
             RowBinaryWithNamesAndTypesFormatReader r = new RowBinaryWithNamesAndTypesFormatReader(input,
                     new QuerySettings()
                             .setUseTimeZone("UTC")
                             .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes), new BinaryStreamReader.DefaultByteBufferAllocator());
 
-            Map<String, Object> row;
-            while ((row = r.next()) != null) {
-                for (String column : row.keySet()) {
-                    blackhole.consume(row.get(column));
+            final int columnCount = dataState.dataSet.getSchema().getColumns().size();
+            while (r.next() != null) { 
+                for (int i = 1; i <= columnCount; i++) {
+                    blackhole.consume(r.readValue(i));
                 }
             }
 
