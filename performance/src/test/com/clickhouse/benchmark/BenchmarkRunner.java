@@ -4,9 +4,11 @@ package com.clickhouse.benchmark;
 import com.clickhouse.benchmark.clients.Compression;
 import com.clickhouse.benchmark.clients.Deserializers;
 import com.clickhouse.benchmark.clients.InsertClient;
+import com.clickhouse.benchmark.clients.MixedWorkload;
 import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.clients.Serializers;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
 import org.openjdk.jmh.results.format.ResultFormatType;
@@ -37,10 +39,10 @@ public class BenchmarkRunner {
                 .include(Compression.class.getSimpleName())
                 .include(Serializers.class.getSimpleName())
                 .include(Deserializers.class.getSimpleName())
+                .include(MixedWorkload.class.getSimpleName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
-                .threads(1)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(3)
