@@ -72,7 +72,7 @@ public class Deserializers extends BenchmarkBase {
                             .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes), new BinaryStreamReader.DefaultByteBufferAllocator());
 
             final int columnCount = dataState.dataSet.getSchema().getColumns().size();
-            while (r.next() != null) { 
+            while (r.next() != null) {
                 for (int i = 1; i <= columnCount; i++) {
                     blackhole.consume(r.readValue(i));
                 }

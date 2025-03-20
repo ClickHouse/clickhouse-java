@@ -223,7 +223,6 @@ public class BenchmarkBase {
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .setMaxRetries(0)
-                .allowBinaryReaderToReuseBuffers(true)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }
