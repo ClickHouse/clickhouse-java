@@ -1,7 +1,6 @@
 package com.clickhouse.benchmark.clients;
 
 import com.clickhouse.benchmark.BenchmarkRunner;
-import com.clickhouse.benchmark.TestEnvironment;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
@@ -109,8 +108,6 @@ public class BenchmarkBase {
 
     }
 
-
-
     @Setup(Level.Trial)
     public void setup(DataState dataState) {
         setupEnvironment();
@@ -123,28 +120,34 @@ public class BenchmarkBase {
         }
         initializeTables(dataState);
     }
+
     @TearDown(Level.Trial)
     public void tearDown() {
         cleanupEnvironment();
     }
 
 
-    private static void initializeTables(DataState dataState) {
-        initializeTable(dataState.tableNameFilled, dataState.dataSet.getCreateTableString(dataState.tableNameFilled)
-                , dataState.dataSet.getInputStream(dataState.dataSet.getFormat()), dataState.dataSet.getFormat());
-        initializeTable(dataState.tableNameEmpty, dataState.dataSet.getCreateTableString(dataState.tableNameEmpty), null, null);
+    public static void initializeTables(DataState dataState) {
+        LOGGER.info("Initializing tables: {}, {}", dataState.tableNameFilled, dataState.tableNameEmpty);
+        LOGGER.debug("Create {}: {}", dataState.tableNameFilled, dataState.dataSet.getCreateTableString(dataState.tableNameFilled));
+        LOGGER.debug("Create {}: {}", dataState.tableNameEmpty, dataState.dataSet.getCreateTableString(dataState.tableNameEmpty));
+        runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameEmpty), dataState.tableNameEmpty);
+        runAndSyncQuery(dataState.dataSet.getCreateTableString(dataState.tableNameFilled), dataState.tableNameFilled);
+        //Truncate tables if they existed
+        truncateTable(dataState.tableNameEmpty);
+        truncateTable(dataState.tableNameFilled);
+
+        ClickHouseFormat format = dataState.dataSet.getFormat();
+        LOGGER.debug("Inserting data into table: {}, format: {}", dataState.tableNameFilled, format);
+        insertData(dataState.tableNameFilled, dataState.dataSet.getInputStream(format), format);//For query testing
         loadClickHouseRecords(dataState);//For insert testing
     }
 
 
 
-    public static void initializeTable(String tableName, String createTableString, InputStream dataStream, ClickHouseFormat format) {
-        LOGGER.info("Initializing table: {}", tableName);
-        runAndSyncQuery(createTableString, tableName);
-        truncateTable(tableName);
-
-        if (dataStream != null) {
-            insertData(tableName, dataStream, format);
+    public static void isNotNull(Object obj, boolean doWeCare) {
+        if (obj == null && doWeCare) {
+            throw new RuntimeException("Object is null");
         }
     }
 
