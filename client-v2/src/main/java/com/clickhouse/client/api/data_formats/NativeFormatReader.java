@@ -1,10 +1,11 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -27,12 +28,29 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
                               BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
         super(inputStream, settings, null, byteBufferAllocator);
-        readNextRecord();
+        try {
+            readBlock();
+        } catch (IOException e) {
+            throw new ClientException("Failed to read block", e);
+        }
     }
 
     @Override
     public boolean readRecord(Map<String, Object> record) throws IOException {
-        if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
+        if (blockRowIndex >= currentBlock.getnRows()) {
+            if (!readBlock()) {
+                return false;
+            }
+        }
+
+        currentBlock.fillRecord(blockRowIndex, record);
+        blockRowIndex++;
+        return true;
+    }
+
+    @Override
+    protected boolean readRecord(Object[] record) throws IOException {
+        if (blockRowIndex >= currentBlock.getnRows()) {
             if (!readBlock()) {
                 return false;
             }
@@ -56,9 +74,12 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         List<String> names = new ArrayList<>(nColumns);
         List<String> types = new ArrayList<>(nColumns);
         currentBlock = new Block(names, types, nRows);
+        TableSchema schema = new TableSchema();
         for (int i = 0; i < nColumns; i++) {
-            ClickHouseColumn column = ClickHouseColumn.of(BinaryStreamReader.readString(input),
+
+            schema.addColumn(BinaryStreamReader.readString(input),
                     BinaryStreamReader.readString(input));
+            ClickHouseColumn column = schema.getColumns().get(i);
 
             names.add(column.getColumnName());
             types.add(column.getDataType().name());
@@ -80,6 +101,9 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             }
             currentBlock.add(values);
         }
+
+        setSchema(schema);
+
         blockRowIndex = 0;
         return true;
     }
@@ -103,6 +127,12 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
         public int getnRows() {
             return nRows;
+        }
+
+        private void fillRecord(int index, Object[] record) {
+            for (int i = 0; i < names.size(); i++) {
+                record[i] = values.get(i).get(index);
+            }
         }
 
         private void fillRecord(int index, Map<String, Object> record) {

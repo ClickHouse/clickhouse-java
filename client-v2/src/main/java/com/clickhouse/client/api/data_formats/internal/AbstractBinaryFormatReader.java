@@ -158,7 +158,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return true;
     }
 
-    public boolean readRecord(Object[] record) throws IOException {
+    protected boolean readRecord(Object[] record) throws IOException {
         boolean firstColumn = true;
         for (int i = 0; i < columns.length; i++) {
             try {
@@ -566,7 +566,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
-        return currentRecord[colIndex] != null;
+        return currentRecord[colIndex - 1] != null;
     }
 
     @Override
@@ -837,7 +837,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         @Override
         @SuppressWarnings("ConstantConditions")
         public boolean containsKey(Object key) {
-            return key instanceof String && schemaRef.get().getColumnByName((String)key) != null;
+            if (key instanceof String) {
+                return recordRef.get()[schemaRef.get().nameToIndex((String)key)] != null;
+            }
+            return false;
         }
 
         @Override
