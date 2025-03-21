@@ -1,23 +1,14 @@
 package com.clickhouse.benchmark.clients;
 
 import com.clickhouse.benchmark.BenchmarkRunner;
-import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
-import com.clickhouse.client.api.insert.InsertResponse;
-import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
-import com.clickhouse.data.ClickHouseSerializer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
@@ -29,14 +20,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static com.clickhouse.benchmark.TestEnvironment.*;
 
-@Threads(10)
+@Threads(3)
 @State(Scope.Benchmark)
 public class ConcurrentQueryClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentQueryClient.class);

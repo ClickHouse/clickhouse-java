@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
 @Threads(3)
@@ -57,7 +56,7 @@ public class ConcurrentInsertClient extends BenchmarkBase {
             String id = name.substring(index + 1);
             return String.format("%s_%s", "concurrent_data_empty", id);
         }
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             DataSet dataSet = DataState.getDataSet();
             String tableName = createTableName();

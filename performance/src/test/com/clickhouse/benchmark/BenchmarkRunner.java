@@ -47,11 +47,11 @@ public class BenchmarkRunner {
                 .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(5))
-                .measurementIterations(3)
+                .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
-                .measurementTime(TimeValue.seconds(isCloud() ? 30 : 5))
+                .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
                 .resultFormat(ResultFormatType.JSON)
-                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
+//                .output(String.format("jmh-results-%s-%s.out", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .result(String.format("jmh-results-%s-%s.json", isCloud() ? "cloud" : "local", System.currentTimeMillis()))
                 .build();
 
