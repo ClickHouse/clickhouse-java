@@ -12,6 +12,7 @@ import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -208,8 +209,11 @@ public class BenchmarkBase {
     }
 
     protected static ClickHouseClient getClientV1() {
-        //We get a new client so that closing won't affect other subsequent calls
-        return ClickHouseClient.newInstance(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()), ClickHouseProtocol.HTTP);
+        // We get a new client so that closing won't affect other subsequent calls
+        return ClickHouseClient.builder()
+                .defaultCredentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .build();
     }
     protected static Client getClientV2() {
         return getClientV2(true);
