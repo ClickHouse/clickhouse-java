@@ -57,12 +57,14 @@ public class BenchmarkBase {
     protected Client clientV2;
     @Setup(Level.Iteration)
     public void setUpIteration() {
+        LOGGER.info("BenchmarkBase::setUpIteration");
         clientV1 = getClientV1();
         clientV2 = getClientV2();
     }
 
     @TearDown(Level.Iteration)
     public void tearDownIteration() {
+        LOGGER.info("BenchmarkBase::tearDownIteration");
         if (clientV1 != null) {
             clientV1.close();
             clientV1 = null;
@@ -86,7 +88,7 @@ public class BenchmarkBase {
         @Param({"data_empty"})
         String tableNameEmpty;
 
-        DataSet dataSet;
+        static DataSet dataSet;
 
         ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
 
@@ -110,10 +112,15 @@ public class BenchmarkBase {
             this.tableNameEmpty = tableNameEmpty;
         }
 
+        public static DataSet getDataSet() {
+            return dataSet;
+        }
+
     }
 
     @Setup(Level.Trial)
     public void setup(DataState dataState) {
+        LOGGER.info("BenchmarkBase::setup");
         setupEnvironment();
         LOGGER.info("Setup benchmarks using dataset: {}", dataState.datasetSourceName);
         if (dataState.dataSet == null && "simple".equals(dataState.datasetSourceName)) {
@@ -182,6 +189,10 @@ public class BenchmarkBase {
         runAndSyncQuery(String.format("TRUNCATE TABLE IF EXISTS `%s`.`%s`", DB_NAME, tableName), tableName);
     }
 
+    public static void dropTable(String tableName) {
+        LOGGER.info("Truncating table: {}", tableName);
+        runAndSyncQuery(String.format("DROP TABLE IF EXISTS `%s`.`%s`", DB_NAME, tableName), tableName);
+    }
 
     public static void insertData(String tableName, InputStream dataStream, ClickHouseFormat format) {
         try (Client client = getClientV2();
