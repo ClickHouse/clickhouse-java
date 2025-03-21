@@ -388,9 +388,15 @@ public class HttpAPIClientHelper {
         }
     }
 
+    private static final long POOL_VENT_TIMEOUT = 10000L;
+    private AtomicLong timeToPoolVent = new AtomicLong(0);
+
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-        poolControl.closeExpired();
+        if (timeToPoolVent.get() < System.currentTimeMillis()) {
+            timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
+            poolControl.closeExpired();
+        }
 
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
@@ -411,8 +417,7 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
         boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
 
-        RequestConfig httpReqConfig = RequestConfig.copy(baseRequestConfig).build();
-        req.setConfig(httpReqConfig);
+        req.setConfig(baseRequestConfig);
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
                 clientCompression, useHttpCompression, appCompressedData));
@@ -498,16 +503,21 @@ public class HttpAPIClientHelper {
             }
         }
 
-        for (Map.Entry<String, String> entry : chConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue());
+        for (String key : chConfig.keySet()) {
+            if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
+                req.setHeader(key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), chConfig.get(key));
             }
         }
-        for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.setHeader(entry.getKey().substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), entry.getValue().toString());
+
+        for (String key : requestConfig.keySet()) {
+            if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
+                Object val = requestConfig.get(key);
+                if (val != null) {
+                    req.setHeader(key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), String.valueOf(val));
+                }
             }
         }
+
 
         // Special cases
         if (req.containsHeader(HttpHeaders.AUTHORIZATION) && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
@@ -522,9 +532,9 @@ public class HttpAPIClientHelper {
     }
 
     private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
-        for (Map.Entry<String, String> entry : chConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
-                req.addParameter(entry.getKey().substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), entry.getValue());
+        for (String key : chConfig.keySet()) {
+            if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
+                req.addParameter(key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), chConfig.get(key));
             }
         }
 
@@ -563,9 +573,12 @@ public class HttpAPIClientHelper {
             sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
         }
 
-        for (Map.Entry<String, Object> entry : requestConfig.entrySet()) {
-            if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
-                req.addParameter(entry.getKey().substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), entry.getValue().toString());
+        for (String key : requestConfig.keySet()) {
+            if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                Object val = requestConfig.get(key);
+                if (val != null) {
+                    req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
+                }
             }
         }
     }

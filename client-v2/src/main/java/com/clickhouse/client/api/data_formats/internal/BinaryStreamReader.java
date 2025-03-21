@@ -112,15 +112,13 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    byte[] bytes = readNBytes(input, estimatedLen);
+                    byte[] bytes = estimatedLen > STRING_BUFF.length ?
+                            new byte[estimatedLen] : STRING_BUFF;
+                    readNBytes(input, bytes, 0, estimatedLen);
                     return (T) new String(bytes, 0, estimatedLen, StandardCharsets.UTF_8);
                 }
                 case String: {
-                    int len = readVarInt(input);
-                    if (len == 0) {
-                        return (T) "";
-                    }
-                    return (T) new String(readNBytes(input, len), StandardCharsets.UTF_8);
+                    return (T) readString();
                 }
                 case Int8:
                     return (T) Byte.valueOf(readByte());
@@ -975,6 +973,24 @@ public class BinaryStreamReader {
         }
 
         return Instant.ofEpochSecond(value, nanoSeconds).atZone(tz.toZoneId());
+    }
+
+    private final byte[] STRING_BUFF = new byte[1024];
+
+    /**
+     * Reads a string from the internal input stream.
+     * Uses pre-allocated buffer to store tmp data.
+     * @return
+     * @throws IOException
+     */
+    public String readString() throws IOException {
+        int len = readVarInt(input);
+        if (len == 0) {
+            return "";
+        }
+        byte[] dest = len > STRING_BUFF.length ? new byte[len] : STRING_BUFF;
+        readNBytes(input, dest, 0, len);
+        return new String(dest, 0, len, StandardCharsets.UTF_8);
     }
 
     /**

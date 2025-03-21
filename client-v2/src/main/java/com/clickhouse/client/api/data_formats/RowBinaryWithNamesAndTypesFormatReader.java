@@ -34,11 +34,11 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
                 return;
             }
             for (int i = 0; i < nCol; i++) {
-                columns.add(BinaryStreamReader.readString(input));
+                columns.add(binaryStreamReader.readString());
             }
 
             for (int i = 0; i < nCol; i++) {
-                headerSchema.addColumn(columns.get(i), BinaryStreamReader.readString(input));
+                headerSchema.addColumn(columns.get(i), binaryStreamReader.readString());
             }
 
             setSchema(headerSchema);
