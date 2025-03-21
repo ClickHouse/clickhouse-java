@@ -143,6 +143,7 @@ public class Client implements AutoCloseable {
     // Server context
     private String serverVersion;
     private Object metricsRegistry;
+    private int retries;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
@@ -172,6 +173,9 @@ public class Client implements AutoCloseable {
         boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
         this.httpClientHelper = new HttpAPIClientHelper(configuration, metricsRegistry, initSslContext);
         this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
+        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
+        this.retries = retry == null ? 0 : Integer.parseInt(retry);
     }
 
     /**
@@ -1471,8 +1475,6 @@ public class Client implements AutoCloseable {
         Supplier<InsertResponse> responseSupplier;
 
 
-        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
         final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
                 Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), "8192")) :
                 settings.getInputStreamCopyBufferSize();
@@ -1491,7 +1493,7 @@ public class Client implements AutoCloseable {
             ClickHouseNode selectedNode = getNextAliveNode();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxRetries; i++) {
+            for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
                              httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
@@ -1517,7 +1519,7 @@ public class Client implements AutoCloseable {
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
                     lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
+                            (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedNode = getNextAliveNode();
@@ -1526,7 +1528,7 @@ public class Client implements AutoCloseable {
                     }
                 }
 
-                if (i < maxRetries) {
+                if (i < retries) {
                     try {
                         writer.onRetry();
                     } catch (IOException ioe) {
@@ -1534,7 +1536,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+            throw new ClientException("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1605,9 +1607,6 @@ public class Client implements AutoCloseable {
 
         Supplier<QueryResponse> responseSupplier;
 
-            String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-            final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
-
             if (queryParams != null) {
                 settings.setOption("statement_params", queryParams);
             }
@@ -1617,7 +1616,7 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 ClickHouseNode selectedNode = getNextAliveNode();
                 RuntimeException lastException = null;
-                for (int i = 0; i <= maxRetries; i++) {
+                for (int i = 0; i <= retries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
                                 httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
@@ -1650,7 +1649,7 @@ public class Client implements AutoCloseable {
 
                     } catch (Exception e) {
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                                (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
+                                (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedNode = getNextAliveNode();
@@ -1660,7 +1659,7 @@ public class Client implements AutoCloseable {
                     }
                 }
 
-                throw new ClientException("Query request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+                throw new ClientException("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());

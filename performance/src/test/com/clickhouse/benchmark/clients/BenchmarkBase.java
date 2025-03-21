@@ -222,6 +222,7 @@ public class BenchmarkBase {
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .setMaxRetries(0)
+                .setClientNetworkBufferSize(1024)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }
