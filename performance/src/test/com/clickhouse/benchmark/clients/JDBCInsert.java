@@ -10,13 +10,15 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
+
 public class JDBCInsert extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(JDBCInsert.class);
     void insetData(Connection connection, DataState dataState) throws SQLException {
         int size = dataState.dataSet.getSchema().getColumns().size();
         String names = dataState.dataSet.getSchema().getColumns().stream().map(column -> column.getColumnName()).collect(Collectors.joining(","));
         String values = dataState.dataSet.getSchema().getColumns().stream().map(column -> "?").collect(Collectors.joining(","));
-        String sql = String.format("INSERT INTO %s (%s) VALUES (%s)", dataState.tableNameEmpty, names, values);
+        String sql = String.format("INSERT INTO `%s`.`%s` (%s) VALUES (%s)", DB_NAME ,dataState.tableNameEmpty, names, values);
         LOGGER.info("SQL: " + sql);
         PreparedStatement preparedStatement = connection.prepareStatement(sql);
         for (List<Object> data : dataState.dataSet.getRowsOrdered()) {
