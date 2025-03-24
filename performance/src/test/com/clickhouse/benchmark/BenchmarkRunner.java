@@ -1,8 +1,9 @@
 package com.clickhouse.benchmark;
 
-
 import com.clickhouse.benchmark.clients.Compression;
 import com.clickhouse.benchmark.clients.DataTypes;
+import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
+import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
 import com.clickhouse.benchmark.clients.Deserializers;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.MixedWorkload;
@@ -38,7 +39,9 @@ public class BenchmarkRunner {
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getName())
                 .include(InsertClient.class.getName())
-//                .include(Compression.class.getName())
+//                .include(ConcurrentInsertClient.class.getSimpleName())
+                .include(ConcurrentQueryClient.class.getSimpleName())
+                .include(Compression.class.getName())
                 .include(Serializers.class.getName())
                 .include(Deserializers.class.getName())
                 .include(MixedWorkload.class.getName())
@@ -49,7 +52,7 @@ public class BenchmarkRunner {
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(1)
-                .warmupTime(TimeValue.seconds(10))
+                .warmupTime(TimeValue.seconds(5))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
@@ -80,6 +83,10 @@ public class BenchmarkRunner {
 
     public static String getSelectQuery(String tableName) {
         return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "`";
+    }
+
+    public static String getSelectQueryWithLimit(String tableName, int limit) {
+        return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "` LIMIT " + limit;
     }
 
     public static String getSelectCountQuery(String tableName) {
