@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import static com.clickhouse.benchmark.TestEnvironment.*;
 
-@Threads(3)
+//@Threads(3)
 @State(Scope.Benchmark)
 public class ConcurrentQueryClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentQueryClient.class);

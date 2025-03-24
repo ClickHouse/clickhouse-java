@@ -9,6 +9,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.NativeFormatWriter;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
@@ -486,7 +487,7 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test
-    public void testAdvancedWriter() throws Exception {
+    public void testRowBinaryFormatWriter() throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (name String, " +
@@ -517,6 +518,61 @@ public class InsertTests extends BaseIntegrationTest {
                     w.setValue(i + 1, row[i]);
                 }
                 w.commitRow();
+            }
+        }, format, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    @Test
+    public void testNativeFormatWriter() throws Exception {
+        String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1)" +
+                "  Engine = MergeTree ORDER by ()";
+
+        initTable(tableName, tableCreate);
+
+        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
+        Object[][] rows = new Object[][] {
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
+                {"foo4", 0.8f, 0.5f, null, correctedTime, null},
+        };
+
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.Native;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            NativeFormatWriter w = new NativeFormatWriter(out, schema);
+            try {
+                int batchSize = 2;
+                for (int i = 0; i < rows.length; i++) {
+                    Object[] row = rows[i];
+                    for (int cI = 0; cI < row.length; cI++) {
+                        w.setValue(cI + 1, row[cI]);
+                    }
+                    w.nextRow();
+
+                    if (i > 0 && i % batchSize == 0) {
+                        w.commitBlock();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                w.close();
             }
         }, format, new InsertSettings()).get()) {
             System.out.println("Rows written: " + response.getWrittenRows());
