@@ -11,6 +11,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;
@@ -56,11 +57,10 @@ import static com.clickhouse.benchmark.TestEnvironment.setupEnvironment;
 @State(Scope.Benchmark)
 public class BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkBase.class);
-
     protected ClickHouseClient clientV1;
     protected Client clientV2;
-    protected static Connection jdbcV1 = null;
-    protected static Connection jdbcV2 = null;
+    protected static Connection jdbcV1;
+    protected static Connection jdbcV2;
 
     @Setup(Level.Iteration)
     public void setUpIteration() {
@@ -265,14 +265,13 @@ public class BenchmarkBase {
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }
-
+    
     protected static Connection getJdbcV1() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
-
+        
         ClickHouseNode node = getServer();
-        LOGGER.info("clickhouse endpoint [{}:{}]", node.getHost(), node.getPort());
         Connection jdbcV1 = null;
         try {
             jdbcV1 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort()), properties);
@@ -281,21 +280,20 @@ public class BenchmarkBase {
         }
         return jdbcV1;
     }
-
-    protected static Connection getJdbcV2() {
+    
+    protected static Connection getJdbcV2() throws SQLException {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
 
         ClickHouseNode node = getServer();
-        LOGGER.info("clickhouse endpoint [{}:{}]", node.getHost(), node.getPort());
-
         Connection jdbcV2 = null;
         try {
             jdbcV2 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort()), properties);
         } catch (SQLException e) {
             LOGGER.error(e.getMessage());
         }
+
         return jdbcV2;
     }
 
