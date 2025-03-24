@@ -281,7 +281,7 @@ public class BenchmarkBase {
         return jdbcV1;
     }
     
-    protected static Connection getJdbcV2() throws SQLException {
+    protected static Connection getJdbcV2() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
