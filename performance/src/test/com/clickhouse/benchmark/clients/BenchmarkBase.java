@@ -4,6 +4,7 @@ import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
+import com.clickhouse.benchmark.data.SyntheticDataSet;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseCredentials;
@@ -78,7 +79,7 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-        @Param({"300000", "220000", "100000", "10000"})
+        @Param({"300000", "100000", "10000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
@@ -89,6 +90,8 @@ public class BenchmarkBase {
         DataSet dataSet;
 
         ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
+
+        SyntheticDataSet syntheticDataSet;
 
         public void setDataSet(DataSet dataSet) {
             this.dataSet = dataSet;
@@ -213,6 +216,7 @@ public class BenchmarkBase {
         return ClickHouseClient.builder()
                 .defaultCredentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1)
                 .build();
     }
     protected static Client getClientV2() {

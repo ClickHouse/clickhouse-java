@@ -2,6 +2,7 @@ package com.clickhouse.benchmark;
 
 
 import com.clickhouse.benchmark.clients.Compression;
+import com.clickhouse.benchmark.clients.DataTypes;
 import com.clickhouse.benchmark.clients.Deserializers;
 import com.clickhouse.benchmark.clients.InsertClient;
 import com.clickhouse.benchmark.clients.MixedWorkload;
@@ -35,18 +36,19 @@ public class BenchmarkRunner {
         Map<String, String> argMap = parseArguments(args);
 
         Options opt = new OptionsBuilder()
-                .include(QueryClient.class.getSimpleName())
-                .include(InsertClient.class.getSimpleName())
-                .include(Compression.class.getSimpleName())
-                .include(Serializers.class.getSimpleName())
-                .include(Deserializers.class.getSimpleName())
-                .include(MixedWorkload.class.getSimpleName())
+                .include(QueryClient.class.getName())
+                .include(InsertClient.class.getName())
+//                .include(Compression.class.getName())
+                .include(Serializers.class.getName())
+                .include(Deserializers.class.getName())
+                .include(MixedWorkload.class.getName())
+//                .include(DataTypes.class.getName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
-                .warmupIterations(3)
+                .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(10))
                 .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
