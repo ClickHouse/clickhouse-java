@@ -63,7 +63,7 @@ public class BenchmarkBase {
     protected static Connection jdbcV2 = null;
 
     @Setup(Level.Iteration)
-    public void setUpIteration() throws SQLException {
+    public void setUpIteration() {
         LOGGER.info("BenchmarkBase::setUpIteration");
         clientV1 = getClientV1();
         clientV2 = getClientV2();
@@ -72,7 +72,7 @@ public class BenchmarkBase {
     }
 
     @TearDown(Level.Iteration)
-    public void tearDownIteration() throws SQLException {
+    public void tearDownIteration() {
         LOGGER.info("BenchmarkBase::tearDownIteration");
         if (clientV1 != null) {
             clientV1.close();
@@ -83,11 +83,19 @@ public class BenchmarkBase {
             clientV2 = null;
         }
         if (jdbcV1 != null) {
-            jdbcV1.close();
+            try {
+                jdbcV1.close();
+            } catch (SQLException e) {
+                LOGGER.error(e.getMessage());
+            }
             jdbcV1 = null;
         }
         if (jdbcV2 != null) {
-            jdbcV2.close();
+            try {
+                jdbcV2.close();
+            } catch (SQLException e) {
+                LOGGER.error(e.getMessage());
+            }
             jdbcV2 = null;
         }
     }
@@ -258,26 +266,36 @@ public class BenchmarkBase {
                 .build();
     }
 
-    protected static Connection getJdbcV1() throws SQLException {
+    protected static Connection getJdbcV1() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
 
         ClickHouseNode node = getServer();
-        LOGGER.info(String.format("clickhouse endpoint [%s:%s]", node.getHost(), node.getPort()));
-        Connection jdbcV1 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort()), properties);
+        LOGGER.info("clickhouse endpoint [{}:{}]", node.getHost(), node.getPort());
+        Connection jdbcV1 = null;
+        try {
+            jdbcV1 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort()), properties);
+        } catch (SQLException e) {
+            LOGGER.error(e.getMessage());
+        }
         return jdbcV1;
     }
-    
-    protected static Connection getJdbcV2() throws SQLException {
+
+    protected static Connection getJdbcV2() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
 
         ClickHouseNode node = getServer();
-        LOGGER.info(String.format("clickhouse endpoint [%s:%s]", node.getHost(), node.getPort()));
+        LOGGER.info("clickhouse endpoint [{}:{}]", node.getHost(), node.getPort());
 
-        Connection jdbcV2 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort()), properties);
+        Connection jdbcV2 = null;
+        try {
+            jdbcV2 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort()), properties);
+        } catch (SQLException e) {
+            LOGGER.error(e.getMessage());
+        }
         return jdbcV2;
     }
 
