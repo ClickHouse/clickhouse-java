@@ -2,6 +2,7 @@ package com.clickhouse.benchmark.clients;
 
 import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.data_formats.NativeFormatWriter;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -59,7 +60,7 @@ public class InsertClient extends BenchmarkBase {
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
-                            out.write(bytes);
+                            out.write(bytes, 0, bytes.length);
                         }
                     }).executeAndWait()) {
                 response.getSummary();
@@ -75,7 +76,7 @@ public class InsertClient extends BenchmarkBase {
             ClickHouseFormat format = dataState.dataSet.getFormat();
             try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
                 for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
-                    out.write(bytes);
+                    out.write(bytes, 0, bytes.length);
                 }
                 out.close();
             }, format, new InsertSettings()).get()) {
@@ -86,7 +87,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV1Compressed(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
@@ -98,7 +99,7 @@ public class InsertClient extends BenchmarkBase {
                     .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
-                            out.write(bytes);
+                            out.write(bytes, 0, bytes.length);
                         }
                     }).executeAndWait()) {
                 response.getSummary();
@@ -126,7 +127,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV1RowBinary(DataState dataState) {
         try {
             ClickHouseFormat format = ClickHouseFormat.RowBinary;
@@ -168,6 +169,87 @@ public class InsertClient extends BenchmarkBase {
                 out.flush();
 
             }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2RowBinaryCompressed(DataState dataState) {
+        try {
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.commitRow();
+                }
+                out.flush();
+
+            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings().compressClientRequest(true)).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2Native(DataState dataState) {
+        try {
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                NativeFormatWriter w = new NativeFormatWriter(out, dataState.dataSet.getSchema(), 1000);
+
+                int rowCount = 0;
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.nextRow();
+                    rowCount++;
+
+                    if (rowCount % 1000 == 0) {
+                        w.commitBlock();
+                    }
+                }
+                w.close();
+            }, ClickHouseFormat.Native, new InsertSettings()).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2NativeCompressed(DataState dataState) {
+        try {
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                NativeFormatWriter w = new NativeFormatWriter(out, dataState.dataSet.getSchema(), 1000);
+
+                int rowCount = 0;
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.nextRow();
+                    rowCount++;
+
+                    if (rowCount % 1000 == 0) {
+                        w.commitBlock();
+                    }
+                }
+                w.close();
+            }, ClickHouseFormat.Native, new InsertSettings().compressClientRequest(true)).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {

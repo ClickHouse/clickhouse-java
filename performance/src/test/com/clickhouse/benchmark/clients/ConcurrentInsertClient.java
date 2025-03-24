@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 import static com.clickhouse.benchmark.TestEnvironment.getServer;
-@Threads(3)
+//@Threads(3)
 @State(Scope.Benchmark)
 public class ConcurrentInsertClient extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentInsertClient.class);
