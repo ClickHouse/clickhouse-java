@@ -22,6 +22,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
+import com.clickhouse.jdbc.ClickHouseDriver;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -35,9 +36,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Properties;
 
 import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
 import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
@@ -55,15 +59,20 @@ public class BenchmarkBase {
 
     protected ClickHouseClient clientV1;
     protected Client clientV2;
+    protected static Connection jdbcV1 = null;
+    protected static Connection jdbcV2 = null;
+
     @Setup(Level.Iteration)
-    public void setUpIteration() {
+    public void setUpIteration() throws SQLException {
         LOGGER.info("BenchmarkBase::setUpIteration");
         clientV1 = getClientV1();
         clientV2 = getClientV2();
+        jdbcV1 = getJdbcV1();
+        jdbcV2 = getJdbcV2();
     }
 
     @TearDown(Level.Iteration)
-    public void tearDownIteration() {
+    public void tearDownIteration() throws SQLException {
         LOGGER.info("BenchmarkBase::tearDownIteration");
         if (clientV1 != null) {
             clientV1.close();
@@ -72,6 +81,14 @@ public class BenchmarkBase {
         if (clientV2 != null) {
             clientV2.close();
             clientV2 = null;
+        }
+        if (jdbcV1 != null) {
+            jdbcV1.close();
+            jdbcV1 = null;
+        }
+        if (jdbcV2 != null) {
+            jdbcV2.close();
+            jdbcV2 = null;
         }
     }
 
@@ -239,6 +256,29 @@ public class BenchmarkBase {
                 .setMaxRetries(0)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
+    }
+
+    protected static Connection getJdbcV1() throws SQLException {
+        Properties properties = new Properties();
+        properties.put("user", getUsername());
+        properties.put("password", getPassword());
+
+        ClickHouseNode node = getServer();
+        LOGGER.info(String.format("clickhouse endpoint [%s:%s]", node.getHost(), node.getPort()));
+        Connection jdbcV1 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort()), properties);
+        return jdbcV1;
+    }
+    
+    protected static Connection getJdbcV2() throws SQLException {
+        Properties properties = new Properties();
+        properties.put("user", getUsername());
+        properties.put("password", getPassword());
+
+        ClickHouseNode node = getServer();
+        LOGGER.info(String.format("clickhouse endpoint [%s:%s]", node.getHost(), node.getPort()));
+
+        Connection jdbcV2 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort()), properties);
+        return jdbcV2;
     }
 
     public static void loadClickHouseRecords(DataState dataState) {
