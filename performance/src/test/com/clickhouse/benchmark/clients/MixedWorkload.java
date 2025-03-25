@@ -35,6 +35,7 @@ import static com.clickhouse.benchmark.TestEnvironment.getServer;
 @State(Scope.Benchmark)
 public class MixedWorkload extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(MixedWorkload.class);
+    private static final int LIMIT = 10000;
 
     private ClickHouseClient clientV1Shared;
     private Client clientV2Shared;
@@ -55,12 +56,6 @@ public class MixedWorkload extends BenchmarkBase {
             clientV2Shared = null;
         }
     }
-
-//    @State(Scope.Thread)
-//    public static class MixedWorkloadState {
-//        @Param({"true", "false"})
-//        public boolean alternate;
-//    }
 
 
     @TearDown(Level.Iteration)
@@ -124,7 +119,7 @@ public class MixedWorkload extends BenchmarkBase {
     public void queryV1(DataState dataState, Blackhole blackhole) {
         try {
             try (ClickHouseResponse response = clientV1Shared.read(getServer())
-                    .query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled))
+                    .query(BenchmarkRunner.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT))
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .option(ClickHouseClientOption.ASYNC, false)
                     .executeAndWait()) {
@@ -190,7 +185,7 @@ public class MixedWorkload extends BenchmarkBase {
     @Group("mixed_v2")
     public void queryV2(DataState dataState, Blackhole blackhole) {
         try {
-            try(QueryResponse response = clientV2Shared.query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled)).get()) {
+            try(QueryResponse response = clientV2Shared.query(BenchmarkRunner.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT)).get()) {
                 ClickHouseBinaryFormatReader reader = clientV2Shared.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {

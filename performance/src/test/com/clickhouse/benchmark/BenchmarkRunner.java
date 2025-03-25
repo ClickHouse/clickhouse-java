@@ -6,6 +6,8 @@ import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
 import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
 import com.clickhouse.benchmark.clients.Deserializers;
 import com.clickhouse.benchmark.clients.InsertClient;
+import com.clickhouse.benchmark.clients.JDBCInsert;
+import com.clickhouse.benchmark.clients.JDBCQuery;
 import com.clickhouse.benchmark.clients.MixedWorkload;
 import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.clients.Serializers;
@@ -39,13 +41,15 @@ public class BenchmarkRunner {
         Options opt = new OptionsBuilder()
                 .include(QueryClient.class.getName())
                 .include(InsertClient.class.getName())
-//                .include(ConcurrentInsertClient.class.getSimpleName())
-                .include(ConcurrentQueryClient.class.getSimpleName())
+                .include(ConcurrentInsertClient.class.getName())
+                .include(ConcurrentQueryClient.class.getName())
                 .include(Compression.class.getName())
                 .include(Serializers.class.getName())
                 .include(Deserializers.class.getName())
                 .include(MixedWorkload.class.getName())
-//                .include(DataTypes.class.getName())
+                .include(DataTypes.class.getName())
+                .include(JDBCQuery.class.getName())
+                .include(JDBCInsert.class.getName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
