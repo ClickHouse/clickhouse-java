@@ -265,16 +265,32 @@ public class BenchmarkBase {
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }
-    
+    private static String jdbcURLV1(boolean isCloud) {
+        ClickHouseNode node = getServer();
+        if (isCloud) {
+            return String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true&ssl=true", node.getHost(), node.getPort());
+        } else
+            return String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort());
+    }
+
+    private static String jdbcURLV2(boolean isCloud) {
+        ClickHouseNode node = getServer();
+        if (isCloud) {
+            return String.format("jdbc:clickhouse://%s:%s?ssl=true", node.getHost(), node.getPort());
+        } else
+            return String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort());
+    }
+
     protected static Connection getJdbcV1() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
         properties.put("password", getPassword());
-        
-        ClickHouseNode node = getServer();
+
         Connection jdbcV1 = null;
+        String jdbcURL = jdbcURLV1(isCloud());
+        LOGGER.info("JDBC URL: " + jdbcURL);
         try {
-            jdbcV1 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort()), properties);
+            jdbcV1 = new ClickHouseDriver().connect(jdbcURL, properties);
         } catch (SQLException e) {
             LOGGER.error(e.getMessage());
         }
@@ -286,10 +302,12 @@ public class BenchmarkBase {
         properties.put("user", getUsername());
         properties.put("password", getPassword());
 
-        ClickHouseNode node = getServer();
         Connection jdbcV2 = null;
+        String jdbcURL = jdbcURLV1(isCloud());
+        LOGGER.info("JDBC URL: " + jdbcURL);
+
         try {
-            jdbcV2 = new ClickHouseDriver().connect(String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort()), properties);
+            jdbcV2 = new ClickHouseDriver().connect(jdbcURL, properties);
         } catch (SQLException e) {
             LOGGER.error(e.getMessage());
         }
