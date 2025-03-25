@@ -1,6 +1,7 @@
 package com.clickhouse.benchmark;
 
 import com.clickhouse.benchmark.clients.Compression;
+import com.clickhouse.benchmark.clients.DataTypes;
 import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
 import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
 import com.clickhouse.benchmark.clients.Deserializers;
@@ -46,6 +47,7 @@ public class BenchmarkRunner {
                 .include(Serializers.class.getName())
                 .include(Deserializers.class.getName())
                 .include(MixedWorkload.class.getName())
+                .include(DataTypes.class.getName())
                 .include(JDBCQuery.class.getName())
                 .include(JDBCInsert.class.getName())
                 .forks(1) // must be a fork. No fork only for debugging

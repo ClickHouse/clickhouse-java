@@ -4,6 +4,7 @@ import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
+import com.clickhouse.benchmark.data.SyntheticDataSet;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseCredentials;
@@ -116,6 +117,8 @@ public class BenchmarkBase {
         static DataSet dataSet;
 
         ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
+
+        SyntheticDataSet syntheticDataSet;
 
         public void setDataSet(DataSet dataSet) {
             this.dataSet = dataSet;
