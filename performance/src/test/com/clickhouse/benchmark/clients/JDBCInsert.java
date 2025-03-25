@@ -1,6 +1,8 @@
 package com.clickhouse.benchmark.clients;
 
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.TearDown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +16,27 @@ import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
 
 public class JDBCInsert extends BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(JDBCInsert.class);
+    @TearDown(Level.Invocation)
+    public void verifyRowsInsertedAndCleanup(DataState dataState) {
+        boolean success;
+        int count = 0;
+        do {
+            success = verifyCount(dataState.tableNameEmpty, dataState.dataSet.getSize());
+            if (!success) {
+                LOGGER.warn("Retrying to verify rows inserted");
+                try {
+                    Thread.sleep(2500);
+                } catch (InterruptedException e) {
+                    LOGGER.error("Error: ", e);
+                }
+            }
+        } while (!success && count++ < 10);
+        if (!success) {
+            LOGGER.error("Failed to verify rows inserted");
+            throw new RuntimeException("Failed to verify rows inserted");
+        }
+        truncateTable(dataState.tableNameEmpty);
+    }
     void insetData(Connection connection, DataState dataState) throws SQLException {
         int size = dataState.dataSet.getSchema().getColumns().size();
         String names = dataState.dataSet.getSchema().getColumns().stream().map(column -> column.getColumnName()).collect(Collectors.joining(","));
