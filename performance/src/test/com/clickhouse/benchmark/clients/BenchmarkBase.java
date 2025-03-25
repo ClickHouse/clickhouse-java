@@ -106,7 +106,7 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-        @Param({"300000", "100000", "10000"})
+        @Param({"300000", "220000", "100000", "10000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
