@@ -252,7 +252,6 @@ public class BenchmarkBase {
         return ClickHouseClient.builder()
                 .defaultCredentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1)
                 .build();
     }
     protected static Client getClientV2() {
