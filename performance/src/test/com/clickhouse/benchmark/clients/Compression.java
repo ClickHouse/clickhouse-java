@@ -30,6 +30,10 @@ public class Compression extends BenchmarkBase {
     }
 
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
+    private static final LZ4Factory nativeFactory = LZ4Factory.unsafeInstance();
+    private static final LZ4Factory javaSafeFactory = LZ4Factory.safeInstance();
+    private static final LZ4Factory javaUnSafeFactory = LZ4Factory.safeInstance();
+
 
     @Benchmark
     public void CompressingOutputStreamV2(DataState dataState) {
@@ -44,4 +48,47 @@ public class Compression extends BenchmarkBase {
             LOGGER.error("Error: ", e);
         }
     }
+
+    @Benchmark
+    public void CompressingOutputStreamV2Native(DataState dataState) {
+        DataSet dataSet = dataState.dataSet;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
+                     nativeFactory.fastCompressor(), COMPRESS_BUFFER_SIZE)) {
+            for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
+                out.write(bytes);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void CompressingOutputStreamV2Unsafe(DataState dataState) {
+        DataSet dataSet = dataState.dataSet;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
+                     javaUnSafeFactory.fastCompressor(), COMPRESS_BUFFER_SIZE)) {
+            for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
+                out.write(bytes);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void CompressingOutputStreamV2safe(DataState dataState) {
+        DataSet dataSet = dataState.dataSet;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
+                     javaSafeFactory.fastCompressor(), COMPRESS_BUFFER_SIZE)) {
+            for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
+                out.write(bytes);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
 }
