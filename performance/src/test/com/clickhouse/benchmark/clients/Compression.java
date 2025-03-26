@@ -30,7 +30,7 @@ public class Compression extends BenchmarkBase {
     }
 
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
-    private static final LZ4Factory nativeFactory = LZ4Factory.unsafeInstance();
+    private static final LZ4Factory nativeFactory = LZ4Factory.nativeInstance();
     private static final LZ4Factory javaSafeFactory = LZ4Factory.safeInstance();
     private static final LZ4Factory javaUnSafeFactory = LZ4Factory.safeInstance();
 
