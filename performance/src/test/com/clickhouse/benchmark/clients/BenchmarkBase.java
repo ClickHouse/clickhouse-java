@@ -306,7 +306,7 @@ public class BenchmarkBase {
         properties.put("password", getPassword());
 
         Connection jdbcV2 = null;
-        String jdbcURL = jdbcURLV1(isCloud());
+        String jdbcURL = jdbcURLV2(isCloud());
         LOGGER.info("JDBC URL: " + jdbcURL);
 
         try {
