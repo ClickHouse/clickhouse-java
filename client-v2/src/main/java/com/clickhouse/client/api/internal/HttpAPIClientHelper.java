@@ -584,23 +584,23 @@ public class HttpAPIClientHelper {
     private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression) {
         LOG.debug("server compression: {}, http compression: {}", serverCompression, useHttpCompression);
 
-        if (serverCompression) {
-            // Server doesn't compress certain errors like 403
-            switch (httpStatus) {
-                case HttpStatus.SC_OK:
-                case HttpStatus.SC_CREATED:
-                case HttpStatus.SC_ACCEPTED:
-                case HttpStatus.SC_NO_CONTENT:
-                case HttpStatus.SC_PARTIAL_CONTENT:
-                case HttpStatus.SC_RESET_CONTENT:
-                case HttpStatus.SC_NOT_MODIFIED:
-                case HttpStatus.SC_BAD_REQUEST:
-                case HttpStatus.SC_INTERNAL_SERVER_ERROR:
-                case HttpStatus.SC_NOT_FOUND:
-                    return new LZ4Entity(httpEntity, useHttpCompression, true, false,
-                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true);
-            }
-        }
+//        if (serverCompression) {
+//            // Server doesn't compress certain errors like 403
+//            switch (httpStatus) {
+//                case HttpStatus.SC_OK:
+//                case HttpStatus.SC_CREATED:
+//                case HttpStatus.SC_ACCEPTED:
+//                case HttpStatus.SC_NO_CONTENT:
+//                case HttpStatus.SC_PARTIAL_CONTENT:
+//                case HttpStatus.SC_RESET_CONTENT:
+//                case HttpStatus.SC_NOT_MODIFIED:
+//                case HttpStatus.SC_BAD_REQUEST:
+//                case HttpStatus.SC_INTERNAL_SERVER_ERROR:
+//                case HttpStatus.SC_NOT_FOUND:
+//                    return new LZ4Entity(httpEntity, useHttpCompression, true, false,
+//                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true);
+//            }
+//        }
 
         return httpEntity;
     }

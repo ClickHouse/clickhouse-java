@@ -76,7 +76,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
+                MapUtils.getFlag(querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings(), ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false));
         if (schema != null) {
             setSchema(schema);
         }

@@ -14,6 +14,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -106,7 +107,7 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-        @Param({"300000", "220000", "100000", "10000"})
+        @Param({"300000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;

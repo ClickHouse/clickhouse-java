@@ -64,12 +64,12 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     private boolean readBlock() throws IOException {
         int nColumns;
         try {
-            nColumns = BinaryStreamReader.readVarInt(input);
+            nColumns = binaryStreamReader.readVarInt(input);
         } catch (EOFException e) {
             endReached();
             return false;
         }
-        int nRows = BinaryStreamReader.readVarInt(input);
+        int nRows = binaryStreamReader.readVarInt(input);
 
         List<String> names = new ArrayList<>(nColumns);
         List<String> types = new ArrayList<>(nColumns);
@@ -77,8 +77,8 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         TableSchema schema = new TableSchema();
         for (int i = 0; i < nColumns; i++) {
 
-            schema.addColumn(BinaryStreamReader.readString(input),
-                    BinaryStreamReader.readString(input));
+            schema.addColumn(binaryStreamReader.readString(input),
+                    binaryStreamReader.readString(input));
             ClickHouseColumn column = schema.getColumns().get(i);
 
             names.add(column.getColumnName());

@@ -28,7 +28,7 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
             List<String> columns = new ArrayList<>();
             int nCol;
             try {
-                nCol = BinaryStreamReader.readVarInt(input);
+                nCol = binaryStreamReader.readVarInt(input);
             } catch (EOFException e) {
                 endReached();
                 return;

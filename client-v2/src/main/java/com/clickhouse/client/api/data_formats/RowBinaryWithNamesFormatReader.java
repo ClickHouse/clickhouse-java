@@ -21,7 +21,7 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
         super(inputStream, querySettings, schema, byteBufferAllocator);
         int nCol = 0;
         try {
-            nCol = BinaryStreamReader.readVarInt(input);
+            nCol = binaryStreamReader.readVarInt(input);
         } catch (EOFException e) {
             endReached();
             columns = Collections.emptyList();
@@ -33,7 +33,7 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
             columns = new ArrayList<>(nCol);
             try {
                 for (int i = 0; i < nCol; i++) {
-                    columns.add(BinaryStreamReader.readString(input));
+                    columns.add(binaryStreamReader.readString(input));
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read header", e);
