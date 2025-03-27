@@ -279,7 +279,7 @@ public class BenchmarkBase {
     private static String jdbcURLV2(boolean isCloud) {
         ClickHouseNode node = getServer();
         if (isCloud) {
-            return String.format("jdbc:clickhouse://%s:%s?ssl=true", node.getHost(), node.getPort());
+            return String.format("jdbc:clickhouse:https://%s:%s?ssl=true", node.getHost(), node.getPort());
         } else
             return String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort());
     }
@@ -291,10 +291,10 @@ public class BenchmarkBase {
 
         Connection jdbcV1 = null;
         String jdbcURL = jdbcURLV1(isCloud());
-        LOGGER.info("JDBC URL: " + jdbcURL);
+        LOGGER.warn("JDBC URL V1: " + jdbcURL);
         try {
             jdbcV1 = new ClickHouseDriver().connect(jdbcURL, properties);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
         return jdbcV1;
@@ -307,11 +307,12 @@ public class BenchmarkBase {
 
         Connection jdbcV2 = null;
         String jdbcURL = jdbcURLV2(isCloud());
-        LOGGER.info("JDBC URL: " + jdbcURL);
+        LOGGER.warn("JDBC URL V2: " + jdbcURL);
 
         try {
             jdbcV2 = new ClickHouseDriver().connect(jdbcURL, properties);
-        } catch (SQLException e) {
+        } catch (Exception e) {
+            e.printStackTrace();
             LOGGER.error(e.getMessage());
         }
 
