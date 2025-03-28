@@ -1,6 +1,7 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
@@ -11,6 +12,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,25 +101,24 @@ public class SimpleDataSet implements DataSet {
 
     @Override
     public TableSchema getSchema() {
-        TableSchema schema = new TableSchema();
-        schema.setTableName(tableName);
-        schema.addColumn("trip_id", "UInt32");
-        schema.addColumn("pickup_datetime", "DateTime DEFAULT now()");
-        schema.addColumn("dropoff_datetime", "DateTime");
-        schema.addColumn("pickup_longitude", "Nullable(Float64)");
-        schema.addColumn("pickup_latitude", "Nullable(Float64)");
-        schema.addColumn("dropoff_longitude", "Nullable(Float64)");
-        schema.addColumn("dropoff_latitude", "Nullable(Float64)");
-        schema.addColumn("passenger_count", "UInt8");
-        schema.addColumn("trip_distance", "Float32");
-        schema.addColumn("fare_amount", "Float32");
-        schema.addColumn("extra", "Float32");
-        schema.addColumn("tip_amount", "Float32");
-        schema.addColumn("tolls_amount", "Float32");
-        schema.addColumn("total_amount", "Float32");
-        schema.addColumn("payment_type", "Enum('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5)");
-        schema.addColumn("pickup_ntaname", "LowCardinality(String)");
-        schema.addColumn("dropoff_ntaname", "LowCardinality(String)");
+        TableSchema schema = new TableSchema(tableName, "", "", Arrays.asList(
+        ClickHouseColumn.of("trip_id", "UInt32"),
+        ClickHouseColumn.of("pickup_datetime", "DateTime DEFAULT now()"),
+        ClickHouseColumn.of("dropoff_datetime", "DateTime"),
+        ClickHouseColumn.of("pickup_longitude", "Nullable(Float64)"),
+        ClickHouseColumn.of("pickup_latitude", "Nullable(Float64)"),
+        ClickHouseColumn.of("dropoff_longitude", "Nullable(Float64)"),
+        ClickHouseColumn.of("dropoff_latitude", "Nullable(Float64)"),
+        ClickHouseColumn.of("passenger_count", "UInt8"),
+        ClickHouseColumn.of("trip_distance", "Float32"),
+        ClickHouseColumn.of("fare_amount", "Float32"),
+        ClickHouseColumn.of("extra", "Float32"),
+        ClickHouseColumn.of("tip_amount", "Float32"),
+        ClickHouseColumn.of("tolls_amount", "Float32"),
+        ClickHouseColumn.of("total_amount", "Float32"),
+        ClickHouseColumn.of("payment_type", "Enum('CSH' = 1, 'CRE' = 2, 'NOC' = 3, 'DIS' = 4, 'UNK' = 5)"),
+        ClickHouseColumn.of("pickup_ntaname", "LowCardinality(String)"),
+        ClickHouseColumn.of("dropoff_ntaname", "LowCardinality(String)")));
         return schema;
     }
 
