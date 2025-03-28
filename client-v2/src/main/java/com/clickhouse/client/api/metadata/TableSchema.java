@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.metadata;
 
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
+import com.google.common.collect.ImmutableMap;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,6 +92,15 @@ public class TableSchema {
     }
 
     /**
+     * Returns column by index. Index starts with 1.
+     * @param colIndex - column index;
+     * @return
+     */
+    public ClickHouseColumn getColumnByIndex(int colIndex) {
+        return columns.get(colIndex - 1);
+    }
+
+    /**
      * Takes absolute index (starting from 0) and returns corresponding column.
      *
      * @param index - column index starting from 0
@@ -120,8 +129,13 @@ public class TableSchema {
         return nameToIndex(name) + 1;
     }
 
+    private ImmutableMap<String, Integer> colIndexes = null;
+
     public int nameToIndex(String name) {
-        Integer index = colIndex.get(name);
+        if (colIndexes == null) {
+            colIndexes = ImmutableMap.copyOf(colIndex);
+        }
+        Integer index = colIndexes.get(name);
         if (index == null) {
             throw new NoSuchColumnException("Result has no column with name '" + name + "'");
         }
