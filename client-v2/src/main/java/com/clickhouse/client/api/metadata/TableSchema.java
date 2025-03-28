@@ -69,20 +69,6 @@ public class TableSchema {
         return query;
     }
 
-    public void addColumn(String name, String type) {
-        addColumn(name, type, "");
-    }
-
-    private void addColumn(String name, String type, String defaultType) {
-        ClickHouseColumn column = ClickHouseColumn.of(name, type);
-        if (defaultType.toUpperCase().contains("DEFAULT")) {
-            hasDefaults = true;
-            column.setHasDefault(true);
-        }
-        columns.add(column);
-        colIndex.put(name, columns.size() - 1);
-    }
-
     public ClickHouseColumn getColumnByName(String name) {
         return columns.get(nameToIndex(name));
     }
