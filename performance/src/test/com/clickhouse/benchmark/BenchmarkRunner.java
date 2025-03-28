@@ -49,7 +49,7 @@ public class BenchmarkRunner {
 //                .include(MixedWorkload.class.getName())
 //                .include(DataTypes.class.getName())
                 .include(JDBCQuery.class.getName())
-//                .include(JDBCInsert.class.getName())
+                .include(JDBCInsert.class.getName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
@@ -57,7 +57,7 @@ public class BenchmarkRunner {
                 .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(5))
-                .measurementIterations(5)
+                .measurementIterations(10)
                 .jvmArgs("-Xms8g", "-Xmx8g")
                 .measurementTime(TimeValue.seconds(isCloud() ? 30 : 10))
                 .resultFormat(ResultFormatType.JSON)
