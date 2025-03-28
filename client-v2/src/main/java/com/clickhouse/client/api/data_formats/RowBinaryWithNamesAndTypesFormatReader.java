@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReade
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -24,8 +25,7 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
 
     private void readSchema() {
         try {
-            TableSchema headerSchema = new TableSchema();
-            List<String> columns = new ArrayList<>();
+            List<String> names = new ArrayList<>();
             int nCol;
             try {
                 nCol = BinaryStreamReader.readVarInt(input);
@@ -34,14 +34,16 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
                 return;
             }
             for (int i = 0; i < nCol; i++) {
-                columns.add(binaryStreamReader.readString());
+                names.add(binaryStreamReader.readString());
             }
 
+            List<ClickHouseColumn> columns = new ArrayList<>(nCol);
             for (int i = 0; i < nCol; i++) {
-                headerSchema.addColumn(columns.get(i), binaryStreamReader.readString());
+                columns.add(ClickHouseColumn.of(names.get(i), binaryStreamReader.readString()));
             }
 
-            setSchema(headerSchema);
+            TableSchema schema = new TableSchema(columns);
+            setSchema(schema);
         } catch (IOException e) {
             throw new ClientException("Failed to read header", e);
         }

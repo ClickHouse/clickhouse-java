@@ -1,9 +1,11 @@
 package com.clickhouse.client.api.metadata;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -11,27 +13,35 @@ import java.util.Map;
 
 public class TableSchema {
 
-    private String tableName = "";
+    private final String tableName;
 
-    private String query = "";
+    private final String query;
 
-    private String databaseName = "";
+    private final String databaseName;
 
-    private List<ClickHouseColumn> columns;
+    private final List<ClickHouseColumn> columns;
 
-    private List<ClickHouseColumn> columnsView;
-
-    private Map<String, Map<String, Object>> metadata;
-
-    private Map<String, Integer> colIndex;
+    private final Map<String, Integer> colIndex;
 
     private boolean hasDefaults = false;
 
-    public TableSchema() {
-        this.metadata = new HashMap<>();
-        this.columns = new ArrayList<>();
-        this.columnsView = Collections.unmodifiableList(this.columns);
-        this.colIndex = new HashMap<>();
+    public TableSchema(Collection<ClickHouseColumn> columns) {
+        this("", "", "", columns);
+    }
+    public TableSchema(String tableName, String query, String databaseName, Collection<ClickHouseColumn> columns) {
+        this.tableName = tableName;
+        this.databaseName = databaseName;
+        this.query = query;
+        this.columns = ImmutableList.copyOf(columns);
+        ImmutableMap.Builder<String, Integer> colIndexMapBuilder = ImmutableMap.builder();
+        for (int i = 0; i < this.columns.size(); i++) {
+            ClickHouseColumn column= this.columns.get(i);
+            if (column.hasDefault()) {
+                this.hasDefaults = true;
+            }
+            colIndexMapBuilder.put(this.columns.get(i).getColumnName(), i);
+        }
+        this.colIndex = colIndexMapBuilder.build();
     }
 
     /**
@@ -40,7 +50,7 @@ public class TableSchema {
      * @return - collection of columns in the table
      */
     public List<ClickHouseColumn> getColumns() {
-        return columnsView;
+        return columns;
     }
 
     public String getDatabaseName() {
@@ -51,14 +61,6 @@ public class TableSchema {
         return tableName;
     }
 
-    public void setTableName(String tableName) {
-        this.tableName = tableName;
-    }
-
-    public void setDatabaseName(String databaseName) {
-        this.databaseName = databaseName;
-    }
-
     public boolean hasDefaults() {
         return hasDefaults;
     }
@@ -67,23 +69,17 @@ public class TableSchema {
         return query;
     }
 
-    public void setQuery(String query) {
-        this.query = query;
-    }
-
     public void addColumn(String name, String type) {
         addColumn(name, type, "");
     }
-    public void addColumn(String name, String type, String defaultType) {
+
+    private void addColumn(String name, String type, String defaultType) {
         ClickHouseColumn column = ClickHouseColumn.of(name, type);
         if (defaultType.toUpperCase().contains("DEFAULT")) {
             hasDefaults = true;
             column.setHasDefault(true);
         }
         columns.add(column);
-
-        Map<String, Object> columnMetadata = metadata.computeIfAbsent(name, k -> new HashMap<>());
-            columnMetadata.put("type", type);
         colIndex.put(name, columns.size() - 1);
     }
 
@@ -129,13 +125,8 @@ public class TableSchema {
         return nameToIndex(name) + 1;
     }
 
-    private ImmutableMap<String, Integer> colIndexes = null;
-
     public int nameToIndex(String name) {
-        if (colIndexes == null) {
-            colIndexes = ImmutableMap.copyOf(colIndex);
-        }
-        Integer index = colIndexes.get(name);
+        Integer index = colIndex.get(name);
         if (index == null) {
             throw new NoSuchColumnException("Result has no column with name '" + name + "'");
         }
@@ -148,7 +139,6 @@ public class TableSchema {
                 "tableName='" + tableName + '\'' +
                 ", databaseName='" + databaseName + '\'' +
                 ", columns=" + columns +
-                ", metadata=" + metadata +
                 ", colIndex=" + colIndex +
                 ", hasDefaults=" + hasDefaults +
                 '}';
