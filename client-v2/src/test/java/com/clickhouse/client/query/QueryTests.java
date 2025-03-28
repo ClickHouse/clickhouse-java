@@ -27,6 +27,7 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
@@ -440,10 +441,13 @@ public class QueryTests extends BaseIntegrationTest {
         Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
         QueryResponse queryResponse = response.get();
 
-        TableSchema schema = new TableSchema();
-        schema.addColumn("col1", "UInt32");
-        schema.addColumn("col3", "String");
-        schema.addColumn("host", "String");
+
+        TableSchema schema = new TableSchema(
+                Arrays.asList(
+                        ClickHouseColumn.of("col1", "UInt32"),
+                        ClickHouseColumn.of("col3", "String"),
+                        ClickHouseColumn.of("host", "String")
+                ));
         ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
         int rowsCount = 0;
         while (reader.next() != null) {
@@ -472,10 +476,6 @@ public class QueryTests extends BaseIntegrationTest {
         Future<QueryResponse> response = client.query("SELECT col1, col3, hostname() as host FROM " + table, settings);
 
         QueryResponse queryResponse = response.get();
-        TableSchema schema = new TableSchema();
-        schema.addColumn("col1", "UInt32");
-        schema.addColumn("col3", "String");
-        schema.addColumn("host", "String");
         ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
 
         Map<String, Object> record;

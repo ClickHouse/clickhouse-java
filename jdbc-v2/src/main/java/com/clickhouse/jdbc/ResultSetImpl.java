@@ -17,6 +17,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.types.Array;
@@ -431,7 +432,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return getObject(columnIndexToName(columnIndex));
+        return getObject(columnIndex, JdbcUtils.convertToJavaClass(getSchema().getColumnByIndex(columnIndex).getDataType()));
     }
 
     @Override
@@ -959,7 +960,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return getObject(columnIndexToName(columnIndex), map);
+        ClickHouseDataType type = getSchema().getColumnByIndex(columnIndex).getDataType();
+        return getObject(columnIndex, map.get(JdbcUtils.convertToSqlType(type).getName()));
     }
 
     @Override
@@ -1493,7 +1495,24 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        return getObject(columnIndexToName(columnIndex), type);
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                if (type == null) {//As a fallback, try to get the value as is
+                    return reader.readValue(columnIndex);
+                }
+
+                return (T) JdbcUtils.convert(reader.readValue(columnIndex), type);
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.",
+                            reader.getSchema().columnIndexToName(columnIndex), type),
+                    String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+        }
     }
 
     @Override

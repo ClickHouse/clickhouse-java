@@ -24,7 +24,7 @@ public class FileDataSet implements DataSet{
     private final String name;
 
     private final String createTableStmt;
-    private TableSchema schema = new TableSchema();
+    private TableSchema schema = null;
 
     private final Map<String, String> metadata = new HashMap<>();
 
@@ -176,10 +176,11 @@ public class FileDataSet implements DataSet{
     @Override
     public void setClickHouseDataProcessor(ClickHouseDataProcessor dataProcessor) {
         this.dataProcessor = dataProcessor;
-        this.schema = new TableSchema();
+        List<ClickHouseColumn> columns = new ArrayList<>();
         for (ClickHouseColumn column : dataProcessor.getColumns()) {
-            schema.addColumn(column.getColumnName(), column.getOriginalTypeName());
+            columns.add(ClickHouseColumn.of(column.getColumnName(), column.getOriginalTypeName()));
         }
+        this.schema = new TableSchema(columns);
     }
 
     @Override
