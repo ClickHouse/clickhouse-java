@@ -43,12 +43,11 @@ public class JDBCQuery extends BenchmarkBase {
 
     void selectDataUseNames(Connection connection, DataState dataState, Blackhole blackhole) throws SQLException {
         String sql = getSelectQuery(dataState.tableNameFilled);
-        List<String> columnNames = dataState.dataSet.getSchema().getColumns().stream().map(ClickHouseColumn::getColumnName).collect(Collectors.toList());
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                for (int i = 0; i < columnNames.size(); i++) {
-                    blackhole.consume(rs.getObject(columnNames.get(i)));
+                for (ClickHouseColumn col : dataState.dataSet.getSchema().getColumns()) {
+                    blackhole.consume(rs.getObject(col.getColumnName()));
                 }
             }
         }
