@@ -281,12 +281,12 @@
             </dependency>
             <dependency>
                 <groupId>org.lz4</groupId>
-                <artifactId>lz4-java</artifactId>
+                <artifactId>lz4-pure-java</artifactId>
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.lz4</groupId>
-                <artifactId>lz4-pure-java</artifactId>
+                <artifactId>lz4-java</artifactId>
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
