@@ -17,6 +17,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.types.Array;
@@ -959,7 +960,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return getObject(columnIndex, map.get(JdbcUtils.convertToSqlType(getSchema().getColumnByIndex(columnIndex).getDataType())));
+        ClickHouseDataType type = getSchema().getColumnByIndex(columnIndex).getDataType();
+        return getObject(columnIndex, map.get(JdbcUtils.convertToSqlType(type).getName()));
     }
 
     @Override
