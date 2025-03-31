@@ -38,7 +38,7 @@ public class Deserializers extends BenchmarkBase {
             dataState.datasetAsRowBinaryWithNamesAndTypes = ByteBuffer.wrap(r.getInputStream().readAllBytes());
             LOGGER.info("Loaded {} from dataset", dataState.datasetAsRowBinaryWithNamesAndTypes.capacity());
         } catch (Exception e ) {
-            LOGGER.error("Failed to init data for components benchmark", e);
+            LOGGER.error("Failed to init data for components com.clickhouse.benchmark", e);
         }
     }
 
