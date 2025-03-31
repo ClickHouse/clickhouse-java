@@ -57,7 +57,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     protected enum StatementType {
-        SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER
+        SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
     protected static StatementType parseStatementType(String sql) {
@@ -84,7 +84,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 switch (tokens[0].toUpperCase()) {
                     case "SELECT": return StatementType.SELECT;
                     case "WITH": return StatementType.SELECT;
-                    case "INSERT": return StatementType.INSERT;
+                    case "INSERT":
+                        for (String token : tokens) {
+                            if (token.equalsIgnoreCase("SELECT")) {
+                                return StatementType.INSERT_INTO_SELECT;
+                            }
+                        }
+                        return StatementType.INSERT;
                     case "DELETE": return StatementType.DELETE;
                     case "UPDATE": return StatementType.UPDATE;
                     case "CREATE": return StatementType.CREATE;
