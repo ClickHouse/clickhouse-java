@@ -399,6 +399,7 @@ public class HttpAPIClientHelper {
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, chConfiguration, requestConfig);
 
+        boolean disableNative = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey());
         boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
         boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
         boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
@@ -406,14 +407,14 @@ public class HttpAPIClientHelper {
         req.setConfig(baseRequestConfig);
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression, appCompressedData));
+                clientCompression, useHttpCompression, appCompressedData, disableNative));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
             boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
-            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression));
+            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression, disableNative));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
@@ -570,18 +571,18 @@ public class HttpAPIClientHelper {
     }
 
     private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression,
-                                         boolean appControlledCompression) {
+                                         boolean appControlledCompression, boolean disableNative) {
         LOG.debug("client compression: {}, http compression: {}", clientCompression, useHttpCompression);
 
         if (clientCompression && !appControlledCompression) {
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
-                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false);
+                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false, disableNative);
         } else  {
             return httpEntity;
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression) {
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression, boolean disableNative) {
         LOG.debug("server compression: {}, http compression: {}", serverCompression, useHttpCompression);
 
         if (serverCompression) {
@@ -598,7 +599,7 @@ public class HttpAPIClientHelper {
                 case HttpStatus.SC_INTERNAL_SERVER_ERROR:
                 case HttpStatus.SC_NOT_FOUND:
                     return new LZ4Entity(httpEntity, useHttpCompression, true, false,
-                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true);
+                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true, disableNative);
             }
         }
 
