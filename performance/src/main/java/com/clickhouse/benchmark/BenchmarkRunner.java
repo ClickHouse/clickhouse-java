@@ -12,10 +12,7 @@ import org.openjdk.jmh.runner.options.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.clickhouse.benchmark.TestEnvironment.isCloud;
@@ -35,15 +32,21 @@ public class BenchmarkRunner {
         final int measurementTime = Integer.parseInt(options.getOrDefault("-t", "" + (isCloud() ? 30 : 10)));
         final String resultFile = String.format("jmh-results-%s-%s.json", env, time);
         final String outputFile = String.format("jmh-results-%s-%s.out", env, time);
+        final String datasetName = options.getOrDefault("-d", "file://default.csv");
+        final String[] limits = options.getOrDefault("-l", "300000,100000,10000").split(",");
 
         System.out.println("Measurement iterations: " + measurementIterations);
         System.out.println("Measurement time: " + measurementTime + "s");
         System.out.println("Env: " + env);
+        System.out.println("Dataset: " + datasetName);
+        System.out.println("Limits: " + Arrays.asList(limits));
         System.out.println("Epoch Time: " + time);
 
         ChainedOptionsBuilder optBuilder = new OptionsBuilder()
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
+                .param("datasetSourceName", datasetName)
+                .param("limit", limits)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
@@ -54,7 +57,8 @@ public class BenchmarkRunner {
                 .measurementTime(TimeValue.seconds(measurementTime))
                 .resultFormat(ResultFormatType.JSON)
                 .output(outputFile)
-                .result(resultFile);
+                .result(resultFile)
+                .shouldFailOnError(true);
 
         String testMask = options.getOrDefault("-b", "q,i");
         String[] testMaskParts = testMask.split(",");

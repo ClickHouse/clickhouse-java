@@ -57,6 +57,7 @@ public class DataSetGenerator {
                     if (i + 1 < args.length) {
                         datasetName = args[++i];
                     }
+                    break;
                 default:
                     // Ignore unknown flags
                     break;
@@ -93,7 +94,7 @@ public class DataSetGenerator {
         LocalDateTime seriesStart = null;
         Duration seriesInterval = Duration.ofSeconds(1);
 
-        File outputFile = new File("dataset_" + System.currentTimeMillis() + ".csv");
+        File outputFile = new File(datasetName + ".csv");
         try (BufferedWriter writer = Files.newBufferedWriter(outputFile.toPath())) {
             writer.write(datasetName + "\n");
             writer.write("--Create Table Statement\n");
@@ -125,7 +126,7 @@ public class DataSetGenerator {
         int columnCount = 0;
         for (String line : reader.lines().collect(Collectors.toList())) {
             line = line.trim();
-            if (line.startsWith("CREATE TABLE") || line.startsWith("CREATE TEMPORARY TABLE")) {
+            if (line.startsWith("CREATE TABLE") || line.startsWith("CREATE TEMPORARY TABLE") || line.trim().startsWith("--")) {
                 continue; // Skip the CREATE TABLE line
             }
             if (line.startsWith(")")) {

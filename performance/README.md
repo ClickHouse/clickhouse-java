@@ -8,6 +8,16 @@
 
 ### How to Run
 
+
+#### Generating Dataset
+
+```shell
+mvn compile exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator \
+-input sample_dataset.sql -name default -rows 10"
+```
+
+#### Running Benchmarks 
+ 
 With default settings :
 ```shell
 mvn compile exec:exec
@@ -19,6 +29,8 @@ mvn compile exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmar
 ```
 
 Other options:
+- "-d" - dataset name or file path (like `file://default.csv`)
+- "-l" - dataset limits to test coma separated (ex.: `-l 10000,10000`)
 - "-m" - number of measurement iterations
 - "-t" - time in seconds per iteration
 - "-b" - benchmark mask coma separated. Ex.: `-b writer,reader,i`. Default : `-b i,q`
