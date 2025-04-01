@@ -45,6 +45,9 @@
         <versions-plugin.version>2.16.0</versions-plugin.version>
         <resource-plugin.version>3.3.1</resource-plugin.version>
 
+        <jmh.measure-iter>10</jmh.measure-iter>
+        <jmh.measure-time>10</jmh.measure-time>
+
     </properties>
 
     <dependencies>
@@ -161,24 +164,16 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>run-benchmarks</id>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <classpathScope>runtime</classpathScope>
-                            <executable>java</executable>
-                            <arguments>
-                                <argument>-classpath</argument>
-                                <classpath />
-                                <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
-                                <argument>.*</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
+                <configuration>
+                    <executable>java</executable>
+                    <arguments>
+                        <argument>-classpath</argument>
+                        <classpath/>
+                        <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
+                        <argument>-m ${jmh.measure-iter}</argument>
+                        <argument>-t ${jmh.measure-time}</argument>
+                    </arguments>
+                </configuration>
             </plugin>
         </plugins>
     </build>
