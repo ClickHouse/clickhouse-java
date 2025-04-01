@@ -2,6 +2,8 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.data.ClickHouseCityHash;
 import net.jpountz.lz4.LZ4Compressor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -9,6 +11,7 @@ import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
 
+    private static Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4OutputStream.class);
     public static final int UNCOMPRESSED_BUFF_SIZE = 64 * 1024; // 64K is most optimal for LZ4 compression
 
     private final ByteBuffer inBuffer;
@@ -26,6 +29,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {
         super();
+        LOG.debug("Using compressor {}", compressor);
         this.inBuffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
         this.compressor = compressor;
