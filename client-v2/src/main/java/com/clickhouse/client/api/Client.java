@@ -590,6 +590,17 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Disable native compression. If set to true then native compression will be disabled.
+         * If from some reason the native compressor is not working then it can be disabled.
+         * @param disable
+         * @return
+         */
+        public Builder disableNativeCompression(boolean disable) {
+            this.configuration.put(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), String.valueOf(disable));
+            return this;
+        }
+
+        /**
          * Sets the default database name that will be used by operations if not specified.
          * @param database - actual default database name.
          */
@@ -1060,6 +1071,10 @@ public class Client implements AutoCloseable {
 
             if (!configuration.containsKey("compression.lz4.uncompressed_buffer_size")) {
                 setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
+            }
+
+            if (!configuration.containsKey(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey())) {
+                disableNativeCompression(false);
             }
 
             if (!configuration.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
