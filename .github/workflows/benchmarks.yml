@@ -1,0 +1,61 @@
+name: Benchmarks
+description: Runs minimal JMH benchmark 
+
+on:
+  schedule:
+    # Build and publish nightly snapshot at 3:55pm every day
+    - cron: "55 15 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+env:
+  CHC_BRANCH: "main"
+  CHC_VERSION: "0.8.2"
+  CH_VERSION: "24.8"
+  JAVA_VERSION: 17
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    if: ${{ startsWith(github.repository, 'ClickHouse/') }}
+    name: "Build and Publish Nightly Snapshot"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 20
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHC_BRANCH }}
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: "maven"
+      - name: Build
+        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipTests=true clean install
+      - name: Build
+        run: | 
+          cd performance \
+          mvn compile exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner -m 3 -t 30 -b i"
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            performance/jmh-results*
+
+    
+

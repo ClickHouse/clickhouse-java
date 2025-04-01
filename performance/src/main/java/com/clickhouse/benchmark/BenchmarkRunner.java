@@ -12,7 +12,10 @@ import org.openjdk.jmh.runner.options.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import static com.clickhouse.benchmark.TestEnvironment.isCloud;
