@@ -36,6 +36,7 @@ class LZ4Entity implements HttpEntity {
         this.serverCompression = serverCompression;
         this.clientCompression = clientCompression;
         this.isResponse = isResponse;
+        this.disableNative = disableNative;
     }
 
     @Override
