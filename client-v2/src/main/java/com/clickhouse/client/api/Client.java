@@ -39,6 +39,8 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
@@ -144,6 +146,7 @@ public class Client implements AutoCloseable {
     private String serverVersion;
     private Object metricsRegistry;
     private int retries;
+    private LZ4Factory lz4Factory = null;
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
@@ -176,6 +179,12 @@ public class Client implements AutoCloseable {
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
+        boolean useNativeCompression = !MapUtils.getFlag(configuration, ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), false);
+        if (useNativeCompression) {
+            this.lz4Factory = LZ4Factory.fastestInstance();
+        } else {
+            this.lz4Factory = LZ4Factory.fastestJavaInstance();
+        }
     }
 
     /**
@@ -586,6 +595,17 @@ public class Client implements AutoCloseable {
          */
         public Builder setLZ4UncompressedBufferSize(int size) {
             this.configuration.put(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey(), String.valueOf(size));
+            return this;
+        }
+
+        /**
+         * Disable native compression. If set to true then native compression will be disabled.
+         * If from some reason the native compressor is not working then it can be disabled.
+         * @param disable
+         * @return
+         */
+        public Builder disableNativeCompression(boolean disable) {
+            this.configuration.put(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), String.valueOf(disable));
             return this;
         }
 
@@ -1062,6 +1082,10 @@ public class Client implements AutoCloseable {
                 setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
             }
 
+            if (!configuration.containsKey(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey())) {
+                disableNativeCompression(false);
+            }
+
             if (!configuration.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
                 useServerTimeZone(true);
             }
@@ -1338,7 +1362,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
+                        httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory,
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1496,7 +1520,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(),
+                             httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory,
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1619,7 +1643,7 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
-                                httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), output -> {
+                                httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory, output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
                                     output.close();
                                 });
@@ -2055,6 +2079,7 @@ public class Client implements AutoCloseable {
     public String toString() {
         return "Client{" +
                 "endpoints=" + endpoints +
+                ",lz4factory" + lz4Factory +
                 '}';
     }
 
