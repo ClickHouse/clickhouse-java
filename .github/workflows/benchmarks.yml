@@ -32,9 +32,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  nightly:
+  jmh:
     if: ${{ startsWith(github.repository, 'ClickHouse/') }}
-    name: "Build and Publish Nightly Snapshot"
+    name: "Mininal JMH Benchmarks"
     runs-on: "ubuntu-latest"
     timeout-minutes: 20
     steps:
@@ -64,7 +64,7 @@ jobs:
           cd ./performance &&
           ls -l && 
           mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner \
-          -l 100000,10000 -m 1 -t 3 -b i -d file://default.csv"
+          -l 100000,10000 -m 3 -t 15 -b q,i -d file://default.csv"
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: success()
@@ -72,6 +72,3 @@ jobs:
           name: result ${{ github.job }}
           path: |
             performance/jmh-results*
-
-    
-
