@@ -77,6 +77,7 @@ public class DataSetGenerator {
         }catch (Exception e) {
             e.printStackTrace();
         }
+        System.out.println("Dataset name: " + datasetName);
 
         // Parse the SQL create table statement
         List<Column> originalColumns;
