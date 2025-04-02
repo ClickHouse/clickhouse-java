@@ -26,17 +26,18 @@ class LZ4Entity implements HttpEntity {
     private boolean serverCompression;
 
     private boolean clientCompression;
-    private boolean disableNative = false;
+
+    private LZ4Factory lz4Factory = null;
 
     LZ4Entity(HttpEntity httpEntity, boolean useHttpCompression, boolean serverCompression, boolean clientCompression,
-              int bufferSize, boolean isResponse, boolean disableNative) {
+              int bufferSize, boolean isResponse, LZ4Factory lz4Factory) {
         this.httpEntity = httpEntity;
         this.useHttpCompression = useHttpCompression;
         this.bufferSize = bufferSize;
         this.serverCompression = serverCompression;
         this.clientCompression = clientCompression;
         this.isResponse = isResponse;
-        this.disableNative = disableNative;
+        this.lz4Factory = lz4Factory;
     }
 
     @Override
@@ -61,8 +62,7 @@ class LZ4Entity implements HttpEntity {
                     return content;
                 }
             } else  {
-                LZ4Factory factory = disableNative ? LZ4Factory.fastestJavaInstance() : LZ4Factory.fastestInstance();
-                return new ClickHouseLZ4InputStream(httpEntity.getContent(), factory.fastDecompressor(),
+                return new ClickHouseLZ4InputStream(httpEntity.getContent(), lz4Factory.fastDecompressor(),
                         bufferSize);
             }
         } else {
@@ -80,8 +80,8 @@ class LZ4Entity implements HttpEntity {
             if (useHttpCompression) {
                 httpEntity.writeTo(new FramedLZ4CompressorOutputStream(outStream));
             } else {
-                LZ4Factory factory = disableNative ? LZ4Factory.fastestJavaInstance() : LZ4Factory.fastestInstance();
-                httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, factory.fastCompressor(),
+
+                httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, lz4Factory.fastCompressor(),
                         bufferSize));
             }
         } else {

@@ -163,6 +163,13 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test
+    public void testDisableNative() {
+        try (Client client = newClient().disableNativeCompression(true).build()) {
+            Assert.assertTrue(client.toString().indexOf("JavaUnsafe") != -1);
+        }
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
