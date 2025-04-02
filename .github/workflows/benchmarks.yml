@@ -55,11 +55,17 @@ jobs:
           cache: "maven"
       - name: Build
         run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipTests=true clean install
-      - name: Run Benchmarks
+      - name: Prepare Dataset
         run: |
-          cd performance && 
-          mvn --batch-mode --no-transfer-progress compile exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql -name default -rows 100000" &&
-          mvn --batch-mode --no-transfer-progress compile exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner -l 100000,10000 -m 1 -t 3 -b i -d file://default.csv"
+          ls -l &&
+          cd ./performance &&
+          mvn --batch-mode --no-transfer-progress compile exec:exec \
+          -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql \
+          -name default -rows 100000"
+      - name: Run Benchmarks 
+          cd ./performance &&
+          ls -l && 
+          mvn --batch-mode --no-transfer-progress exec:exec -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner -l 100000,10000 -m 1 -t 3 -b i -d file://default.csv"
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: success()
