@@ -25,7 +25,7 @@
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <deploy-plugin.version>3.1.1</deploy-plugin.version>
         <enforcer-plugin.version>3.3.0</enforcer-plugin.version>
-        <exec-plugin.version>3.1.0</exec-plugin.version>
+        <exec-plugin.version>3.5.0</exec-plugin.version>
         <failsafe-plugin.version>3.1.2</failsafe-plugin.version>
         <flatten-plugin.version>1.2.7</flatten-plugin.version>
         <git-plugin.version>6.0.0</git-plugin.version>
@@ -165,16 +165,24 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec-plugin.version}</version>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-classpath</argument>
-                        <classpath/>
-                        <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
-                        <argument>-m ${jmh.measure-iter}</argument>
-                        <argument>-t ${jmh.measure-time}</argument>
-                    </arguments>
-                </configuration>
+                <executions>
+                    <execution>
+                        <id>run-benchmarks</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
+                                <argument>-m ${jmh.measure-iter}</argument>
+                                <argument>-t ${jmh.measure-time}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
