@@ -1,6 +1,7 @@
 package com.clickhouse.benchmark;
 
 import com.clickhouse.benchmark.clients.Compression;
+import com.clickhouse.benchmark.clients.CompressorCompare;
 import com.clickhouse.benchmark.clients.DataTypes;
 import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
 import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
@@ -48,13 +49,14 @@ public class BenchmarkRunner {
 //                .include(Deserializers.class.getName())
 //                .include(MixedWorkload.class.getName())
 //                .include(DataTypes.class.getName())
-                .include(JDBCQuery.class.getName())
-                .include(JDBCInsert.class.getName())
+//                .include(JDBCQuery.class.getName())
+//                .include(JDBCInsert.class.getName())
+                .include(CompressorCompare.class.getName())
                 .forks(1) // must be a fork. No fork only for debugging
                 .mode(Mode.SampleTime)
                 .timeUnit(TimeUnit.MILLISECONDS)
-                .addProfiler(GCProfiler.class)
-                .addProfiler(MemPoolProfiler.class)
+//                .addProfiler(GCProfiler.class)
+//                .addProfiler(MemPoolProfiler.class)
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(5))
                 .measurementIterations(10)

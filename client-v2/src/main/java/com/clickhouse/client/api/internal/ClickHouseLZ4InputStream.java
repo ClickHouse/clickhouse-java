@@ -27,6 +27,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     public ClickHouseLZ4InputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
+        LOG.debug("Using decompressor {}", decompressor);
         this.decompressor = decompressor;
         this.in = in;
         this.buffer = ByteBuffer.allocate(bufferSize);

@@ -290,6 +290,7 @@
                 <artifactId>lz4-pure-java</artifactId>
                 <version>${lz4.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>org.msgpack</groupId>
                 <artifactId>msgpack-core</artifactId>

@@ -70,6 +70,8 @@ public enum ClientConfigProperties {
 
     COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size"),
 
+    DISABLE_NATIVE_COMPRESSION("disable_native_compression", "false"),
+
     PROXY_TYPE("proxy_type"), // "http"
 
     PROXY_HOST("proxy_host"),
