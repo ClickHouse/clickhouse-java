@@ -57,7 +57,7 @@ jobs:
         run: |
           cd ./performance &&
           ls -l &&
-          mvn --batch-mode --no-transfer-progress compile exec:exec -Dexec.executable=java\
+          mvn --batch-mode --no-transfer-progress compile exec:exec -Dexec.executable=java \
           -Dexec.args='-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql \
           -name default -rows 100000'
       - name: Run Benchmarks 
