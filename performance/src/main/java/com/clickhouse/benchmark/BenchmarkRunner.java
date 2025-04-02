@@ -64,11 +64,18 @@ public class BenchmarkRunner {
         String[] testMaskParts = testMask.split(",");
 
         SortedSet<String> benchmarks = new TreeSet<>();
-        for (String p : testMaskParts) {
-            String benchmark = BENCHMARK_FLAGS.get(p);
-            if (benchmark != null) {
-                optBuilder.include(benchmark);
-                benchmarks.add(benchmark);
+        if (testMaskParts[0].equalsIgnoreCase("all")) {
+            BENCHMARK_FLAGS.values().forEach((b) -> {
+                optBuilder.include(b);
+                benchmarks.add(b);
+            });
+        } else {
+            for (String p : testMaskParts) {
+                String benchmark = BENCHMARK_FLAGS.get(p);
+                if (benchmark != null) {
+                    optBuilder.include(benchmark);
+                    benchmarks.add(benchmark);
+                }
             }
         }
 

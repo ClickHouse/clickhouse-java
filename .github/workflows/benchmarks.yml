@@ -3,27 +3,15 @@ description: Runs minimal JMH benchmark
 
 on:
   schedule:
-    # Build and publish nightly snapshot at 3:55pm every day
     - cron: "55 15 * * *"
   workflow_dispatch:
     inputs:
       pr:
         description: "Pull request#"
         required: false
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths-ignore:
-      - "**.md"
-      - "**/docs/**"
-      - "**/LICENSE"
-      - "**/NOTICE"
 
 env:
   CHC_BRANCH: "main"
-  CHC_VERSION: "0.8.2"
   CH_VERSION: "24.8"
   JAVA_VERSION: 17
 
@@ -40,6 +28,8 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHC_BRANCH }}
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
@@ -56,13 +46,11 @@ jobs:
       - name: Prepare Dataset
         run: |
           cd ./performance &&
-          ls -l &&
           mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java \
           -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql -name default -rows 100000"
       - name: Run Benchmarks 
         run: |
           cd ./performance &&
-          ls -l && 
           mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner \
           -l 100000,10000 -m 3 -t 15 -b q,i -d file://default.csv"
       - name: Upload test results
