@@ -112,10 +112,11 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    byte[] bytes = estimatedLen > STRING_BUFF.length ?
-                            new byte[estimatedLen] : STRING_BUFF;
-                    readNBytes(input, bytes, 0, estimatedLen);
-                    return (T) new String(bytes, 0, estimatedLen, StandardCharsets.UTF_8);
+                    int estimatedLenTemp = (estimatedLen > precision ? estimatedLen : precision);
+                    byte[] bytes = estimatedLenTemp > STRING_BUFF.length ?
+                            new byte[estimatedLenTemp] : STRING_BUFF;
+                    readNBytes(input, bytes, 0, estimatedLenTemp);
+                    return (T) new String(bytes, 0, estimatedLenTemp, StandardCharsets.UTF_8);
                 }
                 case String: {
                     return (T) readString();

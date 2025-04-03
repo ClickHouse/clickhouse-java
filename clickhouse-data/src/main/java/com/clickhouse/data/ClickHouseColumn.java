@@ -249,9 +249,8 @@ public final class ClickHouseColumn implements Serializable {
             case FixedString:
                 if (size > 0) {
                     column.precision = Integer.parseInt(column.parameters.get(0));
-                    column.estimatedByteLength += column.precision;
-                    if (column.nullable) {
-                        column.estimatedByteLength -= 1;
+                    if (!column.nullable) {
+                        column.estimatedByteLength += column.precision;
                     }
                 }
                 column.template = ClickHouseStringValue.ofNull();
