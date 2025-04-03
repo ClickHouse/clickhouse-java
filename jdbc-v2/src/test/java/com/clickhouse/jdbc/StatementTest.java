@@ -614,6 +614,27 @@ public class StatementTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery(sqlSelect);
                 assertTrue(rs.next());
             }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount /* test */FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */ -- SELECT 1").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
         }
     }
 }
