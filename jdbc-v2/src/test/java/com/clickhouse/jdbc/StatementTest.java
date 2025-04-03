@@ -573,4 +573,68 @@ public class StatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testNewLineSQLParsing() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
+            try (Statement stmt = conn.createStatement()) {
+                int r = stmt.executeUpdate(sqlCreate);
+                assertEquals(r, 0);
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
+                int r = stmt.executeUpdate(sqlInsert);
+                assertEquals(r, 1);
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("SELECT amount FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT * FROM balance\n")
+                        .append("\n")
+                        .append("WITH balance_cte AS (\n")
+                        .append("SELECT\n")
+                        .append("id, currency, amount\n")
+                        .append("FROM balance\n")
+                        .append("LIMIT 10\n")
+                        .append(")\n")
+                        .append("SELECT * FROM balance_cte;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+                assertFalse(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount /* test */FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */ -- SELECT 1").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+        }
+    }
 }
