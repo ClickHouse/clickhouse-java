@@ -103,7 +103,6 @@ public class BinaryStreamReader {
 
         ClickHouseColumn actualColumn = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicData() : column;
         ClickHouseDataType dataType = actualColumn.getDataType();
-        int estimatedLen = actualColumn.getEstimatedLength();
         int precision = actualColumn.getPrecision();
         int scale = actualColumn.getScale();
         TimeZone timezone = actualColumn.getTimeZoneOrDefault(timeZone);
@@ -112,11 +111,10 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    int estimatedLenTemp = (estimatedLen > precision ? estimatedLen : precision);
-                    byte[] bytes = estimatedLenTemp > STRING_BUFF.length ?
-                            new byte[estimatedLenTemp] : STRING_BUFF;
-                    readNBytes(input, bytes, 0, estimatedLenTemp);
-                    return (T) new String(bytes, 0, estimatedLenTemp, StandardCharsets.UTF_8);
+                    byte[] bytes = precision > STRING_BUFF.length ?
+                            new byte[precision] : STRING_BUFF;
+                    readNBytes(input, bytes, 0, precision);
+                    return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
                 }
                 case String: {
                     return (T) readString();
