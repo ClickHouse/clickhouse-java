@@ -2,16 +2,19 @@ package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.Types;
 import java.sql.DatabaseMetaData;
 import java.util.Arrays;
@@ -230,9 +233,24 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getTypeInfo()) {
                 int count = 0;
+                ResultSetMetaData rsMetaData = rs.getMetaData();
+                assertTrue(rsMetaData.getColumnCount() >= 18, "Expected at least 18 columns in getTypeInfo result set");
+                assertEquals(rsMetaData.getColumnType(2), Types.INTEGER);
+                assertEquals(rsMetaData.getColumnType(7), Types.INTEGER);
                 while (rs.next()) {
                     count++;
-                    Assert.assertTrue(rs.getString("TYPE_NAME").length() > 0);
+                    ClickHouseDataType dataType = ClickHouseDataType.of( rs.getString("TYPE_NAME"));
+                    assertEquals(ClickHouseDataType.of(rs.getString(1)), dataType);
+                    assertEquals(rs.getInt("DATA_TYPE"),
+                            (int) JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber(),
+                            "Type mismatch for " + dataType.name() + ": expected " +
+                                    JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber() +
+                                    " but was " + rs.getInt("DATA_TYPE") + " for TYPE_NAME: " + rs.getString("TYPE_NAME"));
+                    if (dataType == ClickHouseDataType.Nullable || dataType == ClickHouseDataType.Dynamic) {
+                        assertEquals( rs.getShort("NULLABLE"), DatabaseMetaData.typeNullable);
+                    } else {
+                        assertEquals(rs.getShort("NULLABLE"), DatabaseMetaData.typeNoNulls);
+                    }
                 }
 
                 assertTrue(count > 10, "At least 10 types should be returned but was " + count);

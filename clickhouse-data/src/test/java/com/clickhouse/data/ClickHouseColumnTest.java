@@ -253,7 +253,9 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getEnumConstants().name(10), "Query'Finish");
         Assert.assertEquals(column.getEnumConstants().value("Query'Start"), 1);
         Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
-        Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
+        if (column.getDataType() != ClickHouseDataType.Enum) { // virtual type
+            Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
+        }
         Assert.assertEquals(column.getEstimatedLength(), column.getDataType().getByteLength());
     }
 
@@ -417,7 +419,8 @@ public class ClickHouseColumnTest {
         for (ClickHouseDataType type : ClickHouseDataType.values()) {
             // skip advanced types
             if (type.isNested() || type == ClickHouseDataType.AggregateFunction
-                    || type == ClickHouseDataType.SimpleAggregateFunction) {
+                    || type == ClickHouseDataType.SimpleAggregateFunction || type == ClickHouseDataType.Enum
+                    || type == ClickHouseDataType.Nullable || type == ClickHouseDataType.BFloat16) {
                 continue;
             }
 

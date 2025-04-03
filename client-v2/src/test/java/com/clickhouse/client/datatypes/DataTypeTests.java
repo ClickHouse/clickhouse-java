@@ -156,6 +156,9 @@ public class DataTypeTests extends BaseIntegrationTest {
             b.append(table).append(" ( rowId Int64, field Variant(String, ").append(dataType.name());
 
             switch (dataType) {
+                case BFloat16:
+                    // TODO: add support
+                    continue dataTypesLoop;
                 case String:
                 case FixedString:
                 case Nothing:
@@ -179,6 +182,11 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case AggregateFunction:
                 case Enum8:
                 case Enum16:
+                case Enum:
+                case Nullable: // virtual type
+                case LowCardinality: // virtual type
+                case LineString: // same as Ring
+                case MultiLineString: // same as MultiPolygon
                     // tested separately
                     continue dataTypesLoop;
 
@@ -414,6 +422,9 @@ public class DataTypeTests extends BaseIntegrationTest {
         int rowId = 0;
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             switch (dataType) {
+                case BFloat16:
+                    // TODO: add support
+                    continue;
                 case Array:
                 case Map:
                 case AggregateFunction:
@@ -428,6 +439,11 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Tuple:
                 case Variant:
                 case Decimal: // virtual type
+                case Nullable: // virtual type
+                case LowCardinality: // virtual type
+                case Enum: // virtual type
+                case LineString: // same as Ring
+                case MultiLineString: // same as MultiPolygon
                     // no tests or tested in other tests
                     continue;
                 default:
@@ -447,7 +463,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 }
             }
 
-            Assert.assertNotNull(value);
+            Assert.assertNotNull(value, "Value for " + dataType.name() + " should not be null.");
 
             List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
             data.add(new DTOForDynamicPrimitivesTests(rowId++, value));

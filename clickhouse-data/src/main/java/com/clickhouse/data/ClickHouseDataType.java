@@ -55,6 +55,7 @@ public enum ClickHouseDataType {
     DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, 0x11, "TIMESTAMP"),
     DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, 0x12),
     DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x14), // we always write timezone as argument
+    Enum(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17, "ENUM"),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, 0x18),
     FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x16, "BINARY"),
@@ -90,6 +91,8 @@ public enum ClickHouseDataType {
     Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false, 0x1A),
     Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false, 0x1B),
     Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false, 0x1C),
+
+    BFloat16(Float.class, false, true, true, 2, 3, 0, 0, 16, false, 0x31),
     Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, 0x0D, "FLOAT", "REAL", "SINGLE"),
     Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, 0x0E, "DOUBLE", "DOUBLE PRECISION"),
     IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, 0x28, "INET4"),
@@ -99,6 +102,9 @@ public enum ClickHouseDataType {
     Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Ring)
     MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Polygon)
     Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Point)
+    LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Point)
+    MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Ring)
+
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
     @Deprecated
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
@@ -113,6 +119,8 @@ public enum ClickHouseDataType {
     Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2F),
     Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true, 0x1F),
     Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true, 0x00),
+    LowCardinality(Object.class, true, false, false, 0, 0, 0, 0, 0, true, 0x26),
+    Nullable( Object.class, true, false, false, 0, 0, 0, 0, 0, true, 0x23),
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x2E),
     // implementation-defined intermediate state
     AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
@@ -364,7 +372,7 @@ public enum ClickHouseDataType {
      * @return true if the type name is an alias; false otherwise
      */
     public static boolean isAlias(String typeName) {
-        return typeName != null && !typeName.isEmpty() && allAliases.contains(typeName.trim().toUpperCase());
+        return typeName != null && !typeName.isEmpty() && allAliases.contains(typeName.trim());
     }
 
     /**
