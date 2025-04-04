@@ -2,9 +2,9 @@ package com.clickhouse.benchmark.clients;
 
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.internal.jpountz.lz4.LZ4Factory;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.stream.Lz4OutputStream;
-import net.jpountz.lz4.LZ4Factory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;

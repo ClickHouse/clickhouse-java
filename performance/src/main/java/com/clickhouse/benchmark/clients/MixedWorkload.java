@@ -1,6 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
@@ -14,15 +13,7 @@ import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseSerializer;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Group;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,7 +65,7 @@ public class MixedWorkload extends BenchmarkBase {
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
-                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .query(BenchmarkBase.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         for (byte[] bytes: dataState.dataSet.getBytesList(format)) {
                             out.write(bytes);
@@ -96,7 +87,7 @@ public class MixedWorkload extends BenchmarkBase {
                     .write()
                     .option(ClickHouseClientOption.ASYNC, false)
                     .format(format)
-                    .query(BenchmarkRunner.getInsertQuery(dataState.tableNameEmpty))
+                    .query(BenchmarkBase.getInsertQuery(dataState.tableNameEmpty))
                     .data(out -> {
                         ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
                         ClickHouseSerializer[] serializers = p.getSerializers(clientV1Shared.getConfig(), p.getColumns());
@@ -119,7 +110,7 @@ public class MixedWorkload extends BenchmarkBase {
     public void queryV1(DataState dataState, Blackhole blackhole) {
         try {
             try (ClickHouseResponse response = clientV1Shared.read(getServer())
-                    .query(BenchmarkRunner.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT))
+                    .query(BenchmarkBase.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT))
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .option(ClickHouseClientOption.ASYNC, false)
                     .executeAndWait()) {
@@ -185,7 +176,7 @@ public class MixedWorkload extends BenchmarkBase {
     @Group("mixed_v2")
     public void queryV2(DataState dataState, Blackhole blackhole) {
         try {
-            try(QueryResponse response = clientV2Shared.query(BenchmarkRunner.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT)).get()) {
+            try(QueryResponse response = clientV2Shared.query(BenchmarkBase.getSelectQueryWithLimit(dataState.tableNameFilled, LIMIT)).get()) {
                 ClickHouseBinaryFormatReader reader = clientV2Shared.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
