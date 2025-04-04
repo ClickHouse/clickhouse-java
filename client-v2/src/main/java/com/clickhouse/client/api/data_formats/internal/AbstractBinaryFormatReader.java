@@ -40,7 +40,6 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -161,11 +160,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         for (int i = 0; i < columns.length; i++) {
             try {
                 Object val = binaryStreamReader.readValue(columns[i]);
-                if (val != null) {
-                    record[i] = val;
-                } else {
-                    record[i] = null;
-                }
+                record[i] = val;
                 firstColumn = false;
             } catch (EOFException e) {
                 if (firstColumn) {

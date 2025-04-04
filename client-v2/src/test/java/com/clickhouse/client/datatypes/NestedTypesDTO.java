@@ -4,7 +4,6 @@ package com.clickhouse.client.datatypes;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.testng.annotations.Test;
 
 import static com.clickhouse.client.datatypes.DataTypeTests.tableDefinition;
 

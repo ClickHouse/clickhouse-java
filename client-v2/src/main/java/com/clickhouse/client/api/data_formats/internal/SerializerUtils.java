@@ -30,7 +30,6 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
 import java.time.*;
-import java.time.temporal.TemporalUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -340,10 +339,7 @@ public class SerializerUtils {
             case IntervalQuarter:
             case IntervalYear:
                 stream.write(binTag);
-                Byte kindTag = ClickHouseDataType.intervalType2Kind.get(dt).getTag();
-                if (kindTag == null) {
-                    throw new ClientException("BUG! No Interval Mapping to a kind tag");
-                }
+                byte kindTag = ClickHouseDataType.intervalType2Kind.get(dt).getTag();
                 stream.write(kindTag);
                 break;
             case DateTime32:
@@ -382,21 +378,7 @@ public class SerializerUtils {
                 stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
                 BinaryStreamUtils.writeString(stream, dt.name());
                 break;
-            case Variant:
-                stream.write(binTag);
-                break;
-            case Dynamic:
-                stream.write(binTag);
-                break;
-            case JSON:
-                stream.write(binTag);
-                break;
-            case SimpleAggregateFunction:
-                stream.write(binTag);
-                break;
-            case AggregateFunction:
-                stream.write(binTag);
-                break;
+            case Variant, Dynamic, JSON, SimpleAggregateFunction, AggregateFunction:
             default:
                 stream.write(binTag);
         }
@@ -639,7 +621,7 @@ public class SerializerUtils {
     }
 
     private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
-        int enumValue = -1;
+        int enumValue;
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
         } else if (value instanceof Number) {
@@ -898,12 +880,12 @@ public class SerializerUtils {
     }
 
     private static void binaryReaderMethodForType(MethodVisitor mv, Class<?> targetType, ClickHouseDataType dataType) {
-        String readerMethod = null;
-        String readerMethodReturnType = null;
+        String readerMethod;
+        String readerMethodReturnType;
         int convertOpcode = -1;
 
         switch (dataType) {
-            case Int8:
+            case Int8, Enum8:
                 readerMethod = "readByte";
                 readerMethodReturnType = Type.getDescriptor(byte.class);
                 break;
@@ -911,7 +893,7 @@ public class SerializerUtils {
                 readerMethod = "readUnsignedByte";
                 readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
-            case Int16:
+            case Int16, Enum16:
                 readerMethod = "readShortLE";
                 readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
@@ -944,14 +926,6 @@ public class SerializerUtils {
                 readerMethod = "readDoubleLE";
                 readerMethodReturnType = Type.getDescriptor(double.class);
                 convertOpcode = doubleToOpcode(targetType);
-                break;
-            case Enum8:
-                readerMethod = "readByte";
-                readerMethodReturnType = Type.getDescriptor(byte.class);
-                break;
-            case Enum16:
-                readerMethod = "readShortLE";
-                readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
             default:
                 throw new ClientException("Column type '" + dataType + "' cannot be set to a primitive type '" + targetType + "'");
@@ -1058,7 +1032,7 @@ public class SerializerUtils {
     }
 
     public static void writeDate(OutputStream output, Object value, ZoneId targetTz) throws IOException {
-        int epochDays = 0;
+        int epochDays;
         if (value instanceof LocalDate) {
             LocalDate d = (LocalDate) value;
             epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();
@@ -1072,7 +1046,7 @@ public class SerializerUtils {
     }
 
     public static void writeDate32(OutputStream output, Object value, ZoneId targetTz) throws IOException {
-        int epochDays= 0;
+        int epochDays;
         if (value instanceof LocalDate) {
             LocalDate d = (LocalDate) value;
             epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();

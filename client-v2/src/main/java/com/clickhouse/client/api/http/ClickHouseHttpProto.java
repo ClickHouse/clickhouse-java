@@ -60,7 +60,7 @@ public class ClickHouseHttpProto {
     public static final String QPARAM_ROLE = "role";
 
     /**
-     * Query statement string ( ex. {@code INSERT INTO mytable }
+     * Query statement string ( ex. {@code INSERT INTO mytable } )
      */
     public static final String QPARAM_QUERY_STMT = "query";
 

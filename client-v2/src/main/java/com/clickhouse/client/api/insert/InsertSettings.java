@@ -1,9 +1,7 @@
 package com.clickhouse.client.api.insert;
 
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import org.apache.hc.core5.http.HttpHeaders;
 

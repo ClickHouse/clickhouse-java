@@ -2,14 +2,8 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientFaultCause;
-import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ConnectionInitiationException;
+import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -31,16 +25,7 @@ import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.*;
 import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -64,34 +49,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
-import java.net.ConnectException;
-import java.net.InetSocketAddress;
-import java.net.NoRouteToHostException;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 public class HttpAPIClientHelper {
-    private static final Logger LOG = LoggerFactory.getLogger(Client.class);
+    private static final Logger LOG = LoggerFactory.getLogger(HttpAPIClientHelper.class);
 
-    private static int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
+    private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
     private CloseableHttpClient httpClient;
 
@@ -173,7 +143,7 @@ public class HttpAPIClientHelper {
         return sslContext;
     }
 
-    private long CONNECTION_INACTIVITY_CHECK = 5000L;
+    private static final long CONNECTION_INACTIVITY_CHECK = 5000L;
 
     private ConnectionConfig createConnectionConfig() {
         ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
@@ -799,7 +769,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    public class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+    public static class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
         public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
             super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
         }

@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4InputStream extends InputStream {
 
-    private static Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4InputStream.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4InputStream.class);
     private final LZ4FastDecompressor decompressor;
 
     private final InputStream in;

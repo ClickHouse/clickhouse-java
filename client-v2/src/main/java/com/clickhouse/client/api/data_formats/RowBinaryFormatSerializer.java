@@ -3,7 +3,6 @@ package com.clickhouse.client.api.data_formats;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
 import java.io.IOException;

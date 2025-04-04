@@ -3,12 +3,7 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.NativeFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
-import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.*;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
@@ -20,26 +15,16 @@ import com.clickhouse.client.api.insert.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.POJOSerializer;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
-import com.clickhouse.client.api.internal.ClientStatisticsHolder;
-import com.clickhouse.client.api.internal.HttpAPIClientHelper;
-import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.TableSchemaParser;
-import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.internal.*;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.POJOSetter;
-import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.api.query.*;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
-import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -59,25 +44,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
-import java.util.TimeZone;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -1066,7 +1034,7 @@ public class Client implements AutoCloseable {
 
             // set default database name if not specified
             if (!configuration.containsKey(ClientConfigProperties.DATABASE.getKey())) {
-                setDefaultDatabase((String) "default");
+                setDefaultDatabase("default");
             }
 
             if (!configuration.containsKey(ClientConfigProperties.MAX_EXECUTION_TIME.getKey())) {
@@ -1318,16 +1286,13 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Data cannot be empty");
         }
 
-
+        if (settings == null) {
+            settings = new InsertSettings();
+        }
         String operationId = registerOperationMetrics();
         settings.setOperationId(operationId);
         globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
-
-        //Add format to the settings
-        if (settings == null) {
-            settings = new InsertSettings();
-        }
 
         boolean hasDefaults = this.tableSchemaHasDefaults.get(tableName);
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
@@ -1484,7 +1449,7 @@ public class Client implements AutoCloseable {
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
 
-        String operationId = (String) settings.getOperationId();
+        String operationId = settings.getOperationId();
         ClientStatisticsHolder clientStats = null;
         if (operationId != null) {
             clientStats = globalClientStats.remove(operationId);
@@ -1579,7 +1544,7 @@ public class Client implements AutoCloseable {
      * <p>Sends SQL query to server.</p>
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
+     * <li>Server response format can be specified through `settings` or in SQL query.</li>
      * <li>If specified in both, the `sqlQuery` will take precedence.</li>
      * </ul>
      * @param sqlQuery - complete SQL query.
@@ -1609,7 +1574,7 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru {@code settings} or in SQL query.</li>
+     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
      * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
      * </ul>
      *
@@ -1813,7 +1778,7 @@ public class Client implements AutoCloseable {
      * <p>{@code class} should be registered before calling this method using {@link #register(Class, TableSchema)}</p>
      * <p>Internally deserializer is compiled at the register stage. Compilation is done using ASM library by
      *  writing a bytecode</p>
-     * <p>Note: this method will cache schema and it will use sql as a key for storage.</p>
+     * <p>Note: this method will cache schema, and it will use sql as a key for storage.</p>
      *
      *
      * @param sqlQuery - query to execute
@@ -2011,7 +1976,7 @@ public class Client implements AutoCloseable {
      * @return
      */
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
-        ClickHouseBinaryFormatReader reader = null;
+        ClickHouseBinaryFormatReader reader;
         // Using caching buffer allocator is risky so this parameter is not exposed to the user
         boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
         BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
