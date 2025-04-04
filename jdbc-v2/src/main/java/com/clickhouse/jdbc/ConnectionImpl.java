@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -50,6 +51,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     protected String cluster;
     private String catalog;
     private String schema;
+    private String appName;
     private QuerySettings defaultQuerySettings;
 
     private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
@@ -62,14 +64,27 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.config = new JdbcConfiguration(url, info);
             this.onCluster = false;
             this.cluster = null;
+            this.appName = "";
             String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
+
+            Map<String, String> clientProperties = config.getClientProperties();
+            if (clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()) != null) {
+                this.appName = clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()).trim();
+                clientName = this.appName + " " + clientName; // Use the application name as client name
+            } else if (clientProperties.get(ClientConfigProperties.PRODUCT_NAME.getKey()) != null) {
+                // Backward compatibility for old property
+                this.appName = clientProperties.get(ClientConfigProperties.PRODUCT_NAME.getKey()).trim();
+                clientName = this.appName + " " + clientName; // Use the application name as client name
+            }
 
             if (this.config.isDisableFrameworkDetection()) {
                 log.debug("Framework detection is disabled.");
             } else {
                 String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
                 log.debug("Detected frameworks: {}", detectedFrameworks);
-                clientName += " (" + detectedFrameworks + ")";
+                if (!detectedFrameworks.trim().isEmpty()) {
+                    clientName += " (" + detectedFrameworks + ")";
+                }
             }
 
             this.client = this.config.applyClientProperties(new Client.Builder())
@@ -440,8 +455,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         //TODO: This is a placeholder implementation
         return true;
     }
-
-    private String appName = "";
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {

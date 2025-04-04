@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.jdbc.Driver;
+import com.google.common.collect.ImmutableMap;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
@@ -26,6 +27,9 @@ public class JdbcConfiguration {
     final boolean disableFrameworkDetection;
 
     final Map<String, String> clientProperties;
+    public Map<String, String> getClientProperties() {
+        return ImmutableMap.copyOf(clientProperties);
+    }
 
     private final Map<String, String> driverProperties;
 
@@ -62,6 +66,7 @@ public class JdbcConfiguration {
         if (bearerToken != null) {
             clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
         }
+
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
         this.isIgnoreUnsupportedRequests= Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
@@ -186,9 +191,7 @@ public class JdbcConfiguration {
             }
         }
 
-        for (Map.Entry<String, String> entry : urlProperties.entrySet()) {
-            props.put(entry.getKey(), entry.getValue());
-        }
+        props.putAll(urlProperties);
 
         // Process all properties
         Map<String, DriverPropertyInfo> propertyInfos = new HashMap<>();

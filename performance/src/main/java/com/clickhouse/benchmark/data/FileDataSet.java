@@ -1,22 +1,13 @@
 package com.clickhouse.benchmark.data;
 
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataProcessor;
-import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHouseRecord;
-import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class FileDataSet implements DataSet{
 

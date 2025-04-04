@@ -3,22 +3,51 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>com.clickhouse</groupId>
-        <artifactId>clickhouse-java</artifactId>
-        <version>${revision}</version>
-    </parent>
-
-    <artifactId>java-performance</artifactId>
+    <artifactId>jmh-benchmark</artifactId>
+    <groupId>clickhouse.com</groupId>
+    <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>ClickHouse Java Performance Tests</name>
-    <description>ClickHouse Java Performance Tests</description>
+    <name>JMH Benchmark for Java Client</name>
+    <description>JMH Benchmark for Java Client</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/performance</url>
 
     <properties>
         <apache.httpclient.version>5.3.1</apache.httpclient.version>
-        <shade.base>${project.groupId}.shaded</shade.base>
+        <slf4j.version>2.0.17</slf4j.version>
+        <ch.jdbc.revision>0.8.2-SNAPSHOT</ch.jdbc.revision>
+        <jmh.version>1.37</jmh.version>
+        <testcontainers.version>1.20.6</testcontainers.version>
+
+        <antrun-plugin.version>3.1.0</antrun-plugin.version>
+        <assembly-plugin.version>3.6.0</assembly-plugin.version>
+        <clean-plugin.version>3.3.1</clean-plugin.version>
+        <compiler-plugin.version>3.13.0</compiler-plugin.version>
+        <deploy-plugin.version>3.1.1</deploy-plugin.version>
+        <enforcer-plugin.version>3.3.0</enforcer-plugin.version>
+        <exec-plugin.version>3.5.0</exec-plugin.version>
+        <failsafe-plugin.version>3.1.2</failsafe-plugin.version>
+        <flatten-plugin.version>1.2.7</flatten-plugin.version>
+        <git-plugin.version>6.0.0</git-plugin.version>
+        <gpg-plugin.version>3.1.0</gpg-plugin.version>
+        <helper-plugin.version>3.4.0</helper-plugin.version>
+        <jacoco-plugin.version>0.8.12</jacoco-plugin.version>
+        <jar-plugin.version>3.3.0</jar-plugin.version>
+        <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
+        <native-plugin.version>0.9.23</native-plugin.version>
+        <os-plugin.version>1.7.1</os-plugin.version>
+        <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
+        <shade-plugin.version>3.5.0</shade-plugin.version>
+        <source-plugin.version>3.2.1</source-plugin.version>
+        <staging-plugin.version>1.6.13</staging-plugin.version>
+        <surefire-plugin.version>3.2.5</surefire-plugin.version>
+        <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
+        <versions-plugin.version>2.16.0</versions-plugin.version>
+        <resource-plugin.version>3.3.1</resource-plugin.version>
+
+        <jmh.measure-iter>10</jmh.measure-iter>
+        <jmh.measure-time>10</jmh.measure-time>
+
     </properties>
 
     <dependencies>
@@ -42,11 +71,14 @@
             <artifactId>jmh-generator-annprocess</artifactId>
             <version>${jmh.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>${testng.version}</version>
-        </dependency>
+
+        <!-- Performance Test Dependencies -->
+<!--        <dependency>-->
+<!--            <groupId>org.testcontainers</groupId>-->
+<!--            <artifactId>testcontainers</artifactId>-->
+<!--            <version>${testcontainers.version}</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
         <!-- https://mvnrepository.com/artifact/org.testcontainers/clickhouse -->
         <dependency>
             <groupId>org.testcontainers</groupId>
@@ -54,44 +86,14 @@
             <version>${testcontainers.version}</version>
         </dependency>
 
-
-        <!-- Performance Test Dependencies -->
+        <!-- Contains both JDBC drivers and clients -->
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <type>test-jar</type>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers</artifactId>
-            <version>${testcontainers.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>client-v2</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
+            <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
-            <version>${revision}</version>
+            <version>${ch.jdbc.revision}</version>
+            <classifier>all</classifier>
         </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>jdbc-v2</artifactId>
-            <version>${revision}</version>
-        </dependency>
+
     </dependencies>
 
     <build>
@@ -99,6 +101,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
                 <configuration>
                     <annotationProcessorPaths>
                         <path>
@@ -114,26 +117,6 @@
                     </annotationProcessorPaths>
                     <release>11</release>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <finalName>benchmarks</finalName>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.clickhouse.benchmark.BenchmarkRunner</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -164,7 +147,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>com.clickhouse.benchmark.BenchmarkRunner</mainClass>
+                            <mainClass>com.clickhouse.com.clickhouse.benchmark.BenchmarkRunner</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -181,21 +164,21 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-plugin.version}</version>
                 <executions>
                     <execution>
                         <id>run-benchmarks</id>
-                        <phase>integration-test</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <classpathScope>test</classpathScope>
                             <executable>java</executable>
                             <arguments>
                                 <argument>-classpath</argument>
-                                <classpath />
+                                <classpath/>
                                 <argument>com.clickhouse.benchmark.BenchmarkRunner</argument>
-                                <argument>.*</argument>
+                                <argument>-m ${jmh.measure-iter}</argument>
+                                <argument>-t ${jmh.measure-time}</argument>
                             </arguments>
                         </configuration>
                     </execution>

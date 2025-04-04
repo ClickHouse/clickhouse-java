@@ -134,6 +134,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // Handle outer escape syntax
         //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
 
+        // Clean new empty lines in sql
+        sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
         // Add more replacements as needed for other JDBC escape sequences
         LOG.trace("Parsed SQL: {}", sql);
         return sql;
