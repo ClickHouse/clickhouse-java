@@ -378,7 +378,11 @@ public class SerializerUtils {
                 stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
                 BinaryStreamUtils.writeString(stream, dt.name());
                 break;
-            case Variant, Dynamic, JSON, SimpleAggregateFunction, AggregateFunction:
+            case Variant:
+            case Dynamic:
+            case JSON:
+            case SimpleAggregateFunction:
+            case AggregateFunction:
             default:
                 stream.write(binTag);
         }
