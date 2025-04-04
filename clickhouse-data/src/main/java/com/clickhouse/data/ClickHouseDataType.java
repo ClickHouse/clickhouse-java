@@ -108,7 +108,7 @@ public enum ClickHouseDataType {
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
     @Deprecated
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    String(String.class, false, false, false, 0, 0, 0, 0, 0, false, 0x15, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
+    String(String.class, false, true, false, 0, 0, 0, 0, 0, false, 0x15, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
             "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
             "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
@@ -119,8 +119,8 @@ public enum ClickHouseDataType {
     Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2F),
     Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true, 0x1F),
     Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true, 0x00),
-    LowCardinality(Object.class, true, false, false, 0, 0, 0, 0, 0, true, 0x26),
-    Nullable( Object.class, true, false, false, 0, 0, 0, 0, 0, true, 0x23),
+    LowCardinality(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x26),
+    Nullable( Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x23),
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x2E),
     // implementation-defined intermediate state
     AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),

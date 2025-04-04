@@ -240,17 +240,39 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 while (rs.next()) {
                     count++;
                     ClickHouseDataType dataType = ClickHouseDataType.of( rs.getString("TYPE_NAME"));
+                    System.out.println("> " + dataType);
                     assertEquals(ClickHouseDataType.of(rs.getString(1)), dataType);
                     assertEquals(rs.getInt("DATA_TYPE"),
                             (int) JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber(),
                             "Type mismatch for " + dataType.name() + ": expected " +
                                     JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber() +
                                     " but was " + rs.getInt("DATA_TYPE") + " for TYPE_NAME: " + rs.getString("TYPE_NAME"));
+
+                    assertEquals(rs.getInt("PRECISION"), dataType.getMaxPrecision());
+                    assertNull(rs.getString("LITERAL_PREFIX"));
+                    assertNull(rs.getString("LITERAL_SUFFIX"));
+                    assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
+                    assertEquals(rs.getInt("MAXIMUM_SCALE"), dataType.getMaxScale());
+                    assertNull(rs.getString("CREATE_PARAMS"));
+
                     if (dataType == ClickHouseDataType.Nullable || dataType == ClickHouseDataType.Dynamic) {
                         assertEquals( rs.getShort("NULLABLE"), DatabaseMetaData.typeNullable);
                     } else {
                         assertEquals(rs.getShort("NULLABLE"), DatabaseMetaData.typeNoNulls);
                     }
+
+                    if (dataType != ClickHouseDataType.Enum) {
+                        assertEquals(rs.getBoolean("CASE_SENSITIVE"), dataType.isCaseSensitive());
+                    }
+                    assertEquals(rs.getInt("SEARCHABLE"), DatabaseMetaData.typeSearchable);
+                    assertEquals(rs.getBoolean("UNSIGNED_ATTRIBUTE"), !dataType.isSigned());
+                    assertEquals(rs.getBoolean("FIXED_PREC_SCALE"), false);
+                    assertFalse(rs.getBoolean("AUTO_INCREMENT"));
+                    assertEquals(rs.getString("LOCAL_TYPE_NAME"), dataType.name());
+                    assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
+                    assertEquals(rs.getInt("MAXIMUM_SCALE"), dataType.getMaxScale());
+                    assertEquals(rs.getInt("SQL_DATA_TYPE"), 0);
+                    assertEquals(rs.getInt("SQL_DATETIME_SUB"), 0);
                 }
 
                 assertTrue(count > 10, "At least 10 types should be returned but was " + count);

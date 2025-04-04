@@ -1029,9 +1029,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "NULL AS LITERAL_SUFFIX, " +
                 "NULL AS CREATE_PARAMS, " +
                 "name AS NULLABLE, " + // passing type name to map for nullable
-                "not(dt.case_insensitive) AS CASE_SENSITIVE, " +
+                "not(dt.case_insensitive)::Boolean AS CASE_SENSITIVE, " +
                 java.sql.DatabaseMetaData.typeSearchable + " AS SEARCHABLE, " +
-                "attrs.c3 AS UNSIGNED_ATTRIBUTE, " +
+                "not(attrs.c3)::Boolean AS UNSIGNED_ATTRIBUTE, " +
                 "false AS FIXED_PREC_SCALE, " +
                 "false AS AUTO_INCREMENT, " +
                 "name AS LOCAL_TYPE_NAME, " +
