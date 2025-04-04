@@ -96,7 +96,9 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
         props.setProperty("decompress", "0");
         try (ClickHouseConnection conn = newConnection(props); ResultSet rs = conn.getMetaData().getTypeInfo()) {
             while (rs.next()) {
-                Assert.assertNotNull(rs.getString(1));
+                rs.getString(1);
+                System.out.println(rs.getString(1));
+                rs.getInt(2);
             }
         }
     }

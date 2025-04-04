@@ -48,7 +48,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
-        this.metaData = resultSet.metaData;
+        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;

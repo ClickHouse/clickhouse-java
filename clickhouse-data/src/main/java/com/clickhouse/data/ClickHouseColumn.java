@@ -129,6 +129,7 @@ public final class ClickHouseColumn implements Serializable {
             case Bool:
                 column.template = ClickHouseBoolValue.ofNull();
                 break;
+            case Enum:
             case Enum8:
             case Enum16:
                 column.template = ClickHouseEnumValue
@@ -746,7 +747,7 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     public boolean isEnum() {
-        return dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16;
+        return dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16 || dataType == ClickHouseDataType.Enum;
     }
 
     public boolean isFixedLength() {
