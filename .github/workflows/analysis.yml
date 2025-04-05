@@ -74,22 +74,22 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-      - name: Update sonar config
-        run: |
-          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
-            -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
-        if: github.repository_owner == 'ClickHouse'
-      - name: Build and install
-        run: |
-          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -DskipTests install
+#      - name: Cache SonarCloud packages
+#        uses: actions/cache@v4
+#        with:
+#          path: ~/.sonar/cache
+#          key: ${{ runner.os }}-sonar
+#          restore-keys: ${{ runner.os }}-sonar
+#      - name: Update sonar config
+#        run: |
+#          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
+#            -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
+#        if: github.repository_owner == 'ClickHouse'
+#      - name: Build and install
+#        run: |
+#          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
+#          mvn -q --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+#            -DskipTests install
       - name: Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
