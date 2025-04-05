@@ -27,7 +27,7 @@ class LZ4Entity implements HttpEntity {
 
     private boolean clientCompression;
 
-    private LZ4Factory lz4Factory = null;
+    private LZ4Factory lz4Factory;
 
     LZ4Entity(HttpEntity httpEntity, boolean useHttpCompression, boolean serverCompression, boolean clientCompression,
               int bufferSize, boolean isResponse, LZ4Factory lz4Factory) {

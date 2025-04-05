@@ -6,8 +6,6 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 

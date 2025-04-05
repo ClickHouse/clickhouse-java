@@ -33,10 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -97,7 +95,7 @@ public class BinaryStreamReader {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
-                return (T) null;
+                return null;
             }
         }
 
@@ -174,7 +172,6 @@ public class BinaryStreamReader {
                 case Date32:
                     return convertDateTime(readDate32(timezone), typeHint);
                 case DateTime:
-                    return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:
                     return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime64:
@@ -224,13 +221,13 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
-                    return (T) readValue(column.getNestedColumns().get(0));
+                    return readValue(column.getNestedColumns().get(0));
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
                     return (T) readVariant(actualColumn);
                 case Dynamic:
-                    return (T) readValue(actualColumn, typeHint);
+                    return readValue(actualColumn, typeHint);
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + actualColumn.getDataType());
             }
