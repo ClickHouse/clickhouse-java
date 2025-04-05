@@ -889,7 +889,8 @@ public class SerializerUtils {
         int convertOpcode = -1;
 
         switch (dataType) {
-            case Int8, Enum8:
+            case Int8:
+            case Enum8:
                 readerMethod = "readByte";
                 readerMethodReturnType = Type.getDescriptor(byte.class);
                 break;
@@ -897,7 +898,8 @@ public class SerializerUtils {
                 readerMethod = "readUnsignedByte";
                 readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
-            case Int16, Enum16:
+            case Int16:
+            case Enum16:
                 readerMethod = "readShortLE";
                 readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
