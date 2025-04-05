@@ -96,5 +96,5 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-jdbc
         continue-on-error: true
