@@ -9,6 +9,10 @@ import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -367,6 +371,43 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("ipv4"), "/" + ipv4);
                     assertEquals(rs.getString("ipv6"), "/" + ipv6);
                     assertEquals(rs.getString("escaped"), escaped);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testIpAddressTypes() throws SQLException, UnknownHostException {
+        runQuery("CREATE TABLE test_strings (order Int8, "
+                + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+
+        InetAddress ipv4AddressByIp = Inet4Address.getByName(rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256));
+        InetAddress ipv4AddressByName = Inet4Address.getByName("www.example.com");
+        InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
+
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ? )")) {
+                stmt.setObject(1, ipv4AddressByIp);
+                stmt.setObject(2, ipv4AddressByName);
+                stmt.setObject(3, ipv6Address);
+                stmt.executeUpdate();
+            }
+        }
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("ipv4_ip"), ipv4AddressByIp);
+                    assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
+                    assertEquals(rs.getObject("ipv6"), ipv6Address);
                     assertFalse(rs.next());
                 }
             }
