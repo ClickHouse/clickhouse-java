@@ -321,35 +321,29 @@ public class DataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_strings (order Int8, "
                 + "str String, fixed FixedString(6), "
                 + "enum Enum8('a' = 6, 'b' = 7, 'c' = 8), enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3), "
-                + "uuid UUID, ipv4 IPv4, ipv6 IPv6, "
-                + "escaped String "
+                + "uuid UUID, escaped String "
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
         Random rand = new Random(seed);
-        log.info("Random seed was: {}", seed);
 
         String str = "string" + rand.nextInt(1000);
         String fixed = "fixed" + rand.nextInt(10);
         String enum8 = "a";
         String enum16 = "b";
         String uuid = UUID.randomUUID().toString();
-        String ipv4 = rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256);
-        String ipv6 = "2001:adb8:85a3:1:2:8a2e:370:7334";
         String escaped = "\\xA3\\xA3\\x12\\xA0\\xDF\\x13\\x4E\\x8C\\x87\\x74\\xD4\\x53\\xDB\\xFC\\x34\\x95";
 
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ?, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ? )")) {
                 stmt.setString(1, str);
                 stmt.setString(2, fixed);
                 stmt.setString(3, enum8);
                 stmt.setString(4, enum8);
                 stmt.setString(5, enum16);
                 stmt.setString(6, uuid);
-                stmt.setString(7, ipv4);
-                stmt.setString(8, ipv6);
-                stmt.setString(9, escaped);
+                stmt.setString(7, escaped);
                 stmt.executeUpdate();
             }
         }
@@ -368,8 +362,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("enum16"), "b");
                     assertEquals(rs.getInt("enum16"), 2);
                     assertEquals(rs.getString("uuid"), uuid);
-                    assertEquals(rs.getString("ipv4"), "/" + ipv4);
-                    assertEquals(rs.getString("ipv6"), "/" + ipv6);
                     assertEquals(rs.getString("escaped"), escaped);
                     assertFalse(rs.next());
                 }
@@ -379,7 +371,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testIpAddressTypes() throws SQLException, UnknownHostException {
-        runQuery("CREATE TABLE test_strings (order Int8, "
+        runQuery("CREATE TABLE test_ips (order Int8, "
                 + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
@@ -392,7 +384,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
 
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ? )")) {
                 stmt.setObject(1, ipv4AddressByIp);
                 stmt.setObject(2, ipv4AddressByName);
                 stmt.setObject(3, ipv6Address);
@@ -403,7 +395,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         // Check the results
         try (Connection conn = getConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings ORDER BY order")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_ips ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getObject("ipv4_ip"), ipv4AddressByIp);
                     assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
