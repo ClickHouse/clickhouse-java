@@ -1521,14 +1521,14 @@ public class Client implements AutoCloseable {
      * Does an insert request to a server. Data is pushed when a {@link DataStreamWriter#onOutput(OutputStream)} is called.
      *
      * @param tableName - target table name
-     * @param columns - list of column names to insert data into. If null or empty, all columns will be used.
+     * @param columnNames - list of column names to insert data into. If null or empty, all columns will be used.
      * @param writer - {@link DataStreamWriter} implementation
      * @param format - source format
      * @param settings - operation settings
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName,
-                                     List<String> columns,
+                                     List<String> columnNames,
                                      DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
@@ -1559,20 +1559,17 @@ public class Client implements AutoCloseable {
         settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
         final InsertSettings finalSettings = settings;
 
-        StringBuilder columnString = new StringBuilder();
-        if (columns != null && !columns.isEmpty()) {
-            columnString.append("(");
-            for (int i = 0; i < columns.size(); i++) {
-                columnString.append(columns.get(i));
-                if (i < columns.size() - 1) {
-                    columnString.append(", ");
-                }
+        StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);
+        if (columnNames != null && !columnNames.isEmpty()) {
+            sqlStmt.append(" (");
+            for (String columnName : columnNames) {
+                sqlStmt.append(columnName).append(", ");
             }
-            columnString.append(")");
+            sqlStmt.deleteCharAt(sqlStmt.length() - 2);
+            sqlStmt.append(")");
         }
-
-        final String sqlStmt = String.format("INSERT INTO %s %s FORMAT %s", tableName, columnString, format.name());
-        finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
+        sqlStmt.append(" FORMAT ").append(format.name());
+        finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
