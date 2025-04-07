@@ -398,8 +398,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_ips ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getObject("ipv4_ip"), ipv4AddressByIp);
+                    assertEquals(rs.getString("ipv4_ip"), ipv4AddressByIp.toString());
                     assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
                     assertEquals(rs.getObject("ipv6"), ipv6Address);
+                    assertEquals(rs.getString("ipv6"), ipv6Address.toString());
                     assertFalse(rs.next());
                 }
             }
