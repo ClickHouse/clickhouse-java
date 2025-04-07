@@ -1425,8 +1425,22 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName, InputStream data, ClickHouseFormat format) {
-        return insert(tableName, data, format, new InsertSettings());
+        return insert(tableName, Collections.emptyList(), data, format, new InsertSettings());
     }
+
+    /**
+     * <p>Sends write request to database. Input data is read from the input stream.</p>
+     *
+     * @param tableName - destination table name
+     * @param data  - data stream to insert
+     * @param format - format of the data in the stream
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName, List<String> columnNames, InputStream data, ClickHouseFormat format) {
+        return insert(tableName, columnNames, data, format, new InsertSettings());
+    }
+
+
 
     /**
      * Sends write request to database. Input data is read from the input stream.
@@ -1441,6 +1455,23 @@ public class Client implements AutoCloseable {
                                                     InputStream data,
                                                     ClickHouseFormat format,
                                                     InsertSettings settings) {
+        return insert(tableName, Collections.emptyList(), data, format, settings);
+    }
+    /**
+     * Sends write request to database. Input data is read from the input stream.
+     *
+     * @param tableName - destination table name
+     * @param columnNames - list of column names to insert data into. If null or empty, all columns will be used.
+     * @param data  - data stream to insert
+     * @param format - format of the data in the stream
+     * @param settings - insert operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName,
+                                                    List<String> columnNames,
+                                                    InputStream data,
+                                                    ClickHouseFormat format,
+                                                    InsertSettings settings) {
 
         final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
                 Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(),
@@ -1451,7 +1482,7 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        return insert(tableName, new DataStreamWriter() {
+        return insert(tableName, columnNames, new DataStreamWriter() {
                     @Override
                     public void onOutput(OutputStream out) throws IOException {
                         byte[] buffer = new byte[writeBufferSize];
@@ -1480,11 +1511,29 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
      */
     public CompletableFuture<InsertResponse> insert(String tableName,
+                                                    DataStreamWriter writer,
+                                                    ClickHouseFormat format,
+                                                    InsertSettings settings) {
+        return insert(tableName, Collections.emptyList(), writer, format, settings);
+    }
+
+    /**
+     * Does an insert request to a server. Data is pushed when a {@link DataStreamWriter#onOutput(OutputStream)} is called.
+     *
+     * @param tableName - target table name
+     * @param columns - list of column names to insert data into. If null or empty, all columns will be used.
+     * @param writer - {@link DataStreamWriter} implementation
+     * @param format - source format
+     * @param settings - operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insert(String tableName,
+                                     List<String> columns,
                                      DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
 
-        String operationId = (String) settings.getOperationId();
+        String operationId = settings.getOperationId();
         ClientStatisticsHolder clientStats = null;
         if (operationId != null) {
             clientStats = globalClientStats.remove(operationId);
@@ -1509,7 +1558,20 @@ public class Client implements AutoCloseable {
 
         settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
         final InsertSettings finalSettings = settings;
-        final String sqlStmt = "INSERT INTO " + tableName + " FORMAT " + format.name();
+
+        StringBuilder columnString = new StringBuilder();
+        if (columns != null && !columns.isEmpty()) {
+            columnString.append("(");
+            for (int i = 0; i < columns.size(); i++) {
+                columnString.append(columns.get(i));
+                if (i < columns.size() - 1) {
+                    columnString.append(", ");
+                }
+            }
+            columnString.append(")");
+        }
+
+        final String sqlStmt = String.format("INSERT INTO %s %s FORMAT %s", tableName, columnString, format.name());
         finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
         responseSupplier = () -> {
             long startTime = System.nanoTime();
