@@ -10,6 +10,7 @@
 - [jdbc-v2] Fixed SQL parser failure to parse SQL statement with comments (https://github.com/ClickHouse/clickhouse-java/issues/2217)
 - [client-v2] Fixed issue with excessive logging (https://github.com/ClickHouse/clickhouse-java/issues/2201)
 - [jdbc-v2] Fixed handling IP addresses (https://github.com/ClickHouse/clickhouse-java/issues/2140)
+- [jdbc] - Fixed missing LZ4 dependency in shaded package (https://github.com/ClickHouse/clickhouse-java/issues/2275)
 
 ## 0.8.2
 

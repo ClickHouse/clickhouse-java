@@ -420,6 +420,7 @@
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>com.clickhouse:jdbc-v2</include>
+                                    <include>org.apache.commons:commons-compress</include>
                                     <include>org.lz4:lz4-java</include>
                                 </includes>
                             </artifactSet>
