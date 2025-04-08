@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
 
-    private static Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4OutputStream.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4OutputStream.class);
     public static final int UNCOMPRESSED_BUFF_SIZE = 64 * 1024; // 64K is most optimal for LZ4 compression
 
     private final ByteBuffer inBuffer;
@@ -20,11 +20,9 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     private final LZ4Compressor compressor;
 
-    private byte tmpBuffer[] = new byte[1];
-
     private final ByteBuffer compressedBuffer;
 
-    private static int HEADER_LEN = 15; // 9 bytes for header, 6 bytes for checksum
+    private static final int HEADER_LEN = 15; // 9 bytes for header, 6 bytes for checksum
 
 
     public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {

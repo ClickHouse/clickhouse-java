@@ -135,11 +135,11 @@ public enum ClientConfigProperties {
     METRICS_GROUP_NAME("metrics_name"),
     ;
 
-    private String key;
+    private final String key;
 
-    private String defaultValue;
+    private final String defaultValue;
 
-    private List<String> choices;
+    private final List<String> choices;
 
 
     ClientConfigProperties(String key) {

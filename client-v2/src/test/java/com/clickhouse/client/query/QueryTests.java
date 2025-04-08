@@ -148,7 +148,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         try {
             BufferedReader br = new BufferedReader(new InputStreamReader(response.get().getInputStream()));
-            String line = null;
+            String line;
             while ((line = br.readLine()) != null) {
                 System.out.println(line);
             }
@@ -1550,7 +1550,7 @@ public class QueryTests extends BaseIntegrationTest {
         try (Records records = client.queryRecords("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams).get()) {
             count = 0;
             for (GenericRecord record : records) {
-                Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+                Assert.assertTrue(record.getInteger("col1") >= 2);
                 count++;
             }
             Assert.assertEquals(count, 2);
@@ -1558,7 +1558,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         List<GenericRecord> allRecords = client.queryAll("SELECT * FROM " + table + " WHERE col1 >= {param1:UInt32}", queryParams);
         for (GenericRecord record : allRecords) {
-            Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
+            Assert.assertTrue(record.getInteger("col1") >= 2);
         }
         Assert.assertEquals(allRecords.size(), 2);
     }
@@ -1811,7 +1811,7 @@ public class QueryTests extends BaseIntegrationTest {
 
         // adjust datetime
         pojo.setDateTime(pojo.getDateTime().minusNanos(pojo.getDateTime().getNano()));
-        pojo.setDateTime64(pojo.getDateTime64().withNano((int) Math.ceil((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
+        pojo.setDateTime64(pojo.getDateTime64().withNano((int) (double) ((pojo.getDateTime64().getNano() / 1000_000) * 1000_000)));
 
         List<QuerySamplePOJO> pojos = client.queryAll("SELECT * FROM " + tableName + " LIMIT 1", QuerySamplePOJO.class,
                 schema);

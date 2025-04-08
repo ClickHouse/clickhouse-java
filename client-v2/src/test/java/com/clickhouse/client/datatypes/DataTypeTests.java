@@ -23,12 +23,9 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,9 +40,9 @@ public class DataTypeTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;
 
-    private boolean useClientCompression = false;
+    private boolean useClientCompression;
 
-    private boolean useHttpCompression = false;
+    private boolean useHttpCompression;
 
     private static final int EXECUTE_CMD_TIMEOUT = 10; // seconds
 
@@ -164,7 +161,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Object:
                 case Dynamic:
                     // skipped
-                    continue dataTypesLoop;
+                    continue;
 
                 case Decimal:
                 case Decimal32:
@@ -180,7 +177,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Enum8:
                 case Enum16:
                     // tested separately
-                    continue dataTypesLoop;
+                    continue;
 
             }
             b.append(")) Engine = MergeTree ORDER BY ()");
@@ -249,11 +246,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                         break;
 
                 }
-                if (value.getClass().isPrimitive()) {
-                    Assert.assertEquals(strValue, String.valueOf(value));
-                } else {
-                    Assert.assertEquals(strValue, String.valueOf(value));
-                }
+                Assert.assertEquals(strValue, String.valueOf(value));
             }
         }
     }
@@ -503,11 +496,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                         value = Period.ofDays((int) days);
                         break;
                 }
-                if (value.getClass().isPrimitive()) {
-                    Assert.assertEquals(strValue, String.valueOf(value));
-                } else {
-                    Assert.assertEquals(strValue, String.valueOf(value));
-                }
+            Assert.assertEquals(strValue, String.valueOf(value));
         }
     }
 
