@@ -4,6 +4,8 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -233,6 +235,12 @@ public class JdbcUtils {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+            } else if (type == Inet4Address.class && value instanceof Inet6Address) {
+                // Convert Inet6Address to Inet4Address
+                return Inet4Address.getByName(value.toString());
+            } else if (type == Inet6Address.class && value instanceof Inet4Address) {
+                // Convert Inet4Address to Inet6Address
+                return Inet6Address.getByName(value.toString());
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
