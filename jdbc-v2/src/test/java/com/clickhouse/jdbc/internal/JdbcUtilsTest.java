@@ -1,13 +1,12 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.jdbc.JdbcIntegrationTest;
 import org.testng.annotations.Test;
 
 import java.util.List;
 
 import static org.testng.Assert.assertEquals;
 
-public class JdbcUtilsTest extends JdbcIntegrationTest {
+public class JdbcUtilsTest {
     @Test(groups = { "integration" })
     public void testTokenizeSQL() {
         String sql1 = "SELECT * FROM table WHERE id = 1";
@@ -47,5 +46,15 @@ public class JdbcUtilsTest extends JdbcIntegrationTest {
         assertEquals(tokens3.get(3), "table");
         assertEquals(tokens3.get(4), "WHERE");
         assertEquals(tokens3.get(5).replace("\"", ""), "id = 1 AND name = 'John' OR age = 30");
+    }
+
+    @Test
+    public void testEscapeQuotes() {
+        String[] inStr = new String[]{"%valid_name%", "' OR 1=1 --", "\" OR 1=1 --"};
+        String[] outStr = new String[]{"%valid_name%", "\\' OR 1=1 --", "\\\" OR 1=1 --"};
+
+        for (int i = 0; i < inStr.length; i++) {
+            assertEquals(JdbcUtils.escapeQuotes(inStr[i]), outStr[i]);
+        }
     }
 }

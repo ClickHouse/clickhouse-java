@@ -8,8 +8,8 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.MetadataResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -826,7 +826,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
     }
 
+    private static final String DATA_TYPE_COL = "DATA_TYPE";
     @Override
+    @SuppressWarnings({"squid:S2077"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
@@ -856,13 +858,13 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'NO' as IS_AUTOINCREMENT, " +
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
-                " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
+                " WHERE database LIKE '" + (schemaPattern == null ? "%" : JdbcUtils.escapeQuotes(schemaPattern)) + "'" +
+                " AND table LIKE '" + (tableNamePattern == null ? "%" : JdbcUtils.escapeQuotes(tableNamePattern)) + "'" +
+                " AND name LIKE '" + (columnNamePattern == null ? "%" : JdbcUtils.escapeQuotes(columnNamePattern)) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
-                    .transform("DATA_TYPE", ClickHouseColumn.of("DATA_TYPE", "Int32"), DatabaseMetaData::columnDataTypeToSqlType);
+                    .transform(DATA_TYPE_COL, ClickHouseColumn.of(DATA_TYPE_COL, ClickHouseDataType.Int32.name()), DatabaseMetaData::columnDataTypeToSqlType);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

@@ -3,7 +3,6 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
-import org.jspecify.annotations.Nullable;
 
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -20,11 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -258,5 +253,14 @@ public class JdbcUtils {
         }
 
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
+    }
+
+    public static String escapeQuotes(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return str
+                .replace("'", "\\'")
+                .replace("\"", "\\\"");
     }
 }

@@ -11,10 +11,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 public class MetadataResultSet extends ResultSetImpl {
-    private final Map<String, Function<String, String>> columnTransformers = new HashMap<>();
+    private final Map<String, UnaryOperator<String>> columnTransformers = new HashMap<>();
     private final String[] cachedColumnLabels;
 
     private final OverridingSchemaAdaptor overridingSchemaAdaptor;
@@ -28,17 +28,16 @@ public class MetadataResultSet extends ResultSetImpl {
         for (int i = 1; i <= count; i++) {
             cachedColumnLabels[i - 1] = metaData.getColumnLabel(i).toUpperCase();
         }
-
     }
 
     /**
      * Registers a transformer function for a given column.
      * The transformer takes the original String value and returns a new String.
      *
-     * @param columnLabel The name of the column (case insensitive).
+     * @param columnLabel The name of the column (case-insensitive).
      * @param transformer The function that transforms the value.
      */
-    public MetadataResultSet transform(String columnLabel, ClickHouseColumn column, Function<String, String> transformer) {
+    public MetadataResultSet transform(String columnLabel, ClickHouseColumn column, UnaryOperator<String> transformer) {
         if (columnLabel != null && transformer != null) {
             columnTransformers.put(columnLabel.toUpperCase(), transformer);
         }
@@ -49,7 +48,7 @@ public class MetadataResultSet extends ResultSetImpl {
     @Override
     public String getString(String columnLabel) throws SQLException {
         String value = super.getString(columnLabel);
-        Function<String, String> transformer = columnTransformers.get(columnLabel.toUpperCase());
+        UnaryOperator<String> transformer = columnTransformers.get(columnLabel.toUpperCase());
         if (transformer != null && value != null) {
             return transformer.apply(value);
         }
@@ -97,7 +96,7 @@ public class MetadataResultSet extends ResultSetImpl {
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        return (long) getInt(columnIndex);
+        return getInt(columnIndex);
     }
 
     @Override

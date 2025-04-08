@@ -159,6 +159,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case BFloat16:
                     // TODO: add support
                     continue dataTypesLoop;
+                    // skipped
                 case String:
                 case FixedString:
                 case Nothing:
@@ -166,9 +167,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case JSON:
                 case Object:
                 case Dynamic:
-                    // skipped
-                    continue dataTypesLoop;
-
+                    // no tests or tested in other tests
                 case Decimal:
                 case Decimal32:
                 case Decimal64:
