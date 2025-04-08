@@ -294,6 +294,31 @@ public class InsertTests extends BaseIntegrationTest {
         assertEquals((int)response.getWrittenRows(), numberOfRecords );
     }
 
+    @Test(groups = { "integration" })
+    public void insertRawDataFewerColumns() throws Exception {
+        final String tableName = "raw_data_select_columns_table";
+        final String createSQL = "CREATE TABLE " + tableName +
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String, p3 String, p4 Int8) ENGINE = MergeTree() ORDER BY ()";
+        List<String> columnNames = Arrays.asList("Id", "event_ts", "name", "p1", "p2");
+
+        initTable(tableName, createSQL);
+
+        settings.setInputStreamCopyBufferSize(8198 * 2);
+        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(data);
+        for (int i = 0; i < 1000; i++) {
+            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+        }
+        writer.flush();
+        InsertResponse response = client.insert(tableName, columnNames, new ByteArrayInputStream(data.toByteArray()),
+                ClickHouseFormat.TSV, settings).get(30, TimeUnit.SECONDS);
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals((int)response.getWrittenRows(), 1000 );
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
+        assertEquals(records.size(), 1000);
+    }
+
     @DataProvider(name = "insertRawDataSimpleDataProvider")
     public static Object[][] insertRawDataSimpleDataProvider() {
         return new Object[][] {
