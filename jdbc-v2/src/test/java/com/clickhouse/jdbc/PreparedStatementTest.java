@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
@@ -10,11 +9,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
