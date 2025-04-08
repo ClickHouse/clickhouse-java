@@ -1,8 +1,17 @@
-## Latest
+## 0.8.3
+
+### Improvements
+- [client-v2] Support for native LZ4 compression (https://github.com/ClickHouse/clickhouse-java/issues/2274)
+
+### Bug Fixes
+- [jdbc-v2] Fixed several issues with reading database metadata in JDBC driver. (https://github.com/ClickHouse/clickhouse-java/issues/2282)
+- [jdbc-v2] Fixed settings client name in JDBC. (https://github.com/ClickHouse/clickhouse-java/issues/2233)
+- [client-v2] Fixed reading data from columns defined as `Nullable(FixedString(N))`. (https://github.com/ClickHouse/clickhouse-java/issues/2218)
+- [jdbc-v2] Fixed SQL parser failure to parse SQL statement with comments (https://github.com/ClickHouse/clickhouse-java/issues/2217)
+- [client-v2] Fixed issue with excessive logging (https://github.com/ClickHouse/clickhouse-java/issues/2201)
+- [jdbc-v2] Fixed handling IP addresses (https://github.com/ClickHouse/clickhouse-java/issues/2140)
 
 ## 0.8.2
-
-### New Features
 
 ### Bug Fixes
 - [jdbc-v2] - Significantly improved performance of JDBC inserts. (https://github.com/ClickHouse/clickhouse-java/pull/2165)

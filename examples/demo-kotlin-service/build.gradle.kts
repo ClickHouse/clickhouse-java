@@ -19,8 +19,9 @@ application {
 }
 
 repositories {
-    mavenLocal() // for snapshots
+    mavenLocal() // comment to pull nightly builds instead of local cache
     mavenCentral()
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots/") // for nightly builds
 }
 
 val ch_java_client_version: String by extra
