@@ -826,9 +826,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
     }
 
-    private static final String DATA_TYPE_COL = "DATA_TYPE";
+    private static final ClickHouseColumn DATA_TYPE_COL = ClickHouseColumn.of("DATA_TYPE", ClickHouseDataType.Int32.name()) ;
     @Override
-    @SuppressWarnings({"squid:S2077"})
+    @SuppressWarnings({"squid:S2095"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
@@ -864,7 +864,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
-                    .transform(DATA_TYPE_COL, ClickHouseColumn.of(DATA_TYPE_COL, ClickHouseDataType.Int32.name()), DatabaseMetaData::columnDataTypeToSqlType);
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::columnDataTypeToSqlType);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -996,12 +996,14 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
     }
 
+    private static final ClickHouseColumn NULLABLE_COL = ClickHouseColumn.of("NULLABLE", ClickHouseDataType.Int32.name());
     @Override
+    @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL))
-                    .transform("DATA_TYPE", ClickHouseColumn.of("DATA_TYPE", "Int32"), DatabaseMetaData::dataTypeToSqlTypeInt)
-                    .transform("NULLABLE", ClickHouseColumn.of("NULLABLE", "Int32"), DatabaseMetaData::dataTypeNullability);
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::dataTypeToSqlTypeInt)
+                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaData::dataTypeNullability);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
