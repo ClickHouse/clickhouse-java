@@ -24,11 +24,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
-
+import static org.testng.Assert.*;
 
 
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
@@ -313,6 +309,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     Assert.assertEquals(rs.getString("DESCRIPTION"), p.getDescription());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetDriverVersion() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            String version = dbmd.getDriverVersion();
+            assertNotEquals(version, "unknown");
         }
     }
 }
