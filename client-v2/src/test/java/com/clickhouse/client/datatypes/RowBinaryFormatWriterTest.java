@@ -68,9 +68,8 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .compressClientRequest(true)
-                .useHttpCompression(true)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1")
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
     }
@@ -625,13 +624,16 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableName = "rowBinaryFormatWriterTest_writeJsonTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
-                "  json JSON, json_default JSON DEFAULT '{\"a\": 1}', " +
+                "  json JSON, json_default JSON DEFAULT '{\"a\": 1}' " +
                 "  ) Engine = MergeTree ORDER BY id";
+
+        Map<String, Object> tmpMap = new HashMap<>();
+        tmpMap.put("a", 1);
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("json", "{\"a\": 1}").set("{\"a\": 1}"), new Field("json_default").set("{\"a\": 1}") //Json
+                    new Field("json", "{\"a\": 1}").set(tmpMap), new Field("json_default").set(tmpMap)//Json
         }};
 
         writeTest(tableName, tableCreate, rows);
