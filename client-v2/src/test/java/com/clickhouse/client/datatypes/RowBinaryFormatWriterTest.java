@@ -276,24 +276,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 new Field("uint8", rand.nextInt(256)), new Field("uint8_nullable"), new Field("uint8_default").set(3), //UInt8
                 new Field("uint16", rand.nextInt(65536)), new Field("uint16_nullable"), new Field("uint16_default").set(3), //UInt16
                 new Field("uint32", rand.nextInt() & 0xFFFFFFFFL), new Field("uint32_nullable"), new Field("uint32_default").set(3), //UInt32
-                new Field("uint64", BigInteger.valueOf(rand.nextLong())), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
-                new Field("uint128", new BigInteger(128, rand)), new Field("uint128_nullable"), new Field("uint128_default").set(3), //UInt128
-                new Field("uint256", new BigInteger(256, rand)), new Field("uint256_nullable"), new Field("uint256_default").set(3), //UInt256
-                new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
-                new Field("float64", rand.nextDouble()), new Field("float64_nullable"), new Field("float64_default").set("3.0"), //Float64
-//                new Field("bfloat16", rand.nextDouble()), new Field("bfloat16_nullable"), new Field("bfloat16_default").set("3.0"), //BFloat16
-        }, {
-                new Field("id", 2), //Row ID
-                new Field("int8", rand.nextInt(256) - 128), new Field("int8_nullable"), new Field("int8_default").set(3), //Int8
-                new Field("int16", rand.nextInt(65536) - 32768), new Field("int16_nullable"), new Field("int16_default").set(3), //Int16
-                new Field("int32", rand.nextInt()), new Field("int32_nullable"), new Field("int32_default").set(3), //Int32
-                new Field("int64", rand.nextLong()), new Field("int64_nullable"), new Field("int64_default").set(3), //Int64
-                new Field("int128", new BigInteger(127, rand)), new Field("int128_nullable"), new Field("int128_default").set(3), //Int128
-                new Field("int256", new BigInteger(255, rand)), new Field("int256_nullable"), new Field("int256_default").set(3), //Int256
-                new Field("uint8", rand.nextInt(256)), new Field("uint8_nullable"), new Field("uint8_default").set(3), //UInt8
-                new Field("uint16", rand.nextInt(65536)), new Field("uint16_nullable"), new Field("uint16_default").set(3), //UInt16
-                new Field("uint32", rand.nextInt() & 0xFFFFFFFFL), new Field("uint32_nullable"), new Field("uint32_default").set(3), //UInt32
-                new Field("uint64", BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE))), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
+                new Field("uint64", new BigInteger(64, rand)), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
                 new Field("uint128", new BigInteger(128, rand)), new Field("uint128_nullable"), new Field("uint128_default").set(3), //UInt128
                 new Field("uint256", new BigInteger(256, rand)), new Field("uint256_nullable"), new Field("uint256_default").set(3), //UInt256
                 new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
@@ -322,11 +305,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         Random rand = new Random(seed);
         System.out.println("Random seed: " + seed);
 
-        BigDecimal decimal = new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100));
-        BigDecimal decimal32 = new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000));
-        BigDecimal decimal64 = new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000));
-        BigDecimal decimal128 = new BigDecimal(new BigInteger(20, rand) + "." + rand.nextInt(100000, 1000000));
-        BigDecimal decimal256 = new BigDecimal(new BigInteger(57, rand) + "." + rand.nextInt(100000, 1000000));
+        BigDecimal decimal = new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(100));
+        BigDecimal decimal32 = new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(10000));
+        BigDecimal decimal64 = new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(1000000));
+        BigDecimal decimal128 = new BigDecimal(new BigInteger(20, rand) + "." + rand.nextInt(1000000));
+        BigDecimal decimal256 = new BigDecimal(new BigInteger(57, rand) + "." + rand.nextInt(1000000));
 
         Field[][] rows = new Field[][] {{
                 new Field("id", 1),
