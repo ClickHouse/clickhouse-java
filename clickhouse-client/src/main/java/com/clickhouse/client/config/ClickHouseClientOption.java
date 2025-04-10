@@ -532,7 +532,17 @@ public enum ClickHouseClientOption implements ClickHouseOption {
                 tmpVersion = tmp;
             }
         } catch (Exception e) {
-            // ignore
+            try(InputStream in = ClickHouseClientOption.class.getClassLoader().getResourceAsStream(resourceFilePath)) {
+                Properties p = new Properties();
+                p.load(in);
+
+                String tmp = p.getProperty("version");
+                if (tmp != null && !tmp.isEmpty() && !tmp.equals("${revision}")) {
+                    tmpVersion = tmp;
+                }
+            } catch (Exception ee) {
+                // ignore
+            }
         }
         return tmpVersion;
     }
