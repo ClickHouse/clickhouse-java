@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
@@ -7,17 +8,19 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.MetadataResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.util.Arrays;
 
 public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
@@ -823,7 +826,9 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
     }
 
+    private static final ClickHouseColumn DATA_TYPE_COL = ClickHouseColumn.of("DATA_TYPE", ClickHouseDataType.Int32.name()) ;
     @Override
+    @SuppressWarnings({"squid:S2095", "squid:S2077"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
@@ -853,16 +858,31 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 "'NO' as IS_AUTOINCREMENT, " +
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
-                " WHERE database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND table LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                " AND name LIKE '" + (columnNamePattern == null ? "%" : columnNamePattern) + "'" +
+                " WHERE database LIKE '" + (schemaPattern == null ? "%" : JdbcUtils.escapeQuotes(schemaPattern)) + "'" +
+                " AND table LIKE '" + (tableNamePattern == null ? "%" : JdbcUtils.escapeQuotes(tableNamePattern)) + "'" +
+                " AND name LIKE '" + (columnNamePattern == null ? "%" : JdbcUtils.escapeQuotes(columnNamePattern)) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql));
+            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::columnDataTypeToSqlType);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
     }
+
+    private static String columnDataTypeToSqlType(String value) {
+        SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(value);
+        if (type == null) {
+            try {
+                type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", value).getDataType());
+            } catch (Exception e) {
+                log.error("Failed to convert column data type to SQL type: {}", value, e);
+                type = JDBCType.OTHER; // In case of error, return SQL type 0
+            }
+        }
+        return String.valueOf(type.getVendorTypeNumber());
+    }
+
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
         //Return an empty result set with the required columns
@@ -976,13 +996,30 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
         }
     }
 
+    private static final ClickHouseColumn NULLABLE_COL = ClickHouseColumn.of("NULLABLE", ClickHouseDataType.Int32.name());
     @Override
+    @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
         try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL));
+            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL))
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::dataTypeToSqlTypeInt)
+                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaData::dataTypeNullability);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
+    }
+
+    private static String dataTypeToSqlTypeInt(String type) {
+        SQLType sqlType = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(type);
+        return sqlType == null ? String.valueOf(JDBCType.OTHER.getVendorTypeNumber()) :
+                String.valueOf(sqlType.getVendorTypeNumber());
+    }
+
+    private static String dataTypeNullability(String type) {
+        if (type.equals(ClickHouseDataType.Nullable.name()) || type.equals(ClickHouseDataType.Dynamic.name())) {
+            return String.valueOf(java.sql.DatabaseMetaData.typeNullable);
+        }
+        return String.valueOf(java.sql.DatabaseMetaData.typeNoNulls);
     }
 
     private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
@@ -990,15 +1027,15 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     private static String getDataTypeInfoSql() {
         StringBuilder sql = new StringBuilder("SELECT " +
                 "name AS TYPE_NAME, " +
-                "name AS DATA_TYPE, " +
+                "if(empty(alias_to), name, alias_to) AS DATA_TYPE, " + // passing type name or alias if exists to map then
                 "attrs.c2 AS PRECISION, " +
                 "NULL AS LITERAL_PREFIX, " +
                 "NULL AS LITERAL_SUFFIX, " +
                 "NULL AS CREATE_PARAMS, " +
-                java.sql.DatabaseMetaData.typeNullable + " AS NULLABLE, " +
-                "not(dt.case_insensitive) AS CASE_SENSITIVE, " +
+                "name AS NULLABLE, " + // passing type name to map for nullable
+                "not(dt.case_insensitive)::Boolean AS CASE_SENSITIVE, " +
                 java.sql.DatabaseMetaData.typeSearchable + " AS SEARCHABLE, " +
-                "attrs.c3 AS UNSIGNED_ATTRIBUTE, " +
+                "not(attrs.c3)::Boolean AS UNSIGNED_ATTRIBUTE, " +
                 "false AS FIXED_PREC_SCALE, " +
                 "false AS AUTO_INCREMENT, " +
                 "name AS LOCAL_TYPE_NAME, " +

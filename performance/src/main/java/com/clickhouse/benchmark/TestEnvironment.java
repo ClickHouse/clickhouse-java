@@ -3,7 +3,6 @@ package com.clickhouse.benchmark;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

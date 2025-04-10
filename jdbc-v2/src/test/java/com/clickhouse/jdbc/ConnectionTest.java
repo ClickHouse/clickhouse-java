@@ -282,6 +282,35 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void influenceUserAgentClientNameTest() throws SQLException {
+        String clientName = UUID.randomUUID().toString().replace("-", "");
+        influenceUserAgentTest(clientName, "?" + ClientConfigProperties.CLIENT_NAME.getKey() + "=" + clientName);
+        influenceUserAgentTest(clientName, "?" + ClientConfigProperties.PRODUCT_NAME.getKey() + "=" + clientName);
+    }
+    private void influenceUserAgentTest(String clientName, String urlParam) throws SQLException {
+        Properties info = new Properties();
+        info.setProperty("user", "default");
+        info.setProperty("password", ClickHouseServerForTest.getPassword());
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+
+        try (Connection localConnection = new ConnectionImpl(getEndpointString() + urlParam, info);
+             Statement stmt = localConnection.createStatement()) {
+
+            final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
+            stmt.execute(testQuery);
+            stmt.execute("SYSTEM FLUSH LOGS");
+
+            final String logQuery ="SELECT http_user_agent " +
+                    " FROM system.query_log WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
+            try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                Assert.assertTrue(rs.next());
+                String userAgent = rs.getString("http_user_agent");
+                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+            }
+        }
+    }
+
     @DataProvider(name = "setAndGetClientInfoTestDataProvider")
     public static Object[][] setAndGetClientInfoTestDataProvider() {
         return new Object[][] {

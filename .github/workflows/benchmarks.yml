@@ -1,0 +1,62 @@
+name: Benchmarks
+description: Runs minimal JMH benchmark 
+
+on:
+  schedule:
+    - cron: "55 15 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+env:
+  CHC_BRANCH: "main"
+  CH_VERSION: "24.8"
+  JAVA_VERSION: 17
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  jmh:
+    if: ${{ startsWith(github.repository, 'ClickHouse/') }}
+    name: "Mininal JMH Benchmarks"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 20
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHC_BRANCH }}
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: "maven"
+      - name: Build
+        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipTests=true clean install
+      - name: Prepare Dataset
+        run: |
+          cd ./performance &&
+          mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java \
+          -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql -name default -rows 100000"
+      - name: Run Benchmarks 
+        run: |
+          cd ./performance &&
+          mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner \
+          -l 100000,10000 -m 3 -t 15 -b q,i -d file://default.csv"
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            performance/jmh-results*

@@ -45,11 +45,6 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
         </dependency>
-
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-pure-java</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -90,7 +85,7 @@
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <scope>provided</scope>
+            <version>${lz4.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.luben</groupId>
@@ -425,7 +420,8 @@
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>com.clickhouse:jdbc-v2</include>
-                                    <include>org.lz4:lz4-pure-java</include>
+                                    <include>org.apache.commons:commons-compress</include>
+                                    <include>org.lz4:lz4-java</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
@@ -495,7 +491,7 @@
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
-                                    <include>org.lz4:lz4-pure-java</include>
+                                    <include>org.lz4:lz4-java</include>
                                     <include>com.clickhouse:jdbc-v2</include>
                                     <include>com.clickhouse:client-v2</include>
                                 </includes>
@@ -573,7 +569,7 @@
                                     <include>com.clickhouse:clickhouse-data</include>
                                     <include>com.clickhouse:clickhouse-client</include>
                                     <include>com.clickhouse:clickhouse-http-client</include>
-                                    <include>org.lz4:lz4-pure-java</include>
+                                    <include>org.lz4:lz4-java</include>
                                 </includes>
                             </artifactSet>
                             <relocations>

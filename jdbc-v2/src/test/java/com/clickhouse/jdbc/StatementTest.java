@@ -573,4 +573,102 @@ public class StatementTest extends JdbcIntegrationTest {
             }
         }
     }
+  
+  
+    @Test(groups = { "integration" })
+    public void testNewLineSQLParsing() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
+            try (Statement stmt = conn.createStatement()) {
+                int r = stmt.executeUpdate(sqlCreate);
+                assertEquals(r, 0);
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
+                int r = stmt.executeUpdate(sqlInsert);
+                assertEquals(r, 1);
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("SELECT amount FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT * FROM balance\n")
+                        .append("\n")
+                        .append("WITH balance_cte AS (\n")
+                        .append("SELECT\n")
+                        .append("id, currency, amount\n")
+                        .append("FROM balance\n")
+                        .append("LIMIT 10\n")
+                        .append(")\n")
+                        .append("SELECT * FROM balance_cte;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+                assertFalse(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount /* test */FROM balance FINAL;").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+            try (Statement stmt = conn.createStatement()) {
+                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                        .append("\n")
+                        .append("SELECT amount FROM balance FINAL; /* test */ -- SELECT 1").toString();
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+            }
+        }
+    }
+
+    
+    @Test(groups = { "integration" })
+    public void testNullableFixedStringType() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ENGINE Memory;";
+            try (Statement stmt = conn.createStatement()) {
+                int r = stmt.executeUpdate(sqlCreate);
+                assertEquals(r, 0);
+            }
+            try(Statement stmt = conn.createStatement()) {
+                String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
+                int r = stmt.executeUpdate(sqlInsert);
+                assertEquals(r, 1);
+            }
+            try(Statement stmt = conn.createStatement()) {
+                String sqlSelect = "SELECT * FROM `data_types`";
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "val1");
+                assertEquals(rs.getString(2), "val2");
+                assertEquals(rs.getString(3), "val3");
+                assertEquals(rs.getString(4), "val4");
+                assertFalse(rs.next());
+            }
+            try(Statement stmt = conn.createStatement()) {
+                String sqlSelect = "SELECT f4 FROM `data_types`";
+                ResultSet rs = stmt.executeQuery(sqlSelect);
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "val4");
+            }
+        }
+    }
 }

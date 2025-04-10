@@ -1,36 +1,21 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.benchmark.data.SyntheticDataSet;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseClientBuilder;
-import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.*;
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
 import com.clickhouse.jdbc.ClickHouseDriver;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,15 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-import static com.clickhouse.benchmark.BenchmarkRunner.getSelectCountQuery;
-import static com.clickhouse.benchmark.BenchmarkRunner.getSyncQuery;
-import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
-import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
-import static com.clickhouse.benchmark.TestEnvironment.getPassword;
-import static com.clickhouse.benchmark.TestEnvironment.getServer;
-import static com.clickhouse.benchmark.TestEnvironment.getUsername;
-import static com.clickhouse.benchmark.TestEnvironment.isCloud;
-import static com.clickhouse.benchmark.TestEnvironment.setupEnvironment;
+import static com.clickhouse.benchmark.TestEnvironment.*;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
@@ -106,7 +83,8 @@ public class BenchmarkBase {
 
         @Param({"file://dataset_500k.csv"})
         String datasetSourceName;
-        @Param({"300000", "220000", "100000", "10000"})
+//        @Param({"300000", "220000", "100000", "10000"})
+        @Param({"300000"})
         int limit;
         @Param({"data_filled"})
         String tableNameFilled;
@@ -237,7 +215,7 @@ public class BenchmarkBase {
 
     public static boolean verifyCount(String tableName, long expectedCount) {
         syncQuery(tableName);
-        List<GenericRecord> records = runQuery(BenchmarkRunner.getSelectCountQuery(tableName));
+        List<GenericRecord> records = runQuery(getSelectCountQuery(tableName));
         BigInteger count = records.get(0).getBigInteger(1);
         if (count.longValue() != expectedCount) {
             LOGGER.error("Expected {} but got {}", expectedCount, count);
@@ -299,7 +277,7 @@ public class BenchmarkBase {
         }
         return jdbcV1;
     }
-    
+
     protected static Connection getJdbcV2() {
         Properties properties = new Properties();
         properties.put("user", getUsername());
@@ -324,7 +302,7 @@ public class BenchmarkBase {
 
         try (ClickHouseClient clientV1 = getClientV1();
              ClickHouseResponse response = clientV1.read(getServer())
-                     .query(BenchmarkRunner.getSelectQuery(dataState.tableNameFilled))
+                     .query(getSelectQuery(dataState.tableNameFilled))
                      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                      .executeAndWait()) {
 
@@ -344,5 +322,25 @@ public class BenchmarkBase {
             LOGGER.error("Error inserting data: ", e);
             throw new RuntimeException("Error inserting data", e);
         }
+    }
+
+    public static String getSelectQuery(String tableName) {
+        return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "`";
+    }
+
+    public static String getSelectQueryWithLimit(String tableName, int limit) {
+        return "SELECT * FROM `" + DB_NAME + "`.`" + tableName + "` LIMIT " + limit;
+    }
+
+    public static String getSelectCountQuery(String tableName) {
+        return String.format("SELECT COUNT(*) FROM `%s`.`%s`", DB_NAME, tableName);
+    }
+
+    public static String getInsertQuery(String tableName) {
+        return String.format("INSERT INTO `%s`.`%s`", DB_NAME, tableName);
+    }
+
+    public static String getSyncQuery(String tableName) {
+        return String.format("SYSTEM SYNC REPLICA `%s`.`%s`", DB_NAME, tableName);
     }
 }
