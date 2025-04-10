@@ -29,6 +29,8 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +80,10 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             settings = new CommandSettings();
         }
 
+        settings.serverSetting("allow_experimental_dynamic_type", "1");
+        settings.serverSetting("allow_experimental_json_type", "1");
+        settings.serverSetting("allow_experimental_variant_type", "1");
+
         client.execute("DROP TABLE IF EXISTS " + tableName, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createTableSQL, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
     }
@@ -92,11 +98,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         }
 
         if (actual instanceof Object[]) {
-            actual = List.of((Object[]) actual);
+            actual = Arrays.asList((Object[]) actual);
         }
 
         if (expected instanceof Object[]) {
-            expected = List.of((Object[]) expected);
+            expected = Arrays.asList((Object[]) expected);
         }
 
         if (actual instanceof BinaryStreamReader.ArrayValue) {
@@ -380,7 +386,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("tuple", List.of((byte) 1, (short) 2)).set(new Object[]{(byte) 1, (short) 2}), new Field("tuple_default").set(List.of((byte) 3, (short) 4)) //Tuple
+                    new Field("tuple", Arrays.asList((byte) 1, (short) 2)).set(new Object[]{(byte) 1, (short) 2}), new Field("tuple_default").set(Arrays.asList((byte) 3, (short) 4)) //Tuple
                 }
         };
 
@@ -417,7 +423,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("array", List.of((byte) 1, (byte) 2)).set(new Object[]{(byte) 1, (byte) 2}), new Field("array_default").set(List.of((byte) 3)) //Array
+                    new Field("array", Arrays.asList((byte) 1, (byte) 2)).set(new Object[]{(byte) 1, (byte) 2}), new Field("array_default").set(Arrays.asList((byte) 3)) //Array
                 }
         };
 
@@ -440,12 +446,12 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                 new Field("id", 1), //Row ID
-                new Field("point", List.of(1.0, 2.0)).set(List.of(1.0, 2.0)), new Field("point_default").set(List.of(0.0, 0.0)),
-                new Field("ring", List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))).set(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))), new Field("ring_default").set(List.of(List.of(0.0, 0.0), List.of(10.0, 0.0), List.of(10.0, 10.0), List.of(0.0, 10.0))),
-                new Field("linestring", List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))).set(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))), new Field("linestring_default").set(List.of(List.of(0.0, 0.0), List.of(10.0, 0.0), List.of(10.0, 10.0), List.of(0.0, 10.0))),
-                new Field("polygon", List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)))).set(List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)))) , new Field("polygon_default").set(List.of(List.of(List.of(0.0, 0.0), List.of(10.0, 0.0), List.of(10.0, 10.0), List.of(0.0, 10.0)))) ,
-                new Field("multilinestring", List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)))).set(List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)))) , new Field("multilinestring_default").set(List.of(List.of(List.of(0.0, 0.0), List.of(10.0, 0.0), List.of(10.0, 10.0), List.of(0.0, 10.0)))) ,
-                new Field("multipolygon", List.of(List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))))).set(List.of(List.of(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0))))) , new Field("multipolygon_default").set(List.of(List.of(List.of(List.of(0.0, 0.0), List.of(10.0, 0.0), List.of(10.0, 10.0), List.of(0.0, 10.0))))),
+                new Field("point", Arrays.asList(1.0, 2.0)).set(Arrays.asList(1.0, 2.0)), new Field("point_default").set(Arrays.asList(0.0, 0.0)),
+                new Field("ring", Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))).set(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))), new Field("ring_default").set(Arrays.asList(Arrays.asList(0.0, 0.0), Arrays.asList(10.0, 0.0), Arrays.asList(10.0, 10.0), Arrays.asList(0.0, 10.0))),
+                new Field("linestring", Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))).set(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))), new Field("linestring_default").set(Arrays.asList(Arrays.asList(0.0, 0.0), Arrays.asList(10.0, 0.0), Arrays.asList(10.0, 10.0), Arrays.asList(0.0, 10.0))),
+                new Field("polygon", Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0)))).set(Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0)))) , new Field("polygon_default").set(Arrays.asList(Arrays.asList(Arrays.asList(0.0, 0.0), Arrays.asList(10.0, 0.0), Arrays.asList(10.0, 10.0), Arrays.asList(0.0, 10.0)))) ,
+                new Field("multilinestring", Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0)))).set(Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0)))) , new Field("multilinestring_default").set(Arrays.asList(Arrays.asList(Arrays.asList(0.0, 0.0), Arrays.asList(10.0, 0.0), Arrays.asList(10.0, 10.0), Arrays.asList(0.0, 10.0)))) ,
+                new Field("multipolygon", Arrays.asList(Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))))).set(Arrays.asList(Arrays.asList(Arrays.asList(Arrays.asList(1.0, 2.0), Arrays.asList(3.0, 4.0))))) , new Field("multipolygon_default").set(Arrays.asList(Arrays.asList(Arrays.asList(Arrays.asList(0.0, 0.0), Arrays.asList(10.0, 0.0), Arrays.asList(10.0, 10.0), Arrays.asList(0.0, 10.0))))),
         }};
 
         writeTest(tableName, tableCreate, rows);
@@ -462,10 +468,14 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  map Map(String, Int16) " +
                 "  ) Engine = MergeTree ORDER BY id";
 
+        Map<String, Integer> tmpMap = new HashMap<>();
+        tmpMap.put("a", 1);
+        tmpMap.put("b", 2);
+
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("map", Map.of((byte) 1, (short) 2)).set(Map.of((byte) 1, (short) 2)), //Map
+                    new Field("map", tmpMap).set(tmpMap), //Map
                 }
         };
 
@@ -483,8 +493,8 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("nested.n1", List.of(1)).set(List.of(1)), //Nested
-                    new Field("nested.n2", List.of(2)).set(List.of(2)), //Nested
+                    new Field("nested.n1", Arrays.asList(1)).set(Arrays.asList(1)), //Nested
+                    new Field("nested.n2", Arrays.asList(2)).set(Arrays.asList(2)), //Nested
                 }
         };
 
@@ -560,7 +570,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("aggregate_function", List.of((byte) 1)).set(List.of((byte) 1)), //AggregateFunction
+                    new Field("aggregate_function", Arrays.asList((byte) 1)).set(Arrays.asList((byte) 1)), //AggregateFunction
                 }
         };
 
@@ -580,7 +590,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("simple_aggregate_function", List.of((byte) 1)).set(List.of((byte) 1)), //SimpleAggregateFunction
+                    new Field("simple_aggregate_function", Arrays.asList((byte) 1)).set(Arrays.asList((byte) 1)), //SimpleAggregateFunction
                 }
         };
 
@@ -589,7 +599,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
 
     //TODO: Currently experimental
-    @Test (groups = { "integration" }, enabled = false)
+    @Test (groups = { "integration" })
     public void writeDynamicTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeDynamicTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
@@ -600,7 +610,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
-                    new Field("dynamic", List.of((byte) 1, (short) 2)).set(List.of((byte) 1, (short) 2)), //Dynamic
+                    new Field("dynamic", Arrays.asList((byte) 1, (short) 2)).set(Arrays.asList((byte) 1, (short) 2)), //Dynamic
                 }
         };
 
@@ -610,7 +620,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
 
     //TODO: Currently experimental
-    @Test (groups = { "integration" }, enabled = false)
+    @Test (groups = { "integration" })
     public void writeJsonTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeJsonTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
@@ -622,15 +632,14 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         Field[][] rows = new Field[][] {{
                     new Field("id", 1), //Row ID
                     new Field("json", "{\"a\": 1}").set("{\"a\": 1}"), new Field("json_default").set("{\"a\": 1}") //Json
-                }
-        };
+        }};
 
         writeTest(tableName, tableCreate, rows);
     }
 
 
     //TODO: Currently experimental
-    @Test (groups = { "integration" }, enabled = false)
+    @Test (groups = { "integration" })
     public void writeVariantTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeVariantTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
