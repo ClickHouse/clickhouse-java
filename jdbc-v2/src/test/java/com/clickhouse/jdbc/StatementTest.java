@@ -680,7 +680,10 @@ public class StatementTest extends JdbcIntegrationTest {
             stmt.executeQuery(sql);
             ResultSet rs = stmt.getResultSet();
             assertTrue(rs.next());
+            int val = rs.getInt(1);
+            assertTrue(rs.wasNull());
             Array arr = rs.getArray(2);
+            assertFalse(rs.wasNull());
             assertNotNull(arr);
             Object[] values = (Object[]) arr.getArray();
             assertNotNull(values);
@@ -695,7 +698,10 @@ public class StatementTest extends JdbcIntegrationTest {
             stmt.executeQuery(sql);
             ResultSet rs = stmt.getResultSet();
             assertTrue(rs.next());
+            int val = rs.getInt(1);
+            assertTrue(rs.wasNull());
             Array arr = rs.getArray("array");
+            assertFalse(rs.wasNull());
             assertNotNull(arr);
             Object[] values = (Object[]) arr.getArray();
             assertNotNull(values);
