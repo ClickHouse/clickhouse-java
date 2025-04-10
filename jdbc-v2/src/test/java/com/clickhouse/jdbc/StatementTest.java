@@ -671,4 +671,44 @@ public class StatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testWasNullFlagArray() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            String sql = "SELECT NULL, ['value1', 'value2']";
+            Statement stmt = conn.createStatement();
+            stmt.executeQuery(sql);
+            ResultSet rs = stmt.getResultSet();
+            assertTrue(rs.next());
+            int val = rs.getInt(1);
+            assertTrue(rs.wasNull());
+            Array arr = rs.getArray(2);
+            assertFalse(rs.wasNull());
+            assertNotNull(arr);
+            Object[] values = (Object[]) arr.getArray();
+            assertNotNull(values);
+            assertEquals(values.length, 2);
+            assertEquals(values[0], "value1");
+            assertEquals(values[1], "value2");
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            String sql = "SELECT NULL, ['value1', 'value2'] AS array";
+            Statement stmt = conn.createStatement();
+            stmt.executeQuery(sql);
+            ResultSet rs = stmt.getResultSet();
+            assertTrue(rs.next());
+            int val = rs.getInt(1);
+            assertTrue(rs.wasNull());
+            Array arr = rs.getArray("array");
+            assertFalse(rs.wasNull());
+            assertNotNull(arr);
+            Object[] values = (Object[]) arr.getArray();
+            assertNotNull(values);
+            assertEquals(values.length, 2);
+            assertEquals(values[0], "value1");
+            assertEquals(values[1], "value2");
+        }
+    }
+
 }
