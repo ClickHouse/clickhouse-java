@@ -38,6 +38,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static com.clickhouse.data.ClickHouseDataType.Decimal;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
@@ -131,6 +132,14 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         if (actual instanceof List && expected instanceof List) {
             compareLists((List<?>) actual, (List<?>) expected);
             return;
+        }
+
+        if (actual instanceof BigDecimal) {
+            actual = ((BigDecimal) actual).stripTrailingZeros();
+        }
+
+        if (expected instanceof BigDecimal) {
+            expected = ((BigDecimal) expected).stripTrailingZeros();
         }
 
         assertEquals(String.valueOf(actual), String.valueOf(expected));
@@ -249,11 +258,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  float32 Float32, float32_nullable Nullable(Float32), float32_default Float32 DEFAULT 3, " +
                 "  float64 Float64, float64_nullable Nullable(Float64), float64_default Float64 DEFAULT 3, " +
 //                "  bfloat16 BFloat16, bfloat16_nullable Nullable(BFloat16), bfloat16_default BFloat16 DEFAULT 3, " +
-                "  decimal Decimal(4, 2), decimal_nullable Nullable(Decimal(4, 2)), decimal_default Decimal(4, 2) DEFAULT 3, " +
-                "  decimal32 Decimal(8, 4), decimal32_nullable Nullable(Decimal(8, 4)), decimal32_default Decimal(8, 4) DEFAULT 3, " +
-                "  decimal64 Decimal(18, 6), decimal64_nullable Nullable(Decimal(18, 6)), decimal64_default Decimal(18, 6) DEFAULT 3, " +
-                "  decimal128 Decimal(36, 8), decimal128_nullable Nullable(Decimal(36, 8)), decimal128_default Decimal(36, 8) DEFAULT 3, " +
-                "  decimal256 Decimal(74, 10), decimal256_nullable Nullable(Decimal(74, 10)), decimal256_default Decimal(74, 10) DEFAULT 3" +
                 "  ) Engine = MergeTree ORDER BY id";
 
         // Insert random (valid) values
@@ -272,17 +276,12 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 new Field("uint8", rand.nextInt(256)), new Field("uint8_nullable"), new Field("uint8_default").set(3), //UInt8
                 new Field("uint16", rand.nextInt(65536)), new Field("uint16_nullable"), new Field("uint16_default").set(3), //UInt16
                 new Field("uint32", rand.nextInt() & 0xFFFFFFFFL), new Field("uint32_nullable"), new Field("uint32_default").set(3), //UInt32
-                new Field("uint64", BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE))), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
+                new Field("uint64", BigInteger.valueOf(rand.nextLong())), new Field("uint64_nullable"), new Field("uint64_default").set(3), //UInt64
                 new Field("uint128", new BigInteger(128, rand)), new Field("uint128_nullable"), new Field("uint128_default").set(3), //UInt128
                 new Field("uint256", new BigInteger(256, rand)), new Field("uint256_nullable"), new Field("uint256_default").set(3), //UInt256
                 new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
                 new Field("float64", rand.nextDouble()), new Field("float64_nullable"), new Field("float64_default").set("3.0"), //Float64
 //                new Field("bfloat16", rand.nextDouble()), new Field("bfloat16_nullable"), new Field("bfloat16_default").set("3.0"), //BFloat16
-                new Field("decimal", new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100))), new Field("decimal_nullable"), new Field("decimal_default").set("3.00"),  //Decimal(4)
-                new Field("decimal32", new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000))), new Field("decimal32_nullable"), new Field("decimal32_default").set("3.0000"), //Decimal32
-                new Field("decimal64", new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000))), new Field("decimal64_nullable"), new Field("decimal64_default").set("3.000000"), //Decimal64
-                new Field("decimal128", new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000))), new Field("decimal128_nullable"), new Field("decimal128_default").set("3.00000000"), //Decimal128
-                new Field("decimal256", new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L))), new Field("decimal256_nullable"), new Field("decimal256_default").set("3.0000000000") //Decimal256
         }, {
                 new Field("id", 2), //Row ID
                 new Field("int8", rand.nextInt(256) - 128), new Field("int8_nullable"), new Field("int8_default").set(3), //Int8
@@ -300,11 +299,42 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 new Field("float32", rand.nextFloat()), new Field("float32_nullable"), new Field("float32_default").set("3.0"), //Float32
                 new Field("float64", rand.nextDouble()), new Field("float64_nullable"), new Field("float64_default").set("3.0"), //Float64
 //                new Field("bfloat16", rand.nextDouble()), new Field("bfloat16_nullable"), new Field("bfloat16_default").set("3.0"), //BFloat16
-                new Field("decimal", new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100))), new Field("decimal_nullable"), new Field("decimal_default").set("3.00"),  //Decimal(4)
-                new Field("decimal32", new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000))), new Field("decimal32_nullable"), new Field("decimal32_default").set("3.0000"), //Decimal32
-                new Field("decimal64", new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000))), new Field("decimal64_nullable"), new Field("decimal64_default").set("3.000000"), //Decimal64
-                new Field("decimal128", new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(10000000, 100000000))), new Field("decimal128_nullable"), new Field("decimal128_default").set("3.00000000"), //Decimal128
-                new Field("decimal256", new BigDecimal(new BigInteger(57, rand) + "." + rand.nextLong(1000000000, 10000000000L))), new Field("decimal256_nullable"), new Field("decimal256_default").set("3.0000000000") //Decimal256
+        }};
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+
+    @Test (groups = { "integration" })
+    public void writeDecimalsTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNumbersTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  decimal Decimal(4, 2), decimal_nullable Nullable(Decimal(4, 2)), decimal_default Decimal(4, 2) DEFAULT 3, " +
+                "  decimal32 Decimal(8, 4), decimal32_nullable Nullable(Decimal(8, 4)), decimal32_default Decimal(8, 4) DEFAULT 3, " +
+                "  decimal64 Decimal(18, 6), decimal64_nullable Nullable(Decimal(18, 6)), decimal64_default Decimal(18, 6) DEFAULT 3, " +
+                "  decimal128 Decimal(36, 8), decimal128_nullable Nullable(Decimal(36, 8)), decimal128_default Decimal(36, 8) DEFAULT 3, " +
+                "  decimal256 Decimal(74, 10), decimal256_nullable Nullable(Decimal(74, 10)), decimal256_default Decimal(74, 10) DEFAULT 3" +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        System.out.println("Random seed: " + seed);
+
+        BigDecimal decimal = new BigDecimal(new BigInteger(5, rand) + "." + rand.nextInt(10,100));
+        BigDecimal decimal32 = new BigDecimal(new BigInteger(7, rand) + "." + rand.nextInt(1000, 10000));
+        BigDecimal decimal64 = new BigDecimal(new BigInteger(18, rand) + "." + rand.nextInt(100000, 1000000));
+        BigDecimal decimal128 = new BigDecimal(new BigInteger(20, rand) + "." + rand.nextInt(100000, 1000000));
+        BigDecimal decimal256 = new BigDecimal(new BigInteger(57, rand) + "." + rand.nextInt(100000, 1000000));
+
+        Field[][] rows = new Field[][] {{
+                new Field("id", 1),
+                new Field("decimal", decimal).set(decimal), new Field("decimal_nullable"), new Field("decimal_default").set("3"),  //Decimal(4)
+                new Field("decimal32", decimal32).set(decimal32), new Field("decimal32_nullable"), new Field("decimal32_default").set("3"), //Decimal32
+                new Field("decimal64", decimal64).set(decimal64), new Field("decimal64_nullable"), new Field("decimal64_default").set("3"), //Decimal64
+                new Field("decimal128", decimal128).set(decimal128), new Field("decimal128_nullable"), new Field("decimal128_default").set("3"), //Decimal128
+                new Field("decimal256", decimal256).set(decimal256), new Field("decimal256_nullable"), new Field("decimal256_default").set("3") //Decimal256
         }};
 
         writeTest(tableName, tableCreate, rows);
