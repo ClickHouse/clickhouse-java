@@ -15,6 +15,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -65,14 +66,33 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
-        return new Client.Builder()
+        Client.Builder builder = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1")
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+
+        if (isVersionMatch("[24.10,)")) {
+            builder.serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
+        }
+
+        return builder;
+    }
+
+    protected boolean isVersionMatch(String versionExpression) {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+        try(Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .build()) {
+            List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+            return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+        }
     }
 
     protected void initTable(String tableName, String createTableSQL, CommandSettings settings) throws Exception {
@@ -80,9 +100,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             settings = new CommandSettings();
         }
 
-        settings.serverSetting("allow_experimental_dynamic_type", "1");
-        settings.serverSetting("allow_experimental_json_type", "1");
-        settings.serverSetting("allow_experimental_variant_type", "1");
+        if (isVersionMatch("[24.8,)")) {
+            settings.serverSetting("allow_experimental_variant_type", "1")
+                    .serverSetting("allow_experimental_dynamic_type", "1")
+                    .serverSetting("allow_experimental_json_type", "1");
+        }
 
         client.execute("DROP TABLE IF EXISTS " + tableName, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
         client.execute(createTableSQL, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
@@ -634,6 +656,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     //TODO: Currently experimental
     @Test (groups = { "integration" })
     public void writeJsonTests() throws Exception {
+        if (!isVersionMatch("[24.10,)")) {
+            System.out.println("Skipping test: ClickHouse version is not compatible with JSON type");
+            return;
+        }
+
         String tableName = "rowBinaryFormatWriterTest_writeJsonTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
