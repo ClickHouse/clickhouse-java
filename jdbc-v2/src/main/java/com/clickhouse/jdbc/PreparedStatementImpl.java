@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.net.InetAddress;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -517,6 +518,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return encodeObject(((ZonedDateTime) x).toInstant());
             } else if (x instanceof Instant) {
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano())+ ")";
+            } else if (x instanceof InetAddress) {
+                return "'" + ((InetAddress) x).getHostAddress() + "'";
             } else if (x instanceof Array) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");

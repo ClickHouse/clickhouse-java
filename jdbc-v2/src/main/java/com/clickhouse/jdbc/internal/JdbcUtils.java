@@ -4,6 +4,8 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -15,16 +17,23 @@ import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
     private static final Map<ClickHouseDataType, SQLType> CLICKHOUSE_TO_SQL_TYPE_MAP = generateTypeMap();
+
+    public static final Map<String, SQLType> CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP = Collections.unmodifiableMap(generateTypeMap().entrySet()
+            .stream().collect(
+                HashMap::new,
+                (map, entry) -> map.put(entry.getKey().name(), entry.getValue()),
+                HashMap::putAll
+            ));
+
     private static Map<ClickHouseDataType, SQLType> generateTypeMap() {
         Map<ClickHouseDataType, SQLType> map = new TreeMap<>(); // TreeMap is used to sort the keys in natural order so FixedString will be before String :-) (type match should be more accurate)
         map.put(ClickHouseDataType.Int8, JDBCType.TINYINT);
@@ -44,6 +53,7 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Decimal128, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.String, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.FixedString, JDBCType.VARCHAR);
+        map.put(ClickHouseDataType.Enum, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum8, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum16, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Date, JDBCType.DATE);
@@ -54,6 +64,12 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
+        map.put(ClickHouseDataType.Point, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Ring, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Polygon, JDBCType.OTHER);
+        map.put(ClickHouseDataType.LineString, JDBCType.OTHER);
+        map.put(ClickHouseDataType.MultiPolygon, JDBCType.OTHER);
+        map.put(ClickHouseDataType.MultiLineString, JDBCType.OTHER);
         return map;
     }
 
@@ -233,6 +249,12 @@ public class JdbcUtils {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+            } else if (type == Inet4Address.class && value instanceof Inet6Address) {
+                // Convert Inet6Address to Inet4Address
+                return Inet4Address.getByName(value.toString());
+            } else if (type == Inet6Address.class && value instanceof Inet4Address) {
+                // Convert Inet4Address to Inet6Address
+                return Inet6Address.getByName(value.toString());
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
@@ -241,4 +263,12 @@ public class JdbcUtils {
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
     }
 
+    public static String escapeQuotes(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return str
+                .replace("'", "\\'")
+                .replace("\"", "\\\"");
+    }
 }

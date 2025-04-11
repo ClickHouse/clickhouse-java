@@ -11,6 +11,7 @@ import java.sql.*;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Map;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -48,7 +49,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
-        this.metaData = resultSet.metaData;
+        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
@@ -1025,7 +1026,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         checkClosed();
         try {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            return new Array(reader.getList(columnLabel),
+            List<Object> lstObj = reader.getList(columnLabel);
+            wasNull = lstObj == null;
+            return new Array(lstObj,
                     column.getArrayBaseColumn().getDataType().name(),
                     JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()).getVendorTypeNumber());
         } catch (Exception e) {

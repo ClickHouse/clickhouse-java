@@ -2,16 +2,19 @@ package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.Types;
 import java.sql.DatabaseMetaData;
 import java.util.Arrays;
@@ -21,11 +24,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
-
+import static org.testng.Assert.*;
 
 
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
@@ -230,9 +229,46 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getTypeInfo()) {
                 int count = 0;
+                ResultSetMetaData rsMetaData = rs.getMetaData();
+                assertTrue(rsMetaData.getColumnCount() >= 18, "Expected at least 18 columns in getTypeInfo result set");
+                assertEquals(rsMetaData.getColumnType(2), Types.INTEGER);
+                assertEquals(rsMetaData.getColumnType(7), Types.INTEGER);
                 while (rs.next()) {
                     count++;
-                    Assert.assertTrue(rs.getString("TYPE_NAME").length() > 0);
+                    ClickHouseDataType dataType = ClickHouseDataType.of( rs.getString("TYPE_NAME"));
+                    System.out.println("> " + dataType);
+                    assertEquals(ClickHouseDataType.of(rs.getString(1)), dataType);
+                    assertEquals(rs.getInt("DATA_TYPE"),
+                            (int) JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber(),
+                            "Type mismatch for " + dataType.name() + ": expected " +
+                                    JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber() +
+                                    " but was " + rs.getInt("DATA_TYPE") + " for TYPE_NAME: " + rs.getString("TYPE_NAME"));
+
+                    assertEquals(rs.getInt("PRECISION"), dataType.getMaxPrecision());
+                    assertNull(rs.getString("LITERAL_PREFIX"));
+                    assertNull(rs.getString("LITERAL_SUFFIX"));
+                    assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
+                    assertEquals(rs.getInt("MAXIMUM_SCALE"), dataType.getMaxScale());
+                    assertNull(rs.getString("CREATE_PARAMS"));
+
+                    if (dataType == ClickHouseDataType.Nullable || dataType == ClickHouseDataType.Dynamic) {
+                        assertEquals( rs.getShort("NULLABLE"), DatabaseMetaData.typeNullable);
+                    } else {
+                        assertEquals(rs.getShort("NULLABLE"), DatabaseMetaData.typeNoNulls);
+                    }
+
+                    if (dataType != ClickHouseDataType.Enum) {
+                        assertEquals(rs.getBoolean("CASE_SENSITIVE"), dataType.isCaseSensitive());
+                    }
+                    assertEquals(rs.getInt("SEARCHABLE"), DatabaseMetaData.typeSearchable);
+                    assertEquals(rs.getBoolean("UNSIGNED_ATTRIBUTE"), !dataType.isSigned());
+                    assertEquals(rs.getBoolean("FIXED_PREC_SCALE"), false);
+                    assertFalse(rs.getBoolean("AUTO_INCREMENT"));
+                    assertEquals(rs.getString("LOCAL_TYPE_NAME"), dataType.name());
+                    assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
+                    assertEquals(rs.getInt("MAXIMUM_SCALE"), dataType.getMaxScale());
+                    assertEquals(rs.getInt("SQL_DATA_TYPE"), 0);
+                    assertEquals(rs.getInt("SQL_DATETIME_SUB"), 0);
                 }
 
                 assertTrue(count > 10, "At least 10 types should be returned but was " + count);
@@ -273,6 +309,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     Assert.assertEquals(rs.getString("DESCRIPTION"), p.getDescription());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetDriverVersion() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            String version = dbmd.getDriverVersion();
+            assertNotEquals(version, "unknown");
         }
     }
 }
