@@ -16,11 +16,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.java.Log;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -31,15 +27,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Dataset API:
- * - /direct/dataset/0/?limit=N - uses client v2 directly to fetch N rows from a virtual dataset.
- *
- * <p>Example: {@code  curl -v http://localhost:8080/direct/dataset/0?limit=10}</p>
+ * Class demonstrates using ClickHouse client directly from a service.
+ * It avoids JDBC overhead and much easier to use.
+ * Data may be streamed from database directly to the service response.
  */
 @RestController
-@RequestMapping("/")
+@RequestMapping("/dataset")
 @Log
-public class DatasetController {
+public class QueryController {
 
     private final Client chDirectClient;
 
@@ -47,7 +42,7 @@ public class DatasetController {
 
     private BasicObjectsPool<ObjectsPreparedCollection<VirtualDatasetRecord>> pool;
 
-    public DatasetController(Client chDirectClient) {
+    public QueryController(Client chDirectClient) {
         this.chDirectClient = chDirectClient;
     }
 
@@ -95,7 +90,7 @@ public class DatasetController {
      * @param limit
      * @return
      */
-    @GetMapping("/dataset/reader")
+    @GetMapping("/reader")
     public List<VirtualDatasetRecord> directDatasetFetch(@RequestParam(name = "limit", required = false) Integer limit) {
         limit = limit == null ? 100 : limit;
 
@@ -140,7 +135,7 @@ public class DatasetController {
      * @param httpResp
      * @param limit
      */
-    @GetMapping("/dataset/json_each_row_in_and_out")
+    @GetMapping("/json_each_row_in_and_out")
     @ResponseBody
     public void directDataFetchJSONEachRow(HttpServletResponse httpResp, @RequestParam(name = "limit", required = false) Integer limit) {
         limit = limit == null ? 100 : limit;
@@ -184,7 +179,7 @@ public class DatasetController {
      * @param limit
      * @return
      */
-    @GetMapping("/dataset/read_to_pojo")
+    @GetMapping("/read_to_pojo")
     public CalculationResult directDatasetReadToPojo(@RequestParam(name = "limit", required = false) Integer limit,
                                                      @RequestParam(name = "cache", required = false) Boolean cache) {
         limit = limit == null ? 100 : limit;
