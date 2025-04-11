@@ -466,6 +466,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
     @Test (groups = { "integration" })
     public void writeGeometryTests() throws Exception {
+        if (!isVersionMatch("[24.6,)")) {
+            System.out.println("Skipping test: ClickHouse version is not compatible with LINESTRING type");
+            return;
+        }
+
         String tableName = "rowBinaryFormatWriterTest_writeGeometryTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
@@ -635,6 +640,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     //TODO: Currently experimental
     @Test (groups = { "integration" })
     public void writeDynamicTests() throws Exception {
+        if (!isVersionMatch("[24.8,)")) {
+            System.out.println("Skipping test: ClickHouse version is not compatible with DYNAMIC type");
+            return;
+        }
+
         String tableName = "rowBinaryFormatWriterTest_writeDynamicTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
@@ -683,6 +693,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     //TODO: Currently experimental
     @Test (groups = { "integration" })
     public void writeVariantTests() throws Exception {
+        if (!isVersionMatch("[24.8,)")) {
+            System.out.println("Skipping test: ClickHouse version is not compatible with VARIANT type");
+            return;
+        }
+
         String tableName = "rowBinaryFormatWriterTest_writeVariantTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
