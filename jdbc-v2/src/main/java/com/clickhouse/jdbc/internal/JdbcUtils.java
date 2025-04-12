@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -270,5 +272,27 @@ public class JdbcUtils {
         return str
                 .replace("'", "\\'")
                 .replace("\"", "\\\"");
+    }
+
+    public static final String NULL = "NULL";
+
+    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`)|(\\?)");
+
+    public static String replaceQuestionMarks(String sql, String replacement) {
+        Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);
+
+        StringBuilder result = new StringBuilder();
+
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                // Quoted string — keep as-is
+                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(1)));
+            } else if (matcher.group(2) != null) {
+                // Question mark outside quotes — replace it
+                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            }
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 }

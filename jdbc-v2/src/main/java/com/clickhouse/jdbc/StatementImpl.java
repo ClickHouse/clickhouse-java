@@ -31,7 +31,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     ConnectionImpl connection;
     private int queryTimeout;
     protected boolean closed;
-    private ResultSetImpl currentResultSet;
+    protected ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     protected List<String> batch;
     private String lastSql;

@@ -8,11 +8,9 @@ import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.sql.Date;
 import java.time.ZonedDateTime;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -21,6 +19,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import com.clickhouse.jdbc.types.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +38,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
-        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
+        TableSchema tableMetadata = reader.getSchema();
+        this.metaData = new ResultSetMetaDataImpl(tableMetadata
+                .getColumns(), tableMetadata.getDatabaseName(), "", tableMetadata.getTableName(),
+                Collections.emptyMap());
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
@@ -49,7 +51,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
-        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
+        TableSchema tableMetadata = resultSet.getSchema();
+        this.metaData = new ResultSetMetaDataImpl(tableMetadata
+                .getColumns(), tableMetadata.getDatabaseName(), "", tableMetadata.getTableName(),
+                Collections.emptyMap());
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;

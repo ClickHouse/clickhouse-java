@@ -13,7 +13,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 
-public class ResultSetMetaDataTest extends JdbcIntegrationTest {
+public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumnCount() throws Exception {
         try (Connection conn = getJdbcConnection()) {

@@ -1,24 +1,19 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
-import java.sql.Array;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.sql.Types;
+import java.sql.*;
 import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.*;
 
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -317,6 +312,33 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
 
         }
+    }
+
+    @Test(dataProvider = "testGetMetadataDataProvider")
+    void testGetMetadata(String sql) throws Exception {
+        String tableName = "test_get_metadata";
+        runQuery("CREATE TABLE " + tableName + " ( a1 String, b2 Float, b3 Float ) Engine=MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            ResultSetMetaData metadataRs = stmt.getMetaData();
+            assertNotNull(metadataRs);
+
+            Assert.assertEquals(metadataRs.getColumnCount(), 3);
+            Assert.assertEquals(metadataRs.getColumnName(1), "a1");
+            Assert.assertEquals(metadataRs.getColumnType(1), Types.VARCHAR);
+            Assert.assertEquals(metadataRs.getColumnName(2), "b2");
+            Assert.assertEquals(metadataRs.getColumnType(2), Types.FLOAT);
+            Assert.assertEquals(metadataRs.getColumnName(3), "b3");
+            Assert.assertEquals(metadataRs.getColumnType(3), Types.FLOAT);
+        }
+    }
+
+    @DataProvider(name = "testGetMetadataDataProvider")
+    static Object[][] testGetMetadataDataProvider() {
+        return new Object[][] {
+                {"INSERT INTO `%s` VALUES (?, ?, ?)"}
+        };
     }
 
     @Test(groups = { "integration" })

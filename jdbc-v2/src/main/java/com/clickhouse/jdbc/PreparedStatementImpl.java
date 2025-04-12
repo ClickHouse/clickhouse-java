@@ -1,7 +1,11 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,12 +43,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -64,6 +63,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String insertIntoSQL;
 
     StatementType statementType;
+
+    private final ParameterMetaData parameterMetaData;
+
+    private ResultSetMetaData resultSetMetaData = null;
+
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
         this.originalSql = sql.trim();
@@ -83,7 +87,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         } else {
             this.parameters = new Object[0];
         }
-
+        this.parameterMetaData = new ParameterMetaDataImpl(this.parameters.length);
         this.defaultCalendar = connection.defaultCalendar;
     }
 
@@ -305,7 +309,30 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         checkClosed();
-        return null;
+
+        if (resultSetMetaData == null && currentResultSet == null) {
+            // before execution
+            if (statementType == StatementType.SELECT) {
+                try {
+                    String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
+                    TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
+                    resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
+                            tSchema.getDatabaseName(), "", tSchema.getTableName(), Collections.emptyMap());
+                } catch (Exception e) {
+                    // fallback to empty until
+                }
+            } else if (statementType == StatementType.SHOW) {
+                // predefined
+            } else if (statementType == StatementType.DESCRIBE) {
+                // predefined
+            } else {
+                // fallback to empty
+            }
+        } else if (resultSetMetaData == null) {
+            resultSetMetaData = currentResultSet.getMetaData();
+        }
+
+        return resultSetMetaData;
     }
 
     @Override
@@ -352,10 +379,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         parameters[parameterIndex - 1] = encodeObject(x);
     }
 
+    /**
+     * Current JDBC driver implementation implement this functionality.
+     * But specification doesn't expect throwing an exception what
+     * for makes us return a "dummy" object. Returned metadata reflects only
+     * information we can guarantee like parameter count.
+     * @see ParameterMetaDataImpl
+     * @return {@link ParameterMetaDataImpl}
+     * @throws SQLException if the statement is close
+     */
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
         checkClosed();
-        return null;
+        return parameterMetaData;
     }
 
     @Override
