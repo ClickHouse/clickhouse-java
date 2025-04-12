@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.metadata;
 
 import java.sql.SQLException;
+import java.util.Objects;
 
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
@@ -11,21 +12,32 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 
 public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrapper {
     private final ResultSetImpl resultSet;
+    private final TableSchema schema;
+
     public ResultSetMetaData(ResultSetImpl resultSet) {
         this.resultSet = resultSet;
+        this.schema = null; // result set schema is lazy
+    }
+
+    public ResultSetMetaData(TableSchema schema) {
+        this.resultSet = null;
+        this.schema = schema;
     }
 
     private ClickHouseColumn getColumn(int column) throws SQLException {
         if (column < 1 || column > getColumnCount()) {
             throw new SQLException("Column index out of range: " + column, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
-        return resultSet.getSchema().getColumns().get(column - 1);
+        TableSchema schema = resultSet != null ? resultSet.getSchema() : this.schema;
+        assert schema != null : "Schema is null";
+        return schema.getColumns().get(column - 1);
     }
 
     @Override
     public int getColumnCount() throws SQLException {
         try {
-            TableSchema schema = resultSet.getSchema();
+            TableSchema schema = resultSet != null ? resultSet.getSchema() : this.schema;
+            assert schema != null : "Schema is null";
             return schema.getColumns().size();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);

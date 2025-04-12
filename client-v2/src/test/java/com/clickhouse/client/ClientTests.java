@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -65,6 +66,12 @@ public class ClientTests extends BaseIntegrationTest {
                         .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                         .build(),
                 new Client.Builder()
+                        .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
+                        .setUsername("default")
+                        .setPassword("")
+                        .setOption(ClientConfigProperties.SSL_MODE.getKey(), "none")
+                        .build(),
+                new Client.Builder()
                         .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
                         .setUsername("default")
                         .setPassword("")
@@ -104,6 +111,13 @@ public class ClientTests extends BaseIntegrationTest {
     @Test
     public void testPing() {
         try (Client client = newClient().build()) {
+            Assert.assertTrue(client.ping());
+        }
+    }
+
+    @Test
+    public void testPingUnpooled() {
+        try (Client client = newClient().enableConnectionPool(false).build()) {
             Assert.assertTrue(client.ping());
         }
     }

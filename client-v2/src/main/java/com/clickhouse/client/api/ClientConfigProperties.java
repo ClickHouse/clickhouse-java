@@ -92,6 +92,8 @@ public enum ClientConfigProperties {
 
     SSL_KEY_STORE_PASSWORD("key_store_password"),
 
+    SSL_MODE("sslmode", "strict", Arrays.asList("strict", "none")),
+
     SSL_KEY("ssl_key"),
 
     CA_CERTIFICATE("sslrootcert"),

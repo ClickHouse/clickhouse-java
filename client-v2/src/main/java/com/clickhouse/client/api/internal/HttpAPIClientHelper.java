@@ -58,8 +58,11 @@ import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -74,7 +77,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -168,6 +174,13 @@ public class HttpAPIClientHelper {
                 );
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
+            }
+        } else if ("none".equals(chConfiguration.get(ClientConfigProperties.SSL_MODE.getKey()))) {
+            try {
+                sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(new KeyManager[0], new TrustManager[]{new TrustAllManager()}, new SecureRandom());
+            } catch (NoSuchAlgorithmException | KeyManagementException e) {
+                throw new ClientException("Failed to create none validating SSL context", e);
             }
         }
         return sslContext;
@@ -380,7 +393,7 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-        if (timeToPoolVent.get() < System.currentTimeMillis()) {
+        if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
         }
@@ -826,6 +839,24 @@ public class HttpAPIClientHelper {
             }
 
             return count > 0 ? runningAverage / count : 0;
+        }
+    }
+
+    private static final class TrustAllManager implements X509TrustManager {
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            // ignore
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            // ignore
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
         }
     }
 }

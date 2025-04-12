@@ -98,7 +98,7 @@ public class Driver implements java.sql.Driver {
 
     public static void load() {
         try {
-            DriverManager.registerDriver(new Driver());
+            DriverManager.registerDriver(DriverHolder.INSTANCE);
         } catch (SQLException e) {
             log.error("Failed to register ClickHouse JDBC driver", e);
         }
@@ -106,7 +106,7 @@ public class Driver implements java.sql.Driver {
 
     public static void unload() {
         try {
-            DriverManager.deregisterDriver(new Driver());
+            DriverManager.deregisterDriver(DriverHolder.INSTANCE);
         } catch (SQLException e) {
             log.error("Failed to deregister ClickHouse JDBC driver", e);
         }
@@ -162,5 +162,9 @@ public class Driver implements java.sql.Driver {
     @Override
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+    }
+
+    private static final class DriverHolder {
+        private static final Driver INSTANCE = new Driver();
     }
 }

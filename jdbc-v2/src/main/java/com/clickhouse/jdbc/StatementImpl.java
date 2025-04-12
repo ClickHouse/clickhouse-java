@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
@@ -31,7 +32,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     ConnectionImpl connection;
     private int queryTimeout;
     protected boolean closed;
-    private ResultSetImpl currentResultSet;
+    protected ResultSetImpl currentResultSet;
     private OperationMetrics metrics;
     protected List<String> batch;
     private String lastSql;
@@ -70,7 +71,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return StatementType.OTHER;
         }
 
-        trimmedSql = trimmedSql.replaceAll("/\\*.*?\\*/", "").trim(); // remove comments
+        trimmedSql = BLOCK_COMMENT.matcher(trimmedSql).replaceAll("").trim(); // remove comments
         String[] lines = trimmedSql.split("\n");
         for (String line : lines) {
             String trimmedLine = line.trim();
@@ -172,7 +173,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         closePreviousResultSet();
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
-
+        if (maxRows > 0) {
+            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
+            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+        }
 
         if (mergedSettings.getQueryId() != null) {
             lastQueryId = mergedSettings.getQueryId();
@@ -627,4 +631,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public String getLastQueryId() {
         return lastQueryId;
     }
+
+    private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 }
