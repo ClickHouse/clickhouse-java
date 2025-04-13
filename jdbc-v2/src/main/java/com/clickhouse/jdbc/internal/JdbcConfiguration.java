@@ -61,7 +61,9 @@ public class JdbcConfiguration {
         initProperties(urlProperties, info);
 
         // after initializing all properties - set final connection URL
-        boolean useSSL = Boolean.parseBoolean(info.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSLInfo = Boolean.parseBoolean(info.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSLUrlProperties = Boolean.parseBoolean(urlProperties.getOrDefault(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSL = useSSLInfo || useSSLUrlProperties;
         String bearerToken = info.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
         if (bearerToken != null) {
             clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
