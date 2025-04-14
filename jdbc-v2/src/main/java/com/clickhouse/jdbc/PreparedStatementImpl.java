@@ -62,6 +62,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     Object [] parameters;
     String insertIntoSQL;
 
+    ShowStatementType showStatementType;
+
     StatementType statementType;
 
     private final ParameterMetaData parameterMetaData;
@@ -73,11 +75,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = originalSql.split("\\?");
-        this.statementType = parseStatementType(originalSql);
+        Object[] parseResult = parseStatement(originalSql);
+        this.statementType = (StatementType) parseResult[0];
 
-        if (statementType == StatementType.INSERT) {
-            insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
-            valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
+        switch (statementType) {
+            case INSERT:
+                insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
+                valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
+                break;
+            case SHOW:
+                showStatementType = (ShowStatementType) parseResult[1];
+                break;
         }
 
         //Create an array of objects to store the parameters
@@ -322,7 +330,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     // fallback to empty until
                 }
             } else if (statementType == StatementType.SHOW) {
-                // predefined
+                // predefined (it can be different for different objects)
             } else if (statementType == StatementType.DESCRIBE) {
                 // predefined
             } else {

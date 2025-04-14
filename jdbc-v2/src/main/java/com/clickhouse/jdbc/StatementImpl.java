@@ -60,14 +60,31 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
+    protected enum ShowStatementType {
+        TABLES, USERS, PROCESSLIST
+    }
+
     protected static StatementType parseStatementType(String sql) {
+        return (StatementType) parseStatement(sql)[0];
+    }
+
+    private static final Object[] OTHER_STMT_TYPE_RESULT = new Object[] {StatementType.OTHER};
+
+    /**
+     * Returns non-empty array with at list StatementType on position 0.
+     * If Show statement - returns rest token from the statement.
+     *
+     * @param sql - raw SQL statement
+     * @return Object[] - parse result
+     */
+    public static Object[] parseStatement(String sql) {
         if (sql == null) {
-            return StatementType.OTHER;
+            return OTHER_STMT_TYPE_RESULT;
         }
 
         String trimmedSql = sql.trim();
         if (trimmedSql.isEmpty()) {
-            return StatementType.OTHER;
+            return OTHER_STMT_TYPE_RESULT;
         }
 
         trimmedSql = trimmedSql.replaceAll("/\\*.*?\\*/", "").trim(); // remove comments
@@ -81,34 +98,75 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                     continue;
                 }
 
+                StatementType statementType = null;
+                Object[] parseResult = null;
                 switch (tokens[0].toUpperCase()) {
-                    case "SELECT": return StatementType.SELECT;
-                    case "WITH": return StatementType.SELECT;
+                    case "SELECT":
+                        statementType = StatementType.SELECT;
+                        break;
+                    case "WITH":
+                        statementType = StatementType.SELECT;
+                        break;
                     case "INSERT":
+                        statementType = StatementType.INSERT;
                         for (String token : tokens) {
                             if (token.equalsIgnoreCase("SELECT")) {
-                                return StatementType.INSERT_INTO_SELECT;
+                                statementType = StatementType.INSERT_INTO_SELECT;
                             }
                         }
-                        return StatementType.INSERT;
-                    case "DELETE": return StatementType.DELETE;
-                    case "UPDATE": return StatementType.UPDATE;
-                    case "CREATE": return StatementType.CREATE;
-                    case "DROP": return StatementType.DROP;
-                    case "ALTER": return StatementType.ALTER;
-                    case "TRUNCATE": return StatementType.TRUNCATE;
-                    case "USE": return StatementType.USE;
-                    case "SHOW": return StatementType.SHOW;
-                    case "DESCRIBE": return StatementType.DESCRIBE;
-                    case "EXPLAIN": return StatementType.EXPLAIN;
-                    case "SET": return StatementType.SET;
-                    case "KILL": return StatementType.KILL;
-                    default: return StatementType.OTHER;
+                        break;
+                    case "DELETE":
+                        statementType = StatementType.DELETE;
+                        break;
+                    case "UPDATE":
+                        statementType = StatementType.UPDATE;
+                        break;
+                    case "CREATE":
+                        statementType = StatementType.CREATE;
+                        break;
+                    case "DROP":
+                        statementType = StatementType.DROP;
+                        break;
+                    case "ALTER":
+                        statementType = StatementType.ALTER;
+                        break;
+                    case "TRUNCATE":
+                        statementType = StatementType.TRUNCATE;
+                        break;
+                    case "USE":
+                        statementType = StatementType.USE;
+                        break;
+                    case "SHOW":
+                        statementType = StatementType.SHOW;
+                        ShowStatementType showStatementType = null;
+                        for (String token : tokens) {
+                            if (!token.isEmpty()) {
+                                showStatementType = ShowStatementType.valueOf(token.toUpperCase());
+                                break;
+                            }
+                        }
+                        parseResult = new Object[] {statementType, showStatementType};
+                        break;
+                    case "DESCRIBE":
+                        statementType = StatementType.DESCRIBE;
+                        break;
+                    case "EXPLAIN":
+                        statementType = StatementType.EXPLAIN;
+                        break;
+                    case "SET":
+                        statementType = StatementType.SET;
+                        break;
+                    case "KILL":
+                        statementType = StatementType.KILL;
+                        break;
+                    default:
+                        parseResult = OTHER_STMT_TYPE_RESULT;
                 }
+                return parseResult == null ? new Object[] {statementType} : parseResult;
             }
         }
 
-        return StatementType.OTHER;
+        return OTHER_STMT_TYPE_RESULT;
     }
 
     protected static String parseTableName(String sql) {
