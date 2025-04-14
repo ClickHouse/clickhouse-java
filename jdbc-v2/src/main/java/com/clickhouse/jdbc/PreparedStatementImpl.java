@@ -211,7 +211,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void clearParameters() throws SQLException {
         checkClosed();
         if (originalSql.contains("?")) {
-            this.parameters = new Object[sqlSegments.length];
+            int count = originalSql.length() - originalSql.replace("?", "").length();
+            this.parameters = new Object[count];
         } else {
             this.parameters = new Object[0];
         }
