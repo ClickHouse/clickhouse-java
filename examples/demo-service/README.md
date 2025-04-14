@@ -1,29 +1,69 @@
 # ClickHouse-Java Demo Service 
 
 ## About 
-This is an example of a Spring Boot application using different ClickHouse-Java clients and features. 
+This is an example of a Spring Boot service using ClickHouse client directly and via JPA. 
+Example is an application that requires ClickHouse DB running externally. It can be a Docker or
+ClickHouse Cloud instance.
 
+## How to Run
 
-## Usage
+### Initialize DB
+Set up a ClickHouse instance.
 
-This example requires an instance of ClickHouse running locally on in remote server.
-Application uses `system.numbers` table to generate dataset of any size. It is very convenient because:
-- data is already there
-- server generates data as if it was a real table
-- no need to change schema or create tables
+Example of running with Docker:
+```shell
+docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret\
+ -p 8123:8123 clickhouse/clickhouse-server
 
-To run
+docker ps
+# output should be like: 
+CONTAINER ID   IMAGE                          COMMAND            CREATED         STATUS         PORTS                                                           NAMES
+2abfefc40a84   clickhouse/clickhouse-server   "/entrypoint.sh"   4 seconds ago   Up 2 seconds   9000/tcp, 0.0.0.0:8123->8123/tcp, :::8123->8123/tcp, 9009/tcp   demo-service-db
+```
 
-```bash
+Example how to run client:
+```shell
+docker exec -it demo-service-db clickhouse-client
+```
+
+Create table (needed for JPA example):
+```
+CREATE TABLE ui_events
+(
+    `id` String,
+    `timestamp` DateTime64,
+    `event_name` String, 
+    `tags` Array(String)
+)
+ENGINE = MergeTree
+ORDER BY timestamp
+```
+
+### Run Demo-Service 
+
+```shell
 ./gradlew bootRun
 ```
 
-To test
+### Interact with API 
 
-```bash
+#### Direct Client
+
+To read `limit` number of rows from `system.numbers`: 
+```shell
 curl http://localhost:8080/direct/dataset/0?limit=100000
 ```
 
-## Features
+#### JPA
 
-- [x] Client V2 New Implementation
+To insert some data:
+```shell 
+curl -v -X POST -H "Content-Type: application/json" \
+ -d '{"id": "4NAD7B8HH1", "timestamp": "2025-04-07T14:30:00.000Z", "eventName": "Login", "tags": ["security", "activity"]}'\
+  http://localhost:8080/events/ui_events
+```
+
+To fetch inserted data:
+```shell
+curl -v -X GET http://localhost:8080/events/ui_events
+```
