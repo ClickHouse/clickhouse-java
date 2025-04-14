@@ -1,7 +1,7 @@
 # ClickHouse-Java Demo Service 
 
 ## About 
-This is and example of a Spring Boot service using ClickHouse client directly and via JPA. 
+This is an example of a Spring Boot service using ClickHouse client directly and via JPA. 
 Example is an application that requires ClickHouse DB running externally. It can be a Docker or
 ClickHouse Cloud instance.
 

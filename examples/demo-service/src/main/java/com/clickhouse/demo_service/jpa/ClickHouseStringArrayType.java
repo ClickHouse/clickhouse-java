@@ -54,6 +54,7 @@ public class ClickHouseStringArrayType implements UserType<Collection> {
 
     @Override
     public boolean isMutable() {
+        // value should not be changed
         return false;
     }
 
