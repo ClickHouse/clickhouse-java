@@ -18,6 +18,7 @@ import static org.testng.Assert.assertEquals;
 
 public class JdbcConfigurationTest {
 
+
     @Test(dataProvider = "testConnectionUrlDataProvider")
     public void testConnectionUrl(String jdbcUrl, String connectionUrl, Properties properties, Map<String, String> expectedClientProps) throws Exception {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcUrl, properties);
@@ -38,7 +39,7 @@ public class JdbcConfigurationTest {
         Map<String, String> useSSLParams = Map.of("ssl", "true");
         Map<String, String> withListParams = Map.of("database", "default", "param1", "value1", "custom_header1", "val1,val2,val3", "user", "default", "password", "");
         Map<String, String> withListParamsQuotes = Map.of("database", "default", "param1", "value1", "custom_header1", "\"role 1,3,4\",'val2',val3", "user", "default", "password", "");
-
+        Map<String, String> useDatabaseSSLParams = Map.of("database", "clickhouse", "ssl", "true", "user", "default", "password", "");
 
         return new Object[][] {
                 {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123", defaultProps, defaultParams},
@@ -47,7 +48,7 @@ public class JdbcConfigurationTest {
                 {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443", useSSL, useSSLParams},
                 {"jdbc:clickhouse://localhost:8443/default?param1=value1&custom_header1=val1,val2,val3", "http://localhost:8443", defaultProps, withListParams},
                 {"jdbc:clickhouse://localhost:8443/default?custom_header1=\"role 1,3,4\",'val2',val3&param1=value1", "http://localhost:8443", defaultProps, withListParamsQuotes},
-
+                {"jdbc:clickhouse://localhost:8443/clickhouse?ssl=true", "https://localhost:8443", defaultProps, useDatabaseSSLParams},
         };
     }
 
