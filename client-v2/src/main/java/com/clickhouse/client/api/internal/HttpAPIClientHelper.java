@@ -175,13 +175,6 @@ public class HttpAPIClientHelper {
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
             }
-        } else if ("none".equals(chConfiguration.get(ClientConfigProperties.SSL_MODE.getKey()))) {
-            try {
-                sslContext = SSLContext.getInstance("TLS");
-                sslContext.init(new KeyManager[0], new TrustManager[]{new TrustAllManager()}, new SecureRandom());
-            } catch (NoSuchAlgorithmException | KeyManagementException e) {
-                throw new ClientException("Failed to create none validating SSL context", e);
-            }
         }
         return sslContext;
     }

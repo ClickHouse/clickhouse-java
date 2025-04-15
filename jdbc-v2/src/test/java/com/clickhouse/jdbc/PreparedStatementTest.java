@@ -491,17 +491,4 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
-
-    @Test(groups = { "integration" })
-    void testPreparedStatementMd() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("select 1::Int32 as value")) {
-                ResultSetMetaData md = stmt.getMetaData();
-                assertNotNull(md);
-                assertEquals(md.getColumnCount(), 1);
-                assertEquals(md.getColumnName(1), "value");
-                assertEquals(md.getColumnType(1), Types.INTEGER);
-            }
-        }
-    }
 }

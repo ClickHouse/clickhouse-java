@@ -3,12 +3,11 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -33,11 +32,14 @@ public class Driver implements java.sql.Driver {
     private final DataSourceImpl dataSource;
 
     public static String frameworksDetected = null;
+
     public static class FrameworksDetection {
         private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark");
         static volatile String frameworksDetected = null;
 
-        private FrameworksDetection() {}
+        private FrameworksDetection() {
+        }
+
         public static String getFrameworksDetected() {
             if (frameworksDetected == null) {//Only detect frameworks once
                 Set<String> inferredFrameworks = new LinkedHashSet<>();
@@ -98,7 +100,7 @@ public class Driver implements java.sql.Driver {
 
     public static void load() {
         try {
-            DriverManager.registerDriver(DriverHolder.INSTANCE);
+            DriverManager.registerDriver(INSTANCE);
         } catch (SQLException e) {
             log.error("Failed to register ClickHouse JDBC driver", e);
         }
@@ -106,12 +108,11 @@ public class Driver implements java.sql.Driver {
 
     public static void unload() {
         try {
-            DriverManager.deregisterDriver(DriverHolder.INSTANCE);
+            DriverManager.deregisterDriver(INSTANCE);
         } catch (SQLException e) {
             log.error("Failed to deregister ClickHouse JDBC driver", e);
         }
     }
-
 
 
     @Override
@@ -164,7 +165,5 @@ public class Driver implements java.sql.Driver {
         throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
-    private static final class DriverHolder {
-        private static final Driver INSTANCE = new Driver();
-    }
+    private static final Driver INSTANCE = new Driver();
 }
