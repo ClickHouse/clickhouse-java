@@ -79,11 +79,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.sqlSegments = splitStatement(originalSql);
         this.statementType = parseStatementType(originalSql);
 
-        switch (statementType) {
-            case INSERT:
-                insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
-                valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
-                break;
+        if (this.statementType == StatementType.INSERT) {
+            insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
+            valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
         }
 
         //Create an array of objects to store the parameters

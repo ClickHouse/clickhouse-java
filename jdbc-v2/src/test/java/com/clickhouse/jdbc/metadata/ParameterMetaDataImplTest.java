@@ -10,7 +10,7 @@ import static org.testng.Assert.*;
 
 public class ParameterMetaDataImplTest {
     @Test(groups = {"integration"})
-    public void testGetParameterCount() throws SQLException {
+    public void testGetParameterCount() {
         ParameterMetaDataImpl metaData = new ParameterMetaDataImpl(0);
         assertEquals(metaData.getParameterCount(), 0);
 

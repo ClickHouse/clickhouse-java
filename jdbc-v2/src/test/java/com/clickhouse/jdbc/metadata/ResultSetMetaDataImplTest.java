@@ -10,7 +10,6 @@ import java.sql.Statement;
 import java.sql.Types;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertTrue;
 
 
 public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
@@ -20,7 +19,7 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("SELECT 1 AS a, 2 AS b, 3 AS c");
                 ResultSetMetaData rsmd = rs.getMetaData();
-                assertEquals(3, rsmd.getColumnCount());
+                assertEquals(rsmd.getColumnCount(), 3);
             }
         }
     }
@@ -31,7 +30,7 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("SELECT 1 AS a");
                 ResultSetMetaData rsmd = rs.getMetaData();
-                assertEquals("a", rsmd.getColumnLabel(1));
+                assertEquals(rsmd.getColumnLabel(1), "a");
             }
         }
     }
@@ -42,7 +41,7 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("SELECT 1 AS a");
                 ResultSetMetaData rsmd = rs.getMetaData();
-                assertEquals("a", rsmd.getColumnName(1));
+                assertEquals(rsmd.getColumnName(1), "a");
             }
         }
     }

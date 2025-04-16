@@ -1,7 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -10,7 +8,6 @@ import org.testng.annotations.Test;
 
 import java.sql.Array;
 import java.sql.Connection;
-import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -20,8 +17,13 @@ import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
-import static org.testng.Assert.*;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+
+
 
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
