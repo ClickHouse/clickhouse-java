@@ -381,10 +381,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     /**
-     * Current JDBC driver implementation implement this functionality.
-     * But specification doesn't expect throwing an exception what
-     * for makes us return a "dummy" object. Returned metadata reflects only
-     * information we can guarantee like parameter count.
+     * Returned metadata has only minimal information about parameters. Currently only their count.
+     * Current implementation do not parse SQL to detect type of each parameter.
+     * 
      * @see ParameterMetaDataImpl
      * @return {@link ParameterMetaDataImpl}
      * @throws SQLException if the statement is close
