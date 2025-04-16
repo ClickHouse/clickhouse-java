@@ -39,8 +39,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.response = response;
         this.reader = reader;
         TableSchema tableMetadata = reader.getSchema();
+
+        // Result set contains columns from one database (there is a special table engine 'Merge' to do cross DB queries)
         this.metaData = new ResultSetMetaDataImpl(tableMetadata
-                .getColumns(), tableMetadata.getDatabaseName(), "", tableMetadata.getTableName(),
+                .getColumns(), response.getSettings().getDatabase(), "", tableMetadata.getTableName(),
                 Collections.emptyMap());
         this.closed = false;
         this.wasNull = false;

@@ -19,7 +19,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -60,31 +59,14 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
-    protected enum ShowStatementType {
-        TABLES, USERS, PROCESSLIST
-    }
-
-    protected static StatementType parseStatementType(String sql) {
-        return (StatementType) parseStatement(sql)[0];
-    }
-
-    private static final Object[] OTHER_STMT_TYPE_RESULT = new Object[] {StatementType.OTHER};
-
-    /**
-     * Returns non-empty array with at list StatementType on position 0.
-     * If Show statement - returns rest token from the statement.
-     *
-     * @param sql - raw SQL statement
-     * @return Object[] - parse result
-     */
-    public static Object[] parseStatement(String sql) {
+    public static StatementType parseStatementType(String sql) {
         if (sql == null) {
-            return OTHER_STMT_TYPE_RESULT;
+            return StatementType.OTHER;
         }
 
         String trimmedSql = sql.trim();
         if (trimmedSql.isEmpty()) {
-            return OTHER_STMT_TYPE_RESULT;
+            return StatementType.OTHER;
         }
 
         trimmedSql = BLOCK_COMMENT.matcher(trimmedSql).replaceAll("").trim(); // remove comments
@@ -138,14 +120,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         break;
                     case "SHOW":
                         statementType = StatementType.SHOW;
-                        ShowStatementType showStatementType = null;
-                        for (String token : tokens) {
-                            if (!token.isEmpty()) {
-                                showStatementType = ShowStatementType.valueOf(token.toUpperCase());
-                                break;
-                            }
-                        }
-                        parseResult = new Object[] {statementType, showStatementType};
                         break;
                     case "DESCRIBE":
                         statementType = StatementType.DESCRIBE;
@@ -160,13 +134,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         statementType = StatementType.KILL;
                         break;
                     default:
-                        parseResult = OTHER_STMT_TYPE_RESULT;
+                        statementType = StatementType.OTHER;
                 }
-                return parseResult == null ? new Object[] {statementType} : parseResult;
+                return statementType;
             }
         }
 
-        return OTHER_STMT_TYPE_RESULT;
+        return StatementType.OTHER;
     }
 
     protected static String parseTableName(String sql) {
@@ -242,6 +216,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             mergedSettings.setQueryId(lastQueryId);
         }
         LOG.debug("Query ID: {}", lastQueryId);
+        mergedSettings.setDatabase(connection.getSchema());
 
         try {
             lastSql = parseJdbcEscapeSyntax(sql);

@@ -21,6 +21,7 @@ import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
 import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
 
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -322,29 +323,46 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "testGetMetadataDataProvider")
-    void testGetMetadata(String sql) throws Exception {
+    void testGetMetadata(String sql, int colCountBeforeExecution, Object[] values,
+                         int colCountAfterExecution) throws Exception {
         String tableName = "test_get_metadata";
-        runQuery("CREATE TABLE " + tableName + " ( a1 String, b2 Float, b3 Float ) Engine=MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE IF NOT EXISTS " + tableName + " ( a1 String, b2 Float, b3 Float ) Engine=MergeTree ORDER BY ()");
 
         try (Connection conn = getJdbcConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(String.format(sql, tableName))) {
             ResultSetMetaData metadataRs = stmt.getMetaData();
             assertNotNull(metadataRs);
+            Assert.assertEquals(metadataRs.getColumnCount(), colCountBeforeExecution);
 
-            Assert.assertEquals(metadataRs.getColumnCount(), 3);
-            Assert.assertEquals(metadataRs.getColumnName(1), "a1");
-            Assert.assertEquals(metadataRs.getColumnType(1), Types.VARCHAR);
-            Assert.assertEquals(metadataRs.getColumnName(2), "b2");
-            Assert.assertEquals(metadataRs.getColumnType(2), Types.FLOAT);
-            Assert.assertEquals(metadataRs.getColumnName(3), "b3");
-            Assert.assertEquals(metadataRs.getColumnType(3), Types.FLOAT);
+            for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
+                System.out.println("label=" + metadataRs.getColumnName(i) + " type=" + metadataRs.getColumnType(i));
+                assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
+            }
+
+            if (values != null) {
+                for (int i = 0; i < values.length; i++) {
+                    stmt.setObject(i + 1, values[i]);
+                }
+            }
+
+            stmt.execute();
+            metadataRs = stmt.getMetaData();
+
+            assertNotNull(metadataRs);
+            assertEquals(metadataRs.getColumnCount(), colCountAfterExecution);
+            for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
+                System.out.println("label=" + metadataRs.getColumnName(i) + " type=" + metadataRs.getColumnType(i));
+                assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
+            }
         }
     }
 
     @DataProvider(name = "testGetMetadataDataProvider")
     static Object[][] testGetMetadataDataProvider() {
         return new Object[][] {
-                {"INSERT INTO `%s` VALUES (?, ?, ?)"}
+                {"INSERT INTO `%s` VALUES (?, ?, ?)", 0, new Object[]{"test", 0.3, 0.4}, 0},
+                {"SELECT * FROM `%s`", 3, null, 3},
+                {"SHOW TABLES", 0, null, 1}
         };
     }
 

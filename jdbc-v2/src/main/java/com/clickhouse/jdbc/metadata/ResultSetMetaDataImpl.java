@@ -22,7 +22,8 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     private final Map<ClickHouseDataType, Class<?>> typeClassMap;
 
-    public ResultSetMetaDataImpl(List<ClickHouseColumn> columns, String schema, String catalog, String tableName, Map<ClickHouseDataType, Class<?>> typeClassMap) {
+    public ResultSetMetaDataImpl(List<ClickHouseColumn> columns, String schema, String catalog, String tableName,
+                                 Map<ClickHouseDataType, Class<?>> typeClassMap) {
         this.columns = columns;
         this.schema = schema;
         this.catalog = catalog;
@@ -115,7 +116,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return "";
+        return schema;
     }
 
     @Override

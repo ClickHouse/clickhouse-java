@@ -1,8 +1,6 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -32,7 +30,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLXML;
-import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -49,6 +46,7 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -68,11 +66,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String [] valueSegments;
     Object [] parameters;
     String insertIntoSQL;
-
-    ShowStatementType showStatementType;
-
     StatementType statementType;
-
 
     private final ParameterMetaData parameterMetaData;
 
@@ -83,22 +77,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = splitStatement(originalSql);
-        Object[] parseResult = parseStatement(originalSql);
-        this.statementType = (StatementType) parseResult[0];
+        this.statementType = parseStatementType(originalSql);
 
         switch (statementType) {
             case INSERT:
                 insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
                 valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
                 break;
-            case SHOW:
-                showStatementType = (ShowStatementType) parseResult[1];
-                break;
         }
 
         //Create an array of objects to store the parameters
         this.parameters = new Object[sqlSegments.length - 1];
         this.defaultCalendar = connection.defaultCalendar;
+        this.parameterMetaData = new ParameterMetaDataImpl(this.parameters.length);
     }
 
     private String compileSql(String [] segments) {
@@ -328,18 +319,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
-                            tSchema.getDatabaseName(), "", tSchema.getTableName(), Collections.emptyMap());
+                            connection.getSchema(), connection.getCatalog(),
+                            tSchema.getTableName(), Collections.emptyMap());
                 } catch (Exception e) {
-                    // fallback to empty until
+                    LOG.warn("Failed to get schema for statement '{}'", originalSql);
                 }
-            } else if (statementType == StatementType.SHOW) {
-                // predefined (it can be different for different objects)
-            } else if (statementType == StatementType.DESCRIBE) {
-                // predefined
-            } else {
-                // fallback to empty
             }
-        } else if (resultSetMetaData == null) {
+
+            if (resultSetMetaData == null) {
+                resultSetMetaData = new ResultSetMetaDataImpl(Collections.emptyList(),
+                        connection.getSchema(), connection.getCatalog(),
+                        "", Collections.emptyMap());
+            }
+        } else if (currentResultSet != null) {
             resultSetMetaData = currentResultSet.getMetaData();
         }
 
