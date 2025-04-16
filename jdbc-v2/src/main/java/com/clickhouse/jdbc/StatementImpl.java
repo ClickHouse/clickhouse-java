@@ -80,63 +80,30 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                     continue;
                 }
 
-                StatementType statementType = null;
-                Object[] parseResult = null;
                 switch (tokens[0].toUpperCase()) {
-                    case "SELECT":
-                        statementType = StatementType.SELECT;
-                        break;
-                    case "WITH":
-                        statementType = StatementType.SELECT;
-                        break;
+                    case "SELECT": return StatementType.SELECT;
+                    case "WITH": return StatementType.SELECT;
                     case "INSERT":
-                        statementType = StatementType.INSERT;
                         for (String token : tokens) {
                             if (token.equalsIgnoreCase("SELECT")) {
-                                statementType = StatementType.INSERT_INTO_SELECT;
+                                return StatementType.INSERT_INTO_SELECT;
                             }
                         }
-                        break;
-                    case "DELETE":
-                        statementType = StatementType.DELETE;
-                        break;
-                    case "UPDATE":
-                        statementType = StatementType.UPDATE;
-                        break;
-                    case "CREATE":
-                        statementType = StatementType.CREATE;
-                        break;
-                    case "DROP":
-                        statementType = StatementType.DROP;
-                        break;
-                    case "ALTER":
-                        statementType = StatementType.ALTER;
-                        break;
-                    case "TRUNCATE":
-                        statementType = StatementType.TRUNCATE;
-                        break;
-                    case "USE":
-                        statementType = StatementType.USE;
-                        break;
-                    case "SHOW":
-                        statementType = StatementType.SHOW;
-                        break;
-                    case "DESCRIBE":
-                        statementType = StatementType.DESCRIBE;
-                        break;
-                    case "EXPLAIN":
-                        statementType = StatementType.EXPLAIN;
-                        break;
-                    case "SET":
-                        statementType = StatementType.SET;
-                        break;
-                    case "KILL":
-                        statementType = StatementType.KILL;
-                        break;
-                    default:
-                        statementType = StatementType.OTHER;
+                        return StatementType.INSERT;
+                    case "DELETE": return StatementType.DELETE;
+                    case "UPDATE": return StatementType.UPDATE;
+                    case "CREATE": return StatementType.CREATE;
+                    case "DROP": return StatementType.DROP;
+                    case "ALTER": return StatementType.ALTER;
+                    case "TRUNCATE": return StatementType.TRUNCATE;
+                    case "USE": return StatementType.USE;
+                    case "SHOW": return StatementType.SHOW;
+                    case "DESCRIBE": return StatementType.DESCRIBE;
+                    case "EXPLAIN": return StatementType.EXPLAIN;
+                    case "SET": return StatementType.SET;
+                    case "KILL": return StatementType.KILL;
+                    default: return StatementType.OTHER;
                 }
-                return statementType;
             }
         }
 

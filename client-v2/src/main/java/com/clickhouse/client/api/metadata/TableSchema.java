@@ -1,11 +1,12 @@
 package com.clickhouse.client.api.metadata;
 
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 public class TableSchema {
 
@@ -125,16 +126,5 @@ public class TableSchema {
                 ", hasDefaults=" + hasDefaults +
                 '}';
     }
-
-    public static final Collection<ClickHouseColumn> SIMPLE_SHOW_STMT_SCHEMA =
-            Collections.unmodifiableCollection(Arrays.asList(ClickHouseColumn.of("name", ClickHouseDataType.String.name())));
-
-    public static final Collection<ClickHouseColumn> SHOW_TABLES_SCHEMA = SIMPLE_SHOW_STMT_SCHEMA;
-    public static final Collection<ClickHouseColumn> SHOW_DATABASES_SCHEMA = SIMPLE_SHOW_STMT_SCHEMA;
-    public static final Collection<ClickHouseColumn> SHOW_DICTIONARIES_SCHEMA = SIMPLE_SHOW_STMT_SCHEMA;
-    public static final Collection<ClickHouseColumn> SHOW_USERS_SCHEMA = SIMPLE_SHOW_STMT_SCHEMA;
-    public static final Collection<ClickHouseColumn> SHOW_ROLES_SCHEMA = SIMPLE_SHOW_STMT_SCHEMA;
-    public static final Collection<ClickHouseColumn> SHOW_GRANTS_SCHEMA = Collections.unmodifiableCollection(Arrays.asList(ClickHouseColumn.of("GRANTS", ClickHouseDataType.String.name())));
-
 }
 

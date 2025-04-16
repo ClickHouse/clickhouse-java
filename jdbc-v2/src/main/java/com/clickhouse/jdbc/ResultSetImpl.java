@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
-    private final ResultSetMetaData metaData;
+    private ResultSetMetaData metaData;
     protected ClickHouseBinaryFormatReader reader;
     private QueryResponse response;
     private boolean closed;
@@ -53,10 +53,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
-        TableSchema tableMetadata = resultSet.getSchema();
-        this.metaData = new ResultSetMetaDataImpl(tableMetadata
-                .getColumns(), tableMetadata.getDatabaseName(), "", tableMetadata.getTableName(),
-                Collections.emptyMap());
+        this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
@@ -436,6 +433,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public ResultSetMetaData getMetaData() throws SQLException {
         checkClosed();
         return metaData;
+    }
+
+    protected void setMetaData(ResultSetMetaDataImpl metaData) {
+        this.metaData = metaData;
     }
 
     @Override

@@ -89,11 +89,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public int getColumnDisplaySize(int column) throws SQLException {
-        try {
-            return getColumn(column).getColumnName().length();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return 80;
     }
 
     @Override
