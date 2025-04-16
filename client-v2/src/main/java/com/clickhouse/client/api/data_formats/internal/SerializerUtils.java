@@ -80,24 +80,18 @@ public class SerializerUtils {
                 serializeTupleData(stream, value, GEO_POINT_TUPLE);
                 break;
             case Ring:
+            case LineString:
                 value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_RING_ARRAY);
                 break;
-            case LineString:
-                value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
-                serializeArrayData(stream, value, GEO_LINE_ARRAY);
-                break;
             case Polygon:
+            case MultiLineString:
                 value = value instanceof ClickHouseGeoPolygonValue ? ((ClickHouseGeoPolygonValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_POLYGON_ARRAY);
                 break;
             case MultiPolygon:
                 value = value instanceof ClickHouseGeoMultiPolygonValue ? ((ClickHouseGeoMultiPolygonValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_MULTI_POLYGON_ARRAY);
-                break;
-            case MultiLineString:
-                value = value instanceof ClickHouseGeoMultiPolygonValue ? ((ClickHouseGeoMultiPolygonValue)value).getValue() : value;
-                serializeArrayData(stream, value, GEO_MULTI_LINE_ARRAY);
                 break;
             case Dynamic:
                 ClickHouseColumn typeColumn = valueToColumnForDynamicType(value);
@@ -686,9 +680,7 @@ public class SerializerUtils {
     }
 
     private static final ClickHouseColumn GEO_POINT_TUPLE = ClickHouseColumn.parse("geopoint Tuple(Float64, Float64)").get(0);
-    private static final ClickHouseColumn GEO_LINE_ARRAY = ClickHouseColumn.parse("geoline Array(Tuple(Float64, Float64))").get(0);
     private static final ClickHouseColumn GEO_RING_ARRAY = ClickHouseColumn.parse("georing Array(Tuple(Float64, Float64))").get(0);
-    private static final ClickHouseColumn GEO_MULTI_LINE_ARRAY = ClickHouseColumn.parse("geomultiline Array(Array(Tuple(Float64, Float64)))").get(0);
     private static final ClickHouseColumn GEO_POLYGON_ARRAY = ClickHouseColumn.parse("geopolygin Array(Array(Tuple(Float64, Float64)))").get(0);
     private static final ClickHouseColumn GEO_MULTI_POLYGON_ARRAY = ClickHouseColumn.parse("geomultipolygin Array(Array(Array(Tuple(Float64, Float64))))").get(0);
 
