@@ -380,7 +380,7 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
                                              IOCallback<OutputStream> writeCallback) throws IOException {
-        if (timeToPoolVent.get() < System.currentTimeMillis()) {
+        if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
         }

@@ -129,7 +129,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
         if (buffer.capacity() < uncompressedSize) {
             buffer = ByteBuffer.allocate(uncompressedSize);
-            LOG.warn("Buffer size is too small, reallocate buffer with size: " + uncompressedSize);
+            LOG.debug("Buffer size is too small, reallocate buffer with size: {}", uncompressedSize);
         }
         decompressor.decompress(ByteBuffer.wrap(block), offset,  buffer, 0, uncompressedSize);
         buffer.position(0);

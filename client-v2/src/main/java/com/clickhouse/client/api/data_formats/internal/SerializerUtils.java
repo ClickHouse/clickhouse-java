@@ -80,10 +80,12 @@ public class SerializerUtils {
                 serializeTupleData(stream, value, GEO_POINT_TUPLE);
                 break;
             case Ring:
+            case LineString:
                 value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_RING_ARRAY);
                 break;
             case Polygon:
+            case MultiLineString:
                 value = value instanceof ClickHouseGeoPolygonValue ? ((ClickHouseGeoPolygonValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_POLYGON_ARRAY);
                 break;

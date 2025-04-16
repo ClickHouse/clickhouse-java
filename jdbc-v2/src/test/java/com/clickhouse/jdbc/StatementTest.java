@@ -711,4 +711,23 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testExecuteWithMaxRows() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setMaxRows(1);
+                int count = 0;
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
+                    while (rs.next()) {
+                        count++;
+                    }
+                }
+                // MaxRows limits the number of row with rounding to the size of the block
+                // https://clickhouse.com/docs/en/operations/settings/query-complexity#setting-max_result_rows
+                // https://clickhouse.com/docs/en/operations/settings/query-complexity#result-overflow-mode
+                assertTrue(count > 0 && count < 100000);
+            }
+        }
+    }
+
 }
