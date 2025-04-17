@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -22,6 +23,9 @@ public class MetadataResultSet extends ResultSetImpl {
     public MetadataResultSet(ResultSetImpl resultSet) throws SQLException {
         super(resultSet);
         this.overridingSchemaAdaptor = new OverridingSchemaAdaptor(resultSet.getSchema());
+        this.setMetaData(new ResultSetMetaDataImpl(overridingSchemaAdaptor.getColumns(),
+                overridingSchemaAdaptor.getDatabaseName(), "",
+                overridingSchemaAdaptor.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP));
         ResultSetMetaData metaData = getMetaData();
         int count = metaData.getColumnCount();
         cachedColumnLabels = new String[count];

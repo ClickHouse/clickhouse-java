@@ -1,7 +1,11 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +46,7 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -61,8 +66,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     String [] valueSegments;
     Object [] parameters;
     String insertIntoSQL;
-
     StatementType statementType;
+
+    private final ParameterMetaData parameterMetaData;
+
+    private ResultSetMetaData resultSetMetaData = null;
 
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
@@ -71,7 +79,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.sqlSegments = splitStatement(originalSql);
         this.statementType = parseStatementType(originalSql);
 
-        if (statementType == StatementType.INSERT) {
+        if (this.statementType == StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
             valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
         }
@@ -79,6 +87,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         //Create an array of objects to store the parameters
         this.parameters = new Object[sqlSegments.length - 1];
         this.defaultCalendar = connection.defaultCalendar;
+        this.parameterMetaData = new ParameterMetaDataImpl(this.parameters.length);
     }
 
     private String compileSql(String []segments) {
@@ -300,7 +309,32 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         checkClosed();
-        return null;
+
+        if (resultSetMetaData == null && currentResultSet == null) {
+            // before execution
+            if (statementType == StatementType.SELECT) {
+                try {
+                    // Replace '?' with NULL to make SQL valid for DESCRIBE
+                    String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
+                    TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
+                    resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
+                            connection.getSchema(), connection.getCatalog(),
+                            tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP);
+                } catch (Exception e) {
+                    LOG.warn("Failed to get schema for statement '{}'", originalSql);
+                }
+            }
+
+            if (resultSetMetaData == null) {
+                resultSetMetaData = new ResultSetMetaDataImpl(Collections.emptyList(),
+                        connection.getSchema(), connection.getCatalog(),
+                        "", JdbcUtils.DATA_TYPE_CLASS_MAP);
+            }
+        } else if (currentResultSet != null) {
+            resultSetMetaData = currentResultSet.getMetaData();
+        }
+
+        return resultSetMetaData;
     }
 
     @Override
@@ -347,10 +381,18 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         parameters[parameterIndex - 1] = encodeObject(x);
     }
 
+    /**
+     * Returned metadata has only minimal information about parameters. Currently only their count.
+     * Current implementation do not parse SQL to detect type of each parameter.
+     *
+     * @see ParameterMetaDataImpl
+     * @return {@link ParameterMetaDataImpl}
+     * @throws SQLException if the statement is close
+     */
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
         checkClosed();
-        return null;
+        return parameterMetaData;
     }
 
     @Override

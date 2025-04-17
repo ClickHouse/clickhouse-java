@@ -159,7 +159,7 @@
         <sonar.cpd.exclusions>**/*0*.java,**/data/*Value.java,**/data/array/*Value.java,**/stream/*Stream.java</sonar.cpd.exclusions>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
-        <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/**/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <sonar.language>java</sonar.language>
 
         <build_timestamp>${maven.build.timestamp}</build_timestamp>
@@ -393,6 +393,16 @@
     <build>
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>com.diffplug.spotless</groupId>
+                    <artifactId>spotless-maven-plugin</artifactId>
+                    <version>2.43.0</version>
+                    <configuration>
+                        <java>
+                            <removeUnusedImports/>
+                        </java>
+                    </configuration>
+                </plugin>
                 <plugin>
                     <groupId>kr.motd.maven</groupId>
                     <artifactId>os-maven-plugin</artifactId>

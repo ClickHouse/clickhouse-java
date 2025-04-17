@@ -1,9 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.QuerySettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -21,13 +19,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Properties;
-import java.util.TimeZone;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -35,7 +29,6 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
 
 
 public class StatementTest extends JdbcIntegrationTest {

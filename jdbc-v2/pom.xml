@@ -20,7 +20,6 @@
         <javacc-plugin.version>4.1.4</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
-
         <shade.base>${project.groupId}.shaded</shade.base>
     </properties>
 

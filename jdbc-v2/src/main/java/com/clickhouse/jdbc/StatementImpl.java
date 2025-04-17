@@ -19,7 +19,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -60,7 +59,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
-    protected static StatementType parseStatementType(String sql) {
+    public static StatementType parseStatementType(String sql) {
         if (sql == null) {
             return StatementType.OTHER;
         }
@@ -184,6 +183,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             mergedSettings.setQueryId(lastQueryId);
         }
         LOG.debug("Query ID: {}", lastQueryId);
+        mergedSettings.setDatabase(connection.getSchema());
 
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
