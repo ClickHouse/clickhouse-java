@@ -178,7 +178,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getTableTypes();
-            List<String> sortedTypes = Arrays.asList(com.clickhouse.jdbc.metadata.DatabaseMetaData.TABLE_TYPES);
+            List<String> sortedTypes = Arrays.asList(DatabaseMetaDataImpl.TABLE_TYPES);
             Collections.sort(sortedTypes);
             for (String type: sortedTypes) {
                 assertTrue(rs.next());

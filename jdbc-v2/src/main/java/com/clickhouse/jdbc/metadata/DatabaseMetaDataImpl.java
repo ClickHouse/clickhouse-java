@@ -23,8 +23,8 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.util.Arrays;
 
-public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
-    private static final Logger log = LoggerFactory.getLogger(DatabaseMetaData.class);
+public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
+    private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
     public static final String[] TABLE_TYPES = new String[] { "DICTIONARY", "LOG TABLE", "MEMORY TABLE",
             "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
 
@@ -42,7 +42,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
      * @param connection - connection for which metadata is created
      * @param useCatalogs - if true then getCatalogs() will return non-empty list (not implemented yet)
      */
-    public DatabaseMetaData(ConnectionImpl connection, boolean useCatalogs, String url) throws SQLFeatureNotSupportedException {
+    public DatabaseMetaDataImpl(ConnectionImpl connection, boolean useCatalogs, String url) throws SQLFeatureNotSupportedException {
         if (useCatalogs) {
             throw new SQLFeatureNotSupportedException("Catalogs are not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
@@ -864,7 +864,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::columnDataTypeToSqlType);
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::columnDataTypeToSqlType);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1002,8 +1002,8 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData, JdbcV2Wrappe
     public ResultSet getTypeInfo() throws SQLException {
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaData::dataTypeToSqlTypeInt)
-                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaData::dataTypeNullability);
+                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::dataTypeToSqlTypeInt)
+                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaDataImpl::dataTypeNullability);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

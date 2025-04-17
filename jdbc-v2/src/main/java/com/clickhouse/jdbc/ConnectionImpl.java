@@ -10,6 +10,7 @@ import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +55,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private String appName;
     private QuerySettings defaultQuerySettings;
 
-    private final com.clickhouse.jdbc.metadata.DatabaseMetaData metadata;
+    private final DatabaseMetaDataImpl metadata;
     protected final Calendar defaultCalendar;
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
@@ -96,7 +97,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                     .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                     .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
 
-            this.metadata = new com.clickhouse.jdbc.metadata.DatabaseMetaData(this, false, url);
+            this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
         } catch (SQLException e) {
             throw e;
