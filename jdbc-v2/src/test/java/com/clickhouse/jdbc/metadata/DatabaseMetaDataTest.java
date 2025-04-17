@@ -316,4 +316,14 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertNotEquals(version, "unknown");
         }
     }
+
+
+    @Test(groups = { "integration" })
+    public void testGetIndexInfo() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getIndexInfo(null, null, "numbers", false, false);
+            assertFalse(rs.next());
+        }
+    }
 }

@@ -1065,7 +1065,14 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return null;
+        try {
+            String sql = "SELECT null AS TABLE_CAT, null AS TABLE_SCHEM, null AS TABLE_NAME, null AS NON_UNIQUE," +
+                    " null AS INDEX_QUALIFIER, null AS INDEX_NAME, null AS TYPE, null AS ORDINAL_POSITION, null AS COLUMN_NAME, null AS ASC_OR_DESC," +
+                    " null AS CARDINALITY, null AS PAGES, null AS FILTER_CONDITION LIMIT 0";
+            return connection.createStatement().executeQuery(sql);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 
     @Override
