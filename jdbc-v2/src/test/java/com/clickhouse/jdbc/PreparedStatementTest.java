@@ -337,7 +337,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(metadataRs.getColumnCount(), colCountBeforeExecution);
 
             for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
-                System.out.println("label=" + metadataRs.getColumnName(i) + " type=" + metadataRs.getColumnType(i));
                 assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
             }
 
@@ -353,7 +352,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             assertNotNull(metadataRs);
             assertEquals(metadataRs.getColumnCount(), colCountAfterExecution);
             for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
-                System.out.println("label=" + metadataRs.getColumnName(i) + " type=" + metadataRs.getColumnType(i));
                 assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
             }
         }
@@ -503,7 +501,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE `with_complex_id` (`v?``1` Int32, \"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE Memory;");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `with_complex_id` (`v?``1` Int32, " +
+                        "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE MergeTree ORDER BY ();");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_stmt_split2` (v1 Int32, v2 String) ENGINE MergeTree ORDER BY (); ");
+                stmt.execute("INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')");
             }
             String insertQuery = "-- line comment1 ?\n"
                     + "# line comment2 ?\n"
@@ -536,6 +537,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getString(7), "test string3 ?\\");
                 }
             }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT v1 FROM `test_stmt_split2` WHERE v1 > ? AND v2 = '?'")) {
+                stmt.setInt(1, 2);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    int count = 0;
+                    while (rs.next()) {
+                        count++;
+                        assertEquals(rs.getInt(1), 3);
+                    }
+
+                    Assert.assertEquals(count, 1);
+                }
+            }
+
         }
     }
 }

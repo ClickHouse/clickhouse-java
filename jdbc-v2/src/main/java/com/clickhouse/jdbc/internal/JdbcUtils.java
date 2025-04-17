@@ -287,7 +287,7 @@ public class JdbcUtils {
 
     public static final String NULL = "NULL";
 
-    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`)|(\\?)");
+    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");
 
     public static String replaceQuestionMarks(String sql, String replacement) {
         Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);

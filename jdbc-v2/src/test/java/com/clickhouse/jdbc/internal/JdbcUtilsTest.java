@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -56,5 +57,21 @@ public class JdbcUtilsTest {
         for (int i = 0; i < inStr.length; i++) {
             assertEquals(JdbcUtils.escapeQuotes(inStr[i]), outStr[i]);
         }
+    }
+
+    @Test(dataProvider = "testReplaceQuestionMark_dataProvider")
+    public void testReplaceQuestionMark(String sql, String result) {
+        assertEquals(JdbcUtils.replaceQuestionMarks(sql, "NULL"), result);
+    }
+
+    @DataProvider(name = "testReplaceQuestionMark_dataProvider")
+    public static Object[][] testReplaceQuestionMark_dataProvider() {
+        return new Object[][] {
+                {"", ""},
+                {"     ", "     "},
+                {"SELECT * FROM t WHERE a = '?'", "SELECT * FROM t WHERE a = '?'"},
+                {"SELECT `v2?` FROM t WHERE `v1?` = ?", "SELECT `v2?` FROM t WHERE `v1?` = NULL"},
+                {"INSERT INTO \"t2?\" VALUES (?, ?, 'some_?', ?)", "INSERT INTO \"t2?\" VALUES (NULL, NULL, 'some_?', NULL)"}
+        };
     }
 }

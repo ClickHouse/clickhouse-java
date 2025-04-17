@@ -314,6 +314,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             // before execution
             if (statementType == StatementType.SELECT) {
                 try {
+                    // Replace '?' with NULL to make SQL valid for DESCRIBE
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
