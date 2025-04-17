@@ -1,15 +1,12 @@
 package com.clickhouse.jdbc;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.List;
 import java.util.Properties;
 
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseNode;
@@ -18,23 +15,17 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import org.apache.hc.core5.http.HttpStatus;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
 

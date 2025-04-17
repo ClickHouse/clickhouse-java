@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
@@ -9,7 +8,6 @@ import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
-import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -19,10 +17,8 @@ import java.sql.Types;
 import java.sql.DatabaseMetaData;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 
 import static org.testng.Assert.*;
 
@@ -173,7 +169,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getCatalogs();
             assertFalse(rs.next());
-            ResultSetMetaDataTest.assertColumnNames(rs, "TABLE_CAT");
+            ResultSetMetaDataImplTest.assertColumnNames(rs, "TABLE_CAT");
         }
     }
 

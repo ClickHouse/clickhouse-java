@@ -1,50 +1,67 @@
 package com.clickhouse.jdbc.metadata;
 
-import java.sql.SQLException;
-
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
-import com.clickhouse.jdbc.ResultSetImpl;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 
-public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrapper {
-    private final ResultSetImpl resultSet;
-    public ResultSetMetaData(ResultSetImpl resultSet) {
-        this.resultSet = resultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+
+public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2Wrapper {
+
+    private final List<ClickHouseColumn> columns;
+
+    private final String schema;
+
+    private final String catalog;
+
+    private final String tableName;
+
+    private final Map<ClickHouseDataType, Class<?>> typeClassMap;
+
+    public ResultSetMetaDataImpl(List<ClickHouseColumn> columns, String schema, String catalog, String tableName,
+                                 Map<ClickHouseDataType, Class<?>> typeClassMap) {
+        this.columns = columns;
+        this.schema = schema;
+        this.catalog = catalog;
+        this.tableName = tableName;
+        this.typeClassMap = typeClassMap;
     }
 
     private ClickHouseColumn getColumn(int column) throws SQLException {
-        if (column < 1 || column > getColumnCount()) {
+        try {
+            return columns.get(column - 1);
+        } catch (IndexOutOfBoundsException e) {
             throw new SQLException("Column index out of range: " + column, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
-        return resultSet.getSchema().getColumns().get(column - 1);
     }
 
     @Override
     public int getColumnCount() throws SQLException {
+        return columns.size();
+    }
+
+    @Override
+    public boolean isAutoIncrement(int column) throws SQLException {
+        return false; // no auto-incremental types
+    }
+
+    @Override
+    public boolean isCaseSensitive(int column) throws SQLException {
         try {
-            TableSchema schema = resultSet.getSchema();
-            return schema.getColumns().size();
+            // TODO: should be in sync with DatabaseMetadata
+            return getColumn(column).getDataType().isCaseSensitive();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
     }
 
     @Override
-    public boolean isAutoIncrement(int column) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public boolean isCaseSensitive(int column) throws SQLException {
-        return true;
-    }
-
-    @Override
     public boolean isSearchable(int column) throws SQLException {
-        return true;
+        return true; // all columns are considered as searchable
     }
 
     @Override
@@ -95,7 +112,7 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return "";
+        return schema;
     }
 
     @Override
@@ -118,16 +135,12 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getTableName(int column) throws SQLException {
-        try {
-            return resultSet.getSchema().getTableName();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return tableName;
     }
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        return "";
+        return catalog;
     }
 
     @Override
@@ -165,6 +178,10 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData, JdbcV2Wrap
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return null;
+        try {
+            return typeClassMap.getOrDefault(getColumn(column).getDataType(), Object.class).getName();
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(e);
+        }
     }
 }

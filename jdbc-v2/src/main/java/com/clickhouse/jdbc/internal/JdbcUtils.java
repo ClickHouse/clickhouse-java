@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
+import com.google.common.collect.ImmutableMap;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -22,10 +23,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
-    private static final Map<ClickHouseDataType, SQLType> CLICKHOUSE_TO_SQL_TYPE_MAP = generateTypeMap();
+    public static final Map<ClickHouseDataType, SQLType> CLICKHOUSE_TO_SQL_TYPE_MAP = generateTypeMap();
 
     public static final Map<String, SQLType> CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP = Collections.unmodifiableMap(generateTypeMap().entrySet()
             .stream().collect(
@@ -70,10 +73,10 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.LineString, JDBCType.OTHER);
         map.put(ClickHouseDataType.MultiPolygon, JDBCType.OTHER);
         map.put(ClickHouseDataType.MultiLineString, JDBCType.OTHER);
-        return map;
+        return ImmutableMap.copyOf(map);
     }
 
-    private static final Map<SQLType, Class<?>> SQL_TYPE_TO_CLASS_MAP = generateClassMap();
+    public static final Map<SQLType, Class<?>> SQL_TYPE_TO_CLASS_MAP = generateClassMap();
     private static Map<SQLType, Class<?>> generateClassMap() {
         Map<SQLType, Class<?>> map = new HashMap<>();
         map.put(JDBCType.CHAR, String.class);
@@ -110,6 +113,16 @@ public class JdbcUtils {
         map.put(JDBCType.LONGNVARCHAR, String.class);
         map.put(JDBCType.NCLOB, java.sql.NClob.class);
         map.put(JDBCType.SQLXML, java.sql.SQLXML.class);
+        return ImmutableMap.copyOf(map);
+    }
+
+    public static final Map<ClickHouseDataType, Class<?>> DATA_TYPE_CLASS_MAP = getDataTypeClassMap();
+    private static Map<ClickHouseDataType, Class<?>> getDataTypeClassMap() {
+        Map<ClickHouseDataType, Class<?>> map = new HashMap<>();
+        for (Map.Entry<ClickHouseDataType, SQLType> e : CLICKHOUSE_TO_SQL_TYPE_MAP.entrySet()) {
+            map.put(e.getKey(), SQL_TYPE_TO_CLASS_MAP.get(e.getValue()));
+        }
+
         return map;
     }
 
@@ -122,7 +135,7 @@ public class JdbcUtils {
     }
 
     public static Class<?> convertToJavaClass(ClickHouseDataType clickhouseType) {
-        return SQL_TYPE_TO_CLASS_MAP.get(convertToSqlType(clickhouseType));
+        return DATA_TYPE_CLASS_MAP.get(clickhouseType);
     }
 
     public static List<String> tokenizeSQL(String sql) {
@@ -270,5 +283,27 @@ public class JdbcUtils {
         return str
                 .replace("'", "\\'")
                 .replace("\"", "\\\"");
+    }
+
+    public static final String NULL = "NULL";
+
+    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");
+
+    public static String replaceQuestionMarks(String sql, String replacement) {
+        Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);
+
+        StringBuilder result = new StringBuilder();
+
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                // Quoted string — keep as-is
+                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(1)));
+            } else if (matcher.group(2) != null) {
+                // Question mark outside quotes — replace it
+                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            }
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 }

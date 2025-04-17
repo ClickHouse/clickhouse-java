@@ -1,12 +1,13 @@
 package com.clickhouse.jdbc;
 
 import org.apache.commons.lang3.RandomStringUtils;
+import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.sql.Array;
 import java.sql.Connection;
-import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -21,6 +22,8 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
+
+
 
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -321,6 +324,48 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(dataProvider = "testGetMetadataDataProvider")
+    void testGetMetadata(String sql, int colCountBeforeExecution, Object[] values,
+                         int colCountAfterExecution) throws Exception {
+        String tableName = "test_get_metadata";
+        runQuery("CREATE TABLE IF NOT EXISTS " + tableName + " ( a1 String, b2 Float, b3 Float ) Engine=MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(String.format(sql, tableName))) {
+            ResultSetMetaData metadataRs = stmt.getMetaData();
+            assertNotNull(metadataRs);
+            Assert.assertEquals(metadataRs.getColumnCount(), colCountBeforeExecution);
+
+            for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
+                assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
+            }
+
+            if (values != null) {
+                for (int i = 0; i < values.length; i++) {
+                    stmt.setObject(i + 1, values[i]);
+                }
+            }
+
+            stmt.execute();
+            metadataRs = stmt.getMetaData();
+
+            assertNotNull(metadataRs);
+            assertEquals(metadataRs.getColumnCount(), colCountAfterExecution);
+            for (int i = 1; i <= metadataRs.getColumnCount(); i++) {
+                assertEquals(metadataRs.getSchemaName(i), stmt.getConnection().getSchema());
+            }
+        }
+    }
+
+    @DataProvider(name = "testGetMetadataDataProvider")
+    static Object[][] testGetMetadataDataProvider() {
+        return new Object[][] {
+                {"INSERT INTO `%s` VALUES (?, ?, ?)", 0, new Object[]{"test", 0.3, 0.4}, 0},
+                {"SELECT * FROM `%s`", 3, null, 3},
+                {"SHOW TABLES", 0, null, 1}
+        };
+    }
+
     @Test(groups = { "integration" })
     void testMetabaseBug01() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -456,7 +501,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE `with_complex_id` (`v?``1` Int32, \"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE Memory;");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `with_complex_id` (`v?``1` Int32, " +
+                        "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE MergeTree ORDER BY ();");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_stmt_split2` (v1 Int32, v2 String) ENGINE MergeTree ORDER BY (); ");
+                stmt.execute("INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')");
             }
             String insertQuery = "-- line comment1 ?\n"
                     + "# line comment2 ?\n"
@@ -489,6 +537,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getString(7), "test string3 ?\\");
                 }
             }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT v1 FROM `test_stmt_split2` WHERE v1 > ? AND v2 = '?'")) {
+                stmt.setInt(1, 2);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    int count = 0;
+                    while (rs.next()) {
+                        count++;
+                        assertEquals(rs.getInt(1), 3);
+                    }
+
+                    Assert.assertEquals(count, 1);
+                }
+            }
+
         }
     }
 }

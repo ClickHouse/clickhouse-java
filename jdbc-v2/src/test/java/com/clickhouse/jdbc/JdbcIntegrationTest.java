@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;

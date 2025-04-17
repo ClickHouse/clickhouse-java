@@ -1,19 +1,5 @@
 package com.clickhouse.jdbc;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.Reader;
-import java.io.StringReader;
-import java.math.BigDecimal;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.sql.*;
-import java.time.ZonedDateTime;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Map;
-
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -21,13 +7,43 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import com.clickhouse.jdbc.types.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.math.BigDecimal;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.NClob;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
+import java.sql.SQLWarning;
+import java.sql.SQLXML;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.ZonedDateTime;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
-    private final ResultSetMetaData metaData;
+    private ResultSetMetaData metaData;
     protected ClickHouseBinaryFormatReader reader;
     private QueryResponse response;
     private boolean closed;
@@ -39,7 +55,12 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
-        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
+        TableSchema tableMetadata = reader.getSchema();
+
+        // Result set contains columns from one database (there is a special table engine 'Merge' to do cross DB queries)
+        this.metaData = new ResultSetMetaDataImpl(tableMetadata
+                .getColumns(), response.getSettings().getDatabase(), "", tableMetadata.getTableName(),
+                JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
@@ -49,7 +70,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
-        this.metaData = new com.clickhouse.jdbc.metadata.ResultSetMetaData(this);
+        this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
@@ -429,6 +450,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public ResultSetMetaData getMetaData() throws SQLException {
         checkClosed();
         return metaData;
+    }
+
+    protected void setMetaData(ResultSetMetaDataImpl metaData) {
+        this.metaData = metaData;
     }
 
     @Override
