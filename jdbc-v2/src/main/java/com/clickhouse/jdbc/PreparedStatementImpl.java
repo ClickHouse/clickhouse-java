@@ -84,7 +84,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.defaultCalendar = connection.defaultCalendar;
     }
 
-    private String compileSql(String [] segments) {
+    String compileSql(String []segments) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < segments.length; i++) {
             sb.append(segments[i]);
