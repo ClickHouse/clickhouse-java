@@ -96,5 +96,5 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -Panalysis org.sonarsource.scanner.maven:sonar-maven-plugin:sonar verify
+            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true
