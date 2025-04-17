@@ -345,6 +345,14 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testQueryAllInsertSelect() {
+        client.queryAll("CREATE TABLE IF NOT EXISTS nums (number Int16) ENGINE = MergeTree() ORDER BY number;");
+        String sql = "INSERT INTO nums SELECT * FROM system.numbers LIMIT 100";
+        List<GenericRecord> records = client.queryAll(sql);
+        Assert.assertTrue(records.isEmpty());
+    }
+
+    @Test(groups = {"integration"})
     public void testQueryJSONEachRow() throws ExecutionException, InterruptedException {
         Map<String, Object> datasetRecord = prepareSimpleDataSet();
         QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
