@@ -60,7 +60,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         // Result set contains columns from one database (there is a special table engine 'Merge' to do cross DB queries)
         this.metaData = new ResultSetMetaDataImpl(tableMetadata
                 .getColumns(), response.getSettings().getDatabase(), "", tableMetadata.getTableName(),
-                Collections.emptyMap());
+                JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;

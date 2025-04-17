@@ -25,7 +25,7 @@ public class MetadataResultSet extends ResultSetImpl {
         this.overridingSchemaAdaptor = new OverridingSchemaAdaptor(resultSet.getSchema());
         this.setMetaData(new ResultSetMetaDataImpl(overridingSchemaAdaptor.getColumns(),
                 overridingSchemaAdaptor.getDatabaseName(), "",
-                overridingSchemaAdaptor.getTableName(), Collections.emptyMap()));
+                overridingSchemaAdaptor.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP));
         ResultSetMetaData metaData = getMetaData();
         int count = metaData.getColumnCount();
         cachedColumnLabels = new String[count];

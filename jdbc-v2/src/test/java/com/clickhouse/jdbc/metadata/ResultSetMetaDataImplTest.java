@@ -3,13 +3,18 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import org.testng.annotations.Test;
 
+import java.math.BigInteger;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.sql.Types;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 
 
 public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
@@ -53,9 +58,21 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery("SELECT toInt8(1), toInt16(1), toInt32(1), toInt64(1) AS a");
                 ResultSetMetaData rsmd = rs.getMetaData();
                 assertEquals(rsmd.getColumnType(1), Types.TINYINT);
+                assertEquals(rsmd.getColumnClassName(1), Integer.class.getName());
                 assertEquals(rsmd.getColumnType(2), Types.SMALLINT);
+                assertEquals(rsmd.getColumnClassName(2), Integer.class.getName());
                 assertEquals(rsmd.getColumnType(3), Types.INTEGER);
+                assertEquals(rsmd.getColumnClassName(3), Integer.class.getName());
                 assertEquals(rsmd.getColumnType(4), Types.BIGINT);
+                assertEquals(rsmd.getColumnClassName(4), Long.class.getName());
+
+                for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                    assertTrue(rsmd.isCaseSensitive(i));
+                    assertFalse(rsmd.isCurrency(i));
+                    assertEquals(rsmd.isNullable(i), ResultSetMetaData.columnNoNulls);
+                    assertTrue(rsmd.isSearchable(i));
+                    assertTrue(rsmd.isSigned(i));
+                }
             }
         }
     }

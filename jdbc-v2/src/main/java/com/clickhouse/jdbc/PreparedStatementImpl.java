@@ -318,7 +318,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
                             connection.getSchema(), connection.getCatalog(),
-                            tSchema.getTableName(), Collections.emptyMap());
+                            tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP);
                 } catch (Exception e) {
                     LOG.warn("Failed to get schema for statement '{}'", originalSql);
                 }
@@ -327,7 +327,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (resultSetMetaData == null) {
                 resultSetMetaData = new ResultSetMetaDataImpl(Collections.emptyList(),
                         connection.getSchema(), connection.getCatalog(),
-                        "", Collections.emptyMap());
+                        "", JdbcUtils.DATA_TYPE_CLASS_MAP);
             }
         } else if (currentResultSet != null) {
             resultSetMetaData = currentResultSet.getMetaData();
@@ -383,7 +383,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     /**
      * Returned metadata has only minimal information about parameters. Currently only their count.
      * Current implementation do not parse SQL to detect type of each parameter.
-     * 
+     *
      * @see ParameterMetaDataImpl
      * @return {@link ParameterMetaDataImpl}
      * @throws SQLException if the statement is close

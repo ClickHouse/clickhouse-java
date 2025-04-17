@@ -13,6 +13,10 @@ import java.sql.Types;
  */
 public class ParameterMetaDataImpl implements ParameterMetaData, JdbcV2Wrapper {
 
+    private static final int FAIL_SAFE_PRECISION = 0;
+
+    private static final int FAIL_SAFE_SCALE = 0;
+
     private final int paramCount;
 
     public ParameterMetaDataImpl(int paramCount) {
@@ -63,7 +67,7 @@ public class ParameterMetaDataImpl implements ParameterMetaData, JdbcV2Wrapper {
     @Override
     public int getPrecision(int param) throws SQLException {
         checkParamIndex(param);
-        return 0;
+        return FAIL_SAFE_PRECISION;
     }
 
     /**
@@ -75,7 +79,7 @@ public class ParameterMetaDataImpl implements ParameterMetaData, JdbcV2Wrapper {
     @Override
     public int getScale(int param) throws SQLException {
         checkParamIndex(param);
-        return 0;
+        return FAIL_SAFE_SCALE;
     }
 
     /**
