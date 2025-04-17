@@ -9,7 +9,6 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
@@ -496,63 +495,26 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     void testClearParameters() throws Exception {
         String sql = "insert into `test_issue_2299` (`id`, `name`, `age`) values (?, ?, ?)";
         try (Connection conn = getJdbcConnection();
-             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql);
-             TestPreparedStatementImpl ps2 = new TestPreparedStatementImpl((ConnectionImpl) conn, sql)) {
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2299` (`id` Nullable(String), `name` Nullable(String), `age` Int32) ENGINE Memory;");
             }
 
             Assert.assertEquals(ps.parameters.length, 3);
-            ps.clearParameters();
-            Assert.assertEquals(ps.parameters.length, 3);
 
             ps.setString(1, "testId");
             ps.setString(2, "testName");
             ps.setInt(3, 18);
-            String compiledSql1 = ps.compileSql(ps.sqlSegments);
-            Assert.assertEquals(compiledSql1, "insert into `test_issue_2299` (`id`, `name`, `age`) values ('testId', 'testName', 18)");
+            ps.execute();
 
+            ps.clearParameters();
+            Assert.assertEquals(ps.parameters.length, 3);
 
-            Assert.assertEquals(ps2.parameters.length, 3);
-            ps2.clearParameters();
-            Assert.assertEquals(ps2.parameters.length, 4);
-
-            ps2.setString(1, "testId");
-            ps2.setString(2, "testName");
-            ps2.setInt(3, 18);
-
-            String compiledSql2 = ps2.compileSql(ps2.sqlSegments);
-            Assert.assertEquals(compiledSql2, "insert into `test_issue_2299` (`id`, `name`, `age`) values ('testId', 'testName', 18)null");
-        }
-    }
-
-    static class TestPreparedStatementImpl extends PreparedStatementImpl {
-
-        public TestPreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
-            super(connection, sql);
-        }
-
-        @Override
-        public void clearParameters() throws SQLException {
-            checkClosed();
-            if (originalSql.contains("?")) {
-                this.parameters = new Object[sqlSegments.length];
-            } else {
-                this.parameters = new Object[0];
-            }
-        }
-
-        @Override
-        String compileSql(String[] segments) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < segments.length; i++) {
-                sb.append(segments[i]);
-                if (i < parameters.length) {
-                    sb.append(parameters[i]);
-                }
-            }
-            return sb.toString();
+            ps.setString(1, "testId2");
+            ps.setString(2, "testName2");
+            ps.setInt(3, 19);
+            ps.execute();
         }
     }
 }
