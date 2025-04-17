@@ -10,7 +10,6 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
@@ -551,6 +550,33 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 }
             }
 
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testClearParameters() throws Exception {
+        String sql = "insert into `test_issue_2299` (`id`, `name`, `age`) values (?, ?, ?)";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2299` (`id` Nullable(String), `name` Nullable(String), `age` Int32) ENGINE Memory;");
+            }
+
+            Assert.assertEquals(ps.parameters.length, 3);
+
+            ps.setString(1, "testId");
+            ps.setString(2, "testName");
+            ps.setInt(3, 18);
+            ps.execute();
+
+            ps.clearParameters();
+            Assert.assertEquals(ps.parameters.length, 3);
+
+            ps.setString(1, "testId2");
+            ps.setString(2, "testName2");
+            ps.setInt(3, 19);
+            ps.execute();
         }
     }
 }

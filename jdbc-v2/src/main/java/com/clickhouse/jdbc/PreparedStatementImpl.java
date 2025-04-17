@@ -90,7 +90,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.parameterMetaData = new ParameterMetaDataImpl(this.parameters.length);
     }
 
-    private String compileSql(String [] segments) {
+    private String compileSql(String []segments) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < segments.length; i++) {
             sb.append(segments[i]);
@@ -217,7 +217,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void clearParameters() throws SQLException {
         checkClosed();
         if (originalSql.contains("?")) {
-            this.parameters = new Object[sqlSegments.length];
+            this.parameters = new Object[sqlSegments.length - 1];
         } else {
             this.parameters = new Object[0];
         }
