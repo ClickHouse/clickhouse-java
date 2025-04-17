@@ -1,7 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.slf4j.Logger;
@@ -28,7 +26,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLXML;
-import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -211,8 +208,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void clearParameters() throws SQLException {
         checkClosed();
         if (originalSql.contains("?")) {
-            int count = originalSql.length() - originalSql.replace("?", "").length();
-            this.parameters = new Object[count];
+            this.parameters = new Object[sqlSegments.length - 1];
         } else {
             this.parameters = new Object[0];
         }
