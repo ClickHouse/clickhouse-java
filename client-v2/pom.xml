@@ -19,7 +19,6 @@
     <properties>
         <apache.httpclient.version>5.3.1</apache.httpclient.version>
         <shade.base>${project.groupId}.shaded</shade.base>
-        <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencies>
