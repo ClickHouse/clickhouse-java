@@ -564,7 +564,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2299` (`id` Nullable(String), `name` Nullable(String), `age` Int32) ENGINE Memory;");
             }
 
-            Assert.assertEquals(ps.parameters.length, 3);
+            Assert.assertEquals(ps.getParametersCount(), 3);
 
             ps.setString(1, "testId");
             ps.setString(2, "testName");
@@ -572,7 +572,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             ps.execute();
 
             ps.clearParameters();
-            Assert.assertEquals(ps.parameters.length, 3);
+            Assert.assertEquals(ps.getParametersCount(), 3);
 
             ps.setString(1, "testId2");
             ps.setString(2, "testName2");
