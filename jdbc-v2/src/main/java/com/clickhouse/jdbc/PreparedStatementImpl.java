@@ -44,6 +44,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,12 +62,12 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private final Calendar defaultCalendar;
 
-    String originalSql;
-    String [] sqlSegments;
-    String [] valueSegments;
-    Object [] parameters;
-    String insertIntoSQL;
-    StatementType statementType;
+    private final String originalSql;
+    private final String [] sqlSegments;
+    private String [] valueSegments;
+    private final Object [] parameters;
+    private String insertIntoSQL;
+    private final StatementType statementType;
 
     private final ParameterMetaData parameterMetaData;
 
@@ -74,6 +75,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
         super(connection);
+        this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = splitStatement(originalSql);
@@ -216,11 +218,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        if (originalSql.contains("?")) {
-            this.parameters = new Object[sqlSegments.length - 1];
-        } else {
-            this.parameters = new Object[0];
-        }
+        Arrays.fill(this.parameters, null);
+    }
+
+    int getParametersCount() {
+        return parameters.length;
     }
 
     @Override
@@ -245,18 +247,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void addBatch() throws SQLException {
         checkClosed();
         if (statementType == StatementType.INSERT) {
+            // adding values to the end of big INSERT statement.
             addBatch(compileSql(valueSegments));
         } else {
             addBatch(compileSql(sqlSegments));
         }
-
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
         if (statementType == StatementType.INSERT && !batch.isEmpty()) {
-            List<Integer> results = new ArrayList<>();
             // write insert into as batch to avoid multiple requests
             StringBuilder sb = new StringBuilder();
             sb.append(insertIntoSQL).append(" ");
@@ -264,14 +265,33 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 sb.append(sql).append(",");
             }
             sb.setCharAt(sb.length() - 1, ';');
-            results.add(executeUpdate(sb.toString()));
+            int rowsInserted = executeUpdate(sb.toString());
             // clear batch and re-add insert into
+            int[] results = new int[batch.size()];
+            if (rowsInserted == batch.size()) {
+                // each batch is effectively 1 row inserted.
+                Arrays.fill(results, 1);
+            } else {
+                // we do not have information what rows are not inserted.
+                // this should happen only with async insert when we do not wait final result
+                Arrays.fill(results, PreparedStatement.SUCCESS_NO_INFO);
+            }
             batch.clear();
-            return results.stream().mapToInt(i -> i).toArray();
+            return results;
         } else {
             // run executeBatch
             return super.executeBatch();
         }
+    }
+
+    @Override
+    public long[] executeLargeBatch() throws SQLException {
+        int[] results = executeBatch();
+        long[] longResults = new long[results.length];
+        for (int i = 0; i < results.length; i++) {
+            longResults[i] = results[i];
+        }
+        return longResults;
     }
 
     @Override
@@ -523,8 +543,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public long executeLargeUpdate() throws SQLException {
-        checkClosed();
-        return PreparedStatement.super.executeLargeUpdate();
+        return executeUpdate();
     }
 
     private static String encodeObject(Object x) throws SQLException {
