@@ -7,8 +7,8 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,13 +29,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
     ConnectionImpl connection;
-    private int queryTimeout;
+    protected int queryTimeout;
     protected boolean closed;
     protected ResultSetImpl currentResultSet;
-    private OperationMetrics metrics;
+    protected OperationMetrics metrics;
     protected List<String> batch;
     private String lastSql;
-    private volatile String lastQueryId;
+    protected volatile String lastQueryId;
     private String schema;
     private int maxRows;
     public StatementImpl(ConnectionImpl connection) throws SQLException {
@@ -55,7 +55,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    protected enum StatementType {
+    enum StatementType {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
@@ -164,7 +164,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    public ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
+    private ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
@@ -351,7 +351,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         StatementType type = parseStatementType(sql);
 
         if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
-            executeQuery(sql, settings); // keep open to allow getResultSet()
+            currentResultSet = executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
             executeUpdate(sql, settings);
@@ -382,7 +382,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             this.schema = tokens.get(1).replace("\"", "");
-            LOG.info("Changed statement schema " + schema);
+            LOG.debug("Changed statement schema {}", schema);
             return false;
         } else {
             executeUpdate(sql, settings);
@@ -468,12 +468,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public int[] executeBatch() throws SQLException {
+        return executeBatchImpl().stream().mapToInt(i -> i).toArray();
+    }
+
+    private List<Integer> executeBatchImpl() throws SQLException {
         checkClosed();
         List<Integer> results = new ArrayList<>();
         for (String sql : batch) {
             results.add(executeUpdate(sql));
         }
-        return results.stream().mapToInt(i -> i).toArray();
+        return results;
     }
 
     @Override
@@ -572,7 +576,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public long[] executeLargeBatch() throws SQLException {
         checkClosed();
-        return Statement.super.executeLargeBatch();
+        return executeBatchImpl().stream().mapToLong(Integer::longValue).toArray();
     }
 
     @Override

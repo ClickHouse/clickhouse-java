@@ -15,6 +15,7 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.GregorianCalendar;
+import java.util.Random;
 import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
@@ -564,7 +565,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2299` (`id` Nullable(String), `name` Nullable(String), `age` Int32) ENGINE Memory;");
             }
 
-            Assert.assertEquals(ps.parameters.length, 3);
+            Assert.assertEquals(ps.getParametersCount(), 3);
 
             ps.setString(1, "testId");
             ps.setString(2, "testName");
@@ -572,12 +573,51 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             ps.execute();
 
             ps.clearParameters();
-            Assert.assertEquals(ps.parameters.length, 3);
+            Assert.assertEquals(ps.getParametersCount(), 3);
 
             ps.setString(1, "testId2");
             ps.setString(2, "testName2");
             ps.setInt(3, 19);
             ps.execute();
+        }
+    }
+
+    @Test
+    void testBatchInsert() throws Exception {
+        String table = "test_batch";
+        Random rnd = new Random();
+        try (Connection conn = getJdbcConnection()) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
+                        " ( v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            String[] sql = new String[]{
+                    "INSERT  INTO \n `%s` \nVALUES (?, multiply(?, 10), ?)", // only string possible
+                    "INSERT  INTO\n `%s` \nVALUES (?, ?, ?)", // row binary writer
+            };
+            Class<?>[] impl = new Class<?>[]{
+                    PreparedStatementImpl.class,
+                    WriterStatementImpl.class,
+            };
+
+            for (int i = 0; i < sql.length; i++) {
+                try (PreparedStatement stmt = conn.prepareStatement(String.format(sql[i], table))) {
+                    Assert.assertEquals(stmt.getClass(), impl[i]);
+                    for (int j = 0; j < 10; j++) {
+                        stmt.setInt(1, rnd.nextInt());
+                        stmt.setFloat(2, rnd.nextFloat());
+                        stmt.setInt(3, rnd.nextInt());
+                        stmt.addBatch();
+                    }
+
+                    int[] result = stmt.executeBatch();
+                    for (int r : result) {
+                        Assert.assertEquals(r, 1);
+                    }
+                }
+            }
         }
     }
 }

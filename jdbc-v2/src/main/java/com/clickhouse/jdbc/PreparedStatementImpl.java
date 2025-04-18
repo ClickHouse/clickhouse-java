@@ -44,11 +44,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -61,23 +63,33 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private final Calendar defaultCalendar;
 
-    String originalSql;
-    String [] sqlSegments;
-    String [] valueSegments;
-    Object [] parameters;
-    String insertIntoSQL;
-    StatementType statementType;
+    // common fields
+    private final String originalSql;
+    private final String [] sqlSegments;
+    private final Object [] parameters;
+    private final StatementType statementType;
+
+    // insert
+    private String [] valueSegments;
+    private String insertIntoSQL;
 
     private final ParameterMetaData parameterMetaData;
 
     private ResultSetMetaData resultSetMetaData = null;
 
-    public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
+    // Detects if any of the arguments is withing function parameters
+    static final Pattern FUNC_DETECT_REGEXP = Pattern.compile(
+            "\\b(?!values?\\b)[A-Za-z_]\\w*\\([^)]*\\?[^)]*\\)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern VALUES_PARAMETER_SPLIT = Pattern.compile("\\?(?=(?:[^']*'[^']*')*[^']*$)");
+
+    public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementType statementType) throws SQLException {
         super(connection);
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = splitStatement(originalSql);
-        this.statementType = parseStatementType(originalSql);
+        this.statementType = statementType;
 
         if (this.statementType == StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
@@ -216,11 +228,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        if (originalSql.contains("?")) {
-            this.parameters = new Object[sqlSegments.length - 1];
-        } else {
-            this.parameters = new Object[0];
-        }
+        Arrays.fill(parameters, null);
+    }
+
+    int getParametersCount() {
+        return parameters.length;
     }
 
     @Override
@@ -245,6 +257,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void addBatch() throws SQLException {
         checkClosed();
         if (statementType == StatementType.INSERT) {
+            // adding values to the end of big INSERT statement.
             addBatch(compileSql(valueSegments));
         } else {
             addBatch(compileSql(sqlSegments));
@@ -256,7 +269,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public int[] executeBatch() throws SQLException {
         checkClosed();
         if (statementType == StatementType.INSERT && !batch.isEmpty()) {
-            List<Integer> results = new ArrayList<>();
             // write insert into as batch to avoid multiple requests
             StringBuilder sb = new StringBuilder();
             sb.append(insertIntoSQL).append(" ");
@@ -264,10 +276,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 sb.append(sql).append(",");
             }
             sb.setCharAt(sb.length() - 1, ';');
-            results.add(executeUpdate(sb.toString()));
+            int rowsInserted = executeUpdate(sb.toString());
             // clear batch and re-add insert into
+            int[] results = new int[batch.size()];
+            if (rowsInserted == batch.size()) {
+                // each batch is effectively 1 row inserted.
+                Arrays.fill(results, 1);
+            } else {
+                // we do not have information what rows are not inserted.
+                // this should happen only with async insert when we do not wait final result
+                Arrays.fill(results, PreparedStatement.SUCCESS_NO_INFO);
+            }
             batch.clear();
-            return results.stream().mapToInt(i -> i).toArray();
+            return results;
         } else {
             // run executeBatch
             return super.executeBatch();
@@ -340,33 +361,43 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
+    }
+
+    protected Instant sqlDateToInstant(Date x, Calendar cal) {
         LocalDate d = x.toLocalDate();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
+        return c.toInstant();
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
+    }
 
+    protected Instant sqlTimeToInstant(Time x, Calendar cal) {
         LocalTime t = x.toLocalTime();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(1970, Calendar.JANUARY, 1, t.getHour(), t.getMinute(), t.getSecond());
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
+        return c.toInstant();
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
+    }
 
+    protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
         LocalDateTime ldt = x.toLocalDateTime();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos()));
+        return c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos());
     }
 
     @Override

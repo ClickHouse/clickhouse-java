@@ -359,7 +359,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
-        return new PreparedStatementImpl(this, sql);
+
+        StatementImpl.StatementType statementType = StatementImpl.parseStatementType(sql);
+        if (statementType == StatementImpl.StatementType.INSERT) {
+            if (!PreparedStatementImpl.FUNC_DETECT_REGEXP.matcher(sql).find()) {
+                return new WriterStatementImpl(this, sql, statementType);
+            }
+        }
+        return new PreparedStatementImpl(this, sql, statementType);
     }
 
     @Override
