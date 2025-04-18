@@ -92,7 +92,7 @@ public class BenchmarkBase {
         @Param({"data_empty"})
         String tableNameEmpty;
 
-        static DataSet dataSet;
+        DataSet dataSet;
 
         ByteBuffer datasetAsRowBinaryWithNamesAndTypes;
 
@@ -118,7 +118,7 @@ public class BenchmarkBase {
             this.tableNameEmpty = tableNameEmpty;
         }
 
-        public static DataSet getDataSet() {
+        public DataSet getDataSet() {
             return dataSet;
         }
 
