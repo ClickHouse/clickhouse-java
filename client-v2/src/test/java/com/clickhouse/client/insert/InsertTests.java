@@ -705,6 +705,33 @@ public class InsertTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertSimplePOJOsWithMaterializeColumn() throws Exception {
+        String tableName = "simple_pojo_table_with_materialize_column";
+        String createSQL = SimplePOJO.generateTableCreateSQL(tableName);
+        String uuid = UUID.randomUUID().toString();
+
+        initTable(tableName, createSQL);
+
+        client.register(SimplePOJO.class, client.getTableSchema(tableName));
+        List<Object> simplePOJOs = new ArrayList<>();
+
+        for (int i = 0; i < 1000; i++) {
+            simplePOJOs.add(new SimplePOJO());
+        }
+        settings.setQueryId(uuid);
+        InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals(simplePOJOs.size(), metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
+        assertEquals(simplePOJOs.size(), response.getWrittenRows());
+        assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+        assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
+        assertEquals(metrics.getQueryId(), uuid);
+        assertEquals(response.getQueryId(), uuid);
+    }
+
+
     protected void initTable(String tableName, String createTableSQL) throws Exception {
         initTable(tableName, createTableSQL, new CommandSettings());
     }
