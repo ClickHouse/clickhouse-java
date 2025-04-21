@@ -555,6 +555,51 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test
+    public void testWriterWithMaterialize() throws Exception {
+        String tableName = "table_name_with_materialize";
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1," +
+                "  name_lower String MATERIALIZED lower(name)" +
+                "  ) Engine = MergeTree ORDER by (name)";
+
+        initTable(tableName, tableCreate);
+
+        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
+        Object[][] rows = new Object[][] {
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
+                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null},
+                {"foo4", 0.8f, 0.5f, null, null, null},
+        };
+
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            for (Object[] row : rows) {
+                for (int i = 0; i < row.length; i++) {
+                    w.setValue(i + 1, row[i]);
+                }
+                w.commitRow();
+            }
+        }, format, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    @Test
     public void testCollectionInsert() throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
