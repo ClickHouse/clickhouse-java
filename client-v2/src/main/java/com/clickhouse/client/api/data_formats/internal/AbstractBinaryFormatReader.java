@@ -99,6 +99,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      * @throws IOException
      */
     public boolean readToPOJO(Map<String, POJOSetter> deserializers, Object obj ) throws IOException {
+        if (columns == null || columns.length == 0) {
+            return false;
+        }
+
         boolean firstColumn = true;
 
         for (ClickHouseColumn column : columns) {
@@ -135,6 +139,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      * @throws IOException
      */
     public boolean readRecord(Map<String, Object> record) throws IOException {
+        if (columns == null || columns.length == 0) {
+            return false;
+        }
+
         boolean firstColumn = true;
         for (ClickHouseColumn column : columns) {
             try {
@@ -157,6 +165,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     protected boolean readRecord(Object[] record) throws IOException {
+        if (columns == null || columns.length == 0) {
+            return false;
+        }
+
         boolean firstColumn = true;
         for (int i = 0; i < columns.length; i++) {
             try {

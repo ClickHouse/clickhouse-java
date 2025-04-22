@@ -1,6 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
@@ -57,8 +56,8 @@ public class ConcurrentInsertClient extends BenchmarkBase {
             return String.format("%s_%s", "concurrent_data_empty", id);
         }
         @Setup(Level.Trial)
-        public void setup() {
-            DataSet dataSet = DataState.getDataSet();
+        public void setup(DataState dataState) {
+            DataSet dataSet = dataState.getDataSet();
             String tableName = createTableName();
             LOGGER.warn("setup create table name: " + tableName);
             // create table

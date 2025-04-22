@@ -86,6 +86,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementType statementType) throws SQLException {
         super(connection);
+        this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
         this.sqlSegments = splitStatement(originalSql);
@@ -228,7 +229,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        Arrays.fill(parameters, null);
+        Arrays.fill(this.parameters, null);
     }
 
     int getParametersCount() {
@@ -262,7 +263,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         } else {
             addBatch(compileSql(sqlSegments));
         }
-
     }
 
     @Override
@@ -293,6 +293,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             // run executeBatch
             return super.executeBatch();
         }
+    }
+
+    @Override
+    public long[] executeLargeBatch() throws SQLException {
+        int[] results = executeBatch();
+        long[] longResults = new long[results.length];
+        for (int i = 0; i < results.length; i++) {
+            longResults[i] = results[i];
+        }
+        return longResults;
     }
 
     @Override
@@ -554,8 +564,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public long executeLargeUpdate() throws SQLException {
-        checkClosed();
-        return PreparedStatement.super.executeLargeUpdate();
+        return executeUpdate();
     }
 
     private static String encodeObject(Object x) throws SQLException {

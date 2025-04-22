@@ -1,3 +1,24 @@
+## 0.8.4
+
+### Examples
+- [jdbc-v2] - JPA example added. (https://github.com/ClickHouse/clickhouse-java/pull/2301)
+
+### Bug Fixes
+- [jdbc-v2] Added implementation of `ResultSetMetaData.getColumnClassName()` to return information 
+about class name of the value stored in a result. (https://github.com/ClickHouse/clickhouse-java/issues/2112)
+- [client-v2] Fixed NPE when `Client.queryAll` used with `INSERT` statement because internally `columns` variable
+was accessed and was null. (https://github.com/ClickHouse/clickhouse-java/issues/2150)
+- [jdbc-v2] Fixed NPE when `ssl=true` was passed via an connection URL. (https://github.com/ClickHouse/clickhouse-java/issues/2206)
+- [jdbc-v2] Fixed sending correct driver version. Problem occurs because context classloader had no access to 
+a resource file with versions. (https://github.com/ClickHouse/clickhouse-java/issues/2245)
+- [jdbc-v2] Fixed incorrect flag for Array values when reading result set. (https://github.com/ClickHouse/clickhouse-java/issues/2266)
+- [jdbc-v2] Fixed parsing parameters in PreparedStatement for cases when '?' is within quotes or similar. (https://github.com/ClickHouse/clickhouse-java/issues/2290)
+- [jdbc-v2] Added implementation for `com.clickhouse.jdbc.PreparedStatementImpl#getMetaData`. 
+Complete metadata is returned only after statement execution. Partial metadata is returned before execution
+of the statement. (https://github.com/ClickHouse/clickhouse-java/issues/2292)
+- [jdbc-v2] Fixed `clearParameters` in `PreparedStatementImpl` to correctly reset parameters array. (https://github.com/ClickHouse/clickhouse-java/issues/2299)
+- [jdbc-v2] Fixed logging. (https://github.com/ClickHouse/clickhouse-java/pull/2303)
+
 ## 0.8.3
 
 ### Improvements

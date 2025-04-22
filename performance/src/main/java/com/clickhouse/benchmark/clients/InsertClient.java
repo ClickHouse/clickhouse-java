@@ -1,6 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -155,8 +154,9 @@ public class InsertClient extends BenchmarkBase {
     @Benchmark
     public void insertV2RowBinary(DataState dataState) {
         try {
+            final ClickHouseFormat format = ClickHouseFormat.RowBinary;
             try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
-                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), ClickHouseFormat.RowBinary);
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), format);
                 for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
                     int index = 1;
                     for (Object value : row) {
@@ -167,7 +167,7 @@ public class InsertClient extends BenchmarkBase {
                 }
                 out.flush();
 
-            }, ClickHouseFormat.RowBinaryWithDefaults, new InsertSettings()).get()) {
+            }, format, new InsertSettings()).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {

@@ -82,7 +82,9 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
         List<ClickHouseColumn> columnList = tableSchema.getColumns();
         for (int i = 0; i < row.length; i++) {
             ClickHouseColumn column = columnList.get(i);
-
+            // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
+            if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
+                continue;
             if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
                 SerializerUtils.serializeData(out, row[i], column);
             }
