@@ -36,6 +36,7 @@ import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 
@@ -677,9 +678,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSimpleAggregateFunction() throws SQLException {
-        runQuery("CREATE TABLE test_aggregate (order Int8, "
-                + "int8 Int8"
-                + ") ENGINE = MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE test_aggregate (order Int8," +
+                " int8 Int8," +
+                " val SimpleAggregateFunction(any, Nullable(Int8))" +
+                ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -688,9 +690,9 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         int int8 = rand.nextInt(256) - 128;
 
-        insertData(String.format("INSERT INTO test_aggregate VALUES ( 1, %d )", int8));
-        insertData(String.format("INSERT INTO test_aggregate VALUES ( 2, %d )", int8));
-        insertData(String.format("INSERT INTO test_aggregate VALUES ( 3, %d )", int8));
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 1, %d, null )", int8));
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 2, %d, null )", int8));
+        insertData(String.format("INSERT INTO test_aggregate VALUES ( 3, %d, null )", int8));
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -698,6 +700,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT sum(int8) FROM test_aggregate")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getInt(1), int8 * 3);
+                }
+                try (ResultSet rs = stmt.executeQuery("SELECT any(val) FROM test_aggregate")) {
+                    assertTrue(rs.next());
+                    assertNull(rs.getObject(1));
+                    assertTrue(rs.wasNull());
                 }
             }
         }
