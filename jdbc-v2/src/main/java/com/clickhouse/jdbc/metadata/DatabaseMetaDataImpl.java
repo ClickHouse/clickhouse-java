@@ -1087,62 +1087,52 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean ownUpdatesAreVisible(int type) throws SQLException {
-        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean ownDeletesAreVisible(int type) throws SQLException {
-        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean ownInsertsAreVisible(int type) throws SQLException {
-        // TODO: should be true
         return false;
     }
 
     @Override
     public boolean othersUpdatesAreVisible(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean othersDeletesAreVisible(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean othersInsertsAreVisible(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean updatesAreDetected(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean deletesAreDetected(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean insertsAreDetected(int type) throws SQLException {
-        // TODO: should be checked
         return false;
     }
 
     @Override
     public boolean supportsBatchUpdates() throws SQLException {
-        // TODO: should be checked
-        return false;
+        return true;
     }
 
     @Override
