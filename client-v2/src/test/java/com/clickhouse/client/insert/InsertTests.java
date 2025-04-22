@@ -555,6 +555,54 @@ public class InsertTests extends BaseIntegrationTest {
     }
 
     @Test
+    public void testWriterWithMaterialize() throws Exception {
+        String tableName = "table_name_with_materialize";
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (name String, " +
+                "  v1 Float32, " +
+                "  v2 Float32, " +
+                "  attrs Nullable(String), " +
+                "  corrected_time DateTime('UTC') DEFAULT now()," +
+                "  special_attr Nullable(Int8) DEFAULT -1," +
+                "  name_lower String MATERIALIZED lower(name)," +
+                "  name_lower_alias String ALIAS lower(name)," +
+                "  unhexed String EPHEMERAL," +
+                "  hexed FixedString(4) DEFAULT unhex(unhexed)" +
+                "  ) Engine = MergeTree ORDER by (name)";
+
+        initTable(tableName, tableCreate);
+
+        ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
+        Object[][] rows = new Object[][] {
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10, "Z��"},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null, "Z��"},
+                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null, "Z��"},
+                {"foo4", 0.8f, 0.5f, null, null, null, "Z��"},
+        };
+
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            for (Object[] row : rows) {
+                for (int i = 0; i < row.length; i++) {
+                    w.setValue(i + 1, row[i]);
+                }
+                w.commitRow();
+            }
+        }, format, new InsertSettings()).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
+
+        for (GenericRecord record : records) {
+            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
+        }
+    }
+
+    @Test
     public void testCollectionInsert() throws Exception {
         String tableName = "very_long_table_name_with_uuid_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
@@ -704,6 +752,33 @@ public class InsertTests extends BaseIntegrationTest {
             }
         }
     }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertSimplePOJOsWithMaterializeColumn() throws Exception {
+        String tableName = "simple_pojo_table_with_materialize_column";
+        String createSQL = SimplePOJO.generateTableCreateSQL(tableName);
+        String uuid = UUID.randomUUID().toString();
+
+        initTable(tableName, createSQL);
+
+        client.register(SimplePOJO.class, client.getTableSchema(tableName));
+        List<Object> simplePOJOs = new ArrayList<>();
+
+        for (int i = 0; i < 1000; i++) {
+            simplePOJOs.add(new SimplePOJO());
+        }
+        settings.setQueryId(uuid);
+        InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        OperationMetrics metrics = response.getMetrics();
+        assertEquals(simplePOJOs.size(), metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong());
+        assertEquals(simplePOJOs.size(), response.getWrittenRows());
+        assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+        assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
+        assertEquals(metrics.getQueryId(), uuid);
+        assertEquals(response.getQueryId(), uuid);
+    }
+
 
     protected void initTable(String tableName, String createTableSQL) throws Exception {
         initTable(tableName, createTableSQL, new CommandSettings());

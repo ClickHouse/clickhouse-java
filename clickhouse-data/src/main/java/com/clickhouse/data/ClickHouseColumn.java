@@ -106,6 +106,21 @@ public final class ClickHouseColumn implements Serializable {
     private Map<Class<?>, Integer> mapKeyToVariantOrdNumMap;
     private Map<Class<?>, Integer> mapValueToVariantOrdNumMap;
 
+    public enum DefaultValue {
+        DEFAULT("Default"),
+        MATERIALIZED("MATERIALIZED"),
+        EPHEMERAL("EPHEMERAL"),
+        ALIAS("ALIAS");
+
+        public final String defaultValue;
+
+        DefaultValue(String defaultValue) {
+            this.defaultValue = defaultValue;
+        }
+    }
+
+    private DefaultValue defaultValue;
+    private String defaultExpression;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
@@ -852,6 +867,14 @@ public final class ClickHouseColumn implements Serializable {
     public void setHasDefault(boolean hasDefault) {
         this.hasDefault = hasDefault;
     }
+
+    public void setDefaultValue(DefaultValue defaultValue) { this.defaultValue = defaultValue; }
+
+    public DefaultValue getDefaultValue() { return defaultValue; }
+
+    public void setDefaultExpression(String defaultExpression) { this.defaultExpression = defaultExpression; }
+
+    public String getDefaultExpression() { return defaultExpression; }
 
     public boolean isLowCardinality() {
         return !lowCardinalityDisabled && lowCardinality;

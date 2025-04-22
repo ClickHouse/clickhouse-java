@@ -25,7 +25,13 @@ public class TableSchemaParser {
                     p.load(new StringReader(line.replaceAll("\t", "\n")));
                     ClickHouseColumn column = ClickHouseColumn.of(p.getProperty("name"), p.getProperty("type"));
                     String defaultType = p.getProperty("default_type");
+                    String defaultExpression = p.getProperty("default_expression");
                     column.setHasDefault(defaultType != null && !defaultType.isEmpty());
+                    if ( column.hasDefault() ) {
+                        column.setDefaultValue(ClickHouseColumn.DefaultValue.valueOf(defaultType));
+                        if ( defaultExpression != null && !defaultExpression.isEmpty() )
+                            column.setDefaultExpression(defaultExpression);
+                    }
                     columns.add(column);
                 }
             }

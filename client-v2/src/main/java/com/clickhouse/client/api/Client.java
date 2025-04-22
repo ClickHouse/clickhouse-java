@@ -1340,6 +1340,9 @@ public class Client implements AutoCloseable {
                 .getOrDefault(tableName, Collections.emptyMap());
         List<POJOSerializer> serializersForTable = new ArrayList<>();
         for (ClickHouseColumn column : tableSchema.getColumns()) {
+            if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT ) {
+                continue;
+            }
             POJOSerializer serializer = classSerializers.get(column.getColumnName());
             if (serializer == null) {
                 throw new IllegalArgumentException("No serializer found for column '" + column.getColumnName() + "'. Did you forget to register it?");
