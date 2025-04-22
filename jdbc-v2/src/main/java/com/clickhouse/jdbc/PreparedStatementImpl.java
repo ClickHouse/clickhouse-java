@@ -77,7 +77,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private ResultSetMetaData resultSetMetaData = null;
 
-    // Detects if any of the arguments is withing function parameters
+    // Detects if any of the arguments is within function parameters
     static final Pattern FUNC_DETECT_REGEXP = Pattern.compile(
             "\\b(?!values?\\b)[A-Za-z_]\\w*\\([^)]*\\?[^)]*\\)",
             Pattern.CASE_INSENSITIVE);
