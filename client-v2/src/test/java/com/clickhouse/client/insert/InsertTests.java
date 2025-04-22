@@ -564,17 +564,20 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1," +
-                "  name_lower String MATERIALIZED lower(name)" +
+                "  name_lower String MATERIALIZED lower(name)," +
+                "  name_lower_alias String ALIAS lower(name)," +
+                "  unhexed String EPHEMERAL," +
+                "  hexed FixedString(4) DEFAULT unhex(unhexed)" +
                 "  ) Engine = MergeTree ORDER by (name)";
 
         initTable(tableName, tableCreate);
 
         ZonedDateTime correctedTime = Instant.now().atZone(ZoneId.of("UTC"));
         Object[][] rows = new Object[][] {
-                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10},
-                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null},
-                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null},
-                {"foo4", 0.8f, 0.5f, null, null, null},
+                {"foo1", 0.3f, 0.6f, "a=1,b=2,c=5", correctedTime, 10, "Z��"},
+                {"foo2", 0.6f, 0.1f, "a=1,b=2,c=5", correctedTime, null, "Z��"},
+                {"foo3", 0.7f, 0.4f, "a=1,b=2,c=5", null, null, "Z��"},
+                {"foo4", 0.8f, 0.5f, null, null, null, "Z��"},
         };
 
         TableSchema schema = client.getTableSchema(tableName);
