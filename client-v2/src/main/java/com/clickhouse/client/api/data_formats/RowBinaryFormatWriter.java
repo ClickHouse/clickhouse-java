@@ -6,7 +6,9 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
@@ -35,6 +37,8 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     private final boolean defaultSupport;
 
     private int rowCount = 0;
+
+    private boolean rowStarted = false; // indicates if at least one value was written to a row
 
     public RowBinaryFormatWriter(OutputStream out, TableSchema tableSchema, ClickHouseFormat format) {
         if (format != ClickHouseFormat.RowBinary && format != ClickHouseFormat.RowBinaryWithDefaults) {
@@ -65,6 +69,7 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     @Override
     public void clearRow() {
         Arrays.fill(row, null);
+        rowStarted = false;
     }
 
     @Override
@@ -75,21 +80,27 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     @Override
     public void setValue(int colIndex, Object value) {
         row[colIndex - 1] = value;
+        if (!rowStarted) {
+            rowStarted = true;
+        }
     }
 
     @Override
     public void commitRow() throws IOException {
-        List<ClickHouseColumn> columnList = tableSchema.getColumns();
-        for (int i = 0; i < row.length; i++) {
-            ClickHouseColumn column = columnList.get(i);
-            // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
-            if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
-                continue;
-            if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
-                SerializerUtils.serializeData(out, row[i], column);
+        if (rowStarted) {
+            List<ClickHouseColumn> columnList = tableSchema.getColumns();
+            for (int i = 0; i < row.length; i++) {
+                ClickHouseColumn column = columnList.get(i);
+                // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
+                if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
+                    continue;
+                if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
+                    SerializerUtils.serializeData(out, row[i], column);
+                }
             }
+            clearRow();
+            rowCount++;
         }
-        rowCount++;
     }
 
     @Override
@@ -230,5 +241,43 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     @Override
     public void setList(int colIndex, List<?> value) {
         setValue(colIndex, value);
+    }
+
+    @Override
+    public void setInputStream(int colIndex, InputStream in, long len) {
+        setValue(colIndex, new InputStreamHolder(in, len));
+    }
+
+    @Override
+    public void setInputStream(String column, InputStream in, long len) {
+        setValue(column, new InputStreamHolder(in, len));
+    }
+
+    @Override
+    public void setReader(int colIndex, Reader reader, long len) {
+        setValue(colIndex, new ReaderHolder(reader, len));
+    }
+
+    @Override
+    public void setReader(String column, Reader reader, long len) {
+        setValue(column, new ReaderHolder(reader, len));
+    }
+
+    private static class InputStreamHolder {
+        final InputStream stream;
+        final long length;
+        InputStreamHolder(InputStream stream, long length) {
+            this.stream = stream;
+            this.length = length;
+        }
+    }
+
+    private static class ReaderHolder {
+        final Reader read;
+        final long length;
+        ReaderHolder(Reader reader, long length) {
+            this.read = reader;
+            this.length = length;
+        }
     }
 }

@@ -9,6 +9,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.StatementParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,69 +57,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    enum StatementType {
-        SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
-    }
-
-    public static StatementType parseStatementType(String sql) {
-        if (sql == null) {
-            return StatementType.OTHER;
-        }
-
-        String trimmedSql = sql.trim();
-        if (trimmedSql.isEmpty()) {
-            return StatementType.OTHER;
-        }
-
-        trimmedSql = BLOCK_COMMENT.matcher(trimmedSql).replaceAll("").trim(); // remove comments
-        String[] lines = trimmedSql.split("\n");
-        for (String line : lines) {
-            String trimmedLine = line.trim();
-            //https://clickhouse.com/docs/en/sql-reference/syntax#comments
-            if (!trimmedLine.startsWith("--") && !trimmedLine.startsWith("#!") && !trimmedLine.startsWith("#")) {
-                String[] tokens = trimmedLine.split("\\s+");
-                if (tokens.length == 0) {
-                    continue;
-                }
-
-                switch (tokens[0].toUpperCase()) {
-                    case "SELECT": return StatementType.SELECT;
-                    case "WITH": return StatementType.SELECT;
-                    case "INSERT":
-                        for (String token : tokens) {
-                            if (token.equalsIgnoreCase("SELECT")) {
-                                return StatementType.INSERT_INTO_SELECT;
-                            }
-                        }
-                        return StatementType.INSERT;
-                    case "DELETE": return StatementType.DELETE;
-                    case "UPDATE": return StatementType.UPDATE;
-                    case "CREATE": return StatementType.CREATE;
-                    case "DROP": return StatementType.DROP;
-                    case "ALTER": return StatementType.ALTER;
-                    case "TRUNCATE": return StatementType.TRUNCATE;
-                    case "USE": return StatementType.USE;
-                    case "SHOW": return StatementType.SHOW;
-                    case "DESCRIBE": return StatementType.DESCRIBE;
-                    case "EXPLAIN": return StatementType.EXPLAIN;
-                    case "SET": return StatementType.SET;
-                    case "KILL": return StatementType.KILL;
-                    default: return StatementType.OTHER;
-                }
-            }
-        }
-
-        return StatementType.OTHER;
-    }
-
-    protected static String parseTableName(String sql) {
-        String[] tokens = sql.trim().split("\\s+");
-        if (tokens.length < 3) {
-            return null;
-        }
-
-        return tokens[2];
-    }
 
     protected static String parseJdbcEscapeSyntax(String sql) {
         LOG.trace("Original SQL: {}", sql);
@@ -219,8 +157,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
         // TODO: close current result set?
         checkClosed();
-        StatementType type = parseStatementType(sql);
-        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
+        StatementParser.StatementType type = StatementParser.parsedStatement(sql).getType();
+        if (type == StatementParser.StatementType.SELECT || type == StatementParser.StatementType.SHOW
+                || type == StatementParser.StatementType.DESCRIBE || type == StatementParser.StatementType.EXPLAIN) {
             throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
 
@@ -349,12 +288,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     public boolean execute(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementType type = parseStatementType(sql);
+        StatementParser.ParsedStatement parsedStatement = StatementParser.parsedStatement(sql);
+        StatementParser.StatementType type = parsedStatement.getType();
 
-        if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
+        if (type == StatementParser.StatementType.SELECT ||
+                type == StatementParser.StatementType.SHOW ||
+                type == StatementParser.StatementType.DESCRIBE ||
+                type == StatementParser.StatementType.EXPLAIN) {
             currentResultSet = executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
-        } else if(type == StatementType.SET) {
+        } else if(type == StatementParser.StatementType.SET) {
             executeUpdate(sql, settings);
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
@@ -378,7 +321,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 }
             }
             return false;
-        } else if (type == StatementType.USE) {
+        } else if (type == StatementParser.StatementType.USE) {
             executeUpdate(sql, settings);
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
@@ -633,6 +576,4 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public String getLastQueryId() {
         return lastQueryId;
     }
-
-    private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 }

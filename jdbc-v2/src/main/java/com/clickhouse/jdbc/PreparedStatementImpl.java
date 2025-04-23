@@ -4,6 +4,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.StatementParser;
 import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.slf4j.Logger;
@@ -67,7 +68,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     private final String originalSql;
     private final String [] sqlSegments;
     private final Object [] parameters;
-    private final StatementType statementType;
+    private final StatementParser.StatementType statementType;
 
     // insert
     private String [] valueSegments;
@@ -84,15 +85,15 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private static final Pattern VALUES_PARAMETER_SPLIT = Pattern.compile("\\?(?=(?:[^']*'[^']*')*[^']*$)");
 
-    public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementType statementType) throws SQLException {
+    public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementParser.ParsedStatement parsedStatement) throws SQLException {
         super(connection);
         this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = splitStatement(originalSql);
-        this.statementType = statementType;
+        this.sqlSegments = parsedStatement.getSqlSegments();
+        this.statementType = parsedStatement.getType();
 
-        if (this.statementType == StatementType.INSERT) {
+        if (this.statementType == StatementParser.StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
             valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
         }
@@ -257,7 +258,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementType.INSERT) {
+        if (statementType == StatementParser.StatementType.INSERT) {
             // adding values to the end of big INSERT statement.
             addBatch(compileSql(valueSegments));
         } else {
@@ -268,7 +269,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementType.INSERT && !batch.isEmpty()) {
+        if (statementType == StatementParser.StatementType.INSERT && !batch.isEmpty()) {
             // write insert into as batch to avoid multiple requests
             StringBuilder sb = new StringBuilder();
             sb.append(insertIntoSQL).append(" ");
@@ -343,7 +344,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         if (resultSetMetaData == null && currentResultSet == null) {
             // before execution
-            if (statementType == StatementType.SELECT) {
+            if (statementType == StatementParser.StatementType.SELECT) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
@@ -689,74 +690,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-
     private static String escapeString(String x) {
         return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
     }
-
-    private static String [] splitStatement(String sql) {
-        List<String> segments = new ArrayList<>();
-        char[] chars = sql.toCharArray();
-        int segmentStart = 0;
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-            if (c == '\'' || c == '"' || c == '`') {
-                // string literal or identifier
-                i = skip(chars, i + 1, c, true);
-            } else if (c == '/' && lookahead(chars, i) == '*') {
-                // block comment
-                int end = sql.indexOf("*/", i);
-                if (end == -1) {
-                    // missing comment end
-                    break;
-                }
-                i = end + 1;
-            } else if (c == '#' || (c == '-' && lookahead(chars, i) == '-')) {
-                // line comment
-                i = skip(chars, i + 1, '\n', false);
-            } else if (c == '?') {
-                // question mark
-                segments.add(sql.substring(segmentStart, i));
-                segmentStart = i + 1;
-            }
-        }
-        if (segmentStart < chars.length) {
-            segments.add(sql.substring(segmentStart));
-        } else {
-            // add empty segment in case question mark was last char of sql
-            segments.add("");
-        }
-        return segments.toArray(new String[0]);
-    }
-
-    private static int skip(char[] chars, int from, char until, boolean escape) {
-        for (int i = from; i < chars.length; i++) {
-            char curr = chars[i];
-            if (escape) {
-                char next = lookahead(chars, i);
-                if ((curr == '\\' && (next == '\\' || next == until)) || (curr == until && next == until)) {
-                    // should skip:
-                    // 1) double \\ (backslash escaped with backslash)
-                    // 2) \[until] ([until] char, escaped with backslash)
-                    // 3) [until][until] ([until] char, escaped with [until])
-                    i++;
-                    continue;
-                }
-            }
-
-            if (curr == until) {
-                return i;
-            }
-        }
-        return chars.length;
-    }
-
-    private static char lookahead(char[] chars, int pos) {
-        pos = pos + 1;
-        if (pos >= chars.length) {
-            return '\0';
-        }
-        return chars[pos];
-    }
-
 }

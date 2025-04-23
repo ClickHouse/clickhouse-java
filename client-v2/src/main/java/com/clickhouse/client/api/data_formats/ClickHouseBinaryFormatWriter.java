@@ -3,9 +3,13 @@ package com.clickhouse.client.api.data_formats;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Clob;
+import java.sql.NClob;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -33,6 +37,11 @@ public interface ClickHouseBinaryFormatWriter {
 
     void setValue(int colIndex, Object value);
 
+    /**
+     * Writer current row or block to the output stream.
+     * Action is idempotent: if there are no new values set - this method has no effect.
+     * @throws IOException if writing to an output stream causes an error
+     */
     void commitRow() throws IOException;
 
     void setByte(String column, byte value);
@@ -91,4 +100,11 @@ public interface ClickHouseBinaryFormatWriter {
 
     void setList(int colIndex, List<?> value);
 
+    void setInputStream(int colIndex, InputStream in, long len);
+
+    void setInputStream(String column, InputStream in, long len);
+
+    void setReader(int colIndex, Reader reader, long len);
+
+    void setReader(String column, Reader reader, long len);
 }

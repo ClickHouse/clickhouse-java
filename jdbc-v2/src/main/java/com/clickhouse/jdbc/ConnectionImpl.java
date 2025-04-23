@@ -3,14 +3,18 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.StatementParser;
 import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
+import com.google.common.collect.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -361,13 +365,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         checkOpen();
 
-        StatementImpl.StatementType statementType = StatementImpl.parseStatementType(sql);
-        if (statementType == StatementImpl.StatementType.INSERT) {
-            if (!PreparedStatementImpl.FUNC_DETECT_REGEXP.matcher(sql).find()) {
-                return new WriterStatementImpl(this, sql, statementType);
+        StatementParser.ParsedStatement parsedStatement = StatementParser.parsePreparedStatement(sql);
+
+        if (config.isBetaFeatureEnabled(DriverProperties.BETA_ROW_BINARY_WRITER)) {
+            if (parsedStatement.getType() == StatementParser.StatementType.INSERT) {
+                if (!parsedStatement.hasColumnList() && !PreparedStatementImpl.FUNC_DETECT_REGEXP.matcher(sql).find()) {
+                    TableSchema tableSchema = client.getTableSchema(parsedStatement.getTableName(), schema);
+                    if (tableSchema.getColumns().size() == parsedStatement.getArgumentCount()) {
+                        return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
+                    }
+                }
             }
         }
-        return new PreparedStatementImpl(this, sql, statementType);
+        return new PreparedStatementImpl(this, sql, parsedStatement);
     }
 
     @Override

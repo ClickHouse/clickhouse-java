@@ -7,7 +7,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.StatementParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -33,6 +33,11 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Implements data streaming through Client Writer API.
+ * See {@link PreparedStatementImpl}
+ *
+ */
 public class WriterStatementImpl extends PreparedStatementImpl implements PreparedStatement {
 
 
@@ -40,17 +45,11 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
 
-    public WriterStatementImpl(ConnectionImpl connection, String originalSql, StatementType statementType)
+    public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema, StatementParser.ParsedStatement parsedStatement)
             throws SQLException {
-        super(connection, originalSql, statementType);
+        super(connection, originalSql, parsedStatement);
 
-        String[] firstThreeTokens = originalSql.split("\\s+", 4);
-        if (firstThreeTokens.length != 4) {
-            throw new SQLException("Invalid or unsupported INSERT statement: " + originalSql);
-        }
-
-        String tableName = JdbcUtils.unQuoteTableName(firstThreeTokens[2]);
-        this.tableSchema = connection.getClient().getTableSchema(tableName, connection.getSchema());
+        this.tableSchema = tableSchema;
         try {
             resetWriter();
         } catch (IOException e) {
@@ -82,6 +81,14 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public long executeLargeUpdate() throws SQLException {
         checkClosed();
+
+        // commit whatever changes
+        try {
+            writer.commitRow();
+        } catch (Exception e) {
+            throw new SQLException(e);
+        }
+
         int updateCount = 0;
         InputStream in = new ByteArrayInputStream(out.toByteArray());
         InsertSettings settings = new InsertSettings();
@@ -277,61 +284,61 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
         checkClosed();
-
-    }
-
-    @Override
-    public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
-
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        checkClosed();
-
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
-
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        checkClosed();
-
-    }
-
-    @Override
-    public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
-
-    }
-
-    @Override
-    public void setNClob(int parameterIndex, NClob x) throws SQLException {
-        checkClosed();
-
+        setClob(parameterIndex, x.getCharacterStream());
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
+        setClob(parameterIndex, x, -1);
+    }
 
+    @Override
+    public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
+        checkClosed();
+        writer.setReader(parameterIndex, x, length);
+    }
+
+    @Override
+    public void setBlob(int parameterIndex, Blob x) throws SQLException {
+        checkClosed();
+        setBlob(parameterIndex, x.getBinaryStream(), x.length());
+    }
+
+    @Override
+    public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
+        checkClosed();
+        writer.setInputStream(parameterIndex, x, length);
+    }
+
+    @Override
+    public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
+        checkClosed();
+        writer.setInputStream(parameterIndex, inputStream, -1);
+    }
+
+    @Override
+    public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
+        checkClosed();
+        writer.setReader(parameterIndex, x, length);
+    }
+
+    @Override
+    public void setNClob(int parameterIndex, NClob x) throws SQLException {
+        checkClosed();
+        setNClob(parameterIndex, x.getCharacterStream(), x.length());
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-
+        setNClob(parameterIndex, x, -1);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
         checkClosed();
-
+        writer.setReader(parameterIndex, x.getCharacterStream(), -1);
     }
 
     @Override
@@ -373,13 +380,13 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
         checkClosed();
-
+        throw new SQLException("ROWID is not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void setNString(int parameterIndex, String value) throws SQLException {
         checkClosed();
-
+        writer.setString(parameterIndex, value);
     }
 
     @Override
