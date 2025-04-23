@@ -591,7 +591,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test
     void testBatchInsert() throws Exception {
         String table = "test_batch";
-        Random rnd = new Random();
+        long seed = System.currentTimeMillis();
+        Random rnd = new Random(seed);
+        System.out.println("testBatchInsert seed" + seed);
         Properties properties = new Properties();
         properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
         try (Connection conn = getJdbcConnection(properties)) {
