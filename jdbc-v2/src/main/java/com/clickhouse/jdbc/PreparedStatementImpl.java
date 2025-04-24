@@ -43,13 +43,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -661,6 +655,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 }
                 tupleString.append(")");
                 return tupleString.toString();
+            } else if (x instanceof UUID) {
+                return "'" + escapeString(((UUID) x).toString()) + "'";
             }
 
             return escapeString(x.toString());//Escape single quotes
