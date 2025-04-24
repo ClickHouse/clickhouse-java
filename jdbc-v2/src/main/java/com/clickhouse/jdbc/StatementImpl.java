@@ -396,8 +396,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             this.schema = tokens.get(1).replace("\"", "");
-            connection.getDefaultQuerySettings().setDatabase(schema);
-            LOG.debug("Changed statement schema {}", schema);
+            connection.setSchema(schema);
+            LOG.debug("Changed statement schema to {}", schema);
             return false;
         } else {
             executeUpdate(sql, settings);
