@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.jdbc.internal.DriverProperties;
-import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -18,7 +17,9 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.Properties;
 import java.util.Random;

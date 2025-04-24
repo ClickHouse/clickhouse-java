@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
@@ -103,7 +102,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    private ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
+    protected ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
@@ -151,12 +150,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdateImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
+        return executeUpdateImpl(sql, StatementParser.parsedStatement(sql).getType(), new QuerySettings().setDatabase(schema));
     }
 
-    protected int executeUpdateImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
+    protected int executeUpdateImpl(String sql, StatementParser.StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementParser.StatementType type = StatementParser.parsedStatement(sql).getType();
+
         if (type == StatementParser.StatementType.SELECT || type == StatementParser.StatementType.SHOW
                 || type == StatementParser.StatementType.DESCRIBE || type == StatementParser.StatementType.EXPLAIN) {
             throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
@@ -282,19 +281,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        return executeImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
+        return executeImpl(sql, StatementParser.parsedStatement(sql).getType(), new QuerySettings().setDatabase(schema));
     }
 
-    public boolean executeImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
+    public boolean executeImpl(String sql, StatementParser.StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementParser.ParsedStatement parsedStatement = StatementParser.parsedStatement(sql);
-        StatementParser.StatementType type = parsedStatement.getType();
-
         if (type == StatementParser.StatementType.SELECT ||
                 type == StatementParser.StatementType.SHOW ||
                 type == StatementParser.StatementType.DESCRIBE ||
                 type == StatementParser.StatementType.EXPLAIN) {
-            currentResultSet = executeQuery(sql, settings); // keep open to allow getResultSet()
+            currentResultSet = executeQueryImpl(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementParser.StatementType.SET) {
             executeUpdateImpl(sql, type, settings);
