@@ -24,7 +24,7 @@ public final class ExceptionUtils {
     public static final String SQL_STATE_INVALID_SCHEMA = "3F000";
     public static final String SQL_STATE_INVALID_TX_STATE = "25000";
     public static final String SQL_STATE_DATA_EXCEPTION = "22000";
-    // Used only when feature is no supported
+    // Used only when feature is not supported
     public static final String SQL_STATE_FEATURE_NOT_SUPPORTED = "0A000";
     // Used only when method is called on wrong object type (for example, PreparedStatement.addBatch(String))
     public static final String SQL_STATE_WRONG_OBJECT_TYPE = "42809";
