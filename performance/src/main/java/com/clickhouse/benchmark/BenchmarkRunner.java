@@ -95,6 +95,8 @@ public class BenchmarkRunner {
         map.put("reader", Deserializers.class.getName());
         map.put("writer", Serializers.class.getName());
         map.put("mixed", MixedWorkload.class.getName());
+        map.put("jq", JDBCQuery.class.getName());
+        map.put("ji", JDBCInsert.class.getName());
         return map;
     }
 

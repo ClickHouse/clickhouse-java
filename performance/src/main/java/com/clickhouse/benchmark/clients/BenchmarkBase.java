@@ -4,18 +4,31 @@ import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.benchmark.data.SyntheticDataSet;
-import com.clickhouse.client.*;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
 import com.clickhouse.jdbc.ClickHouseDriver;
-import org.openjdk.jmh.annotations.*;
+import com.clickhouse.jdbc.internal.DriverProperties;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +43,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-import static com.clickhouse.benchmark.TestEnvironment.*;
+import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
+import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
+import static com.clickhouse.benchmark.TestEnvironment.getPassword;
+import static com.clickhouse.benchmark.TestEnvironment.getServer;
+import static com.clickhouse.benchmark.TestEnvironment.getUsername;
+import static com.clickhouse.benchmark.TestEnvironment.isCloud;
+import static com.clickhouse.benchmark.TestEnvironment.setupEnvironment;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
@@ -264,8 +283,9 @@ public class BenchmarkBase {
 
     protected static Connection getJdbcV1() {
         Properties properties = new Properties();
-        properties.put("user", getUsername());
-        properties.put("password", getPassword());
+        properties.put(ClickHouseDefaults.USER.getKey(), getUsername());
+        properties.put(ClickHouseDefaults.PASSWORD.getKey(), getPassword());
+        properties.put(ClickHouseDefaults.DATABASE.getKey(), DB_NAME);
 
         Connection jdbcV1 = null;
         String jdbcURL = jdbcURLV1(isCloud());
@@ -280,8 +300,10 @@ public class BenchmarkBase {
 
     protected static Connection getJdbcV2() {
         Properties properties = new Properties();
-        properties.put("user", getUsername());
-        properties.put("password", getPassword());
+        properties.put(ClientConfigProperties.USER.getKey(), getUsername());
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), getPassword());
+        properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.put(ClientConfigProperties.DATABASE.getKey(), DB_NAME);
 
         Connection jdbcV2 = null;
         String jdbcURL = jdbcURLV2(isCloud());
