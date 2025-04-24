@@ -590,7 +590,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 for (Object item : (Collection<?>) x) {
                     listString.append(encodeObject(item)).append(", ");
                 }
-                listString.delete(listString.length() - 2, listString.length());
+                if (listString.length() > 1) {
+                    listString.delete(listString.length() - 2, listString.length());
+                }
                 listString.append("]");
 
                 return listString.toString();
