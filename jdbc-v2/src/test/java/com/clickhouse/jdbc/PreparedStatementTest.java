@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -11,6 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.*;
@@ -627,5 +629,40 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
 
+    }
+
+    @Test
+    void testMethodsNotAllowedToBeCalled() throws Exception {
+        /* Story About Broken API
+         * There is a Statement interface. It is designed to operate with single statements.
+         * So there are method like execute(String) and addBatch(String).
+         * Some statements may be repeated over and over again. And they should be constructed
+         * over and over again. PreparedStatement was created to solve the issue by accepting
+         * an SQL statement as constructor parameter and making its method work in context of
+         * one, prepared SQL statement.
+         * But someone missed their OOP classes and done this:
+         *   "interface PreparedStatement extends Statement"
+         * and
+         *  declared some method from Statement interface not to be called on PreparedStatement
+         * instances.
+         * That is how today we have a great confusion and have to check it in all implementations.
+         */
+        String sql = "SELECT number FROM system.numbers WHERE number = ?";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            Assert.assertThrows(SQLException.class, () -> ps.addBatch(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeQuery(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeQueryImpl(sql, null));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new String[]{""}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql, new String[]{""}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new String[]{""}));
+        }
     }
 }
