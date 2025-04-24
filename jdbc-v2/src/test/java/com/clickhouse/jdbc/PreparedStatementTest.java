@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -12,6 +13,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -653,7 +655,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    void testWriteCollection() throws Exception {
+    void testWriteUUID() throws Exception {
         String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";
         try (Connection conn = getJdbcConnection();
              PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
@@ -673,5 +675,67 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
 
+    }
+
+    @Test(groups = {"integration"})
+    void testWriteCollection() throws Exception {
+        String sql = "insert into `test_issue_2329` (`id`, `name`, `age`, `arr`) values (?, ?, ?, ?)";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2329` (`id` Nullable(String), `name` Nullable(String), `age` Int32, `arr` Array(String)) ENGINE Memory;");
+            }
+
+            Assert.assertEquals(ps.getParametersCount(), 4);
+            Collection<String> arr = new ArrayList<String>();
+            ps.setString(1, "testId01");
+            ps.setString(2, "testName");
+            ps.setInt(3, 18);
+            ps.setObject(4, arr);
+            ps.execute();
+
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2329`");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+        }
+
+    }
+
+    @Test
+    void testMethodsNotAllowedToBeCalled() throws Exception {
+        /* Story About Broken API
+         * There is a Statement interface. It is designed to operate with single statements.
+         * So there are method like execute(String) and addBatch(String).
+         * Some statements may be repeated over and over again. And they should be constructed
+         * over and over again. PreparedStatement was created to solve the issue by accepting
+         * an SQL statement as constructor parameter and making its method work in context of
+         * one, prepared SQL statement.
+         * But someone missed their OOP classes and done this:
+         *   "interface PreparedStatement extends Statement"
+         * and
+         *  declared some method from Statement interface not to be called on PreparedStatement
+         * instances.
+         * That is how today we have a great confusion and have to check it in all implementations.
+         */
+        String sql = "SELECT number FROM system.numbers WHERE number = ?";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            Assert.assertThrows(SQLException.class, () -> ps.addBatch(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeQuery(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeQueryImpl(sql, null));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new String[]{""}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate(sql, new String[]{""}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new int[]{0}));
+            Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new String[]{""}));
+        }
     }
 }

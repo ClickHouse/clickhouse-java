@@ -86,7 +86,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
-        return executeQuery(sql, new QuerySettings().setDatabase(schema));
+        return executeQueryImpl(sql, new QuerySettings().setDatabase(schema));
     }
 
     private void closePreviousResultSet() {
@@ -103,7 +103,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    private ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
+    private ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
@@ -151,11 +151,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdate(sql, new QuerySettings().setDatabase(schema));
+        return executeUpdateImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
     }
 
-    public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
-        // TODO: close current result set?
+    protected int executeUpdateImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
         StatementParser.StatementType type = StatementParser.parsedStatement(sql).getType();
         if (type == StatementParser.StatementType.SELECT || type == StatementParser.StatementType.SHOW
@@ -283,10 +282,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        return execute(sql, new QuerySettings().setDatabase(schema));
+        return executeImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
     }
 
-    public boolean execute(String sql, QuerySettings settings) throws SQLException {
+    public boolean executeImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
         StatementParser.ParsedStatement parsedStatement = StatementParser.parsedStatement(sql);
         StatementParser.StatementType type = parsedStatement.getType();
@@ -298,7 +297,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             currentResultSet = executeQuery(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementParser.StatementType.SET) {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
@@ -322,14 +321,14 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             return false;
         } else if (type == StatementParser.StatementType.USE) {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             this.schema = tokens.get(1).replace("\"", "");
             LOG.debug("Changed statement schema {}", schema);
             return false;
         } else {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             return false;
         }
     }
