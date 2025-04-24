@@ -628,4 +628,31 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
 
     }
+
+    @Test(groups = {"integration"})
+    void testWriteArrayOfPrimitives() throws Exception {
+        String sql = "insert into `test_array_primitives` (`id`, `arr_short`, `arr_int`, `arr_long`) values (?, ?, ?, ?)";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_array_primitives` (`id` String, `arr_short` Array(Int16), `arr_int` Array(Int32), `arr_long` Array(Int64)) ENGINE Memory;");
+            }
+            short[] arrShort = new short[] { 1, 2, 3 };
+            int[] arrInt = new int[] { 1, 2, 3, 4 };
+            short[] arrLong = new short[] { 1, 2, 3, 4, 5 };
+            ps.setString(1, "testId01");
+            ps.setObject(2, arrShort);
+            ps.setObject(3, arrInt);
+            ps.setObject(4, arrLong);
+            ps.execute();
+
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_array_primitives`");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+        }
+
+    }
 }

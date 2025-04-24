@@ -657,8 +657,21 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return tupleString.toString();
             } else if (x instanceof UUID) {
                 return "'" + escapeString(((UUID) x).toString()) + "'";
+            } else if (x.getClass().isArray()) {
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.append("[");
+                int length = java.lang.reflect.Array.getLength(x);
+                for (int i = 0; i < length; i++) {
+                    Object element = java.lang.reflect.Array.get(x, i); // auto-boxes primitive
+                    if (i > 0) {
+                        arrayString.append(", ");
+                    }
+                    arrayString.append(encodeObject(element));
+                    i++;
+                }
+                arrayString.append("]");
+                return arrayString.toString();
             }
-
             return escapeString(x.toString());//Escape single quotes
         } catch (Exception e) {
             LOG.error("Error encoding object", e);
