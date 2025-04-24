@@ -16,6 +16,7 @@ import java.sql.Types;
 import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -579,5 +580,28 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             ps.setInt(3, 19);
             ps.execute();
         }
+    }
+
+    @Test(groups = {"integration"})
+    void testWriteCollection() throws Exception {
+        String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2327` (`id` Nullable(String), `uuid` UUID) ENGINE Memory;");
+            }
+            UUID uuid = UUID.randomUUID();
+            ps.setString(1, "testId01");
+            ps.setObject(2, uuid);
+            ps.execute();
+
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2327`");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+        }
+
     }
 }
