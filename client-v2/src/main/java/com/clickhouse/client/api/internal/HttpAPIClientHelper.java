@@ -556,8 +556,13 @@ public class HttpAPIClientHelper {
         Collection<String> sessionRoles = (Collection<String>) requestConfig.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES.getKey(),
                 ClientConfigProperties.valuesFromCommaSeparated(chConfiguration.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES.getKey(), "")));
         if (!sessionRoles.isEmpty()) {
-
             sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
+        }
+
+        String profile = (String) requestConfig.getOrDefault(ClientConfigProperties.PROFILE.getKey(),
+                chConfiguration.getOrDefault(ClientConfigProperties.PROFILE.getKey(), ""));
+        if (!profile.isEmpty()) {
+            req.addParameter(ClientConfigProperties.PROFILE.getKey(), profile);
         }
 
         for (String key : requestConfig.keySet()) {

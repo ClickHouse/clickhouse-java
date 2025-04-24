@@ -608,7 +608,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
                     assertTrue(rs.next());
 
-                    DecimalFormat df = new DecimalFormat("#.########");
+                    DecimalFormat df = new DecimalFormat("#.######");
                     assertEquals(df.format(rs.getObject("float32")), df.format(float32));
                     assertEquals(rs.getObject("float64"), float64);
 
@@ -916,9 +916,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_nested (order Int8, "
                 + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
                 + ") ENGINE = MergeTree ORDER BY ()");
-        runQuery("CREATE TABLE test_nested_not_flatten (order Int8, "
-                + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                + ") ENGINE = MergeTree ORDER BY () SETTINGS flatten_nested = 0");
+
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
         Random rand = new Random(seed);
@@ -935,11 +933,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 int8, int16, int32, int64, int128, int256);
         log.info("SQL: {}", sql);
         insertData(sql);
-
-        String nsql = String.format("INSERT INTO test_nested_not_flatten VALUES ( 1, [(%s,%s,%s,%s,%s,%s)])",
-                int8, int16, int32, int64, int128, int256);
-        log.info("SQL: {}", nsql);
-        insertData(nsql);
 
         // Check the results
         try (Connection conn = getConnection()) {
@@ -958,9 +951,36 @@ public class DataTypeTests extends JdbcIntegrationTest {
             }
         }
 
-        // Check the results
+    }
+
+    @Test(groups = { "integration" })
+    public void testNestedTypeNonFlatten() throws SQLException {
         try (Connection conn = getConnection()) {
             try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET flatten_nested = 0");
+                stmt.execute("CREATE TABLE test_nested_not_flatten (order Int8, "
+                        + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
+                        + ") ENGINE = MergeTree ORDER BY ()");
+                // Insert random (valid) values
+                long seed = System.currentTimeMillis();
+                Random rand = new Random(seed);
+                log.info("Random seed was: {}", seed);
+
+                int int8 = rand.nextInt(256) - 128;
+                int int16 = rand.nextInt(65536) - 32768;
+                int int32 = rand.nextInt();
+                long int64 = rand.nextLong();
+                BigInteger int128 = new BigInteger(127, rand);
+                BigInteger int256 = new BigInteger(255, rand);
+
+
+                String nsql = String.format("INSERT INTO test_nested_not_flatten VALUES ( 1, [(%s,%s,%s,%s,%s,%s)])",
+                        int8, int16, int32, int64, int128, int256);
+                log.info("SQL: {}", nsql);
+                stmt.executeUpdate(nsql);
+
+                // Check the results
+
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_nested_not_flatten ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals((Object[])((Object[])((java.sql.Array) rs.getObject("nested")).getArray())[0],

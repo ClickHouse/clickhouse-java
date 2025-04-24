@@ -2190,6 +2190,10 @@ public class Client implements AutoCloseable {
                         this.configuration.get(ClientConfigProperties.SESSION_DB_ROLES.getKey())));
     }
 
+    public void setProfile(String name) {
+        this.configuration.put(ClientConfigProperties.PROFILE.getKey(), name);
+    }
+
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
