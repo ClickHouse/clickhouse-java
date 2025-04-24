@@ -44,9 +44,8 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Int16, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.UInt16, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.Int32, JDBCType.INTEGER);
-        map.put(ClickHouseDataType.UInt32, JDBCType.INTEGER);
+        map.put(ClickHouseDataType.UInt32, JDBCType.BIGINT);
         map.put(ClickHouseDataType.Int64, JDBCType.BIGINT);
-        map.put(ClickHouseDataType.UInt64, JDBCType.BIGINT);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
         map.put(ClickHouseDataType.Bool, JDBCType.BOOLEAN);
