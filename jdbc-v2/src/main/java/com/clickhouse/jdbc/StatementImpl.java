@@ -188,6 +188,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
+            LOG.debug("SQL Query: {}", lastSql);
             QueryResponse response;
             if (queryTimeout == 0) {
                 response = connection.client.query(lastSql, mergedSettings).get();
@@ -238,6 +239,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         lastSql = parseJdbcEscapeSyntax(sql);
+        LOG.debug("SQL Query: {}", lastSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
                 : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
