@@ -92,7 +92,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         long int64 = rand.nextLong();
         BigInteger int128 = new BigInteger(127, rand);
         BigInteger int256 = new BigInteger(255, rand);
-        int uint8 = rand.nextInt(256);
+        Short uint8 = Integer.valueOf(rand.nextInt(256)).shortValue();
         int uint16 = rand.nextInt(65536);
         long uint32 = rand.nextInt() & 0xFFFFFFFFL;
         BigInteger uint64 = BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE));
@@ -179,7 +179,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("int64"), -9223372036854775808L);
                     assertEquals(rs.getObject("int128"), new BigInteger("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getObject("int256"), new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
-                    assertEquals(rs.getObject("uint8"), 0);
+                    assertEquals(rs.getObject("uint8"), Short.valueOf("0"));
                     assertEquals(rs.getObject("uint16"), 0);
                     assertEquals(rs.getObject("uint32"), 0L);
                     assertEquals(rs.getObject("uint64"), new BigInteger("0"));
@@ -193,7 +193,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("int64"), 9223372036854775807L);
                     assertEquals(rs.getObject("int128"), new BigInteger("170141183460469231731687303715884105727"));
                     assertEquals(rs.getObject("int256"), new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
-                    assertEquals(rs.getObject("uint8"), 255);
+                    assertEquals(rs.getObject("uint8"), Short.valueOf("255"));
                     assertEquals(rs.getObject("uint16"), 65535);
                     assertEquals(rs.getObject("uint32"), 4294967295L);
                     assertEquals(rs.getObject("uint64"), new BigInteger("18446744073709551615"));

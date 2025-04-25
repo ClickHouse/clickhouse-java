@@ -40,11 +40,8 @@ public class JdbcUtils {
     private static Map<ClickHouseDataType, SQLType> generateTypeMap() {
         Map<ClickHouseDataType, SQLType> map = new TreeMap<>(); // TreeMap is used to sort the keys in natural order so FixedString will be before String :-) (type match should be more accurate)
         map.put(ClickHouseDataType.Int8, JDBCType.TINYINT);
-        map.put(ClickHouseDataType.UInt8, JDBCType.TINYINT);
         map.put(ClickHouseDataType.Int16, JDBCType.SMALLINT);
-        map.put(ClickHouseDataType.UInt16, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.Int32, JDBCType.INTEGER);
-        map.put(ClickHouseDataType.UInt32, JDBCType.BIGINT);
         map.put(ClickHouseDataType.Int64, JDBCType.BIGINT);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
