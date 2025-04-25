@@ -373,19 +373,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         connection.client.setDBRoles(roles);
                     }
                 }
-
-            } else if (JdbcUtils.containsIgnoresCase(tokens, "=")){
-                String key = tokens.get(1);
-                String value = tokens.get(3).replace("'", "");
-                //SET profile
-                if (key.equals("profile")) {
-                    connection.client.setProfile(value);
-                    LOG.debug("Set profile to {}", value);
-                } else {
-                    //SET session settings
-                    connection.getDefaultQuerySettings().serverSetting(key, value);
-                    LOG.debug("Set session server setting {} to {}", key, value);
-                }
             }
             return false;
         } else if (type == StatementType.USE) {

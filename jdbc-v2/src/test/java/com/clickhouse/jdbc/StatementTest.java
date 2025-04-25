@@ -412,33 +412,6 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
-    public void testSetStatement() throws SQLException {
-        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-
-                stmt.execute("SET session_timezone = 'Europe/Berlin'");
-                try (ResultSet rs = stmt.executeQuery("SELECT timezone()")){
-                    assertTrue(rs.next());
-                    assertEquals(rs.getString(1),"Europe/Berlin");
-                    assertFalse(rs.next());
-                }
-                stmt.execute("SET network_compression_method = 'GZIP'");
-                try (ResultSet rs = stmt.executeQuery("SELECT getSetting('network_compression_method')")){
-                    assertTrue(rs.next());
-                    assertEquals(rs.getString(1),"GZIP");
-                    assertFalse(rs.next());
-                }
-                stmt.execute("SET profile = 'readonly'");
-                try (ResultSet rs = stmt.executeQuery("SELECT currentProfiles()")){
-                    assertTrue(rs.next());
-                    assertEquals(((Object[]) rs.getArray(1).getArray())[0],"readonly");
-                    assertFalse(rs.next());
-                }
-            }
-        }
-    }
-
     @Test
     public void testGettingArrays() throws Exception {
         try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection();

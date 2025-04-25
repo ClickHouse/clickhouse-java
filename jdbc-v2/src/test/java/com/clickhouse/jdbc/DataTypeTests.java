@@ -955,12 +955,15 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testNestedTypeNonFlatten() throws SQLException {
+        if (earlierThan(25,1)){
+            return;
+        }
         try (Connection conn = getConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET flatten_nested = 0");
                 stmt.execute("CREATE TABLE test_nested_not_flatten (order Int8, "
                         + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                        + ") ENGINE = MergeTree ORDER BY ()");
+                        + ") ENGINE = MergeTree ORDER BY () SETTINGS flatten_nested = 0");
                 // Insert random (valid) values
                 long seed = System.currentTimeMillis();
                 Random rand = new Random(seed);
