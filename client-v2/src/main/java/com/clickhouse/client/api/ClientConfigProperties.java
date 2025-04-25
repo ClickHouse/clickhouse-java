@@ -38,6 +38,8 @@ public enum ClientConfigProperties {
 
     USE_TIMEZONE("use_time_zone"),
 
+    SERVER_VERSION("server_version"),
+
     SERVER_TIMEZONE("server_time_zone"),
 
     ASYNC_OPERATIONS("async"),

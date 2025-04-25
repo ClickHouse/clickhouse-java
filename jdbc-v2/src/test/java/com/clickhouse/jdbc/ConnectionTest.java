@@ -2,12 +2,9 @@ package com.clickhouse.jdbc;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Properties;
+import java.util.*;
 
 import java.util.Properties;
-import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -552,6 +549,22 @@ public class ConnectionTest extends JdbcIntegrationTest {
              ResultSet rs = stmt.executeQuery("SELECT 1")) {
              Assert.assertTrue(rs.next());
         }
+    }
+    @Test(groups = { "integration" })
+    public void testDisableExtraCallToServer() throws Exception {
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), "GMT");
+        properties.put(ClientConfigProperties.SERVER_VERSION.getKey(), "1.0.0");
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1")) {
+             Assert.assertTrue(rs.next());
+             ConnectionImpl connImpl = (ConnectionImpl) conn;
+
+             Assert.assertEquals(connImpl.getClient().getServerVersion(), "1.0.0");
+             Assert.assertEquals(connImpl.getClient().getServerTimeZone(), "GMT");
+        }
+
     }
 
 }

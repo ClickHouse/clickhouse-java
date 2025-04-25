@@ -192,16 +192,24 @@ public class Client implements AutoCloseable {
      *
      */
     public void loadServerInfo() {
-        try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
-            try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
-                if (reader.next() != null) {
-                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
-                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
-                    serverVersion = reader.getString("version");
+        // only if 2 properties are set disable retrieval from server
+        if (!this.configuration.containsKey(ClientConfigProperties.SERVER_TIMEZONE.getKey()) && !this.configuration.containsKey(ClientConfigProperties.SERVER_VERSION.getKey())) {
+            try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
+                try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
+                    if (reader.next() != null) {
+                        this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
+                        this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                        serverVersion = reader.getString("version");
+                    }
                 }
+            } catch (Exception e) {
+                throw new ClientException("Failed to get server info", e);
             }
-        } catch (Exception e) {
-            throw new ClientException("Failed to get server info", e);
+        } else {
+            LOG.info("Using server version " + this.configuration.get(ClientConfigProperties.SERVER_VERSION.getKey()) + " and timezone " + this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey()) );
+            if (this.configuration.containsKey(ClientConfigProperties.SERVER_VERSION.getKey())) {
+                serverVersion = this.configuration.get(ClientConfigProperties.SERVER_VERSION.getKey());
+            }
         }
     }
 
@@ -988,6 +996,17 @@ public class Client implements AutoCloseable {
         public Builder registerClientMetrics(Object registry, String name) {
             this.metricRegistry = registry;
             this.configuration.put(ClientConfigProperties.METRICS_GROUP_NAME.getKey(), name);
+            return this;
+        }
+
+        /**
+         * Sets server version that the client is interacting with.
+         *
+         * @param serverVersion - ClickHouse server version
+         * @return same instance of the builder
+         */
+        public Builder setServerVersion(String serverVersion) {
+            this.configuration.put(ClientConfigProperties.SERVER_VERSION.getKey(), serverVersion);
             return this;
         }
 
@@ -2172,6 +2191,10 @@ public class Client implements AutoCloseable {
 
     public String getServerVersion() {
         return this.serverVersion;
+    }
+
+    public String getServerTimeZone() {
+        return this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
     }
 
     public String getClientVersion() {

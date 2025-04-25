@@ -56,7 +56,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    protected enum StatementType {
+    public enum StatementType {
         SELECT, INSERT, DELETE, UPDATE, CREATE, DROP, ALTER, TRUNCATE, USE, SHOW, DESCRIBE, EXPLAIN, SET, KILL, OTHER, INSERT_INTO_SELECT
     }
 
@@ -148,7 +148,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
-        return executeQuery(sql, new QuerySettings().setDatabase(schema));
+        return executeQueryImpl(sql, new QuerySettings().setDatabase(schema));
     }
 
     private void closePreviousResultSet() {
@@ -165,7 +165,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-    public ResultSetImpl executeQuery(String sql, QuerySettings settings) throws SQLException {
+    public ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
@@ -213,13 +213,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdate(sql, new QuerySettings().setDatabase(schema));
+        return executeUpdateImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
     }
 
-    public int executeUpdate(String sql, QuerySettings settings) throws SQLException {
-        // TODO: close current result set?
+    protected int executeUpdateImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementType type = parseStatementType(sql);
+
         if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
             throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
         }
@@ -344,18 +343,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        return execute(sql, new QuerySettings().setDatabase(schema));
+        return executeImpl(sql, parseStatementType(sql), new QuerySettings().setDatabase(schema));
     }
 
-    public boolean execute(String sql, QuerySettings settings) throws SQLException {
+    public boolean executeImpl(String sql, StatementType type, QuerySettings settings) throws SQLException {
         checkClosed();
-        StatementType type = parseStatementType(sql);
-
         if (type == StatementType.SELECT || type == StatementType.SHOW || type == StatementType.DESCRIBE || type == StatementType.EXPLAIN) {
-            executeQuery(sql, settings); // keep open to allow getResultSet()
+            executeQueryImpl(sql, settings); // keep open to allow getResultSet()
             return true;
         } else if(type == StatementType.SET) {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             //SET ROLE
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
@@ -392,7 +389,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             return false;
         } else if (type == StatementType.USE) {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             this.schema = tokens.get(1).replace("\"", "");
@@ -400,7 +397,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             LOG.debug("Changed statement schema to {}", schema);
             return false;
         } else {
-            executeUpdate(sql, settings);
+            executeUpdateImpl(sql, type, settings);
             return false;
         }
     }
