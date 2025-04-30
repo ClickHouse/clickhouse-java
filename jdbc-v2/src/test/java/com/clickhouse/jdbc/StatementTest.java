@@ -433,35 +433,6 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
-    public void testWithComments() throws Exception {
-        assertEquals(StatementImpl.parseStatementType("    /* INSERT TESTING */\n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("/* SELECT TESTING */\n INSERT INTO test_table VALUES (1)"), StatementImpl.StatementType.INSERT);
-        assertEquals(StatementImpl.parseStatementType("/* INSERT TESTING */\n\n\n UPDATE test_table SET num = 2"), StatementImpl.StatementType.UPDATE);
-        assertEquals(StatementImpl.parseStatementType("-- INSERT TESTING */\n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("     -- SELECT TESTING \n -- SELECT AGAIN \n INSERT INTO test_table VALUES (1)"), StatementImpl.StatementType.INSERT);
-        assertEquals(StatementImpl.parseStatementType(" SELECT 42    -- INSERT TESTING"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("#! INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("#!INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("# INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("#INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("\nINSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.INSERT);
-        assertEquals(StatementImpl.parseStatementType("         \n          INSERT TESTING \n SELECT 1 AS num"), StatementImpl.StatementType.INSERT);
-        assertEquals(StatementImpl.parseStatementType("select 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType("insert into test_table values (1)"), StatementImpl.StatementType.INSERT);
-        assertEquals(StatementImpl.parseStatementType("update test_table set num = 2"), StatementImpl.StatementType.UPDATE);
-        assertEquals(StatementImpl.parseStatementType("delete from test_table where num = 2"), StatementImpl.StatementType.DELETE);
-        assertEquals(StatementImpl.parseStatementType("sElEcT 1 AS num"), StatementImpl.StatementType.SELECT);
-        assertEquals(StatementImpl.parseStatementType(null), StatementImpl.StatementType.OTHER);
-        assertEquals(StatementImpl.parseStatementType(""), StatementImpl.StatementType.OTHER);
-        assertEquals(StatementImpl.parseStatementType("      "), StatementImpl.StatementType.OTHER);
-    }
-
-    @Test(groups = { "integration" })
-    public void testParseStatementWithClause() throws Exception {
-        assertEquals(StatementImpl.parseStatementType("with data as (SELECT number FROM numbers(100)) select * from data"), StatementImpl.StatementType.SELECT);
-    }
-
 
     @Test(groups = { "integration" })
     public void testWithIPs() throws Exception {

@@ -22,7 +22,16 @@ public enum DriverProperties {
      * query settings to be passed along with query operation.
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */
-    DEFAULT_QUERY_SETTINGS("default_query_settings", null);
+    DEFAULT_QUERY_SETTINGS("default_query_settings", null),
+
+    /**
+     * Enables row binary writer for simple insert statements when
+     * PreparedStatement is used. Has limitation and can be used with a simple form of insert like;
+     * {@code INSERT INTO t VALUES (?, ?, ?...)}
+     */
+    BETA_ROW_BINARY_WRITER("beta.row_binary_for_simple_insert", "false"),
+
+    ;
     private final String key;
 
     private final String defaultValue;

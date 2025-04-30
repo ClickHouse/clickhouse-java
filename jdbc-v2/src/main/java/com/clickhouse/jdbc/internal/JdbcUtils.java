@@ -281,6 +281,19 @@ public class JdbcUtils {
                 .replace("\"", "\\\"");
     }
 
+    private static Pattern UNQUOTE_TABLE_NAME = Pattern.compile(
+            "^[\\\"`]?(.+?)[\\\"`]?$"
+    );
+
+    public static String unQuoteTableName(String str) {
+        Matcher matcher = UNQUOTE_TABLE_NAME.matcher(str.trim());
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return str;
+        }
+    }
+
     public static final String NULL = "NULL";
 
     private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");

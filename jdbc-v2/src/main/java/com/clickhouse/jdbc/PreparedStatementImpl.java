@@ -8,6 +8,7 @@ import com.clickhouse.jdbc.internal.ClickHouseLexer;
 import com.clickhouse.jdbc.internal.ClickHouseParser;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.StatementParser;
 import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.antlr.v4.runtime.CharStreams;
@@ -50,6 +51,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -62,26 +64,36 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private final Calendar defaultCalendar;
 
+    // common fields
     private final String originalSql;
     private final String [] sqlSegments;
-    private String [] valueSegments;
     private final Object [] parameters;
+    private final StatementParser.StatementType statementType;
+
+    // insert
+    private String [] valueSegments;
     private String insertIntoSQL;
-    private final StatementType statementType;
 
     private final ParameterMetaData parameterMetaData;
 
     private ResultSetMetaData resultSetMetaData = null;
 
-    public PreparedStatementImpl(ConnectionImpl connection, String sql) throws SQLException {
+    // Detects if any of the arguments is within function parameters
+    static final Pattern FUNC_DETECT_REGEXP = Pattern.compile(
+            "\\b(?!values?\\b)[A-Za-z_]\\w*\\([^)]*\\?[^)]*\\)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern VALUES_PARAMETER_SPLIT = Pattern.compile("\\?(?=(?:[^']*'[^']*')*[^']*$)");
+
+    public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementParser.ParsedStatement parsedStatement) throws SQLException {
         super(connection);
         this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
         //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = splitStatement(originalSql);
-        this.statementType = parseStatementType(originalSql);
+        this.sqlSegments = parsedStatement.getSqlSegments();
+        this.statementType = parsedStatement.getType();
 
-        if (this.statementType == StatementType.INSERT) {
+        if (this.statementType == StatementParser.StatementType.INSERT) {
             insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
             valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
         }
@@ -248,7 +260,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementType.INSERT) {
+        if (statementType == StatementParser.StatementType.INSERT) {
             // adding values to the end of big INSERT statement.
             super.addBatch(compileSql(valueSegments));
         } else {
@@ -259,7 +271,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementType.INSERT && !batch.isEmpty()) {
+        if (statementType == StatementParser.StatementType.INSERT && !batch.isEmpty()) {
             // write insert into as batch to avoid multiple requests
             StringBuilder sb = new StringBuilder();
             sb.append(insertIntoSQL).append(" ");
@@ -339,7 +351,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         if (resultSetMetaData == null && currentResultSet == null) {
             // before execution
-            if (statementType == StatementType.SELECT) {
+            if (statementType == StatementParser.StatementType.SELECT) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
@@ -367,33 +379,43 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
+    }
+
+    protected Instant sqlDateToInstant(Date x, Calendar cal) {
         LocalDate d = x.toLocalDate();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
+        return c.toInstant();
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
+    }
 
+    protected Instant sqlTimeToInstant(Time x, Calendar cal) {
         LocalTime t = x.toLocalTime();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(1970, Calendar.JANUARY, 1, t.getHour(), t.getMinute(), t.getSecond());
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant());
+        return c.toInstant();
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         checkClosed();
+        parameters[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
+    }
 
+    protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
         LocalDateTime ldt = x.toLocalDateTime();
         Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
         c.clear();
         c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-        parameters[parameterIndex - 1] = encodeObject(c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos()));
+        return c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos());
     }
 
     @Override
@@ -792,74 +814,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-
     private static String escapeString(String x) {
         return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
     }
-
-    private static String [] splitStatement(String sql) {
-        List<String> segments = new ArrayList<>();
-        char[] chars = sql.toCharArray();
-        int segmentStart = 0;
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-            if (c == '\'' || c == '"' || c == '`') {
-                // string literal or identifier
-                i = skip(chars, i + 1, c, true);
-            } else if (c == '/' && lookahead(chars, i) == '*') {
-                // block comment
-                int end = sql.indexOf("*/", i);
-                if (end == -1) {
-                    // missing comment end
-                    break;
-                }
-                i = end + 1;
-            } else if (c == '#' || (c == '-' && lookahead(chars, i) == '-')) {
-                // line comment
-                i = skip(chars, i + 1, '\n', false);
-            } else if (c == '?') {
-                // question mark
-                segments.add(sql.substring(segmentStart, i));
-                segmentStart = i + 1;
-            }
-        }
-        if (segmentStart < chars.length) {
-            segments.add(sql.substring(segmentStart));
-        } else {
-            // add empty segment in case question mark was last char of sql
-            segments.add("");
-        }
-        return segments.toArray(new String[0]);
-    }
-
-    private static int skip(char[] chars, int from, char until, boolean escape) {
-        for (int i = from; i < chars.length; i++) {
-            char curr = chars[i];
-            if (escape) {
-                char next = lookahead(chars, i);
-                if ((curr == '\\' && (next == '\\' || next == until)) || (curr == until && next == until)) {
-                    // should skip:
-                    // 1) double \\ (backslash escaped with backslash)
-                    // 2) \[until] ([until] char, escaped with backslash)
-                    // 3) [until][until] ([until] char, escaped with [until])
-                    i++;
-                    continue;
-                }
-            }
-
-            if (curr == until) {
-                return i;
-            }
-        }
-        return chars.length;
-    }
-
-    private static char lookahead(char[] chars, int pos) {
-        pos = pos + 1;
-        if (pos >= chars.length) {
-            return '\0';
-        }
-        return chars[pos];
-    }
-
 }

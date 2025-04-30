@@ -43,4 +43,5 @@ Other options:
   - "writer" - Serializer - serialization only logic benchmarks
   - "reader" - DeSerilalizer - deserialization only logic benchmarks
   - "mixed" - MixedWorkload 
-    
+  - "jq" - JDBCQuery - query operations using JDBC 
+  - "ji" - JDBCInsert - insert operation using JDBC
