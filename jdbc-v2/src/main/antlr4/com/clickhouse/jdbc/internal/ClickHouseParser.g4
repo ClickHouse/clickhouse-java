@@ -29,6 +29,7 @@ query
     | renameStmt   // DDL
     | selectUnionStmt
     | setStmt
+    | setRoleStmt
     | showStmt
     | systemStmt
     | truncateStmt // DDL
@@ -519,6 +520,16 @@ winFrameBound
 
 setStmt
     : SET settingExprList
+    ;
+
+// SET ROLE statement
+
+setRoleStmt
+    : SET (DEFAULT)? ROLE setRolesList | NONE | ALL (EXCEPT setRolesList) TO identifier | CURRENT_USER (COMMA identifier | CURRENT_USER)*
+    ;
+
+setRolesList
+    : identifier (COMMA identifier)*
     ;
 
 // SHOW statements

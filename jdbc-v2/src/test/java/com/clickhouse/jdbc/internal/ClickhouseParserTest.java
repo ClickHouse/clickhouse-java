@@ -6,6 +6,7 @@ import org.antlr.v4.runtime.CodePointCharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ErrorNode;
+import org.antlr.v4.runtime.tree.IterativeParseTreeWalker;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.RuleNode;
@@ -73,7 +74,7 @@ public class ClickhouseParserTest {
             }
         };
 
-        ParseTreeWalker.DEFAULT.walk(parserListener, parseTree);
 
+        IterativeParseTreeWalker.DEFAULT.walk(parserListener, parseTree);
     }
 }
