@@ -1,12 +1,17 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.Tuple;
+import com.clickhouse.jdbc.internal.ClickHouseLexer;
+import com.clickhouse.jdbc.internal.ClickHouseParser;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
