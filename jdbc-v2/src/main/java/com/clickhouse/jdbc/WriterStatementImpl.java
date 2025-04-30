@@ -79,6 +79,16 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     }
 
     @Override
+    public boolean getMoreResults() throws SQLException {
+        return false; // no result sets
+    }
+
+    @Override
+    public ResultSet getResultSet() throws SQLException {
+        return null; // no result set
+    }
+
+    @Override
     public long executeLargeUpdate() throws SQLException {
         checkClosed();
 
@@ -268,7 +278,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public boolean execute() throws SQLException {
         executeLargeUpdate();
-        return true;
+        return false; // no result set
     }
 
     @Override
