@@ -234,6 +234,8 @@ public class BinaryStreamReader {
                     return (T) readVariant(actualColumn);
                 case Dynamic:
                     return (T) readValue(actualColumn, typeHint);
+                case Nested:
+                    return convertArray(readNested(actualColumn), typeHint);
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + actualColumn.getDataType());
             }
@@ -783,6 +785,33 @@ public class BinaryStreamReader {
         }
 
         return tuple;
+    }
+
+    /**
+     * Reads a nested into an ArrayValue object.
+     * @param column - column information
+     * @return array value
+     * @throws IOException when IO error occurs
+     */
+    public ArrayValue readNested(ClickHouseColumn column) throws IOException {
+        int len = readVarInt(input);
+        if (len == 0) {
+            return new ArrayValue(Object[].class, 0);
+        }
+
+        ArrayValue array;
+        array = new ArrayValue(Object[].class, len);
+        for (int i = 0; i < len; i++) {
+            int tupleLen = column.getNestedColumns().size();
+            Object[] tuple = new Object[tupleLen];
+            for (int j = 0; j < tupleLen; j++) {
+                tuple[j] = readValue(column.getNestedColumns().get(j));
+            }
+
+            array.set(i, tuple);
+        }
+
+        return array;
     }
 
     public Object readVariant(ClickHouseColumn column) throws IOException {

@@ -13,6 +13,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -21,6 +22,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -90,7 +92,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         long int64 = rand.nextLong();
         BigInteger int128 = new BigInteger(127, rand);
         BigInteger int256 = new BigInteger(255, rand);
-        int uint8 = rand.nextInt(256);
+        Short uint8 = Integer.valueOf(rand.nextInt(256)).shortValue();
         int uint16 = rand.nextInt(65536);
         long uint32 = rand.nextInt() & 0xFFFFFFFFL;
         BigInteger uint64 = BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE));
@@ -165,6 +167,57 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 }
             }
         }
+
+        // Check the with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("int8"), -128);
+                    assertEquals(rs.getObject("int16"), -32768);
+                    assertEquals(rs.getObject("int32"), -2147483648);
+                    assertEquals(rs.getObject("int64"), -9223372036854775808L);
+                    assertEquals(rs.getObject("int128"), new BigInteger("-170141183460469231731687303715884105728"));
+                    assertEquals(rs.getObject("int256"), new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
+                    assertEquals(rs.getObject("uint8"), Short.valueOf("0"));
+                    assertEquals(rs.getObject("uint16"), 0);
+                    assertEquals(rs.getObject("uint32"), 0L);
+                    assertEquals(rs.getObject("uint64"), new BigInteger("0"));
+                    assertEquals(rs.getObject("uint128"), new BigInteger("0"));
+                    assertEquals(rs.getObject("uint256"), new BigInteger("0"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("int8"), 127);
+                    assertEquals(rs.getObject("int16"), 32767);
+                    assertEquals(rs.getObject("int32"), 2147483647);
+                    assertEquals(rs.getObject("int64"), 9223372036854775807L);
+                    assertEquals(rs.getObject("int128"), new BigInteger("170141183460469231731687303715884105727"));
+                    assertEquals(rs.getObject("int256"), new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
+                    assertEquals(rs.getObject("uint8"), Short.valueOf("255"));
+                    assertEquals(rs.getObject("uint16"), 65535);
+                    assertEquals(rs.getObject("uint32"), 4294967295L);
+                    assertEquals(rs.getObject("uint64"), new BigInteger("18446744073709551615"));
+                    assertEquals(rs.getObject("uint128"), new BigInteger("340282366920938463463374607431768211455"));
+                    assertEquals(rs.getObject("uint256"), new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("int8"), int8);
+                    assertEquals(rs.getObject("int16"), int16);
+                    assertEquals(rs.getObject("int32"), int32);
+                    assertEquals(rs.getObject("int64"), int64);
+                    assertEquals(rs.getObject("int128"), int128);
+                    assertEquals(rs.getObject("int256"), int256);
+                    assertEquals(rs.getObject("uint8"), uint8);
+                    assertEquals(rs.getObject("uint16"), uint16);
+                    assertEquals(rs.getObject("uint32"), uint32);
+                    assertEquals(rs.getObject("uint64"), uint64);
+                    assertEquals(rs.getObject("uint128"), uint128);
+                    assertEquals(rs.getObject("uint256"), uint256);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
@@ -228,6 +281,36 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getBigDecimal("dec64"), dec64);
                     assertEquals(rs.getBigDecimal("dec128"), dec128);
                     assertEquals(rs.getBigDecimal("dec256"), dec256);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        // Check the results with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_decimals ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("dec"), new BigDecimal("-9999999.99"));
+                    assertEquals(rs.getObject("dec32"), new BigDecimal("-99999.9999"));
+                    assertEquals(rs.getObject("dec64"), new BigDecimal("-9999999999.99999999"));
+                    assertEquals(rs.getObject("dec128"), new BigDecimal("-99999999999999999999.999999999999999999"));
+                    assertEquals(rs.getObject("dec256"), new BigDecimal("-9999999999999999999999999999999999999999999999999999999999.999999999999999999"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("dec"), new BigDecimal("9999999.99"));
+                    assertEquals(rs.getObject("dec32"), new BigDecimal("99999.9999"));
+                    assertEquals(rs.getObject("dec64"), new BigDecimal("9999999999.99999999"));
+                    assertEquals(rs.getObject("dec128"), new BigDecimal("99999999999999999999.999999999999999999"));
+                    assertEquals(rs.getObject("dec256"), new BigDecimal("9999999999999999999999999999999999999999999999999999999999.999999999999999999"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("dec"), dec);
+                    assertEquals(rs.getObject("dec32"), dec32);
+                    assertEquals(rs.getObject("dec64"), dec64);
+                    assertEquals(rs.getObject("dec128"), dec128);
+                    assertEquals(rs.getObject("dec256"), dec256);
 
                     assertFalse(rs.next());
                 }
@@ -315,6 +398,42 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 }
             }
         }
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date"), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getObject("date32"), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getObject("dateTime").toString(), "1970-01-01 00:00:00.0");
+                    assertEquals(rs.getObject("dateTime32").toString(), "1970-01-01 00:00:00.0");
+                    assertEquals(rs.getObject("dateTime643").toString(), "1970-01-01 00:00:00.0");
+                    assertEquals(rs.getObject("dateTime646").toString(), "1970-01-01 00:00:00.0");
+                    assertEquals(rs.getObject("dateTime649").toString(), "1970-01-01 00:00:00.0");
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date"), Date.valueOf("2149-06-06"));
+                    assertEquals(rs.getObject("date32"), Date.valueOf("2299-12-31"));
+                    assertEquals(rs.getObject("dateTime").toString(), "2106-02-07 06:28:15.0");
+                    assertEquals(rs.getObject("dateTime32").toString(), "2106-02-07 06:28:15.0");
+                    assertEquals(rs.getObject("dateTime643").toString(), "2261-12-31 23:59:59.999");
+                    assertEquals(rs.getObject("dateTime646").toString(), "2261-12-31 23:59:59.999999");
+                    assertEquals(rs.getObject("dateTime649").toString(), "2261-12-31 23:59:59.999999999");
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date").toString(), date.toString());
+                    assertEquals(rs.getObject("date32").toString(), date32.toString());
+                    assertEquals(rs.getObject("dateTime").toString(), dateTime.toString());
+                    assertEquals(rs.getObject("dateTime32").toString(), dateTime32.toString());
+                    assertEquals(rs.getObject("dateTime643").toString(), dateTime643.toString());
+                    assertEquals(rs.getObject("dateTime646").toString(), dateTime646.toString());
+                    assertEquals(rs.getObject("dateTime649").toString(), dateTime649.toString());
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
@@ -364,6 +483,23 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getInt("enum16"), 2);
                     assertEquals(rs.getString("uuid"), uuid);
                     assertEquals(rs.getString("escaped"), escaped);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        // Check the results with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("str"), str);
+                    assertEquals(rs.getObject("fixed"), fixed);
+                    assertEquals(rs.getObject("enum"), "a");
+                    assertEquals(rs.getObject("enum8"), "a");
+                    assertEquals(rs.getObject("enum16"), "b");
+                    assertEquals(rs.getObject("uuid"), UUID.fromString(uuid));
+                    assertEquals(rs.getObject("escaped"), escaped);
                     assertFalse(rs.next());
                 }
             }
@@ -457,6 +593,29 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 }
             }
         }
+
+        // Check the results with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("float32"), -3.402823E38d);
+                    assertEquals(rs.getObject("float64"), Double.valueOf(-1.7976931348623157E308));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("float32"), 3.402823E38d);
+                    assertEquals(rs.getObject("float64"), Double.valueOf(1.7976931348623157E308));
+
+                    assertTrue(rs.next());
+
+                    DecimalFormat df = new DecimalFormat("#.######");
+                    assertEquals(df.format(rs.getObject("float32")), df.format(float32));
+                    assertEquals(rs.getObject("float64"), float64);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
@@ -485,6 +644,18 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_booleans ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getBoolean("bool"), bool);
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        // Check the results with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_booleans ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("bool"), bool);
 
                     assertFalse(rs.next());
                 }
@@ -545,6 +716,35 @@ public class DataTypeTests extends JdbcIntegrationTest {
                         assertEquals(arraystrResult[i], arraystr[i]);
                     }
                     Object[] arraytupleResult = (Object[]) rs.getArray("arraytuple").getArray();
+                    assertEquals(arraytupleResult.length, arraytuple.length);
+                    for (int i = 0; i < arraytuple.length; i++) {
+                        Tuple tuple = arraytuple[i];
+                        Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
+                        assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
+                        assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                    }
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        // Check the results with getObject
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_arrays ORDER BY order")) {
+                    assertTrue(rs.next());
+                    Object[] arrayResult = (Object[]) ((Array) rs.getObject("array")).getArray();
+                    assertEquals(arrayResult.length, array.length);
+                    for (int i = 0; i < array.length; i++) {
+                        assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
+                    }
+
+                    Object[] arraystrResult = (Object[]) ((Array) rs.getObject("arraystr")).getArray();
+                    assertEquals(arraystrResult.length, arraystr.length);
+                    for (int i = 0; i < arraystr.length; i++) {
+                        assertEquals(arraystrResult[i], arraystr[i]);
+                    }
+                    Object[] arraytupleResult = (Object[]) ((Array) rs.getObject("arraytuple")).getArray();
                     assertEquals(arraytupleResult.length, arraytuple.length);
                     for (int i = 0; i < arraytuple.length; i++) {
                         Tuple tuple = arraytuple[i];
@@ -669,7 +869,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_low_cardinality ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getString("lowcardinality"), lowcardinality);
-
+                    assertEquals(rs.getObject("lowcardinality"), lowcardinality);
                     assertFalse(rs.next());
                 }
             }
@@ -700,6 +900,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT sum(int8) FROM test_aggregate")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getInt(1), int8 * 3);
+                    assertEquals(rs.getObject(1), (long) (int8 * 3));
                 }
                 try (ResultSet rs = stmt.executeQuery("SELECT any(val) FROM test_aggregate")) {
                     assertTrue(rs.next());
@@ -744,6 +945,49 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(String.valueOf(((Object[])rs.getArray("nested.int64").getArray())[0]), String.valueOf(int64));
                     assertEquals(String.valueOf(((Object[])rs.getArray("nested.int128").getArray())[0]), String.valueOf(int128));
                     assertEquals(String.valueOf(((Object[])rs.getArray("nested.int256").getArray())[0]), String.valueOf(int256));
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+    }
+
+    @Test(groups = { "integration" })
+    public void testNestedTypeNonFlatten() throws SQLException {
+        if (earlierThan(25,1)){
+            return;
+        }
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET flatten_nested = 0");
+                stmt.execute("CREATE TABLE test_nested_not_flatten (order Int8, "
+                        + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
+                        + ") ENGINE = MergeTree ORDER BY () SETTINGS flatten_nested = 0");
+                // Insert random (valid) values
+                long seed = System.currentTimeMillis();
+                Random rand = new Random(seed);
+                log.info("Random seed was: {}", seed);
+
+                int int8 = rand.nextInt(256) - 128;
+                int int16 = rand.nextInt(65536) - 32768;
+                int int32 = rand.nextInt();
+                long int64 = rand.nextLong();
+                BigInteger int128 = new BigInteger(127, rand);
+                BigInteger int256 = new BigInteger(255, rand);
+
+
+                String nsql = String.format("INSERT INTO test_nested_not_flatten VALUES ( 1, [(%s,%s,%s,%s,%s,%s)])",
+                        int8, int16, int32, int64, int128, int256);
+                log.info("SQL: {}", nsql);
+                stmt.executeUpdate(nsql);
+
+                // Check the results
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_nested_not_flatten ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals((Object[])((Object[])((java.sql.Array) rs.getObject("nested")).getArray())[0],
+                            new Object[] {(byte) int8, (short) int16, int32, int64, int128, int256});
 
                     assertFalse(rs.next());
                 }

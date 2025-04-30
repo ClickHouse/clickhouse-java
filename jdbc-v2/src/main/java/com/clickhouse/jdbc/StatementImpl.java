@@ -125,6 +125,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             lastSql = parseJdbcEscapeSyntax(sql);
+            LOG.debug("SQL Query: {}", lastSql);
             QueryResponse response;
             if (queryTimeout == 0) {
                 response = connection.client.query(lastSql, mergedSettings).get();
@@ -175,6 +176,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         lastSql = parseJdbcEscapeSyntax(sql);
+        LOG.debug("SQL Query: {}", lastSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
                 : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
@@ -321,7 +323,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             //USE Database
             List<String> tokens = JdbcUtils.tokenizeSQL(sql);
             this.schema = tokens.get(1).replace("\"", "");
-            LOG.debug("Changed statement schema {}", schema);
+            connection.setSchema(schema);
+            LOG.debug("Changed statement schema to {}", schema);
             return false;
         } else {
             executeUpdateImpl(sql, type, settings);

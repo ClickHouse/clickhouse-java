@@ -1,3 +1,22 @@
+## 0.8.5
+
+### Improvements
+- [jdbc-v2] Added debug output for final SQL. (https://github.com/ClickHouse/clickhouse-java/issues/2249) 
+
+### Bug Fixes
+- [client-v2] Fixed creating TableSchema for materialized views. It resolves issues with POJO serde. (https://github.com/ClickHouse/clickhouse-java/issues/2118,
+https://github.com/ClickHouse/clickhouse-java/issues/2025)
+- [client-v2, jdbc-v2] Fixed handling `Nullable` inside `SimpleAggregateFunction` columns. (https://github.com/ClickHouse/clickhouse-java/issues/2110)
+- [jdbc-v2] Fixed problem with server info request. It is fetched now when timezone of the server is set. (https://github.com/ClickHouse/clickhouse-java/issues/2191) 
+- [jdbc-v2] Fixed null response for `getIndexInfo()`. Empty Result Set is returned. (https://github.com/ClickHouse/clickhouse-java/issues/2286)
+- [jdbc-v2] Fixed wrong `false` response in `DataBaseMetadata.supportsBatchUpdates()`. Returns `true` now. Please note that 
+no update is supported for result sets. 
+- [jdbc-v2] Fixed handling UUID data type in PreparedStatement. (https://github.com/ClickHouse/clickhouse-java/issues/2327)
+- [jdbc-v2] Fixed unsigned integer type matching. `UInt8`, `UInt16`, `UInt32`, `UInt64`, `UInt128`, `UInt256` are presented as 
+`short`, `int`, `long`, `BigInteger`, `BigInteger`, `BigInteger` correspondingly. SQLType for them is `OTHER` because 
+JDBC (as well as Java) doesn't provide good mapping for unsigned integers. (https://github.com/ClickHouse/clickhouse-java/issues/2333)
+- [jdbc-v2] Disallowed to call method from `Statement` interface on `PreparedStatement` instance according to the JDBC spec. (https://github.com/ClickHouse/clickhouse-java/issues/2339)
+
 ## 0.8.4
 
 ### Examples
@@ -18,6 +37,7 @@ Complete metadata is returned only after statement execution. Partial metadata i
 of the statement. (https://github.com/ClickHouse/clickhouse-java/issues/2292)
 - [jdbc-v2] Fixed `clearParameters` in `PreparedStatementImpl` to correctly reset parameters array. (https://github.com/ClickHouse/clickhouse-java/issues/2299)
 - [jdbc-v2] Fixed logging. (https://github.com/ClickHouse/clickhouse-java/pull/2303)
+- [jdbc-v2] Fixed metadata field `DATA_TYPE` being `String` (https://github.com/ClickHouse/clickhouse-java/issues/2240)
 
 ## 0.8.3
 
