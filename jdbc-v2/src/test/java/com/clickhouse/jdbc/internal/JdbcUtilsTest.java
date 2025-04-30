@@ -59,6 +59,16 @@ public class JdbcUtilsTest {
         }
     }
 
+    @Test
+    public void testUnQuoteTableName() {
+        String[] names = new String[]{"test", "`test name1`", "\"test name 2\""};
+        String[] expected = new String[]{"test", "test name1", "test name 2"};
+
+        for (int i = 0; i < names.length; i++) {
+            assertEquals(JdbcUtils.unQuoteTableName(names[i]), expected[i]);
+        }
+    }
+
     @Test(dataProvider = "testReplaceQuestionMark_dataProvider")
     public void testReplaceQuestionMark(String sql, String result) {
         assertEquals(JdbcUtils.replaceQuestionMarks(sql, "NULL"), result);

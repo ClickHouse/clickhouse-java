@@ -264,4 +264,8 @@ public class JdbcConfiguration {
         return jdbcName.toString();
     }
 
+    public boolean isBetaFeatureEnabled(DriverProperties prop) {
+        String value = driverProperties.getOrDefault(prop.getKey(), prop.getDefaultValue());
+        return Boolean.parseBoolean(value);
+    }
 }
