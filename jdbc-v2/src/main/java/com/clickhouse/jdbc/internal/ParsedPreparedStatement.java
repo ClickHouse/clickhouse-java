@@ -8,7 +8,7 @@ import java.util.List;
  * Parser listener that collects information for prepared statement.
  *
  */
-public class PreparedStatementParserListener extends ClickHouseParserBaseListener {
+public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private String table;
 
@@ -17,6 +17,56 @@ public class PreparedStatementParserListener extends ClickHouseParserBaseListene
     private boolean hasFuncWrappedParameter;
 
     private boolean hasErrors;
+
+    private boolean hasResultSet;
+
+    private boolean insert;
+
+    private int argCount;
+
+    private boolean canStream;
+
+    private String insertTableId;
+
+    public void setHasResultSet(boolean hasResultSet) {
+        this.hasResultSet = hasResultSet;
+    }
+
+    public boolean isHasResultSet() {
+        return hasResultSet;
+    }
+
+    public void setInsert(boolean insert) {
+        this.insert = insert;
+    }
+
+    public boolean isInsert() {
+        return insert;
+    }
+
+    public void setArgCount(int argCount) {
+        this.argCount = argCount;
+    }
+
+    public int getArgCount() {
+        return argCount;
+    }
+
+    public void setCanStream(boolean canStream) {
+        this.canStream = canStream;
+    }
+
+    public boolean isCanStream() {
+        return canStream;
+    }
+
+    public void setInsertTableId(String insertTableId) {
+        this.insertTableId = insertTableId;
+    }
+
+    public String getInsertTableId() {
+        return insertTableId;
+    }
 
     @Override
     public void visitErrorNode(ErrorNode node) {

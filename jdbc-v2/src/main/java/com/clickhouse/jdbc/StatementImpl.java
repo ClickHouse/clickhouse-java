@@ -8,19 +8,16 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.StatementParser;
+import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -28,17 +25,22 @@ import java.util.concurrent.TimeUnit;
 public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
 
+    // Attributes
     ConnectionImpl connection;
     protected int queryTimeout;
+    protected boolean isPoolable = false; // Statement is not poolable by default
+
+    // State
     protected boolean closed;
     protected ResultSetImpl currentResultSet;
     protected OperationMetrics metrics;
     protected List<String> batch;
-    private String lastSql;
+    private String lastStatementSql;
+    protected ParsedStatement parsedStatement;
     protected volatile String lastQueryId;
-    private String schema;
     private int maxRows;
-    protected boolean isPoolable = false; // Statement is not poolable by default
+    protected QuerySettings localSettings;
+
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
         this.queryTimeout = 0;
@@ -46,8 +48,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.currentResultSet = null;
         this.metrics = null;
         this.batch = new ArrayList<>();
-        this.schema = connection.getSchema();// remember DB name
         this.maxRows = 0;
+        this.localSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), new QuerySettings());
     }
 
     protected void checkClosed() throws SQLException {
@@ -78,14 +80,14 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return sql;
     }
 
-    protected String getLastSql() {
-        return lastSql;
+    protected String getLastStatementSql() {
+        return lastStatementSql;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         checkClosed();
-        return executeQueryImpl(sql, new QuerySettings().setDatabase(schema));
+        return executeQueryImpl(sql, localSettings);
     }
 
     private void closePreviousResultSet() {
@@ -104,6 +106,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     protected ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
+
+        // TODO: method should throw exception if no result set returned
+
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
         closePreviousResultSet();
@@ -121,16 +126,15 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             mergedSettings.setQueryId(lastQueryId);
         }
         LOG.debug("Query ID: {}", lastQueryId);
-        mergedSettings.setDatabase(connection.getSchema());
 
         try {
-            lastSql = parseJdbcEscapeSyntax(sql);
-            LOG.debug("SQL Query: {}", lastSql);
+            lastStatementSql = parseJdbcEscapeSyntax(sql);
+            LOG.debug("SQL Query: {}", lastStatementSql);
             QueryResponse response;
             if (queryTimeout == 0) {
-                response = connection.client.query(lastSql, mergedSettings).get();
+                response = connection.client.query(lastStatementSql, mergedSettings).get();
             } else {
-                response = connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                response = connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
 
             if (response.getFormat().isText()) {
@@ -151,17 +155,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
-        return executeUpdateImpl(sql, StatementParser.parsedStatement(sql).getType(), new QuerySettings().setDatabase(schema));
+        parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        int updateCount = executeUpdateImpl(sql, localSettings);
+        postUpdateActions();
+        return updateCount;
     }
 
-    protected int executeUpdateImpl(String sql, StatementParser.StatementType type, QuerySettings settings) throws SQLException {
+    protected int executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
         checkClosed();
 
-        if (type == StatementParser.StatementType.SELECT || type == StatementParser.StatementType.SHOW
-                || type == StatementParser.StatementType.DESCRIBE || type == StatementParser.StatementType.EXPLAIN) {
-            throw new SQLException("executeUpdate() cannot be called with a SELECT/SHOW/DESCRIBE/EXPLAIN statement", ExceptionUtils.SQL_STATE_SQL_ERROR);
-        }
-
+        // TODO: method should throw exception if result set returned
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
         closePreviousResultSet();
@@ -175,11 +178,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             mergedSettings.setQueryId(lastQueryId);
         }
 
-        lastSql = parseJdbcEscapeSyntax(sql);
-        LOG.debug("SQL Query: {}", lastSql);
+        lastStatementSql = parseJdbcEscapeSyntax(sql);
+        LOG.debug("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
-        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastSql, mergedSettings).get()
-                : connection.client.query(lastSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
+        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
+                : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             metrics = response.getMetrics();
@@ -189,6 +192,17 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         return updateCount;
+    }
+
+    protected void postUpdateActions() {
+        if (parsedStatement.getUseDatabase() != null) {
+            this.localSettings.setDatabase(parsedStatement.getUseDatabase());
+        }
+
+        if (parsedStatement.getRoles() != null) {
+            this.connection.getClient().setDBRoles(parsedStatement.getRoles());
+            this.localSettings.setDBRoles(parsedStatement.getRoles());
+        }
     }
 
     @Override
@@ -229,6 +243,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void setMaxRows(int max) throws SQLException {
         checkClosed();
         maxRows = max;
+        if (max > 0) {
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+        } else {
+            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS));
+            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE));
+        }
     }
 
     @Override
@@ -283,51 +304,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkClosed();
-        return executeImpl(sql, StatementParser.parsedStatement(sql).getType(), new QuerySettings().setDatabase(schema));
-    }
-
-    public boolean executeImpl(String sql, StatementParser.StatementType type, QuerySettings settings) throws SQLException {
-        checkClosed();
-        if (type == StatementParser.StatementType.SELECT ||
-                type == StatementParser.StatementType.SHOW ||
-                type == StatementParser.StatementType.DESCRIBE ||
-                type == StatementParser.StatementType.EXPLAIN) {
-            currentResultSet = executeQueryImpl(sql, settings); // keep open to allow getResultSet()
+        parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        if (parsedStatement.isHasResultSet()) {
+            currentResultSet = executeQueryImpl(sql, localSettings); // keep open to allow getResultSet()
             return true;
-        } else if(type == StatementParser.StatementType.SET) {
-            executeUpdateImpl(sql, type, settings);
-            //SET ROLE
-            List<String> tokens = JdbcUtils.tokenizeSQL(sql);
-            if (JdbcUtils.containsIgnoresCase(tokens, "ROLE")) {
-                List<String> roles = new ArrayList<>();
-                int roleIndex = JdbcUtils.indexOfIgnoresCase(tokens, "ROLE");
-                if (roleIndex == 1) {
-                    for (int i = 2; i < tokens.size(); i++) {
-                        String token = tokens.get(i);
-                        String[] roleTokens = token.split(",");
-                        for (String roleToken : roleTokens) {
-                            roles.add(roleToken.replace("\"", ""));//Remove double quotes
-                        }
-                    }
-
-                    if (JdbcUtils.containsIgnoresCase(roles, "NONE")) {
-                        connection.client.setDBRoles(Collections.emptyList());
-                    } else {
-                        connection.client.setDBRoles(roles);
-                    }
-                }
-            }
-            return false;
-        } else if (type == StatementParser.StatementType.USE) {
-            executeUpdateImpl(sql, type, settings);
-            //USE Database
-            List<String> tokens = JdbcUtils.tokenizeSQL(sql);
-            this.schema = tokens.get(1).replace("\"", "");
-            connection.setSchema(schema);
-            LOG.debug("Changed statement schema to {}", schema);
-            return false;
         } else {
-            executeUpdateImpl(sql, type, settings);
+            executeUpdateImpl(sql, localSettings);
+            postUpdateActions();
             return false;
         }
     }
@@ -423,7 +406,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public ConnectionImpl getConnection() throws SQLException {
         return connection;
     }
 

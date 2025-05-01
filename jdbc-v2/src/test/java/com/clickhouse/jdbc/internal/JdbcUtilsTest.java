@@ -60,12 +60,12 @@ public class JdbcUtilsTest {
     }
 
     @Test
-    public void testUnQuoteTableName() {
+    public void testUnquoteIdentifier() {
         String[] names = new String[]{"test", "`test name1`", "\"test name 2\""};
         String[] expected = new String[]{"test", "test name1", "test name 2"};
 
         for (int i = 0; i < names.length; i++) {
-            assertEquals(JdbcUtils.unQuoteTableName(names[i]), expected[i]);
+            assertEquals(JdbcUtils.unquoteIdentifier(names[i]), expected[i]);
         }
     }
 

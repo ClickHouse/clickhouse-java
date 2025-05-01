@@ -7,7 +7,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import com.clickhouse.jdbc.internal.StatementParser;
+import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -45,7 +45,8 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
 
-    public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema, StatementParser.ParsedStatement parsedStatement)
+    public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema,
+                               ParsedPreparedStatement parsedStatement)
             throws SQLException {
         super(connection, originalSql, parsedStatement);
 

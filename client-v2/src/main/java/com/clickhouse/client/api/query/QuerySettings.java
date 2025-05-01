@@ -42,6 +42,11 @@ public class QuerySettings {
         return this;
     }
 
+    public QuerySettings resetOption(String option) {
+        rawSettings.remove(option);
+        return this;
+    }
+
     /**
      * Gets a configuration option.
      *

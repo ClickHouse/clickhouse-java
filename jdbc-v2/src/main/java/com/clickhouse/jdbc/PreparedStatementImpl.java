@@ -1,18 +1,12 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.Tuple;
-import com.clickhouse.jdbc.internal.ClickHouseLexer;
-import com.clickhouse.jdbc.internal.ClickHouseParser;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.StatementParser;
+import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
 import com.clickhouse.jdbc.metadata.ParameterMetaDataImpl;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +44,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -66,67 +66,37 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     // common fields
     private final String originalSql;
-    private final String [] sqlSegments;
-    private final Object [] parameters;
-    private final StatementParser.StatementType statementType;
+    private final Object [] values;
 
-    // insert
-    private String [] valueSegments;
-    private String insertIntoSQL;
 
     private final ParameterMetaData parameterMetaData;
-
     private ResultSetMetaData resultSetMetaData = null;
 
-    // Detects if any of the arguments is within function parameters
-    static final Pattern FUNC_DETECT_REGEXP = Pattern.compile(
-            "\\b(?!values?\\b)[A-Za-z_]\\w*\\([^)]*\\?[^)]*\\)",
-            Pattern.CASE_INSENSITIVE);
-
-    private static final Pattern VALUES_PARAMETER_SPLIT = Pattern.compile("\\?(?=(?:[^']*'[^']*')*[^']*$)");
-
-    public PreparedStatementImpl(ConnectionImpl connection, String sql, StatementParser.ParsedStatement parsedStatement) throws SQLException {
+    public PreparedStatementImpl(ConnectionImpl connection, String sql, ParsedPreparedStatement parsedStatement) throws SQLException {
         super(connection);
         this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
-        //Split the sql string into an array of strings around question mark tokens
-        this.sqlSegments = parsedStatement.getSqlSegments();
-        this.statementType = parsedStatement.getType();
 
-        if (this.statementType == StatementParser.StatementType.INSERT) {
-            insertIntoSQL = originalSql.substring(0, originalSql.indexOf("VALUES") + 6);
-            valueSegments = originalSql.substring(originalSql.indexOf("VALUES") + 6).split("\\?");
-        }
-
-        //Create an array of objects to store the parameters
-        this.parameters = new Object[sqlSegments.length - 1];
         this.defaultCalendar = connection.defaultCalendar;
-        this.parameterMetaData = new ParameterMetaDataImpl(this.parameters.length);
+
+        this.values = new Object[parsedStatement.getArgCount()];
+        this.parameterMetaData = new ParameterMetaDataImpl(this.values.length);
     }
 
-    private String compileSql(String []segments) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < segments.length; i++) {
-            sb.append(segments[i]);
-            if (i < parameters.length) {
-                sb.append(parameters[i]);
-            }
-        }
-        LOG.trace("Compiled SQL: {}", sb);
-        return sb.toString();
+    private String buildSQL() {
+        return null;
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
         checkClosed();
-        return super.executeQueryImpl(compileSql(sqlSegments), new QuerySettings().setDatabase(connection.getSchema()));
+        return super.executeQueryImpl(buildSQL(), localSettings);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         checkClosed();
-        return super.executeUpdateImpl(compileSql(sqlSegments), statementType,
-                new QuerySettings().setDatabase(connection.getSchema()));
+        return super.executeUpdateImpl(buildSQL(), localSettings);
     }
 
     @Override
@@ -138,61 +108,61 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -213,29 +183,29 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void clearParameters() throws SQLException {
         checkClosed();
-        Arrays.fill(this.parameters, null);
+        Arrays.fill(this.values, null);
     }
 
     int getParametersCount() {
-        return parameters.length;
+        return values.length;
     }
 
     @Override
@@ -253,50 +223,28 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public boolean execute() throws SQLException {
         checkClosed();
-        return super.executeImpl(compileSql(sqlSegments), statementType,
-                new QuerySettings().setDatabase(connection.getSchema()));
+        if (parsedStatement.isHasResultSet()) {
+            super.executeQueryImpl(buildSQL(), localSettings);
+            return true;
+        } else {
+            super.executeUpdateImpl(buildSQL(), localSettings);
+            return false;
+        }
     }
 
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementParser.StatementType.INSERT) {
-            // adding values to the end of big INSERT statement.
-            super.addBatch(compileSql(valueSegments));
-        } else {
-            super.addBatch(compileSql(sqlSegments));
-        }
+        super.addBatch(buildSQL());
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
-        if (statementType == StatementParser.StatementType.INSERT && !batch.isEmpty()) {
-            // write insert into as batch to avoid multiple requests
-            StringBuilder sb = new StringBuilder();
-            sb.append(insertIntoSQL).append(" ");
-            for (String sql : batch) {
-                sb.append(sql).append(",");
-            }
-            sb.setCharAt(sb.length() - 1, ';');
-            int rowsInserted = executeUpdateImpl(sb.toString(), statementType,
-                    new QuerySettings().setDatabase(connection.getSchema()));
-            // clear batch and re-add insert into
-            int[] results = new int[batch.size()];
-            if (rowsInserted == batch.size()) {
-                // each batch is effectively 1 row inserted.
-                Arrays.fill(results, 1);
-            } else {
-                // we do not have information what rows are not inserted.
-                // this should happen only with async insert when we do not wait final result
-                Arrays.fill(results, PreparedStatement.SUCCESS_NO_INFO);
-            }
-            batch.clear();
-            return results;
-        } else {
-            // run executeBatch
-            return executeBatchImpl().stream().mapToInt(Integer::intValue).toArray();
-        }
+
+        // run executeBatch
+        return executeBatchImpl().stream().mapToInt(Integer::intValue).toArray();
+
     }
 
     @Override
@@ -306,9 +254,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private List<Integer> executeBatchImpl() throws SQLException {
         List<Integer> results = new ArrayList<>();
-        QuerySettings settings = new QuerySettings().setDatabase(connection.getSchema());
         for (String sql : batch) {
-            results.add(executeUpdateImpl(sql, statementType, settings));
+            results.add(executeUpdateImpl(sql, localSettings));
         }
         return results;
     }
@@ -316,7 +263,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -330,19 +277,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -351,7 +298,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         if (resultSetMetaData == null && currentResultSet == null) {
             // before execution
-            if (statementType == StatementParser.StatementType.SELECT) {
+            if (parsedStatement.isHasResultSet()) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
@@ -379,7 +326,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
+        values[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
     }
 
     protected Instant sqlDateToInstant(Date x, Calendar cal) {
@@ -393,7 +340,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
+        values[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
     }
 
     protected Instant sqlTimeToInstant(Time x, Calendar cal) {
@@ -407,7 +354,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
+        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
     }
 
     protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
@@ -421,13 +368,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(null);
+        values[parameterIndex - 1] = encodeObject(null);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     /**
@@ -454,43 +401,43 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNString(int parameterIndex, String x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -502,67 +449,67 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         checkClosed();
-        parameters[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override

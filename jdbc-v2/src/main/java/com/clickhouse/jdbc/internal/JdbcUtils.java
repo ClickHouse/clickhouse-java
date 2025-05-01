@@ -285,7 +285,7 @@ public class JdbcUtils {
             "^[\\\"`]?(.+?)[\\\"`]?$"
     );
 
-    public static String unQuoteTableName(String str) {
+    public static String unquoteIdentifier(String str) {
         Matcher matcher = UNQUOTE_TABLE_NAME.matcher(str.trim());
         if (matcher.find()) {
             return matcher.group(1);
