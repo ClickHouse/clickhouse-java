@@ -41,17 +41,42 @@ public class SqlParserTest {
     public void testParseInsertPrepared() throws Exception {
         SqlParser parser = new SqlParser();
 
-        String sql = "INSERT INTO \n`table` (id, \nnum1, col3) \nVALUES (?, ?, ?)";
+        String sql = "INSERT INTO \n`table` (id, \nnum1, col3) \nVALUES    (?, ?, ?)   ";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
         System.out.println("table: " + parsed.getTable());
-        System.out.println("data clause pos: " + parsed.getInsertValuesClausePos() + " " +
-                ( sql.substring(0, parsed.getInsertValuesClausePos() + 1)));
+        String dataClause = sql.substring(parsed.getAssignValuesListStartPosition(), parsed.getAssignValuesListStopPosition() + 1);
+        System.out.println("data clause: '" + dataClause + "'");
+
+        int[] positions = parsed.getParamPositions();
+        int[] paramPositionsInDataClause = new int[parsed.getArgCount()];
+        for (int i = 0; i < parsed.getArgCount(); i++) {
+            int p = positions[i] - parsed.getAssignValuesListStartPosition();
+            paramPositionsInDataClause[i] = p;
+            System.out.println("p in clause: " + p);
+        }
+
+        long tSBuildingSQL = System.nanoTime();
+        StringBuilder insertSql = new StringBuilder(sql.substring(0, parsed.getAssignValuesListStartPosition()));
+        for (int i = 0; i < 100_000; i++) {
+            StringBuilder valuesClause = new StringBuilder(dataClause);
+            int posOffset = 0;
+            String val = "value_" + i;
+            for (int j = 0; j < parsed.getArgCount(); j++) {
+                int p = paramPositionsInDataClause[j] + posOffset;
+                valuesClause.replace(p, p+1, val);
+                posOffset += val.length() - 1;
+            }
+            insertSql.append(valuesClause).append(',');
+        }
+        insertSql.setLength(insertSql.length() -1 );
+        long tFBuildingSQL = System.nanoTime();
+        System.out.println("built in " + (tFBuildingSQL - tSBuildingSQL) + " ns " + ((tFBuildingSQL - tSBuildingSQL)/1000_000f) + " ms");
+//        System.out.println("insertSQL: " + insertSql);
 
         System.out.println("-------");
         StringBuilder compiledSql = new StringBuilder(sql);
         int posOffset = 0;
         String val = "test";
-        int[] positions = parsed.getParamPositions();
         for (int i = 0; i < parsed.getArgCount(); i++) {
             int p = positions[i] + posOffset;
 
@@ -71,8 +96,6 @@ public class SqlParserTest {
         String sql = "SELECT c1, c2, (true ? 1 : 0 ) as foo FROM tab1 WHERE c3 = ? AND c4 = abs(?)";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
         System.out.println("table: " + parsed.getTable());
-        System.out.println("data clause pos: " + parsed.getInsertValuesClausePos() + " " +
-                ( sql.substring(0, parsed.getInsertValuesClausePos() + 1)));
 
         System.out.println("-------");
         StringBuilder compiledSql = new StringBuilder(sql);

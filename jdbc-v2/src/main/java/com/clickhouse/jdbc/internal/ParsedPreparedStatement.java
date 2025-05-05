@@ -32,7 +32,9 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private int[] paramPositions = new int[16];
 
-    private int insertValuesClausePos = -1;
+    private int assignValuesListStartPosition = -1;
+
+    private int assignValuesListStopPosition = -1;
 
     public void setHasResultSet(boolean hasResultSet) {
         this.hasResultSet = hasResultSet;
@@ -70,10 +72,6 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return table;
     }
 
-    public int getInsertValuesClausePos() {
-        return insertValuesClausePos;
-    }
-
     public int[] getParamPositions() {
         return paramPositions;
     }
@@ -84,6 +82,14 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         // INSERT INTO `table` [(col1, col2)] FORMAT TabSeparated - this need additional support
         // INSERT with select or functions around parameters cannot be streamed
         return canStream;
+    }
+
+    public int getAssignValuesListStartPosition() {
+        return assignValuesListStartPosition;
+    }
+
+    public int getAssignValuesListStopPosition() {
+        return assignValuesListStopPosition;
     }
 
     @Override
@@ -102,6 +108,12 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     }
 
     @Override
+    public void enterAssignmentValuesList(ClickHouseParser.AssignmentValuesListContext ctx) {
+        assignValuesListStartPosition = ctx.getStart().getStartIndex();
+        assignValuesListStopPosition = ctx.getStop().getStopIndex();
+    }
+
+    @Override
     public void enterInsertParameter(ClickHouseParser.InsertParameterContext ctx) {
         appendParameter(ctx.start.getStartIndex());
     }
@@ -115,11 +127,6 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         if (LOG.isTraceEnabled()) {
             LOG.trace("parameter position {}", startIndex);
         }
-    }
-
-    @Override
-    public void exitDataClauseValues(ClickHouseParser.DataClauseValuesContext ctx) {
-        insertValuesClausePos = ctx.VALUES().getSymbol().getStopIndex();
     }
 
     @Override

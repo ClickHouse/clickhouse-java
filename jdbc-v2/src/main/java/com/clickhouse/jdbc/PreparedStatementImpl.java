@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLXML;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -65,8 +67,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     private final Calendar defaultCalendar;
 
     private final String originalSql;
-    private final String [] values;
+    private final String[] values; // temp value holder (set can be called > once)
+    private final List<StringBuilder> batchValues; // composed value statements
     private final ParsedPreparedStatement parsedPreparedStatement;
+    private final boolean insertStmtWithValues;
+    private final String valueListTmpl;
+    private final int[] paramPositionsInDataClause;
+
+    private final int argCount;
 
     private final ParameterMetaData parameterMetaData;
     private ResultSetMetaData resultSetMetaData = null;
@@ -74,26 +82,45 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public PreparedStatementImpl(ConnectionImpl connection, String sql, ParsedPreparedStatement parsedStatement) throws SQLException {
         super(connection);
         this.isPoolable = true; // PreparedStatement is poolable by default
-        this.originalSql = sql.trim();
+        this.originalSql = sql;
         this.parsedPreparedStatement = parsedStatement;
+        this.argCount = parsedStatement.getArgCount();
 
         this.defaultCalendar = connection.defaultCalendar;
-        this.values = new String[parsedStatement.getArgCount()];
+        this.values = new String[argCount];
         this.parameterMetaData = new ParameterMetaDataImpl(this.values.length);
+
+        int valueListStartPos = parsedStatement.getAssignValuesListStartPosition();
+        int valueListStopPos = parsedStatement.getAssignValuesListStopPosition();
+        if (valueListStartPos > -1 && valueListStopPos > -1) {
+            int[] positions = parsedStatement.getParamPositions();
+            paramPositionsInDataClause = new int[argCount];
+            for (int i = 0; i < argCount; i++) {
+                int p = positions[i] - valueListStartPos;
+                paramPositionsInDataClause[i] = p;
+            }
+
+            valueListTmpl = originalSql.substring(valueListStartPos, valueListStopPos + 1);
+            insertStmtWithValues = true;
+            batchValues = new ArrayList<>();
+        } else {
+            paramPositionsInDataClause = new int[0];
+            batchValues = Collections.emptyList();
+            valueListTmpl = "";
+            insertStmtWithValues = false;
+        }
     }
 
     private String buildSQL() {
         StringBuilder compiledSql = new StringBuilder(originalSql);
         int posOffset = 0;
         int[] positions = parsedPreparedStatement.getParamPositions();
-        for (int i = 0; i < parsedPreparedStatement.getArgCount(); i++) {
+        for (int i = 0; i < argCount; i++) {
             int p = positions[i] + posOffset;
             String val = values[i].toString();
             compiledSql.replace(p, p+1, val);
             posOffset += val.length() - 1;
         }
-
-
         return compiledSql.toString();
     }
 
@@ -246,28 +273,58 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void addBatch() throws SQLException {
         checkClosed();
 
+        if (insertStmtWithValues) {
+            StringBuilder valuesClause = new StringBuilder(valueListTmpl);
+            int posOffset = 0;
+            for (int i = 0; i < argCount; i++) {
+                int p = paramPositionsInDataClause[i] + posOffset;
+                valuesClause.replace(p, p + 1, values[i]);
+                posOffset += values[i].length() - 1;
+            }
+            batchValues.add(valuesClause);
+        } else {
+            addBatch(buildSQL());
+        }
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
         checkClosed();
 
-        // run executeBatch
-        return executeBatchImpl().stream().mapToInt(Integer::intValue).toArray();
-
+        if (insertStmtWithValues) {
+            // run executeBatch
+            return executeInsertBatch().stream().mapToInt(Integer::intValue).toArray();
+        } else {
+            return super.executeBatch();
+        }
     }
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
-        return executeBatchImpl().stream().mapToLong(Integer::longValue).toArray();
+        checkClosed();
+
+        if (insertStmtWithValues) {
+            return executeInsertBatch().stream().mapToLong(Integer::longValue).toArray();
+        } else {
+            return super.executeLargeBatch();
+        }
     }
 
-    private List<Integer> executeBatchImpl() throws SQLException {
-        List<Integer> results = new ArrayList<>();
-        for (String sql : batch) {
-            results.add(executeUpdateImpl(sql, localSettings));
+    private List<Integer> executeInsertBatch() throws SQLException {
+        StringBuilder insertSql = new StringBuilder(originalSql.substring(0,
+                parsedPreparedStatement.getAssignValuesListStartPosition()));
+
+        for (StringBuilder valuesList : batchValues) {
+            insertSql.append(valuesList).append(',');
         }
-        return results;
+        insertSql.setLength(insertSql.length() - 1);
+
+        int updateCount = super.executeUpdateImpl(insertSql.toString(), localSettings);
+        if (updateCount == batchValues.size()) {
+            return Collections.nCopies(batchValues.size(), 1);
+        } else {
+            return Collections.nCopies(batchValues.size(), Statement.SUCCESS_NO_INFO);
+        }
     }
 
     @Override
