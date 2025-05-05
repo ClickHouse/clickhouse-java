@@ -36,7 +36,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected OperationMetrics metrics;
     protected List<String> batch;
     private String lastStatementSql;
-    protected ParsedStatement parsedStatement;
+    private ParsedStatement parsedStatement;
     protected volatile String lastQueryId;
     private int maxRows;
     protected QuerySettings localSettings;

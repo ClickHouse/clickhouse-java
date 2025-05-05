@@ -36,4 +36,58 @@ public class SqlParserTest {
 //    public void testParseStatementWithClause() throws Exception {
 //        assertEquals(SqlParser.parseStatementType("with data as (SELECT number FROM numbers(100)) select * from data").getType(), SqlParser.StatementType.SELECT);
 //    }
+
+    @Test
+    public void testParseInsertPrepared() throws Exception {
+        SqlParser parser = new SqlParser();
+
+        String sql = "INSERT INTO \n`table` (id, \nnum1, col3) \nVALUES (?, ?, ?)";
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        System.out.println("table: " + parsed.getTable());
+        System.out.println("data clause pos: " + parsed.getInsertValuesClausePos() + " " +
+                ( sql.substring(0, parsed.getInsertValuesClausePos() + 1)));
+
+        System.out.println("-------");
+        StringBuilder compiledSql = new StringBuilder(sql);
+        int posOffset = 0;
+        String val = "test";
+        int[] positions = parsed.getParamPositions();
+        for (int i = 0; i < parsed.getArgCount(); i++) {
+            int p = positions[i] + posOffset;
+
+            System.out.println("p: " + p);
+            compiledSql.replace(p, p+1, val);
+            posOffset += val.length() - 1;
+        }
+
+        System.out.println(compiledSql);
+    }
+
+    @Test
+    public void testParseSelectPrepared() throws Exception {
+        // development test
+        SqlParser parser = new SqlParser();
+
+        String sql = "SELECT c1, c2, (true ? 1 : 0 ) as foo FROM tab1 WHERE c3 = ? AND c4 = abs(?)";
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        System.out.println("table: " + parsed.getTable());
+        System.out.println("data clause pos: " + parsed.getInsertValuesClausePos() + " " +
+                ( sql.substring(0, parsed.getInsertValuesClausePos() + 1)));
+
+        System.out.println("-------");
+        StringBuilder compiledSql = new StringBuilder(sql);
+        int posOffset = 0;
+        String val = "test";
+        int[] positions = parsed.getParamPositions();
+        for (int i = 0; i < parsed.getArgCount(); i++) {
+            int p = positions[i] + posOffset;
+
+            System.out.println("p: " + p);
+            compiledSql.replace(p, p+1, val);
+            posOffset += val.length() - 1;
+        }
+
+        System.out.println(sql);
+        System.out.println(compiledSql);
+    }
 }

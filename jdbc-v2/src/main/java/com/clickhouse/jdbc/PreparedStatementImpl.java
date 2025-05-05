@@ -64,10 +64,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private final Calendar defaultCalendar;
 
-    // common fields
     private final String originalSql;
-    private final Object [] values;
-
+    private final String [] values;
+    private final ParsedPreparedStatement parsedPreparedStatement;
 
     private final ParameterMetaData parameterMetaData;
     private ResultSetMetaData resultSetMetaData = null;
@@ -76,15 +75,26 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         super(connection);
         this.isPoolable = true; // PreparedStatement is poolable by default
         this.originalSql = sql.trim();
+        this.parsedPreparedStatement = parsedStatement;
 
         this.defaultCalendar = connection.defaultCalendar;
-
-        this.values = new Object[parsedStatement.getArgCount()];
+        this.values = new String[parsedStatement.getArgCount()];
         this.parameterMetaData = new ParameterMetaDataImpl(this.values.length);
     }
 
     private String buildSQL() {
-        return null;
+        StringBuilder compiledSql = new StringBuilder(originalSql);
+        int posOffset = 0;
+        int[] positions = parsedPreparedStatement.getParamPositions();
+        for (int i = 0; i < parsedPreparedStatement.getArgCount(); i++) {
+            int p = positions[i] + posOffset;
+            String val = values[i].toString();
+            compiledSql.replace(p, p+1, val);
+            posOffset += val.length() - 1;
+        }
+
+
+        return compiledSql.toString();
     }
 
     @Override
@@ -223,7 +233,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public boolean execute() throws SQLException {
         checkClosed();
-        if (parsedStatement.isHasResultSet()) {
+        if (parsedPreparedStatement.isHasResultSet()) {
             super.executeQueryImpl(buildSQL(), localSettings);
             return true;
         } else {
@@ -235,7 +245,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void addBatch() throws SQLException {
         checkClosed();
-        super.addBatch(buildSQL());
+
     }
 
     @Override
@@ -298,7 +308,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         if (resultSetMetaData == null && currentResultSet == null) {
             // before execution
-            if (parsedStatement.isHasResultSet()) {
+            if (parsedPreparedStatement.isHasResultSet()) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
                     String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);

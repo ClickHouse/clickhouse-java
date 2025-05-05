@@ -378,7 +378,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
         if (config.isBetaFeatureEnabled(DriverProperties.BETA_ROW_BINARY_WRITER)) {
             if (parsedStatement.isInsert() && parsedStatement.isCanStream()) {
-                TableSchema tableSchema = client.getTableSchema(parsedStatement.getInsertTableId(), schema);
+                TableSchema tableSchema = client.getTableSchema(parsedStatement.getTable(), schema);
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }
         }

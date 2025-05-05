@@ -1,7 +1,10 @@
 package com.clickhouse.jdbc.internal;
 
 import org.antlr.v4.runtime.tree.ErrorNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -9,6 +12,7 @@ import java.util.List;
  *
  */
 public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
+    private static final Logger LOG = LoggerFactory.getLogger(ParsedPreparedStatement.class);
 
     private String table;
 
@@ -26,7 +30,9 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private boolean canStream;
 
-    private String insertTableId;
+    private int[] paramPositions = new int[16];
+
+    private int insertValuesClausePos = -1;
 
     public void setHasResultSet(boolean hasResultSet) {
         this.hasResultSet = hasResultSet;
@@ -56,16 +62,33 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         this.canStream = canStream;
     }
 
+    public String[] getInsertColumns() {
+        return insertColumns;
+    }
+
+    public String getTable() {
+        return table;
+    }
+
+    public int getInsertValuesClausePos() {
+        return insertValuesClausePos;
+    }
+
+    public int[] getParamPositions() {
+        return paramPositions;
+    }
+
     public boolean isCanStream() {
+        // there are next forms of INSERT that can be streamed
+        // INSERT INTO `table` [(col1, col2)] VALUES (?, ?, ?..)
+        // INSERT INTO `table` [(col1, col2)] FORMAT TabSeparated - this need additional support
+        // INSERT with select or functions around parameters cannot be streamed
         return canStream;
     }
 
-    public void setInsertTableId(String insertTableId) {
-        this.insertTableId = insertTableId;
-    }
-
-    public String getInsertTableId() {
-        return insertTableId;
+    @Override
+    public void enterColumnExprParam(ClickHouseParser.ColumnExprParamContext ctx) {
+        appendParameter(ctx.start.getStartIndex());
     }
 
     @Override
@@ -80,8 +103,23 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterInsertParameter(ClickHouseParser.InsertParameterContext ctx) {
-        super.enterInsertParameter(ctx);
-        System.out.println("parameter: " + ctx.getText());
+        appendParameter(ctx.start.getStartIndex());
+    }
+
+    private void appendParameter(int startIndex) {
+        argCount++;
+        if (argCount > paramPositions.length) {
+            paramPositions = Arrays.copyOf(paramPositions, paramPositions.length + 10);
+        }
+        paramPositions[argCount-1] = startIndex;
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("parameter position {}", startIndex);
+        }
+    }
+
+    @Override
+    public void exitDataClauseValues(ClickHouseParser.DataClauseValuesContext ctx) {
+        insertValuesClausePos = ctx.VALUES().getSymbol().getStopIndex();
     }
 
     @Override

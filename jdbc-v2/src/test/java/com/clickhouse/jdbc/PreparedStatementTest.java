@@ -270,6 +270,21 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testTernaryOperator() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ( TRUE ? 1 : 0) as val1, ? as val2")) {
+                stmt.setString(1, "test\\' OR 1 = 1 --");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("val1"), "1");
+                    assertEquals(rs.getString(2), "test\\' OR 1 = 1 --");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
 
     @Test(groups = "integration")
     void testWithClause() throws Exception {

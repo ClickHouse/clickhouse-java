@@ -647,10 +647,12 @@ columnExpr
     | LPAREN columnExprList RPAREN                                 # ColumnExprTuple
     | LBRACKET columnExprList? RBRACKET                            # ColumnExprArray
     | columnIdentifier                                             # ColumnExprIdentifier
+    | QUERY                                                        # ColumnExprParam
     ;
 
 columnArgList
     : columnArgExpr (COMMA columnArgExpr)*
+    | QUERY (COMMA QUERY)*
     ;
 
 columnArgExpr
