@@ -142,6 +142,7 @@ public class SqlParserTest {
         assertTrue(parsed.isInsert());
         assertFalse(parsed.isHasResultSet());
         assertFalse(parsed.isInsertWithSelect());
+        assertEquals(parsed.getAssignValuesGroups(), 3);
 
         sql = "-- line comment1 ?\n"
                 + "# line comment2 ?\n"
@@ -153,6 +154,7 @@ public class SqlParserTest {
         assertTrue(parsed.isInsert());
         assertFalse(parsed.isHasResultSet());
         assertFalse(parsed.isInsertWithSelect());
+        assertEquals(parsed.getAssignValuesGroups(), 1);
 
         sql = "INSERT INTO tt SELECT now(), 10, 20.0, 30";
         parsed = parser.parsePreparedStatement(sql);
@@ -169,5 +171,6 @@ public class SqlParserTest {
         assertTrue(parsed.isInsert());
         assertFalse(parsed.isHasResultSet());
         assertFalse(parsed.isInsertWithSelect());
+        assertEquals(parsed.getAssignValuesGroups(), 1);
     }
 }

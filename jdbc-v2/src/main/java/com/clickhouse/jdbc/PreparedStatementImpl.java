@@ -92,7 +92,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
         int valueListStartPos = parsedStatement.getAssignValuesListStartPosition();
         int valueListStopPos = parsedStatement.getAssignValuesListStopPosition();
-        if (valueListStartPos > -1 && valueListStopPos > -1) {
+        if (parsedStatement.getAssignValuesGroups() == 1 && valueListStartPos > -1 && valueListStopPos > -1) {
             int[] positions = parsedStatement.getParamPositions();
             paramPositionsInDataClause = new int[argCount];
             for (int i = 0; i < argCount; i++) {

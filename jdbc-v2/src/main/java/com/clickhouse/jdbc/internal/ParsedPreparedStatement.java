@@ -22,7 +22,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private String[] insertColumns;
 
-    private boolean hasFuncWrappedParameter;
+    private boolean useFunction;
 
     private boolean hasErrors;
 
@@ -41,6 +41,8 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     private int assignValuesListStartPosition = -1;
 
     private int assignValuesListStopPosition = -1;
+
+    private int assignValuesGroups = -1;
 
     public void setHasResultSet(boolean hasResultSet) {
         this.hasResultSet = hasResultSet;
@@ -110,6 +112,22 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return useDatabase;
     }
 
+    public void setAssignValuesGroups(int assignValuesGroups) {
+        this.assignValuesGroups = assignValuesGroups;
+    }
+
+    public int getAssignValuesGroups() {
+        return assignValuesGroups;
+    }
+
+    public boolean isUseFunction() {
+        return useFunction;
+    }
+
+    public void setUseFunction(boolean useFunction) {
+        this.useFunction = useFunction;
+    }
+
     @Override
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
         ClickHouseParser.QueryContext qCtx = ctx.query();
@@ -153,7 +171,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterInsertParameterFuncExpr(ClickHouseParser.InsertParameterFuncExprContext ctx) {
-        hasFuncWrappedParameter = true;
+        useFunction = true;
     }
 
     @Override
@@ -200,5 +218,15 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterDataClauseSelect(ClickHouseParser.DataClauseSelectContext ctx) {
         setInsertWithSelect(true);
+    }
+
+    @Override
+    public void enterDataClauseValues(ClickHouseParser.DataClauseValuesContext ctx) {
+        setAssignValuesGroups(ctx.assignmentValues().size());
+    }
+
+    @Override
+    public void exitInsertParameterFuncExpr(ClickHouseParser.InsertParameterFuncExprContext ctx) {
+        setUseFunction(true);
     }
 }

@@ -387,7 +387,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
              * - INSERT INTO t VALUES (now(), ?, 1), (now(), ?, 2) !# multiple values list
              * - INSERT INTO t SELECT ?, ?, ? !# insert from select
              */
-            if (!parsedStatement.isInsertWithSelect()) {
+            if (!parsedStatement.isInsertWithSelect() && parsedStatement.getAssignValuesGroups() == 1
+                    && !parsedStatement.isUseFunction()) {
                 TableSchema tableSchema = client.getTableSchema(parsedStatement.getTable(), schema);
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }
