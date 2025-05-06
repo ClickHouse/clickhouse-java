@@ -376,8 +376,18 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
         ParsedPreparedStatement parsedStatement = sqlParser.parsePreparedStatement(sql);
 
-        if (config.isBetaFeatureEnabled(DriverProperties.BETA_ROW_BINARY_WRITER)) {
-            if (parsedStatement.isInsert() && parsedStatement.isCanStream()) {
+        if (parsedStatement.isInsert() && config.isBetaFeatureEnabled(DriverProperties.BETA_ROW_BINARY_WRITER)) {
+            /*
+             * RowBinary can be used when
+             * - INSERT INTO t (c1, c2) VALUES (?, ?)
+             * - INSERT INTO t VALUES (?, ?, ?)
+             * - number of arguments matches schema or column list
+             * RowBinary cannot be used when
+             * - INSERT INTO t VALUES (now(), ?, ?) !# there is a function in the values
+             * - INSERT INTO t VALUES (now(), ?, 1), (now(), ?, 2) !# multiple values list
+             * - INSERT INTO t SELECT ?, ?, ? !# insert from select
+             */
+            if (!parsedStatement.isInsertWithSelect()) {
                 TableSchema tableSchema = client.getTableSchema(parsedStatement.getTable(), schema);
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }

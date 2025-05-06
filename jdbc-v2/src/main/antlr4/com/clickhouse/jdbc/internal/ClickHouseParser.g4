@@ -327,7 +327,7 @@ assignmentValues
 assignmentValue
     : literal   # InsertRawValue
     | QUERY     # InsertParameter
-    | identifier LPAREN (literal COMMA)* QUERY (COMMA literal)* RPAREN # InsertParameterFuncExpr
+    | identifier (LPAREN columnExprList? RPAREN)? # InsertParameterFuncExpr
 
     ;
 

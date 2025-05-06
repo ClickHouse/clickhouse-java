@@ -4,7 +4,9 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,6 +18,8 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private String table;
 
+    private String useDatabase;
+
     private String[] insertColumns;
 
     private boolean hasFuncWrappedParameter;
@@ -26,9 +30,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     private boolean insert;
 
-    private int argCount;
+    private boolean insertWithSelect;
 
-    private boolean canStream;
+    private List<String> roles;
+
+    private int argCount;
 
     private int[] paramPositions = new int[16];
 
@@ -52,16 +58,20 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return insert;
     }
 
+    public void setInsertWithSelect(boolean insertWithSelect) {
+        this.insertWithSelect = insertWithSelect;
+    }
+
+    public boolean isInsertWithSelect() {
+        return insertWithSelect;
+    }
+
     public void setArgCount(int argCount) {
         this.argCount = argCount;
     }
 
     public int getArgCount() {
         return argCount;
-    }
-
-    public void setCanStream(boolean canStream) {
-        this.canStream = canStream;
     }
 
     public String[] getInsertColumns() {
@@ -76,12 +86,12 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return paramPositions;
     }
 
-    public boolean isCanStream() {
-        // there are next forms of INSERT that can be streamed
-        // INSERT INTO `table` [(col1, col2)] VALUES (?, ?, ?..)
-        // INSERT INTO `table` [(col1, col2)] FORMAT TabSeparated - this need additional support
-        // INSERT with select or functions around parameters cannot be streamed
-        return canStream;
+    public void setRoles(List<String> roles) {
+        this.roles = roles;
+    }
+
+    public List<String> getRoles() {
+        return roles;
     }
 
     public int getAssignValuesListStartPosition() {
@@ -90,6 +100,45 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     public int getAssignValuesListStopPosition() {
         return assignValuesListStopPosition;
+    }
+
+    public void setUseDatabase(String useDatabase) {
+        this.useDatabase = useDatabase;
+    }
+
+    public String getUseDatabase() {
+        return useDatabase;
+    }
+
+    @Override
+    public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
+        ClickHouseParser.QueryContext qCtx = ctx.query();
+        if (qCtx != null) {
+            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null
+                    || qCtx.describeStmt() != null) {
+                setHasResultSet(true);
+            }
+        }
+    }
+
+    @Override
+    public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
+        if (ctx.databaseIdentifier() != null) {
+            setUseDatabase(JdbcUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
+        }
+    }
+
+    @Override
+    public void enterSetRoleStmt(ClickHouseParser.SetRoleStmtContext ctx) {
+        if (ctx.NONE() != null) {
+            setRoles(Collections.emptyList());
+        } else {
+            List<String> roles = new ArrayList<>();
+            for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
+                roles.add(JdbcUtils.unquoteIdentifier(id.getText()));
+            }
+            setRoles(roles);
+        }
     }
 
     @Override
@@ -145,6 +194,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
             }
         }
 
-        super.enterInsertStmt(ctx);
+        setInsert(true);
+    }
+
+    @Override
+    public void enterDataClauseSelect(ClickHouseParser.DataClauseSelectContext ctx) {
+        setInsertWithSelect(true);
     }
 }

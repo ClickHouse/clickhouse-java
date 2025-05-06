@@ -296,5 +296,5 @@ UNDERSCORE   : '_';
 // Comments and whitespace
 
 MULTI_LINE_COMMENT  : '/*' .*? '*/'                            -> skip;
-SINGLE_LINE_COMMENT : '--' ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
+SINGLE_LINE_COMMENT : ('--' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
 WHITESPACE          : [ \u000B\u000C\t\r\n]                    -> skip; // '\n' can be part of multiline single query

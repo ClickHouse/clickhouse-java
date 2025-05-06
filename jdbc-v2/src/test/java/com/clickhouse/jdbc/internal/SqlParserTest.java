@@ -4,6 +4,8 @@ package com.clickhouse.jdbc.internal;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 public class SqlParserTest {
 
@@ -112,5 +114,60 @@ public class SqlParserTest {
 
         System.out.println(sql);
         System.out.println(compiledSql);
+    }
+
+    @Test
+    public void testPreparedStatementCreateSQL() {
+        SqlParser parser = new SqlParser();
+
+        String sql = "CREATE TABLE IF NOT EXISTS `with_complex_id` (`v?``1` Int32, " +
+                "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE MergeTree ORDER BY ();";
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        // TODO: extend test expecting no errors
+        assertFalse(parsed.isInsert());
+
+        sql = "CREATE TABLE IF NOT EXISTS `test_stmt_split2` (v1 Int32, v2 String) ENGINE MergeTree ORDER BY (); ";
+        parsed = parser.parsePreparedStatement(sql);
+        assertFalse(parsed.isInsert());
+    }
+
+
+    @Test
+    public void testPreparedStatementInsertSQL() {
+        SqlParser parser = new SqlParser();
+
+        String sql = "INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')";
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        // TODO: extend test expecting no errors
+        assertTrue(parsed.isInsert());
+        assertFalse(parsed.isHasResultSet());
+        assertFalse(parsed.isInsertWithSelect());
+
+        sql = "-- line comment1 ?\n"
+                + "# line comment2 ?\n"
+                + "#! line comment3 ?\n"
+                + "/* block comment ? \n */"
+                + "INSERT INTO `with_complex_id`(`v?``1`, \"v?\"\"2\",`v?\\`3`, \"v?\\\"4\") VALUES (?, ?, ?, ?);";
+        parsed = parser.parsePreparedStatement(sql);
+        // TODO: extend test expecting no errors
+        assertTrue(parsed.isInsert());
+        assertFalse(parsed.isHasResultSet());
+        assertFalse(parsed.isInsertWithSelect());
+
+        sql = "INSERT INTO tt SELECT now(), 10, 20.0, 30";
+        parsed = parser.parsePreparedStatement(sql);
+        // TODO: extend test expecting no errors
+        assertTrue(parsed.isInsert());
+        assertFalse(parsed.isHasResultSet());
+        assertTrue(parsed.isInsertWithSelect());
+
+
+        sql = "INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES\n" +
+                    " (?, `parseDateTimeBestEffort`(?, ?), ?, 1)\n";
+        parsed = parser.parsePreparedStatement(sql);
+        // TODO: extend test expecting no errors
+        assertTrue(parsed.isInsert());
+        assertFalse(parsed.isHasResultSet());
+        assertFalse(parsed.isInsertWithSelect());
     }
 }

@@ -609,9 +609,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @DataProvider
     Object[][] testBatchInsertWithRowBinary_dp() {
         return new Object[][]{
-                {"INSERT  INTO \n `%s` \nVALUES (?, ?, abs(?), ?)", PreparedStatementImpl.class}, // only string possible
+                {"INSERT  INTO \n `%s` \nVALUES (?, ?, abs(?), ?)", PreparedStatementImpl.class}, // only string possible (because of abs(?))
                 {"INSERT  INTO\n `%s` \nVALUES (?, ?, ?, ?)", WriterStatementImpl.class}, // row binary writer
-                {" INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)", PreparedStatementImpl.class} // only string supported now
+                {" INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)", PreparedStatementImpl.class}, // only string supported now
+                {"INSERT INTO %s SELECT ?, ?, ?, ?", PreparedStatementImpl.class}, // only string possible (because of SELECT)
         };
     }
 

@@ -283,7 +283,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             }
             batchValues.add(valuesClause);
         } else {
-            addBatch(buildSQL());
+            super.addBatch(buildSQL());
         }
     }
 
@@ -295,7 +295,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             // run executeBatch
             return executeInsertBatch().stream().mapToInt(Integer::intValue).toArray();
         } else {
-            return super.executeBatch();
+            List<Integer> results = new ArrayList<>();
+            for (String sql : batch) {
+                results.add(executeUpdateImpl(sql, localSettings));
+            }
+            return results.stream().mapToInt(Integer::intValue).toArray();
         }
     }
 
@@ -306,7 +310,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         if (insertStmtWithValues) {
             return executeInsertBatch().stream().mapToLong(Integer::longValue).toArray();
         } else {
-            return super.executeLargeBatch();
+            List<Integer> results = new ArrayList<>();
+            for (String sql : batch) {
+                results.add(executeUpdateImpl(sql, localSettings));
+            }
+            return results.stream().mapToLong(Integer::longValue).toArray();
         }
     }
 
