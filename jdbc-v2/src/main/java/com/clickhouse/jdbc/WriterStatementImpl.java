@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
@@ -29,8 +30,10 @@ import java.sql.SQLType;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,7 +53,16 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
             throws SQLException {
         super(connection, originalSql, parsedStatement);
 
-        this.tableSchema = tableSchema;
+        if (parsedStatement.getInsertColumns() != null) {
+            List<ClickHouseColumn> insertColumns = new ArrayList<>();
+            for (String column : parsedStatement.getInsertColumns()) {
+                insertColumns.add(tableSchema.getColumnByName(column));
+            }
+            this.tableSchema = new TableSchema(tableSchema.getTableName(), tableSchema.getQuery(),
+                    tableSchema.getDatabaseName(), insertColumns);
+        } else {
+            this.tableSchema = tableSchema;
+        }
         try {
             resetWriter();
         } catch (IOException e) {
