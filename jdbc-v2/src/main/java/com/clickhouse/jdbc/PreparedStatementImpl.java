@@ -53,7 +53,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.IntStream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -376,7 +377,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (parsedPreparedStatement.isHasResultSet()) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
-                    String sql = JdbcUtils.replaceQuestionMarks(originalSql, JdbcUtils.NULL);
+                    String sql = replaceQuestionMarks(originalSql, NULL_LITERAL);
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
                             connection.getSchema(), connection.getCatalog(),
@@ -396,6 +397,28 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
 
         return resultSetMetaData;
+    }
+
+    public static final String NULL_LITERAL = "NULL";
+
+    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");
+
+    public static String replaceQuestionMarks(String sql, String replacement) {
+        Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);
+
+        StringBuilder result = new StringBuilder();
+
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                // Quoted string — keep as-is
+                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(1)));
+            } else if (matcher.group(2) != null) {
+                // Question mark outside quotes — replace it
+                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            }
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     @Override

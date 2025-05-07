@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
+import org.antlr.v4.runtime.tree.ErrorNode;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,6 +17,8 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
     private String insertTableId;
 
     private List<String> roles;
+
+    private boolean hasErrors;
 
     public void setUseDatabase(String useDatabase) {
         this.useDatabase = useDatabase;
@@ -56,6 +60,19 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
         return roles;
     }
 
+    public boolean isHasErrors() {
+        return hasErrors;
+    }
+
+    public void setHasErrors(boolean hasErrors) {
+        this.hasErrors = hasErrors;
+    }
+
+    @Override
+    public void visitErrorNode(ErrorNode node) {
+        setHasErrors(true);
+    }
+
     @Override
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
         ClickHouseParser.QueryContext qCtx = ctx.query();
@@ -70,7 +87,7 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
         if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(JdbcUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
+            setUseDatabase(SqlParser.unquoteIdentifier(ctx.databaseIdentifier().getText()));
         }
     }
 
@@ -81,7 +98,7 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
         } else {
             List<String> roles = new ArrayList<>();
             for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(JdbcUtils.unquoteIdentifier(id.getText()));
+                roles.add(SqlParser.unquoteIdentifier(id.getText()));
             }
             setRoles(roles);
         }

@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.jdbc.PreparedStatementImpl;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +12,6 @@ import java.util.List;
 
 /**
  * Parser listener that collects information for prepared statement.
- *
  */
 public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     private static final Logger LOG = LoggerFactory.getLogger(ParsedPreparedStatement.class);
@@ -66,10 +66,6 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     public boolean isInsertWithSelect() {
         return insertWithSelect;
-    }
-
-    public void setArgCount(int argCount) {
-        this.argCount = argCount;
     }
 
     public int getArgCount() {
@@ -128,12 +124,19 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         this.useFunction = useFunction;
     }
 
+    public boolean isHasErrors() {
+        return hasErrors;
+    }
+
+    public void setHasErrors(boolean hasErrors) {
+        this.hasErrors = hasErrors;
+    }
+
     @Override
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
         ClickHouseParser.QueryContext qCtx = ctx.query();
         if (qCtx != null) {
-            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null
-                    || qCtx.describeStmt() != null) {
+            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null || qCtx.describeStmt() != null) {
                 setHasResultSet(true);
             }
         }
@@ -142,7 +145,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
         if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(JdbcUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
+            setUseDatabase(SqlParser.unquoteIdentifier(ctx.databaseIdentifier().getText()));
         }
     }
 
@@ -153,7 +156,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         } else {
             List<String> roles = new ArrayList<>();
             for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(JdbcUtils.unquoteIdentifier(id.getText()));
+                roles.add(SqlParser.unquoteIdentifier(id.getText()));
             }
             setRoles(roles);
         }
@@ -166,12 +169,12 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void visitErrorNode(ErrorNode node) {
-        hasErrors = true;
+        setHasErrors(true);
     }
 
     @Override
     public void enterInsertParameterFuncExpr(ClickHouseParser.InsertParameterFuncExprContext ctx) {
-        useFunction = true;
+        setUseFunction(true);
     }
 
     @Override
@@ -190,7 +193,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         if (argCount > paramPositions.length) {
             paramPositions = Arrays.copyOf(paramPositions, paramPositions.length + 10);
         }
-        paramPositions[argCount-1] = startIndex;
+        paramPositions[argCount - 1] = startIndex;
         if (LOG.isTraceEnabled()) {
             LOG.trace("parameter position {}", startIndex);
         }
@@ -198,7 +201,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
-        ClickHouseParser.TableIdentifierContext  tableId = ctx.tableIdentifier();
+        ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
         if (tableId != null) {
             this.table = tableId.identifier().IDENTIFIER().getText();
         }

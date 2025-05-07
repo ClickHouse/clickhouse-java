@@ -809,4 +809,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new String[]{""}));
         }
     }
+
+    @Test(dataProvider = "testReplaceQuestionMark_dataProvider")
+    public void testReplaceQuestionMark(String sql, String result) {
+        assertEquals(PreparedStatementImpl.replaceQuestionMarks(sql, "NULL"), result);
+    }
+
+    @DataProvider(name = "testReplaceQuestionMark_dataProvider")
+    public static Object[][] testReplaceQuestionMark_dataProvider() {
+        return new Object[][] {
+                {"", ""},
+                {"     ", "     "},
+                {"SELECT * FROM t WHERE a = '?'", "SELECT * FROM t WHERE a = '?'"},
+                {"SELECT `v2?` FROM t WHERE `v1?` = ?", "SELECT `v2?` FROM t WHERE `v1?` = NULL"},
+                {"INSERT INTO \"t2?\" VALUES (?, ?, 'some_?', ?)", "INSERT INTO \"t2?\" VALUES (NULL, NULL, 'some_?', NULL)"}
+        };
+    }
 }

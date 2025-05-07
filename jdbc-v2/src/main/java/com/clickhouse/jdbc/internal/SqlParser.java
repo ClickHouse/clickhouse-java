@@ -5,6 +5,9 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.IterativeParseTreeWalker;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class SqlParser {
 
     public ParsedStatement parsedStatement(String sql) {
@@ -28,5 +31,27 @@ public class SqlParser {
         ParsedPreparedStatement parserListener = new ParsedPreparedStatement();
         IterativeParseTreeWalker.DEFAULT.walk(parserListener, parseTree);
         return parserListener;
+    }
+
+    private final static Pattern UNQUOTE_INDENTIFIER = Pattern.compile(
+            "^[\\\"`]?(.+?)[\\\"`]?$"
+    );
+
+    public static String unquoteIdentifier(String str) {
+        Matcher matcher = UNQUOTE_INDENTIFIER.matcher(str.trim());
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return str;
+        }
+    }
+
+    public static String escapeQuotes(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return str
+                .replace("'", "\\'")
+                .replace("\"", "\\\"");
     }
 }
