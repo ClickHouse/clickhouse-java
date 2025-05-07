@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
@@ -9,6 +10,7 @@ import org.testng.annotations.Test;
 
 import java.sql.Array;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -16,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +33,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -824,5 +828,49 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {"SELECT `v2?` FROM t WHERE `v1?` = ?", "SELECT `v2?` FROM t WHERE `v1?` = NULL"},
                 {"INSERT INTO \"t2?\" VALUES (?, ?, 'some_?', ?)", "INSERT INTO \"t2?\" VALUES (NULL, NULL, 'some_?', NULL)"}
         };
+    }
+
+    @Test(groups = { "integration" })
+    public void testJdbcEscapeSyntax() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; // there is no `timestamp` function TODO: fix in JDBC
+        }
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT {d '2021-11-01'} AS D, {ts '2021-08-01 12:34:56'} AS TS, " +
+                    "toInt32({fn ABS(-1)}) AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
+                    "{fn LCASE('HELLO')} AS FNLOWER, {fn LTRIM('  Hello  ')} AS FNLTRIM, {fn RTRIM('  Hello  ')} AS FNRTRIM, " +
+                    "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn POSITION('Hello', 'l')}) AS FNPOSITION, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
+                    "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
+                    //assertEquals(rs.getTimestamp(2), java.sql.Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 12, 34, 56)));
+                    assertEquals(rs.getInt(3), 1);
+                    assertEquals(rs.getInt("FNABS"), 1);
+                    assertEquals(rs.getString(4), "HelloWorld");
+                    assertEquals(rs.getString("FNCONCAT"), "HelloWorld");
+                    assertEquals(rs.getString(5), "HELLO");
+                    assertEquals(rs.getString("FNUPPER"), "HELLO");
+                    assertEquals(rs.getString(6), "hello");
+                    assertEquals(rs.getString("FNLOWER"), "hello");
+                    assertEquals(rs.getString(7), "Hello  ");
+                    assertEquals(rs.getString("FNLTRIM"), "Hello  ");
+                    assertEquals(rs.getString(8), "  Hello");
+                    assertEquals(rs.getString("FNRTRIM"), "  Hello");
+                    assertEquals(rs.getInt(9), 5);
+                    assertEquals(rs.getInt("FNLENGTH"), 5);
+                    assertEquals(rs.getInt(10), 3);
+                    assertEquals(rs.getInt("FNPOSITION"), 3);
+                    assertEquals(rs.getInt(11), 1);
+                    assertEquals(rs.getInt("FNMOD"), 1);
+                    assertEquals(rs.getDouble(12), 3);
+                    assertEquals(rs.getDouble("FNSQRT"), 3);
+                    assertEquals(rs.getString(13), "ll");
+                    assertEquals(rs.getString("FNSUBSTRING"), "ll");
+                    assertThrows(SQLException.class, () -> rs.getString(14));
+                    assertFalse(rs.next());
+                }
+            }
+        }
     }
 }
