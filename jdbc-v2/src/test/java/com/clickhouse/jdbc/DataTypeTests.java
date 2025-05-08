@@ -337,18 +337,20 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 "'2261-12-31 23:59:59.999', '2261-12-31 23:59:59.999999', '2261-12-31 23:59:59.999999999' )");
 
         // Insert random (valid) values
-        long now = System.currentTimeMillis();
-        log.info("Random seed was: {}", now);
-
-        Date date = new Date(now);
-        Date date32 = new Date(now);
-        java.sql.Timestamp dateTime = new java.sql.Timestamp(now);
+        final ZoneId zoneId = ZoneId.of("America/Los_Angeles");
+        final LocalDateTime now = LocalDateTime.now(zoneId);
+        final Date date = Date.valueOf(now.toLocalDate());
+        final Date date32 = Date.valueOf(now.toLocalDate());
+        final java.sql.Timestamp dateTime = Timestamp.valueOf(now);
         dateTime.setNanos(0);
-        java.sql.Timestamp dateTime32 = new java.sql.Timestamp(now);
+        final java.sql.Timestamp dateTime32 = Timestamp.valueOf(now);
         dateTime32.setNanos(0);
-        java.sql.Timestamp dateTime643 = new java.sql.Timestamp(now);
-        java.sql.Timestamp dateTime646 = new java.sql.Timestamp(now);
-        java.sql.Timestamp dateTime649 = new java.sql.Timestamp(now);
+        final java.sql.Timestamp dateTime643 = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
+        dateTime643.setNanos(333000000);
+        final java.sql.Timestamp dateTime646 = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
+        dateTime646.setNanos(333333000);
+        final java.sql.Timestamp dateTime649 = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
+        dateTime649.setNanos(333333333);
 
         try (Connection conn = getConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_dates VALUES ( 4, ?, ?, ?, ?, ?, ?, ?)")) {
@@ -388,6 +390,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate("date").toString(), date.toString());
                     assertEquals(rs.getDate("date32").toString(), date32.toString());
+                    assertEquals(rs.getTimestamp("dateTime").toString(), Timestamp.valueOf(dateTime.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getTimestamp("dateTime32").toString(), Timestamp.valueOf(dateTime32.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getTimestamp("dateTime643").toString(), Timestamp.valueOf(dateTime643.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getTimestamp("dateTime646").toString(), Timestamp.valueOf(dateTime646.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getTimestamp("dateTime649").toString(), Timestamp.valueOf(dateTime649.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+
                     assertEquals(rs.getTimestamp("dateTime", new GregorianCalendar(TimeZone.getTimeZone("UTC"))).toString(), dateTime.toString());
                     assertEquals(rs.getTimestamp("dateTime32", new GregorianCalendar(TimeZone.getTimeZone("UTC"))).toString(), dateTime32.toString());
                     assertEquals(rs.getTimestamp("dateTime643", new GregorianCalendar(TimeZone.getTimeZone("UTC"))).toString(), dateTime643.toString());
@@ -424,11 +432,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getObject("date").toString(), date.toString());
                     assertEquals(rs.getObject("date32").toString(), date32.toString());
-                    assertEquals(rs.getObject("dateTime").toString(), dateTime.toString());
-                    assertEquals(rs.getObject("dateTime32").toString(), dateTime32.toString());
-                    assertEquals(rs.getObject("dateTime643").toString(), dateTime643.toString());
-                    assertEquals(rs.getObject("dateTime646").toString(), dateTime646.toString());
-                    assertEquals(rs.getObject("dateTime649").toString(), dateTime649.toString());
+
+                    assertEquals(rs.getObject("dateTime").toString(), Timestamp.valueOf(dateTime.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getObject("dateTime32").toString(), Timestamp.valueOf(dateTime32.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getObject("dateTime643").toString(), Timestamp.valueOf(dateTime643.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getObject("dateTime646").toString(), Timestamp.valueOf(dateTime646.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
+                    assertEquals(rs.getObject("dateTime649").toString(), Timestamp.valueOf(dateTime649.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
 
                     assertFalse(rs.next());
                 }
