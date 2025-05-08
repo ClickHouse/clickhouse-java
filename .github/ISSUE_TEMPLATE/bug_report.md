@@ -1,34 +1,49 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report an bug
 title: ''
 labels: bug
 assignees: ''
 
 ---
-
-<!-- delete unnecessary items -->
-### Describe the bug
+<!--
+    possible labels: bug,client-api-v2,jdbc-v2
+-->
+## Description
 
 ### Steps to reproduce
 1.
 2.
 3.
+### Error Log or Exception StackTrace
 
-### Expected behaviour
-
-### Code example
-```java
 ```
-### Error log
+```
+
+
+### Expected Behaviour
+
+### Code Example
+
+```java
+
+
+```
 
 ### Configuration
+
+#### Client Configuration
+```java
+
+```
+
 #### Environment
+* [ ] Cloud
 * Client version:
 * Language version:
-* OS:
+* OS: 
 
-#### ClickHouse server
+#### ClickHouse Server
 * ClickHouse Server version:
 * ClickHouse Server non-default settings, if any:
 * `CREATE TABLE` statements for tables involved:
