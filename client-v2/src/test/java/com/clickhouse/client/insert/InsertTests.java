@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -267,6 +268,33 @@ public class InsertTests extends BaseIntegrationTest {
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
         assertEquals(records.size(), 1000);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void insertRawDataAsync() throws Exception {
+        final String tableName = "raw_data_table_async";
+        final String createSQL = "CREATE TABLE " + tableName +
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+
+        initTable(tableName, createSQL);
+
+        InsertSettings localSettings = new InsertSettings(settings.getAllSettings());
+        localSettings.setOption(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), true);
+        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(data);
+        for (int i = 0; i < 1000; i++) {
+            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+        }
+        writer.flush();
+        client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
+                ClickHouseFormat.TSV, localSettings).whenComplete((response, throwable) -> {
+                OperationMetrics metrics = response.getMetrics();
+                assertEquals((int)response.getWrittenRows(), 1000 );
+
+                List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
+                assertEquals(records.size(), 1000);
+        })
+                .join(); // wait operation complete. only for tests
     }
 
     @Test(groups = { "integration" }, dataProvider = "insertRawDataSimpleDataProvider", dataProviderClass = InsertTests.class)
@@ -639,10 +667,9 @@ public class InsertTests extends BaseIntegrationTest {
         }
     }
 
-
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+//    static {
+//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+//    }
 
     @Test(groups = {"integration"}, dataProvider = "testAppCompressionDataProvider", dataProviderClass = InsertTests.class)
     public void testAppCompression(String algo) throws Exception {

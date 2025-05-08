@@ -2153,7 +2153,11 @@ public class Client implements AutoCloseable {
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
         boolean isAsync = MapUtils.getFlag(requestSettings, configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey());
-        return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
+        if (isAsync) {
+            return sharedOperationExecutor == null ? CompletableFuture.supplyAsync(resultSupplier) :
+                    CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor);
+        }
+        return CompletableFuture.completedFuture(resultSupplier.get());
     }
 
     @Override
