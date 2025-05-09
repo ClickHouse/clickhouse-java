@@ -203,7 +203,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testConnectionReuseStrategy() {
         if (isCloud()) {
             return; // mocked server
