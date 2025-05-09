@@ -184,6 +184,8 @@ public class Client implements AutoCloseable {
         } else {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
+
+        this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
     }
 
     /**
@@ -2188,7 +2190,7 @@ public class Client implements AutoCloseable {
     }
 
     public String getServerVersion() {
-        return this.serverVersion == null ? "unknown" : this.serverVersion;
+        return this.serverVersion;
     }
 
     public String getServerTimeZone() {
