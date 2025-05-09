@@ -118,9 +118,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         int[] positions = parsedPreparedStatement.getParamPositions();
         for (int i = 0; i < argCount; i++) {
             int p = positions[i] + posOffset;
-            String val = values[i].toString();
-            compiledSql.replace(p, p+1, val);
-            posOffset += val.length() - 1;
+            String val = values[i];
+            compiledSql.replace(p, p+1, val == null ? "NULL" : val);
+            posOffset += val == null ? 0 : val.length() - 1;
         }
         return compiledSql.toString();
     }

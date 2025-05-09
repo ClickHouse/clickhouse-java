@@ -904,4 +904,37 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration "})
+    public void testNullValues() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            final String table = "test_null_values";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table +
+                        "(v1 Int32, v2 Nullable(Int32)) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+                stmt.setInt(1, 10);
+                // do not set second value
+                assertEquals(stmt.executeUpdate(), 1);
+                stmt.setInt(1, 20);
+                stmt.setObject(2, null);
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+
+                int count = 0;
+                while(rs.next()) {
+                    count++;
+                    assertNull(rs.getObject(2));
+                }
+
+                assertEquals(count, 2);
+            }
+        }
+    }
 }
