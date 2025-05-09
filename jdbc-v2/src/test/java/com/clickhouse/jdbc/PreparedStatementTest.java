@@ -873,4 +873,35 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration "})
+    public void testStatementsWithDatabaseInTableIdentifier() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            final String db1Name = conn.getSchema() + "_db1";
+            final String table1Name = "table1";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name);
+                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name);
+                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name +
+                        "(v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            String[] tableIdentifier = new String[]{
+                    db1Name + "." + table1Name,
+                    "`" + db1Name + "`.`" + table1Name + "`",
+                    "\"" + db1Name + "\".\"" + table1Name + "\""
+            };
+
+            for (int i = 0; i < tableIdentifier.length; i++) {
+                String tableId = tableIdentifier[i];
+                System.out.println(">> " + tableId);
+                final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
+                    stmt.setInt(1, i + 10);
+                    stmt.setInt(2, i + 20);
+                    assertEquals(stmt.executeUpdate(), 1);
+                }
+            }
+        }
+    }
 }
