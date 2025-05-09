@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
@@ -9,6 +10,7 @@ import org.testng.annotations.Test;
 
 import java.sql.Array;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -16,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +33,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -264,6 +268,21 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getString(1), "false");
                     assertEquals(rs.getString(2), "test\\\\' OR 1 = 1 --");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testTernaryOperator() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ( TRUE ? 1 : 0) as val1, ? as val2")) {
+                stmt.setString(1, "test\\' OR 1 = 1 --");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("val1"), "1");
+                    assertEquals(rs.getString(2), "test\\' OR 1 = 1 --");
                     assertFalse(rs.next());
                 }
             }
@@ -591,8 +610,18 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
-    void testBatchInsert() throws Exception {
+    @DataProvider
+    Object[][] testBatchInsertWithRowBinary_dp() {
+        return new Object[][]{
+                {"INSERT  INTO \n `%s` \nVALUES (?, ?, abs(?), ?)", PreparedStatementImpl.class}, // only string possible (because of abs(?))
+                {"INSERT  INTO\n `%s` \nVALUES (?, ?, ?, ?)", WriterStatementImpl.class}, // row binary writer
+                {" INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)", WriterStatementImpl.class}, // only string supported now
+                {"INSERT INTO %s SELECT ?, ?, ?, ?", PreparedStatementImpl.class}, // only string possible (because of SELECT)
+        };
+    }
+
+    @Test(dataProvider = "testBatchInsertWithRowBinary_dp")
+    void testBatchInsertWithRowBinary(String sql, Class implClass) throws Exception {
         String table = "test_batch";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
@@ -606,52 +635,97 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                         " ( ts DateTime, v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
             }
 
-            String[] sql = new String[]{
-                    "INSERT  INTO \n `%s` \nVALUES (?, ?, multiply(?, 10), ?)", // only string possible
-                    "INSERT  INTO\n `%s` \nVALUES (?, ?, ?, ?)", // row binary writer
-                    " INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)", // only string supported now
-            };
-            Class<?>[] impl = new Class<?>[]{
-                    PreparedStatementImpl.class,
-                    WriterStatementImpl.class,
-                    PreparedStatementImpl.class
-            };
-
-            for (int i = 0; i < sql.length; i++) {
-                final int nBatches = 10;
-                try (PreparedStatement stmt = conn.prepareStatement(String.format(sql[i], table))) {
-                    Assert.assertEquals(stmt.getClass(), impl[i]);
-                    for (int bI = 0; bI < nBatches; bI++) {
-                        stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
-                        stmt.setInt(2, rnd.nextInt());
-                        stmt.setFloat(3, rnd.nextFloat());
-                        stmt.setInt(4, rnd.nextInt());
-                        stmt.addBatch();
-                    }
-
-                    int[] result = stmt.executeBatch();
-                    for (int r : result) {
-                        Assert.assertEquals(r, 1);
-                    }
+            final int nBatches = 10;
+            try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
+                Assert.assertEquals(stmt.getClass(), implClass);
+                for (int bI = 0; bI < nBatches; bI++) {
+                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+                    stmt.setInt(2, rnd.nextInt());
+                    stmt.setFloat(3, rnd.nextFloat());
+                    stmt.setInt(4, rnd.nextInt());
+                    stmt.addBatch();
                 }
 
-                try (Statement stmt = conn.createStatement();
-                     ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
-
-                    int count = 0;
-                    while (rs.next()) {
-                        Timestamp ts = rs.getTimestamp(1);
-                        assertNotNull(ts);
-                        assertTrue(rs.getInt(2) != 0);
-                        assertTrue(rs.getFloat(3) != 0.0f);
-                        assertTrue(rs.getInt(4) != 0);
-                        count++;
-                    }
-                    assertEquals(count, nBatches);
-
-                    stmt.execute("TRUNCATE " + table);
+                int[] result = stmt.executeBatch();
+                for (int r : result) {
+                    Assert.assertEquals(r, 1);
                 }
             }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
+
+                int count = 0;
+                while (rs.next()) {
+                    Timestamp ts = rs.getTimestamp(1);
+                    assertNotNull(ts);
+                    assertTrue(rs.getInt(2) != 0);
+                    assertTrue(rs.getFloat(3) != 0.0f);
+                    assertTrue(rs.getInt(4) != 0);
+                    count++;
+                }
+                assertEquals(count, nBatches);
+
+                stmt.execute("TRUNCATE " + table);
+            }
+        }
+    }
+
+    @DataProvider
+    Object[][] testBatchInsertTextStatement_dp() {
+        return new Object[][]{
+                {"INSERT  INTO \n `%s` \nVALUES (?, ?, ?, ?)"}, // simple
+                {" INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)"},
+        };
+    }
+
+    @Test(dataProvider = "testBatchInsertTextStatement_dp")
+    void testBatchInsertTextStatement(String sql) throws Exception {
+        String table = "test_batch_text";
+        long seed = System.currentTimeMillis();
+        Random rnd = new Random(seed);
+        System.out.println("testBatchInsert seed" + seed);
+        try (Connection conn = getJdbcConnection()) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
+                        " ( ts DateTime DEFAULT now(), v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            final int nBatches = 10;
+            try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
+                Assert.assertEquals(stmt.getClass(), PreparedStatementImpl.class);
+                for (int bI = 0; bI < nBatches; bI++) {
+                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+                    stmt.setInt(2, rnd.nextInt());
+                    stmt.setFloat(3, rnd.nextFloat());
+                    stmt.setInt(4, rnd.nextInt());
+                    stmt.addBatch();
+                }
+
+                int[] result = stmt.executeBatch();
+                for (int r : result) {
+                    Assert.assertEquals(r, 1);
+                }
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
+
+                int count = 0;
+                while (rs.next()) {
+                    Timestamp ts = rs.getTimestamp(1);
+                    assertNotNull(ts);
+                    assertTrue(rs.getInt(2) != 0);
+                    assertTrue(rs.getFloat(3) != 0.0f);
+                    assertTrue(rs.getInt(4) != 0);
+                    count++;
+                }
+                assertEquals(count, nBatches);
+
+                stmt.execute("TRUNCATE " + table);
+            }
+
         }
     }
 
@@ -737,6 +811,130 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql));
             Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new int[]{0}));
             Assert.assertThrows(SQLException.class, () -> ps.executeLargeUpdate(sql, new String[]{""}));
+        }
+    }
+
+    @Test(dataProvider = "testReplaceQuestionMark_dataProvider")
+    public void testReplaceQuestionMark(String sql, String result) {
+        assertEquals(PreparedStatementImpl.replaceQuestionMarks(sql, "NULL"), result);
+    }
+
+    @DataProvider(name = "testReplaceQuestionMark_dataProvider")
+    public static Object[][] testReplaceQuestionMark_dataProvider() {
+        return new Object[][] {
+                {"", ""},
+                {"     ", "     "},
+                {"SELECT * FROM t WHERE a = '?'", "SELECT * FROM t WHERE a = '?'"},
+                {"SELECT `v2?` FROM t WHERE `v1?` = ?", "SELECT `v2?` FROM t WHERE `v1?` = NULL"},
+                {"INSERT INTO \"t2?\" VALUES (?, ?, 'some_?', ?)", "INSERT INTO \"t2?\" VALUES (NULL, NULL, 'some_?', NULL)"}
+        };
+    }
+
+    @Test(groups = { "integration" })
+    public void testJdbcEscapeSyntax() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; // there is no `timestamp` function TODO: fix in JDBC
+        }
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT {d '2021-11-01'} AS D, {ts '2021-08-01 12:34:56'} AS TS, " +
+                    "toInt32({fn ABS(-1)}) AS FNABS, {fn CONCAT('Hello', 'World')} AS FNCONCAT, {fn UCASE('hello')} AS FNUPPER, " +
+                    "{fn LCASE('HELLO')} AS FNLOWER, {fn LTRIM('  Hello  ')} AS FNLTRIM, {fn RTRIM('  Hello  ')} AS FNRTRIM, " +
+                    "toInt32({fn LENGTH('Hello')}) AS FNLENGTH, toInt32({fn POSITION('Hello', 'l')}) AS FNPOSITION, toInt32({fn MOD(10, 3)}) AS FNMOD, " +
+                    "{fn SQRT(9)} AS FNSQRT, {fn SUBSTRING('Hello', 3, 2)} AS FNSUBSTRING")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), Date.valueOf(LocalDate.of(2021, 11, 1)));
+                    //assertEquals(rs.getTimestamp(2), java.sql.Timestamp.valueOf(LocalDateTime.of(2021, 11, 1, 12, 34, 56)));
+                    assertEquals(rs.getInt(3), 1);
+                    assertEquals(rs.getInt("FNABS"), 1);
+                    assertEquals(rs.getString(4), "HelloWorld");
+                    assertEquals(rs.getString("FNCONCAT"), "HelloWorld");
+                    assertEquals(rs.getString(5), "HELLO");
+                    assertEquals(rs.getString("FNUPPER"), "HELLO");
+                    assertEquals(rs.getString(6), "hello");
+                    assertEquals(rs.getString("FNLOWER"), "hello");
+                    assertEquals(rs.getString(7), "Hello  ");
+                    assertEquals(rs.getString("FNLTRIM"), "Hello  ");
+                    assertEquals(rs.getString(8), "  Hello");
+                    assertEquals(rs.getString("FNRTRIM"), "  Hello");
+                    assertEquals(rs.getInt(9), 5);
+                    assertEquals(rs.getInt("FNLENGTH"), 5);
+                    assertEquals(rs.getInt(10), 3);
+                    assertEquals(rs.getInt("FNPOSITION"), 3);
+                    assertEquals(rs.getInt(11), 1);
+                    assertEquals(rs.getInt("FNMOD"), 1);
+                    assertEquals(rs.getDouble(12), 3);
+                    assertEquals(rs.getDouble("FNSQRT"), 3);
+                    assertEquals(rs.getString(13), "ll");
+                    assertEquals(rs.getString("FNSUBSTRING"), "ll");
+                    assertThrows(SQLException.class, () -> rs.getString(14));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration "})
+    public void testStatementsWithDatabaseInTableIdentifier() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            final String db1Name = conn.getSchema() + "_db1";
+            final String table1Name = "table1";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name);
+                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name);
+                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name +
+                        "(v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            String[] tableIdentifier = new String[]{
+                    db1Name + "." + table1Name,
+                    "`" + db1Name + "`.`" + table1Name + "`",
+                    "\"" + db1Name + "\".\"" + table1Name + "\""
+            };
+
+            for (int i = 0; i < tableIdentifier.length; i++) {
+                String tableId = tableIdentifier[i];
+                System.out.println(">> " + tableId);
+                final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
+                    stmt.setInt(1, i + 10);
+                    stmt.setInt(2, i + 20);
+                    assertEquals(stmt.executeUpdate(), 1);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration "})
+    public void testNullValues() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            final String table = "test_null_values";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table +
+                        "(v1 Int32, v2 Nullable(Int32)) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+                stmt.setInt(1, 10);
+                // do not set second value
+                assertEquals(stmt.executeUpdate(), 1);
+                stmt.setInt(1, 20);
+                stmt.setObject(2, null);
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+
+                int count = 0;
+                while(rs.next()) {
+                    count++;
+                    assertNull(rs.getObject(2));
+                }
+
+                assertEquals(count, 2);
+            }
         }
     }
 }

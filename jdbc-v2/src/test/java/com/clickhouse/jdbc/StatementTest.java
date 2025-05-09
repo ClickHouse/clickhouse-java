@@ -535,16 +535,19 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertFalse(stmt.execute("USE \"" + databaseName + "\""));
                 assertEquals(stmt.executeUpdate(createSql), 0);
             }
-            conn.createStatement().execute("USE system");
-            ResultSet rs = conn.createStatement().executeQuery("SELECT name FROM settings LIMIT 1;");
-            assertTrue(rs.next());
-            assertNotNull(rs.getString(1));
-            assertFalse(rs.next());
-            conn.createStatement().execute("USE \"" + databaseName + "\"");
-            rs = conn.createStatement().executeQuery("SHOW TABLES LIMIT 1");
-            assertTrue(rs.next());
-            assertEquals(rs.getString(1), "switchDatabaseWithUse");
-            assertFalse(rs.next());
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("USE system");
+                ResultSet rs = stmt.executeQuery("SELECT name FROM settings LIMIT 1;");
+                assertTrue(rs.next());
+                assertNotNull(rs.getString(1));
+                assertFalse(rs.next());
+                stmt.execute("USE \"" + databaseName + "\"");
+                rs = stmt.executeQuery("SHOW TABLES LIMIT 1");
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "switchDatabaseWithUse");
+                assertFalse(rs.next());
+            }
         }
     }
   

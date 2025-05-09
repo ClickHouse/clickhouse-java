@@ -17,14 +17,10 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -134,87 +130,6 @@ public class JdbcUtils {
         return DATA_TYPE_CLASS_MAP.get(clickhouseType);
     }
 
-    public static List<String> tokenizeSQL(String sql) {
-        List<String> tokens = new ArrayList<>();
-
-        // Remove SQL comments
-        String withoutComments = sql
-                .replaceAll("--.*?$", "") // Remove single-line comments
-                .replaceAll("/\\*.*?\\*/", ""); // Remove multi-line comments
-
-        StringBuilder currentToken = new StringBuilder();
-        boolean insideQuotes = false;
-
-        for (int i = 0; i < withoutComments.length(); i++) {
-            char c = withoutComments.charAt(i);
-
-            if (c == '"') {
-                insideQuotes = !insideQuotes; // Toggle the insideQuotes flag
-                currentToken.append(c); // Include the quote in the token
-            } else if (Character.isWhitespace(c) && !insideQuotes) {
-                if (currentToken.length() > 0) {
-                    tokens.add(currentToken.toString());
-                    currentToken.setLength(0); // Clear the current token
-                }
-            } else {
-                currentToken.append(c);
-            }
-        }
-
-        // Add the last token if it exists
-        if (currentToken.length() > 0) {
-            tokens.add(currentToken.toString());
-        }
-
-        return tokens;
-    }
-
-    public static boolean isBlank(String str) {
-        return str == null || str.isEmpty() || str.trim().isEmpty();
-    }
-
-    public static boolean containsIgnoresCase(List<String> list, String str) {
-        if (list == null || list.isEmpty() || isBlank(str)) {
-            return false;
-        }
-
-        for (String s : list) {
-            if (s.equalsIgnoreCase(str)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public static int indexOfIgnoresCase(List<String> list, String str) {
-        if (list == null || list.isEmpty() || isBlank(str)) {
-            return -1;
-        }
-
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).equalsIgnoreCase(str)) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    public static String generateSqlTypeSizes(String columnName) {
-        StringBuilder sql = new StringBuilder("multiIf(");
-        sql.append("character_octet_length IS NOT NULL, character_octet_length, ");
-        for (ClickHouseDataType type : ClickHouseDataType.values()) {
-            if (type.getByteLength() > 0) {
-                sql.append(columnName).append(" == '").append(type.name()).append("', ").append(type.getByteLength()).append(", ");
-            }
-        }
-        sql.append("numeric_precision IS NOT NULL, numeric_precision, ");
-        sql.append("0)");
-        return sql.toString();
-    }
-
-
     public static Object convert(Object value, Class<?> type) throws SQLException {
         if (value == null || type == null) {
             return value;
@@ -270,49 +185,5 @@ public class JdbcUtils {
         }
 
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
-    }
-
-    public static String escapeQuotes(String str) {
-        if (str == null || str.isEmpty()) {
-            return str;
-        }
-        return str
-                .replace("'", "\\'")
-                .replace("\"", "\\\"");
-    }
-
-    private static Pattern UNQUOTE_TABLE_NAME = Pattern.compile(
-            "^[\\\"`]?(.+?)[\\\"`]?$"
-    );
-
-    public static String unQuoteTableName(String str) {
-        Matcher matcher = UNQUOTE_TABLE_NAME.matcher(str.trim());
-        if (matcher.find()) {
-            return matcher.group(1);
-        } else {
-            return str;
-        }
-    }
-
-    public static final String NULL = "NULL";
-
-    private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");
-
-    public static String replaceQuestionMarks(String sql, String replacement) {
-        Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);
-
-        StringBuilder result = new StringBuilder();
-
-        while (matcher.find()) {
-            if (matcher.group(1) != null) {
-                // Quoted string — keep as-is
-                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(1)));
-            } else if (matcher.group(2) != null) {
-                // Question mark outside quotes — replace it
-                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
-            }
-        }
-        matcher.appendTail(result);
-        return result.toString();
     }
 }
