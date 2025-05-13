@@ -39,7 +39,6 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
-import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -185,6 +184,8 @@ public class Client implements AutoCloseable {
         } else {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
+
+        this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
     }
 
     /**
@@ -192,24 +193,16 @@ public class Client implements AutoCloseable {
      *
      */
     public void loadServerInfo() {
-        // only if 2 properties are set disable retrieval from server
-        if (!this.configuration.containsKey(ClientConfigProperties.SERVER_TIMEZONE.getKey()) && !this.configuration.containsKey(ClientConfigProperties.SERVER_VERSION.getKey())) {
-            try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
-                try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
-                    if (reader.next() != null) {
-                        this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
-                        this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
-                        serverVersion = reader.getString("version");
-                    }
+        try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
+            try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
+                if (reader.next() != null) {
+                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
+                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                    serverVersion = reader.getString("version");
                 }
-            } catch (Exception e) {
-                throw new ClientException("Failed to get server info", e);
             }
-        } else {
-            LOG.info("Using server version " + this.configuration.get(ClientConfigProperties.SERVER_VERSION.getKey()) + " and timezone " + this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey()) );
-            if (this.configuration.containsKey(ClientConfigProperties.SERVER_VERSION.getKey())) {
-                serverVersion = this.configuration.get(ClientConfigProperties.SERVER_VERSION.getKey());
-            }
+        } catch (Exception e) {
+            throw new ClientException("Failed to get server info", e);
         }
     }
 
@@ -1213,8 +1206,11 @@ public class Client implements AutoCloseable {
      */
     public boolean ping(long timeout) {
         long startTime = System.nanoTime();
-        try (QueryResponse response = query("SELECT 1 FORMAT TabSeparated").get(timeout, TimeUnit.MILLISECONDS)) {
-            return true;
+        try {
+            CompletableFuture<QueryResponse> future = query("SELECT 1 FORMAT TabSeparated");
+            try (QueryResponse response = timeout > 0 ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get()) {
+                return true;
+            }
         } catch (Exception e) {
             LOG.debug("Failed to connect to the server (Duration: {})", System.nanoTime() - startTime, e);
             return false;
@@ -2153,7 +2149,11 @@ public class Client implements AutoCloseable {
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
         boolean isAsync = MapUtils.getFlag(requestSettings, configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey());
-        return isAsync ? CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor) : CompletableFuture.completedFuture(resultSupplier.get());
+        if (isAsync) {
+            return sharedOperationExecutor == null ? CompletableFuture.supplyAsync(resultSupplier) :
+                    CompletableFuture.supplyAsync(resultSupplier, sharedOperationExecutor);
+        }
+        return CompletableFuture.completedFuture(resultSupplier.get());
     }
 
     @Override
