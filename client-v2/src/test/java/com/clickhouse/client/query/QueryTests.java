@@ -1848,7 +1848,7 @@ public class QueryTests extends BaseIntegrationTest {
             return;
         }
 
-        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
         }
