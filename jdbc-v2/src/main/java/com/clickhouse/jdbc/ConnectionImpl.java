@@ -97,7 +97,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.client = this.config.applyClientProperties(new Client.Builder())
                     .setClientName(clientName)
                     .build();
-            this.client.loadServerInfo();
+            String serverTimezone = this.client.getServerTimeZone();
+            if (serverTimezone == null) {
+                // we cannot operate without timezone
+                this.client.loadServerInfo();
+            }
             this.schema = client.getDefaultDatabase();
             this.defaultQuerySettings = new QuerySettings()
                     .serverSetting(ServerSettings.ASYNC_INSERT, "0")

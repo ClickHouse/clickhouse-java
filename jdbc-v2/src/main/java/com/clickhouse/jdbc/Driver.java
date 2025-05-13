@@ -34,7 +34,7 @@ public class Driver implements java.sql.Driver {
     public static String frameworksDetected = null;
 
     public static class FrameworksDetection {
-        private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark");
+        private static final List<String> FRAMEWORKS_TO_DETECT = Arrays.asList("apache.spark", "apache.flink", "apache.nifi");
         static volatile String frameworksDetected = null;
 
         private FrameworksDetection() {

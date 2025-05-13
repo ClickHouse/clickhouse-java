@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -26,6 +27,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import lombok.Data;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
@@ -267,6 +269,43 @@ public class InsertTests extends BaseIntegrationTest {
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
         assertEquals(records.size(), 1000);
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "insertRawDataAsyncProvider", dataProviderClass = InsertTests.class)
+    public void insertRawDataAsync(boolean async) throws Exception {
+        final String tableName = "raw_data_table_async";
+        final String createSQL = "CREATE TABLE " + tableName +
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+
+        initTable(tableName, createSQL);
+
+        InsertSettings localSettings = new InsertSettings(settings.getAllSettings());
+        localSettings.setOption(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), async);
+        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(data);
+        for (int i = 0; i < 1000; i++) {
+            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+        }
+        writer.flush();
+        client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
+                ClickHouseFormat.TSV, localSettings).whenComplete((response, throwable) -> {
+                OperationMetrics metrics = response.getMetrics();
+                assertEquals((int)response.getWrittenRows(), 1000 );
+
+                List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
+                assertEquals(records.size(), 1000);
+                assertTrue(Thread.currentThread().getName()
+                        .startsWith(async ? "ForkJoinPool.commonPool" : "main"), "Threads starts with " + Thread.currentThread().getName());
+        })
+                .join(); // wait operation complete. only for tests
+    }
+
+    @DataProvider
+    public static Object[][] insertRawDataAsyncProvider(){
+        return new Object[][] {
+                {true}, // async
+                {false} // blocking
+        };
     }
 
     @Test(groups = { "integration" }, dataProvider = "insertRawDataSimpleDataProvider", dataProviderClass = InsertTests.class)
@@ -639,10 +678,9 @@ public class InsertTests extends BaseIntegrationTest {
         }
     }
 
-
-    static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-    }
+//    static {
+//        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+//    }
 
     @Test(groups = {"integration"}, dataProvider = "testAppCompressionDataProvider", dataProviderClass = InsertTests.class)
     public void testAppCompression(String algo) throws Exception {

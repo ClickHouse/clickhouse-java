@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ClientTests extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientTests.class);
 
-    @Test(dataProvider = "clientProvider")
+    @Test(groups = {"integration"}, dataProvider = "secureClientProvider")
     public void testAddSecureEndpoint(Client client) {
         if (isCloud()) {
             return; // will fail in other tests
@@ -52,31 +52,35 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @DataProvider(name = "clientProvider")
-    private static Client[] secureClientProvider() throws Exception {
+    @DataProvider
+    public static Object[][] secureClientProvider() throws Exception {
         ClickHouseNode node = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP,
                 true, ClickHouseNode.builder()
                                 .addOption(ClickHouseClientOption.SSL_MODE.getKey(), "none")
                         .addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
-        return new Client[]{
-                new Client.Builder()
-                        .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
-                        .setUsername("default")
-                        .setPassword("")
-                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                        .build(),
-                new Client.Builder()
-                        .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
-                        .setUsername("default")
-                        .setPassword("")
-                        .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                        .setClientKey("user.key")
-                        .setClientCertificate("user.crt")
-                        .build()
+        return new Client[][]{
+                {
+                        new Client.Builder()
+                                .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
+                                .setUsername("default")
+                                .setPassword("")
+                                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                                .build()
+                },
+                {
+                        new Client.Builder()
+                                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
+                                .setUsername("default")
+                                .setPassword("")
+                                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                                .setClientKey("user.key")
+                                .setClientCertificate("user.crt")
+                                .build()
+                }
         };
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testRawSettings() {
         Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
@@ -102,33 +106,39 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testPing() {
         try (Client client = newClient().build()) {
             Assert.assertTrue(client.ping());
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testPingUnpooled() {
         try (Client client = newClient().enableConnectionPool(false).build()) {
             Assert.assertTrue(client.ping());
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testPingFailure() {
         try (Client client = new Client.Builder()
                 .addEndpoint("http://localhost:12345")
                 .setUsername("default")
                 .setPassword("")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "false").equals("true"))
                 .build()) {
             Assert.assertFalse(client.ping(TimeUnit.SECONDS.toMillis(20)));
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
+    public void testPingAsync() {
+        try (Client client = newClient().useAsyncRequests(true).build()) {
+            Assert.assertTrue(client.ping());
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testSetOptions() {
         Map<String, String> options = new HashMap<>();
         String productName = "my product_name (version 1.0)";
@@ -140,7 +150,7 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testProvidedExecutor() throws Exception {
 
         ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -159,19 +169,19 @@ public class ClientTests extends BaseIntegrationTest {
         Assert.assertFalse(flag.get());
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testLoadingServerContext() throws Exception {
         long start = System.nanoTime();
         try (Client client = newClient().build()) {
             long initTime = (System.nanoTime() - start) / 1_000_000;
             Assert.assertTrue(initTime < 100);
-            Assert.assertNull(client.getServerVersion());
+            Assert.assertEquals(client.getServerVersion(), "unknown");
             client.loadServerInfo();
             Assert.assertNotNull(client.getServerVersion());
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testDisableNative() {
         try (Client client = newClient().disableNativeCompression(true).build()) {
             Assert.assertTrue(client.toString().indexOf("JavaUnsafe") != -1);
@@ -185,7 +195,6 @@ public class ClientTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase());
     }
 }
