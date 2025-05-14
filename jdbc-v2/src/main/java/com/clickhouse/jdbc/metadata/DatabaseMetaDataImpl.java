@@ -11,6 +11,7 @@ import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.MetadataResultSet;
+import com.clickhouse.jdbc.internal.SqlParser;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -839,7 +840,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "name AS COLUMN_NAME, " +
                 "system.columns.type AS DATA_TYPE, " +
                 "type AS TYPE_NAME, " +
-                JdbcUtils.generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
+                generateSqlTypeSizes("system.columns.type") + " AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
                 "IF (numeric_scale == 0, NULL, numeric_scale) as DECIMAL_DIGITS,  " +
                 "toInt32(numeric_precision_radix) AS NUM_PREC_RADIX, " +
@@ -858,9 +859,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "'NO' as IS_AUTOINCREMENT, " +
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
-                " WHERE database LIKE '" + (schemaPattern == null ? "%" : JdbcUtils.escapeQuotes(schemaPattern)) + "'" +
-                " AND table LIKE '" + (tableNamePattern == null ? "%" : JdbcUtils.escapeQuotes(tableNamePattern)) + "'" +
-                " AND name LIKE '" + (columnNamePattern == null ? "%" : JdbcUtils.escapeQuotes(columnNamePattern)) + "'" +
+                " WHERE database LIKE '" + (schemaPattern == null ? "%" : SqlParser.escapeQuotes(schemaPattern)) + "'" +
+                " AND table LIKE '" + (tableNamePattern == null ? "%" : SqlParser.escapeQuotes(tableNamePattern)) + "'" +
+                " AND name LIKE '" + (columnNamePattern == null ? "%" : SqlParser.escapeQuotes(columnNamePattern)) + "'" +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
@@ -868,6 +869,19 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
+    }
+
+    private static String generateSqlTypeSizes(String columnName) {
+        StringBuilder sql = new StringBuilder("multiIf(");
+        sql.append("character_octet_length IS NOT NULL, character_octet_length, ");
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            if (type.getByteLength() > 0) {
+                sql.append(columnName).append(" == '").append(type.name()).append("', ").append(type.getByteLength()).append(", ");
+            }
+        }
+        sql.append("numeric_precision IS NOT NULL, numeric_precision, ");
+        sql.append("0)");
+        return sql.toString();
     }
 
     private static String columnDataTypeToSqlType(String value) {

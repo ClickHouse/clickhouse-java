@@ -47,6 +47,7 @@ dependency-reduced-pom.xml
 java.prof
 jmh-result.*
 profile.html
+jdbc-v2/gen
 
 # Shell scripts
 *.sh

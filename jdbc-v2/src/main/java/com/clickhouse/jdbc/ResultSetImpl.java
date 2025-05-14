@@ -37,7 +37,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -90,7 +89,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return getSchema().columnIndexToName(index);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: columnIndexToName(%s) encountered an exception.", index), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: columnIndexToName(%s) encountered an exception.", index), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -238,7 +237,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -254,7 +253,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return false;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBoolean(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getBoolean(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -270,7 +269,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getByte(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getByte(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -286,7 +285,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getShort(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getShort(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -302,7 +301,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getInt(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getInt(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -318,7 +317,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getLong(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getLong(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -334,7 +333,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getFloat(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getFloat(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -350,7 +349,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return 0;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getDouble(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getDouble(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -366,7 +365,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -382,7 +381,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -472,7 +471,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return reader.getSchema().getColumnByName(columnLabel).getColumnIndex();
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: findColumn(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: findColumn(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -513,7 +512,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1057,7 +1056,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     column.getArrayBaseColumn().getDataType().name(),
                     JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()).getVendorTypeNumber());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getArray(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getArray(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1082,7 +1081,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             c.set(zdt.getYear(), zdt.getMonthValue() - 1, zdt.getDayOfMonth(), 0, 0, 0);
             return new Date(c.getTimeInMillis());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1107,7 +1106,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             c.set(1970, Calendar.JANUARY, 1, zdt.getHour(), zdt.getMinute(), zdt.getSecond());
             return new Time(c.getTimeInMillis());
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1134,7 +1133,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             timestamp.setNanos(zdt.getNano());
             return timestamp;
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1149,7 +1148,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return new URL(reader.getString(columnLabel));
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getURL(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getURL(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1320,7 +1319,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return reader.getString(columnLabel);
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getNString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getNString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1335,7 +1334,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return new StringReader(reader.getString(columnLabel));
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getNCharacterStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getNCharacterStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1539,7 +1538,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.",
                             reader.getSchema().columnIndexToName(columnIndex), type),
-                    String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
@@ -1560,7 +1559,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.", columnLabel, type),
-                    String.format("SQL: [%s]", parentStatement.getLastSql()), e);
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 
