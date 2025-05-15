@@ -10,6 +10,7 @@
 
 Table of Contents
 * [About The project](#about-the-project)
+* [Client Features](#client-features)
 * [Important](#important)
 * [Installation](#installation)
 * [Client V2](#client-v2)
