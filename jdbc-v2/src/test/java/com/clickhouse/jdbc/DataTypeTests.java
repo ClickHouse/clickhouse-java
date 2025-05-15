@@ -676,7 +676,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
-                + "array Array(Int8), arraystr Array(String), arraytuple Array(Tuple(Int8, String))"
+                + "array Array(Int8), arraystr Array(String), arraytuple Array(Tuple(Int8, String)), arraydate Array(Date)"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
@@ -699,12 +699,18 @@ public class DataTypeTests extends JdbcIntegrationTest {
             arraytuple[i] = new Tuple(rand.nextInt(256) - 128, "string" + rand.nextInt(1000));
         }
 
+        Date[] arraydate = new Date[rand.nextInt(10)];
+        for (int i = 0; i < arraydate.length; i++) {
+            arraydate[i] = Date.valueOf(LocalDate.now().plusDays(rand.nextInt(100)));
+        }
+
         // Insert random (valid) values
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?)")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
                 stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
+                stmt.setArray(4, conn.createArrayOf("Date", arraydate));
                 stmt.executeUpdate();
             }
         }
@@ -732,6 +738,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
                         Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
                         assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
                         assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                    }
+
+                    Object[] arraydateResult = (Object[]) rs.getArray("arraydate").getArray();
+                    assertEquals(arraydateResult.length, arraydate.length);
+                    for (int i = 0; i < arraydate.length; i++) {
+                        assertEquals(String.valueOf(arraydateResult[i]), String.valueOf(arraydate[i]));
                     }
                     assertFalse(rs.next());
                 }
@@ -761,6 +773,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
                         Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
                         assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
                         assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                    }
+
+                    Object[] arraydateResult = (Object[]) ((Array) rs.getObject("arraydate")).getArray();
+                    assertEquals(arraydateResult.length, arraydate.length);
+                    for (int i = 0; i < arraydate.length; i++) {
+                        assertEquals(String.valueOf(arraydateResult[i]), String.valueOf(arraydate[i]));
                     }
                     assertFalse(rs.next());
                 }
