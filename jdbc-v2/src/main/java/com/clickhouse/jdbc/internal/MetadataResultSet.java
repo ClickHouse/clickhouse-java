@@ -50,6 +50,25 @@ public class MetadataResultSet extends ResultSetImpl {
     }
 
     @Override
+    public Object getObject(String columnLabel) throws SQLException {
+        try {
+            return getInt(columnLabel);
+        } catch (SQLException e) {
+            // If the column is not an integer, fall back to the default behavior
+            return super.getObject(columnLabel);
+        }
+    }
+
+    @Override
+    public Object getObject(int columnIndex) throws SQLException {
+        if (columnIndex < 1 || columnIndex > cachedColumnLabels.length) {
+            throw new SQLException("Invalid column index: " + columnIndex);
+        }
+        return getObject(cachedColumnLabels[columnIndex - 1]);
+    }
+
+
+    @Override
     public String getString(String columnLabel) throws SQLException {
         String value = super.getString(columnLabel);
         UnaryOperator<String> transformer = columnTransformers.get(columnLabel.toUpperCase());

@@ -62,6 +62,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getString("TABLE_NAME"), tableName);
                 assertEquals(rs.getString("TYPE_NAME"), columnTypeNames.get(colIndex));
                 assertEquals(rs.getInt("DATA_TYPE"), columnJDBCDataTypes.get(colIndex));
+                assertEquals(rs.getObject("DATA_TYPE"), columnJDBCDataTypes.get(colIndex));
                 assertEquals(rs.getInt("COLUMN_SIZE"), columnSizes.get(colIndex));
                 assertEquals(rs.getInt("ORDINAL_POSITION"), colIndex + 1);
                 assertEquals(rs.getInt("NULLABLE"), columnNullable.get(colIndex) ? DatabaseMetaData.attributeNullable : DatabaseMetaData.attributeNoNulls);
