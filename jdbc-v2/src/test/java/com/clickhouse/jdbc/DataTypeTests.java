@@ -28,7 +28,6 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -532,7 +531,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         InetAddress ipv4AsIpv6 = Inet4Address.getByName("90.176.75.97");
 
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ?, ? )")) {
                 stmt.setObject(1, ipv4AddressByIp);
                 stmt.setObject(2, ipv4AddressByName);
                 stmt.setObject(3, ipv6Address);
@@ -551,8 +550,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
                     assertEquals(rs.getObject("ipv6"), ipv6Address);
                     assertEquals(rs.getString("ipv6"), ipv6Address.toString());
-                    String value = rs.getObject("ipv4_as_ipv6").toString();
-                    System.out.println("ip: " + value);
+                    assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
                     assertFalse(rs.next());
                 }
             }
