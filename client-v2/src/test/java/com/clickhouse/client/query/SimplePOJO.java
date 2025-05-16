@@ -9,6 +9,8 @@ public class SimplePOJO {
 
     Integer age = null;
 
+    Boolean bool = false;
+
     public long getId() {
         return id;
     }
@@ -33,12 +35,21 @@ public class SimplePOJO {
         this.age = age;
     }
 
+    public Boolean getBool() {
+        return bool;
+    }
+
+    public void setBool(Boolean bool) {
+        this.bool = bool;
+    }
+
     @Override
     public String toString() {
         return "SimplePOJO{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", age=" + age +
+                ", bool=" + bool +
                 '}';
     }
 }
