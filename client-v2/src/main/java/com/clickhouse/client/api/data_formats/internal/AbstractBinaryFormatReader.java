@@ -652,7 +652,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Inet4Address getInet4Address(int index) {
-        return  InetAddressConverter.convertToIpv4(readValue(index));
+        return InetAddressConverter.convertToIpv4(readValue(index));
     }
 
     @Override
