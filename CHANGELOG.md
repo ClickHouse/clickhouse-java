@@ -1,3 +1,25 @@
+
+## 0.8.6 
+
+### Improvements
+- [jdbc-v2] Now using Antlr4 to parse SQL statements to get meta information about it. 
+Invalid SQL still possible to execute if logic able to get all required information. (https://github.com/ClickHouse/clickhouse-java/pull/2351)
+- [jdbc-v2] Now possible to use `RowBinaryWriter` if enabled by property `com.clickhouse.jdbc.internal.DriverProperties.BETA_ROW_BINARY_WRITER`.
+This works well for batches. Single statements may get no benefits. (https://github.com/ClickHouse/clickhouse-java/pull/2316)
+
+### Bug Fixes 
+
+- [jdbc-v2] Fixed parsing prepared statement arguments. (https://github.com/ClickHouse/clickhouse-java/issues/2348)
+- [jdbc-v2] Fixed parsing role name when it contains `-`. (https://github.com/ClickHouse/clickhouse-java/issues/2325)
+- [jdbc-v2] Fixed failure when `INSERT` doesn't contain `VALUES`. (https://github.com/ClickHouse/clickhouse-java/issues/2283) 
+- [jdbc-v2] Fixed parsing `INSERT` statement when `VALUES` is in lower case. (https://github.com/ClickHouse/clickhouse-java/issues/2354)
+- [client-v2] Fixed NPE when async operation is request while client was built without an executor. 
+In this case default JVM executor will be used. (https://github.com/ClickHouse/clickhouse-java/issues/2355)
+- [client-v2, jdbc-v2] Fixed conversion of IP addresses. When IPv4 stored as IPv6 it is correctly converted 
+to `Inet6Address`. Similar problem fixed for JDBC. (https://github.com/ClickHouse/clickhouse-java/issues/2342)
+- [jdbc-v2] Fixed changing DB schema (DB name) on connection when `USE` statement executed. (https://github.com/ClickHouse/clickhouse-java/issues/2137)
+- [client-v2] Fixed serializing POJO with primitive `boolean` fields. (https://github.com/ClickHouse/clickhouse-java/issues/2248)
+
 ## 0.8.5
 
 ### Improvements
