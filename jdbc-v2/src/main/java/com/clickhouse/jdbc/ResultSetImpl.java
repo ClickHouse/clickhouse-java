@@ -1006,7 +1006,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public java.sql.Array getArray(int columnIndex) throws SQLException {
-        return getArray(columnIndexToName(columnIndex));
+        return getObject(columnIndex, java.sql.Array.class);
     }
 
     @Override
@@ -1047,17 +1047,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public java.sql.Array getArray(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            List<Object> lstObj = reader.getList(columnLabel);
-            wasNull = lstObj == null;
-            return new Array(lstObj,
-                    column.getArrayBaseColumn().getDataType().name(),
-                    JdbcUtils.convertToSqlType(column.getArrayBaseColumn().getDataType()).getVendorTypeNumber());
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getArray(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getObject(columnLabel, java.sql.Array.class);
     }
 
     @Override
@@ -1530,7 +1520,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     return reader.readValue(columnIndex);
                 }
 
-                return (T) JdbcUtils.convert(reader.readValue(columnIndex), type);
+                return (T) JdbcUtils.convert(reader.readValue(columnIndex), type, type == java.sql.Array.class ? getSchema().getColumnByIndex(columnIndex) : null);
             } else {
                 wasNull = true;
                 return null;
@@ -1552,7 +1542,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     return reader.readValue(columnLabel);
                 }
 
-                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type);
+                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type, type == java.sql.Array.class ? getSchema().getColumnByName(columnLabel) : null);
             } else {
                 wasNull = true;
                 return null;

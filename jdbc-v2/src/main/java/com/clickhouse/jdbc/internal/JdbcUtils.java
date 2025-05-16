@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
@@ -17,8 +19,10 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -131,6 +135,10 @@ public class JdbcUtils {
     }
 
     public static Object convert(Object value, Class<?> type) throws SQLException {
+        return convert(value, type, null);
+    }
+
+    public static Object convert(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -172,6 +180,9 @@ public class JdbcUtils {
             } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
+                if (column != null && column.getArrayBaseColumn() != null) {
+                    return new Array(convertList(((BinaryStreamReader.ArrayValue) value).asList(), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                }
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
@@ -185,5 +196,17 @@ public class JdbcUtils {
         }
 
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
+    }
+
+    public static List<Object> convertList(List<Object> values, Class<?> type) throws SQLException {
+        if (values == null || type == null) {
+            return values;
+        }
+
+        List<Object> convertedValues = new ArrayList<>(values.size());
+        for (Object value : values) {
+            convertedValues.add(convert(value, type));
+        }
+        return convertedValues;
     }
 }
