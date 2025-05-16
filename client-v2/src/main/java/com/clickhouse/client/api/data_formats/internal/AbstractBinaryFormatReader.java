@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -486,12 +487,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Inet4Address getInet4Address(String colName) {
-        return readValue(colName);
+        return InetAddressConverter.convertToIpv4(readValue(colName));
     }
 
     @Override
     public Inet6Address getInet6Address(String colName) {
-        return readValue(colName);
+        return InetAddressConverter.convertToIpv6(readValue(colName));
     }
 
     @Override
@@ -651,12 +652,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Inet4Address getInet4Address(int index) {
-        return readValue(index);
+        return InetAddressConverter.convertToIpv4(readValue(index));
     }
 
     @Override
     public Inet6Address getInet6Address(int index) {
-        return readValue(index);
+        return InetAddressConverter.convertToIpv6(readValue(index));
     }
 
     @Override

@@ -28,7 +28,6 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -519,7 +518,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testIpAddressTypes() throws SQLException, UnknownHostException {
         runQuery("CREATE TABLE test_ips (order Int8, "
-                + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6"
+                + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6, ipv4_as_ipv6 IPv6"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
@@ -529,12 +528,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
         InetAddress ipv4AddressByIp = Inet4Address.getByName(rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256));
         InetAddress ipv4AddressByName = Inet4Address.getByName("www.example.com");
         InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
+        InetAddress ipv4AsIpv6 = Inet4Address.getByName("90.176.75.97");
 
         try (Connection conn = getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ? )")) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ?, ? )")) {
                 stmt.setObject(1, ipv4AddressByIp);
                 stmt.setObject(2, ipv4AddressByName);
                 stmt.setObject(3, ipv6Address);
+                stmt.setObject(4, ipv4AsIpv6);
                 stmt.executeUpdate();
             }
         }
@@ -549,6 +550,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
                     assertEquals(rs.getObject("ipv6"), ipv6Address);
                     assertEquals(rs.getString("ipv6"), ipv6Address.toString());
+                    assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
                     assertFalse(rs.next());
                 }
             }

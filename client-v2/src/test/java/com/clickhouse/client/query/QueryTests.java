@@ -781,7 +781,34 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers);
     }
 
-    @Test
+    @Test(groups = {"integration"})
+    public void testConversionOfIpAddresses() throws Exception {
+
+        try (QueryResponse response = client.query("SELECT toIPv6('::ffff:90.176.75.97') ipv4, toIPv6('2001:db8:85a3::8a2e:370:7334') ipv6").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            reader.next();
+            InetAddress ipv4 = reader.getInet4Address(1);
+            Assert.assertNotNull(ipv4);
+            InetAddress ipv6 = reader.getInet6Address(2);
+            Assert.assertNotNull(ipv6);
+            InetAddress ipv4_as_ipv6 = reader.getInet6Address(1);
+            Assert.assertEquals(Inet4Address.getByAddress(ipv4_as_ipv6.getAddress()), ipv4);
+            Assert.assertThrows(() -> reader.getInet4Address(2));
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT toIPv6('::ffff:90.176.75.97') ipv4, toIPv6('2001:db8:85a3::8a2e:370:7334') ipv6");
+        GenericRecord record = records.get(0);
+        InetAddress ipv4 = record.getInet4Address(1);
+        Assert.assertNotNull(ipv4);
+        InetAddress ipv6 = record.getInet6Address(2);
+        Assert.assertNotNull(ipv6);
+        InetAddress ipv4_as_ipv6 = record.getInet6Address(1);
+        Assert.assertEquals(Inet4Address.getByAddress(ipv4_as_ipv6.getAddress()), ipv4);
+        Assert.assertThrows(() -> record.getInet4Address(2));
+    }
+
+    @Test(groups = {"integration"})
     public void testDateTimeDataTypes() {
         final List<String> columns = Arrays.asList(
                 "min_date Date",
