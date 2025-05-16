@@ -957,6 +957,10 @@ public class SerializerUtils {
                 readerMethod = "readShortLE";
                 readerMethodReturnType = Type.getDescriptor(short.class);
                 break;
+            case Bool:
+                readerMethod = "readByte";
+                readerMethodReturnType = Type.getDescriptor(byte.class);
+                break;
             default:
                 throw new ClientException("Column type '" + dataType + "' cannot be set to a primitive type '" + targetType + "'");
         }

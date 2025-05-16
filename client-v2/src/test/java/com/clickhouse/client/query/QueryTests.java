@@ -1800,13 +1800,20 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testQueryReadToPOJO() {
         int limit = 10;
-        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', toString(number + 1)) as name " +
+        final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', toString(number + 1)) as name, true as bool " +
                 " FROM system.numbers LIMIT " + limit;
         TableSchema schema = client.getTableSchemaFromQuery(sql);
         client.register(SimplePOJO.class, schema);
 
         List<SimplePOJO> pojos = client.queryAll(sql, SimplePOJO.class, schema);
         Assert.assertEquals(pojos.size(), limit);
+
+        for (SimplePOJO pojo : pojos) {
+            Assert.assertNotNull(pojo.getId());
+            Assert.assertNotNull(pojo.getAge());
+            Assert.assertNotNull(pojo.getName());
+            Assert.assertTrue(pojo.getBool());
+        }
     }
 
     @Test(groups = {"integration"})

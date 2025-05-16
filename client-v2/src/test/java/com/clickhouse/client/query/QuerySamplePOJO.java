@@ -558,7 +558,7 @@ public class QuerySamplePOJO {
                 "decimal64 Decimal64(3), " +
                 "decimal128 Decimal128(4), " +
                 "decimal256 Decimal256(5), " +
-                "bool UInt8, " +
+                "bool Bool, " +
                 "string String, " +
                 "fixedString FixedString(3), " +
                 "date Date, " +
