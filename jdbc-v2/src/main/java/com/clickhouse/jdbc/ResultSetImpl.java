@@ -1520,7 +1520,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     return reader.readValue(columnIndex);
                 }
 
-                return (T) JdbcUtils.convert(reader.readValue(columnIndex), type, getSchema().getColumnByIndex(columnIndex));
+                return (T) JdbcUtils.convert(reader.readValue(columnIndex), type, type == java.sql.Array.class ? getSchema().getColumnByIndex(columnIndex) : null);
             } else {
                 wasNull = true;
                 return null;
@@ -1542,7 +1542,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     return reader.readValue(columnLabel);
                 }
 
-                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type, getSchema().getColumnByName(columnLabel));
+                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type, type == java.sql.Array.class ? getSchema().getColumnByName(columnLabel) : null);
             } else {
                 wasNull = true;
                 return null;

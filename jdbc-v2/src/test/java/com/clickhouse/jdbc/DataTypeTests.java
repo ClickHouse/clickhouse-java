@@ -778,7 +778,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     Object[] arraydateResult = (Object[]) ((Array) rs.getObject("arraydate")).getArray();
                     assertEquals(arraydateResult.length, arraydate.length);
                     for (int i = 0; i < arraydate.length; i++) {
-                        assertEquals(String.valueOf(arraydateResult[i]), String.valueOf(arraydate[i]));
+                        assertEquals(arraydateResult[i], arraydate[i]);
                     }
                     assertFalse(rs.next());
                 }
