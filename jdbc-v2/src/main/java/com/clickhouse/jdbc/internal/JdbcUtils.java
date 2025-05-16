@@ -180,7 +180,7 @@ public class JdbcUtils {
             } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
-                if (column != null) {
+                if (column != null && column.getArrayBaseColumn() != null) {
                     return new Array(convertList(((BinaryStreamReader.ArrayValue) value).asList(), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
                 }
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
