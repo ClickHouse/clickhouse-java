@@ -469,7 +469,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public int findColumn(String columnLabel) throws SQLException {
         checkClosed();
         try {
-            return reader.getSchema().getColumnByName(columnLabel).getColumnIndex();
+            return reader.getSchema().nameToColumnIndex(columnLabel);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: findColumn(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }

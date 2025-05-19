@@ -104,10 +104,23 @@ public class TableSchema {
         return indexToName(index - 1);
     }
 
+    /**
+     * Takes column name and return corresponding index (starting from 1).
+     * Equals to {@code nameToIndex(name) + 1}.
+     *
+     * @param name - column name
+     * @return - column index starting from 1
+     */
     public int nameToColumnIndex(String name) {
         return nameToIndex(name) + 1;
     }
 
+    /**
+     * Takes column name and return corresponding index (starting from 0).
+     *
+     * @param name - column name
+     * @return - column index starting from 0
+     */
     public int nameToIndex(String name) {
         Integer index = colIndex.get(name);
         if (index == null) {
