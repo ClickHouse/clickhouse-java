@@ -2,7 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.query.POJOSetter;
+import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -28,11 +28,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.sql.Timestamp;
 import java.time.*;
-import java.time.temporal.TemporalUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -798,7 +795,7 @@ public class SerializerUtils {
         }
     }
 
-    public static POJOSetter compilePOJOSetter(Method setterMethod, ClickHouseColumn column) {
+    public static POJOFieldDeserializer compilePOJOSetter(Method setterMethod, ClickHouseColumn column) {
         Class<?> dtoClass = setterMethod.getDeclaringClass();
 
         // creating a new class to implement POJOSetter which will call the setter method to set column value
@@ -806,7 +803,7 @@ public class SerializerUtils {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V1_8, ACC_PUBLIC, pojoSetterClassName
                 , null, "java/lang/Object",
-                new String[]{POJOSetter.class.getName().replace('.', '/')});
+                new String[]{POJOFieldDeserializer.class.getName().replace('.', '/')});
 
 
         // constructor method
@@ -895,7 +892,7 @@ public class SerializerUtils {
         try {
             SerializerUtils.DynamicClassLoader loader = new SerializerUtils.DynamicClassLoader(dtoClass.getClassLoader());
             Class<?> clazz = loader.defineClass(pojoSetterClassName.replace('/', '.'), writer.toByteArray());
-            return (POJOSetter) clazz.getDeclaredConstructor().newInstance();
+            return (POJOFieldDeserializer) clazz.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
         }
