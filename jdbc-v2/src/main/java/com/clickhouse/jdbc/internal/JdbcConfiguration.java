@@ -126,7 +126,7 @@ public class JdbcConfiguration {
      *     <li>5 - query parameters as is (optional)</li>
      * </ul>
      */
-    private static final Pattern URL_REGEXP = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
+    private static final Pattern URL_REGEXP = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+|\\[[0-9a-fA-F:]+\\]):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
 
     /**
      * Extracts positions of parameters names.
