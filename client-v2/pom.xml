@@ -200,7 +200,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>shade-all</id>
+                        <id>all</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
@@ -232,11 +232,6 @@
                                 <relocation>
                                     <pattern>org.ow2</pattern>
                                     <shadedPattern>${shade.base}.org.ow2</shadedPattern>
-                                </relocation>
-
-                                <relocation>
-                                    <pattern>com.fasterxml</pattern>
-                                    <shadedPattern>${shade.base}.com.fasterxml</shadedPattern>
                                 </relocation>
 
                                 <relocation>
