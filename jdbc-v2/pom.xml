@@ -25,51 +25,27 @@
 
     <dependencies>
         <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>client-v2</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
             <version>4.13.2</version>
         </dependency>
 
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>client-v2</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <version>${apache.httpclient.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>com.google.code.gson</groupId>-->
-<!--            <artifactId>gson</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
         <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-            <version>${lz4.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <scope>provided</scope>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
         </dependency>
 
 <!--        Test dependencies -->
@@ -78,6 +54,13 @@
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
             <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- needed for integration tests to interact with server -->
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>${revision}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
