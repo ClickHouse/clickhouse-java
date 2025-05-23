@@ -1,4 +1,4 @@
-package com.clickhouse.client.api.query;
+package com.clickhouse.client.api.serde;
 
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -10,7 +10,7 @@ import com.clickhouse.data.ClickHouseColumn;
  * Caller will use this class to set value for the property.
  * Methods are overloaded to support primitive types and avoid boxing.
  */
-public interface POJOSetter {
+public interface POJOFieldDeserializer {
 
     void setValue(Object obj, BinaryStreamReader reader, ClickHouseColumn column) throws Exception;
 }

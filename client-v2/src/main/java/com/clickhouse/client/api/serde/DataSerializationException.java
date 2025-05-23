@@ -1,4 +1,4 @@
-package com.clickhouse.client.api.insert;
+package com.clickhouse.client.api.serde;
 
 import com.clickhouse.client.api.ClientException;
 
@@ -12,7 +12,7 @@ public class DataSerializationException extends ClientException {
         super(message, cause);
     }
 
-    public DataSerializationException(Object obj, POJOSerializer serializer, Exception e) {
+    public DataSerializationException(Object obj, POJOFieldSerializer serializer, Exception e) {
         super("Failed to serialize data '" + obj + "' with serializer '" + serializer + "'", e);
     }
 }
