@@ -146,7 +146,7 @@
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
 
-        <minJdk>17</minJdk>
+        <minJdk>1.8</minJdk>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
