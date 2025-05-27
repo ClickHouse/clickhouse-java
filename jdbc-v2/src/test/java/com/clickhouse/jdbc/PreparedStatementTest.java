@@ -20,6 +20,9 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -292,17 +295,54 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     void testWithClause() throws Exception {
-        int count = 0;
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("with data as (SELECT number FROM numbers(100)) select * from data ")) {
                 stmt.execute();
                 ResultSet rs = stmt.getResultSet();
+                int count = 0;
                 while (rs.next()) {
                     count++;
                 }
+                assertEquals(count, 100);
             }
         }
-        assertEquals(count, 100);
+    }
+
+    @Test(groups = "integration")
+    void testWithClauseWithParams() throws Exception {
+        final String table = "test_with_stmt";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("INSERT INTO " + table + " VALUES ('A'), ('B')");
+            }
+            final Timestamp target_time = Timestamp.valueOf(LocalDateTime.now());
+            try (PreparedStatement stmt = conn.prepareStatement("WITH " +
+                    " toDateTime(?) as target_time, " +
+                    " (SELECT 123) as magic_number" +
+                    " SELECT *, target_time, magic_number FROM " + table)) {
+                stmt.setTimestamp(1, target_time);
+                stmt.execute();
+                ResultSet rs = stmt.getResultSet();
+                int count = 0;
+                assertEquals(rs.getMetaData().getColumnCount(), 3);
+                while (rs.next()) {
+                    Assert.assertEquals(
+                            rs.getTimestamp("target_time").toLocalDateTime().truncatedTo(ChronoUnit.SECONDS),
+                            target_time.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS));
+                    Assert.assertEquals(rs.getString("magic_number"), "123");
+                    Assert.assertEquals(
+                            rs.getTimestamp(2).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS),
+                            target_time.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS));
+                    Assert.assertEquals(rs.getString(3), "123");
+
+                    count++;
+                }
+                assertEquals(count, 2, "Expected 2 rows");
+
+            }
+        }
     }
 
     @Test(groups = { "integration" })

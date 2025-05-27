@@ -593,6 +593,8 @@
                 <configuration>
                     <source>${minJdk}</source>
                     <target>${minJdk}</target>
+                    <testSource>17</testSource>
+                    <testTarget>17</testTarget>
                     <showWarnings>true</showWarnings>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
