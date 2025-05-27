@@ -107,7 +107,7 @@
         <snappy.version>1.1.10.4</snappy.version>
         <xz.version>1.9</xz.version>
         <zstd-jni.version>1.5.5-5</zstd-jni.version>
-        <testcontainers.version>1.19.7</testcontainers.version>
+        <testcontainers.version>1.21.0</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5.1</testng.version>
 
@@ -146,7 +146,7 @@
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
 
-        <minJdk>1.8</minJdk>
+        <minJdk>17</minJdk>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
