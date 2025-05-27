@@ -179,7 +179,11 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
     @Override
     public String getColumnClassName(int column) throws SQLException {
         try {
-            return typeClassMap.getOrDefault(getColumn(column).getDataType(), Object.class).getName();
+            Class<?> columnClassType = typeClassMap.get(getColumn(column).getDataType());
+            if (columnClassType == null) {
+                columnClassType = Object.class;
+            }
+            return columnClassType.getName();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
