@@ -316,7 +316,7 @@ public class ClickHouseServerForTest {
     public static void beforeSuite() {
         if (isCloud) {
             if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
-                throw new IllegalStateException("Failed to create database for testing.");
+                throw new RuntimeException("Failed to create database for testing.");
             }
 
             return;
@@ -370,6 +370,9 @@ public class ClickHouseServerForTest {
             try {
                 Container.ExecResult res =  clickhouseContainer.execInContainer("clickhouse-client",
                         "-u", "default", "--password", getPassword(), sql);
+                if (res.getExitCode() != 0) {
+                    LOGGER.error("query execution result: stderr={}, stdout={}", res.getStderr(), res.getStdout() );
+                }
                 return res.getExitCode() == 0;
             } catch (Exception e) {
                 throw new RuntimeException("runQuery('" + sql + "') failed", e);
