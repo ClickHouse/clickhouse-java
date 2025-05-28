@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.internal;
 
-import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
@@ -13,6 +12,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.transport.Endpoint;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -378,8 +378,8 @@ public class HttpAPIClientHelper {
     private static final long POOL_VENT_TIMEOUT = 10000L;
     private AtomicLong timeToPoolVent = new AtomicLong(0);
 
-    public ClassicHttpResponse executeRequest(ClickHouseNode server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
-                                             IOCallback<OutputStream> writeCallback) throws IOException {
+    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
+                                              IOCallback<OutputStream> writeCallback) throws IOException {
         if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
@@ -390,7 +390,7 @@ public class HttpAPIClientHelper {
         }
         URI uri;
         try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseUri());
+            URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
             addQueryParams(uriBuilder, chConfiguration, requestConfig);
             uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
@@ -431,10 +431,10 @@ public class HttpAPIClientHelper {
             return httpResponse;
 
         } catch (UnknownHostException e) {
-            LOG.warn("Host '{}' unknown", server.getHost());
+            LOG.warn("Host '{}' unknown", server.getBaseURL());
             throw new ClientException("Unknown host", e);
         } catch (ConnectException | NoRouteToHostException e) {
-            LOG.warn("Failed to connect to '{}': {}", server.getHost(), e.getMessage());
+            LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
             throw new ClientException("Failed to connect", e);
         } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException | SocketTimeoutException e) {
             throw e;
