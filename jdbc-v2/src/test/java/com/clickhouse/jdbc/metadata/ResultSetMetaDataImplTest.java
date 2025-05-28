@@ -77,6 +77,18 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testGetColumnTypeMap() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("select map('a', 1) as a");
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnType(1), Types.JAVA_OBJECT);
+                assertEquals(rsmd.getColumnClassName(1), Object.class.getName());
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGetColumnTypeFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
