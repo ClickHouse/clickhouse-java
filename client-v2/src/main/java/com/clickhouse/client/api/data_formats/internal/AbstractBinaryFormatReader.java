@@ -8,7 +8,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
-import com.clickhouse.client.api.query.POJOSetter;
+import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -28,7 +28,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -41,7 +40,6 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +97,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      * @return
      * @throws IOException
      */
-    public boolean readToPOJO(Map<String, POJOSetter> deserializers, Object obj ) throws IOException {
+    public boolean readToPOJO(Map<String, POJOFieldDeserializer> deserializers, Object obj ) throws IOException {
         if (columns == null || columns.length == 0) {
             return false;
         }
@@ -108,7 +106,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
         for (ClickHouseColumn column : columns) {
             try {
-                POJOSetter deserializer = deserializers.get(column.getColumnName());
+                POJOFieldDeserializer deserializer = deserializers.get(column.getColumnName());
                 if (deserializer != null) {
                     deserializer.setValue(obj, binaryStreamReader, column);
                 } else {
