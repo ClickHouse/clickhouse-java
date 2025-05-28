@@ -5,10 +5,8 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.sql.Connection;
-import java.sql.ConnectionBuilder;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.ShardingKeyBuilder;
 import java.util.Properties;
 import java.util.logging.Logger;
 
@@ -79,17 +77,7 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
     }
 
     @Override
-    public ConnectionBuilder createConnectionBuilder() throws SQLException {
-        return DataSource.super.createConnectionBuilder();
-    }
-
-    @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-    }
-
-    @Override
-    public ShardingKeyBuilder createShardingKeyBuilder() throws SQLException {
-        return DataSource.super.createShardingKeyBuilder();
     }
 }

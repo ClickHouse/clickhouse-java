@@ -526,30 +526,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return executeUpdate(sql, columnNames);
     }
 
-    @Override
-    public String enquoteLiteral(String val) throws SQLException {
-        checkClosed();
-        return Statement.super.enquoteLiteral(val);
-    }
-
-    @Override
-    public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
-        checkClosed();
-        return Statement.super.enquoteIdentifier(identifier, alwaysQuote);
-    }
-
-    @Override
-    public boolean isSimpleIdentifier(String identifier) throws SQLException {
-        checkClosed();
-        return Statement.super.isSimpleIdentifier(identifier);
-    }
-
-    @Override
-    public String enquoteNCharLiteral(String val) throws SQLException {
-        checkClosed();
-        return Statement.super.enquoteNCharLiteral(val);
-    }
-
     /**
      * Return query ID of last executed statement. It is not guaranteed when statements is used concurrently.
      * @return query ID
