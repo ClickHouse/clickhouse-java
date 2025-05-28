@@ -5,20 +5,16 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
-import com.clickhouse.client.api.serde.DataSerializationException;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.serde.POJOFieldSerializer;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
@@ -31,13 +27,15 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.api.serde.DataSerializationException;
+import com.clickhouse.client.api.serde.POJOFieldDeserializer;
+import com.clickhouse.client.api.serde.POJOFieldSerializer;
+import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
-import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
@@ -55,7 +53,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -125,10 +122,7 @@ public class Client implements AutoCloseable {
     private final Map<String, String> configuration;
 
     private final Map<String, String> readOnlyConfig;
-
-    // POJO serializer mapping (class -> (schema -> (format -> serializer)))
-    private final Map<Class<?>, Map<String, Map<String, POJOSerializer>>> serializers;
-
+    
     private final POJOSerDe pojoSerDe;
 
     private final ExecutorService sharedOperationExecutor;
@@ -171,9 +165,6 @@ public class Client implements AutoCloseable {
             this.isSharedOpExecutorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
-
-        this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
-
 
         // Transport
         ImmutableList.Builder<Endpoint> tmpEndpoints = ImmutableList.builder();
