@@ -85,27 +85,6 @@
             <optional>true</optional>
         </dependency>
 
-<!--         remove -->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.arrow</groupId>-->
-<!--            <artifactId>arrow-memory</artifactId>-->
-<!--            <type>pom</type>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.arrow</groupId>-->
-<!--            <artifactId>arrow-vector</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-
-<!--        remove -->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.avro</groupId>-->
-<!--            <artifactId>avro</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
-
-
         <dependency>
 <!--           for adaptive queue-->
             <groupId>org.jctools</groupId>
@@ -113,11 +92,6 @@
             <optional>true</optional>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>org.msgpack</groupId>-->
-<!--            <artifactId>msgpack-core</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
