@@ -375,7 +375,7 @@ public class ClickHouseServerForTest {
         if (clickhouseContainer != null) {
             try {
                 Container.ExecResult res =  clickhouseContainer.execInContainer("clickhouse-client",
-                        "-u", "default", "--password", "\"" + getPassword() + "\"","\"" + sql + "\"");
+                        "-u", "default", "--password", getPassword(), "--query", sql);
                 if (res.getExitCode() != 0) {
                     LOGGER.error("query execution result: stderr={}, stdout={}", res.getStderr(), res.getStdout() );
                 }
