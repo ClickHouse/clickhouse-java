@@ -1,4 +1,4 @@
-package com.clickhouse.client.api.insert;
+package com.clickhouse.client.api.serde;
 
 import com.clickhouse.client.api.ClientException;
 
