@@ -1,6 +1,5 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -36,10 +35,13 @@ import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
+import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
+import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -79,6 +81,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -118,13 +121,13 @@ public class Client implements AutoCloseable {
 
     private HttpAPIClientHelper httpClientHelper = null;
 
-    private final Set<String> endpoints;
-
+    private final List<Endpoint> endpoints;
     private final Map<String, String> configuration;
 
     private final Map<String, String> readOnlyConfig;
 
-    private final List<ClickHouseNode> serverNodes = new ArrayList<>();
+    // POJO serializer mapping (class -> (schema -> (format -> serializer)))
+    private final Map<Class<?>, Map<String, Map<String, POJOSerializer>>> serializers;
 
     private final POJOSerDe pojoSerDe;
 
@@ -151,15 +154,15 @@ public class Client implements AutoCloseable {
 
     private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
-        this.endpoints = endpoints;
+        // Simple initialization
         this.configuration = configuration;
         this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
-        this.endpoints.forEach(endpoint -> {
-            this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
-        });
         this.metricsRegistry = metricsRegistry;
+
+        // Serialization
         this.pojoSerDe = new POJOSerDe(columnToMethodMatchingStrategy);
 
+        // Operation Execution
         boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
         if (isAsyncEnabled && sharedOperationExecutor == null) {
             this.isSharedOpExecutorOwned = true;
@@ -168,7 +171,27 @@ public class Client implements AutoCloseable {
             this.isSharedOpExecutorOwned = false;
             this.sharedOperationExecutor = sharedOperationExecutor;
         }
-        boolean initSslContext = getEndpoints().stream().anyMatch(s -> s.toLowerCase().contains("https://"));
+
+        this.columnToMethodMatchingStrategy = columnToMethodMatchingStrategy;
+
+
+        // Transport
+        ImmutableList.Builder<Endpoint> tmpEndpoints = ImmutableList.builder();
+        boolean initSslContext = false;
+        for (String ep : endpoints) {
+            try {
+                HttpEndpoint endpoint = new HttpEndpoint(ep);
+                if (endpoint.isSecure()) {
+                    initSslContext = true;
+                }
+                LOG.debug("Adding endpoint: {}", endpoint);
+                tmpEndpoints.add(endpoint);
+            } catch (Exception e) {
+                throw new ClientException("Failed to add endpoint " + ep, e);
+            }
+        }
+
+        this.endpoints = tmpEndpoints.build();
         this.httpClientHelper = new HttpAPIClientHelper(configuration, metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
@@ -1180,11 +1203,6 @@ public class Client implements AutoCloseable {
         }
     }
 
-    private ClickHouseNode getServerNode() {
-        // TODO: implement load balancing using existing logic
-        return this.serverNodes.get(0);
-    }
-
     /**
      * Pings the server to check if it is alive
      * @return true if the server is alive, false otherwise
@@ -1322,13 +1340,13 @@ public class Client implements AutoCloseable {
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            ClickHouseNode selectedNode = getNextAliveNode();
+            Endpoint selectedEndpoint = getNextAliveNode();
 
             RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory,
+                        httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory,
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1352,7 +1370,7 @@ public class Client implements AutoCloseable {
                     // Check response
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                         LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), System.nanoTime() - startTime);
-                        selectedNode = getNextAliveNode();
+                        selectedEndpoint = getNextAliveNode();
                         continue;
                     }
 
@@ -1369,7 +1387,7 @@ public class Client implements AutoCloseable {
                             (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
-                        selectedNode = getNextAliveNode();
+                        selectedEndpoint = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
@@ -1539,13 +1557,13 @@ public class Client implements AutoCloseable {
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            ClickHouseNode selectedNode = getNextAliveNode();
+            Endpoint selectedEndpoint = getNextAliveNode();
 
             RuntimeException lastException = null;
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory,
+                             httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory,
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1555,7 +1573,7 @@ public class Client implements AutoCloseable {
                     // Check response
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                         LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", System.nanoTime() - startTime, httpResponse.getCode());
-                        selectedNode = getNextAliveNode();
+                        selectedEndpoint = getNextAliveNode();
                         continue;
                     }
 
@@ -1571,7 +1589,7 @@ public class Client implements AutoCloseable {
                             (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                     if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
-                        selectedNode = getNextAliveNode();
+                        selectedEndpoint = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
@@ -1663,12 +1681,12 @@ public class Client implements AutoCloseable {
             responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
-                ClickHouseNode selectedNode = getNextAliveNode();
+                Endpoint selectedEndpoint = getNextAliveNode();
                 RuntimeException lastException = null;
                 for (int i = 0; i <= retries; i++) {
                     try {
                         ClassicHttpResponse httpResponse =
-                                httpClientHelper.executeRequest(selectedNode, finalSettings.getAllSettings(), lz4Factory, output -> {
+                                httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory, output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
                                     output.close();
                                 });
@@ -1676,7 +1694,7 @@ public class Client implements AutoCloseable {
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", System.nanoTime() - startTime, httpResponse.getCode());
-                            selectedNode = getNextAliveNode();
+                            selectedEndpoint = getNextAliveNode();
                             continue;
                         }
 
@@ -1701,7 +1719,7 @@ public class Client implements AutoCloseable {
                                 (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
-                            selectedNode = getNextAliveNode();
+                            selectedEndpoint = getNextAliveNode();
                         } else {
                             throw lastException;
                         }
@@ -1846,8 +1864,9 @@ public class Client implements AutoCloseable {
      * @param allocator - optional supplier to create new instances of the DTO.
      * @throws IllegalArgumentException when class is not registered or no setters found
      * @return List of POJOs filled with data
-     * @param <T>
+     * @param <T> type of POJO
      */
+    @SuppressWarnings("unchecked")
     public <T> List<T> queryAll(String sqlQuery, Class<T> clazz, TableSchema schema, Supplier<T> allocator) {
         Map<String, POJOFieldDeserializer> classDeserializers = pojoSerDe.getFieldDeserializers(clazz, schema);
 
@@ -2126,9 +2145,10 @@ public class Client implements AutoCloseable {
     /**
      * Returns unmodifiable set of endpoints.
      * @return - set of endpoints
+     * @deprecated
      */
     public Set<String> getEndpoints() {
-        return Collections.unmodifiableSet(endpoints);
+        return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
     }
 
     public String getUser() {
@@ -2182,8 +2202,8 @@ public class Client implements AutoCloseable {
         this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
     }
 
-    private ClickHouseNode getNextAliveNode() {
-        return serverNodes.get(0);
+    private Endpoint getNextAliveNode() {
+        return endpoints.get(0);
     }
 
     public static final String VALUES_LIST_DELIMITER = ",";

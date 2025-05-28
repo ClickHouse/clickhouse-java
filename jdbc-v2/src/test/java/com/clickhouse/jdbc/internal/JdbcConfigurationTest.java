@@ -40,6 +40,9 @@ public class JdbcConfigurationTest {
 
         return new Object[][] {
                 {"jdbc:clickhouse://localhost:8123/", "http://localhost:8123", defaultProps, defaultParams},
+                {"jdbc:clickhouse://127.0.0.1:8123/", "http://127.0.0.1:8123", defaultProps, defaultParams},
+                {"jdbc:clickhouse://[::1]:8123/", "http://[::1]:8123", defaultProps, defaultParams},
+                {"jdbc:clickhouse://[::1]/", "http://[::1]", defaultProps, defaultParams},
                 {"jdbc:clickhouse://localhost:8443/clickhouse?param1=value1&param2=value2", "http://localhost:8443", defaultProps, simpleParams},
                 {"jdbc:clickhouse:https://localhost:8123/clickhouse?param1=value1&param2=value2", "https://localhost:8123", defaultProps, simpleParams},
                 {"jdbc:clickhouse://localhost:8443/", "https://localhost:8443", useSSL, useSSLParams},
