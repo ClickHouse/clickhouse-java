@@ -1,15 +1,13 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeTest;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.Map;
-
-import com.clickhouse.client.config.ClickHouseClientOption;
-import org.testng.annotations.AfterSuite;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeSuite;
-import org.testng.annotations.BeforeTest;
 
 /**
  * Base class for all integration tests.
@@ -81,9 +79,9 @@ public abstract class BaseIntegrationTest {
     }
 
     protected boolean createDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS " + dbName);
+        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS `" + dbName + "`");
     }
     protected boolean dropDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS " + dbName);
+        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS `" + dbName + "`");
     }
 }
