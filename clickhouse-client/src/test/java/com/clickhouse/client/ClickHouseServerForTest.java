@@ -11,8 +11,13 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -88,7 +93,7 @@ public class ClickHouseServerForTest {
             isCloud = true;
             imageTag = "";
         }
-        if (clickhouseServer != null) { // use external server
+        if (clickhouseServer != null || isCloud) { // use external server
             clickhouseVersion = imageTag == null
                     || ClickHouseVersionUtils.of(imageTag).getYear() == 0 ? "" : imageTag;
             clickhouseContainer = null;
@@ -385,29 +390,39 @@ public class ClickHouseServerForTest {
             }
         } else {
             //Create database for testing
+
             ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
 
-            LOGGER.info("SQL: " + sql);
-            LOGGER.info("Server: " + server);
+            String uri = server.getBaseUri();
 
-            int retries = 0;
-            do {
-                try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build();
-                     ClickHouseResponse response = client.read(server).query(sql).executeAndWait()) {
-                    if (response.getSummary() != null && response.getSummary().getWrittenRows() > -1) {
-                        return true;
+            try {
+                URL serverURL = new URL(uri);
+                LOGGER.info("sending request to {} (uri={})", serverURL, uri);
+
+                for (int attempts = 0; attempts < 10; attempts++) {
+                    HttpURLConnection httpConn = (HttpURLConnection) serverURL.openConnection();
+                    try {
+                        httpConn.setRequestMethod("POST");
+                        httpConn.setDoOutput(true);
+                        httpConn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(("default:" + getPassword()).getBytes()));
+
+                        try (OutputStream out = httpConn.getOutputStream()) {
+                            out.write(sql.getBytes(StandardCharsets.UTF_8));
+                            out.flush();
+                        }
+
+                        if (httpConn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                            return true;
+                        }
+                    } finally {
+                        if (httpConn != null) {
+                            httpConn.disconnect();
+                        }
                     }
-                } catch (Exception e) {
-                    LOGGER.warn("Failed to run query for testing...", e);
                 }
-
-                try {
-                    Thread.sleep(15000);
-                } catch (InterruptedException e) {
-                    LOGGER.error("Failed to sleep", e);
-                    throw new RuntimeException(e);
-                }
-            } while(retries++ < 10);
+            } catch (Exception e) {
+                LOGGER.error("failed to run query", e);
+            }
 
             return false;
         }
