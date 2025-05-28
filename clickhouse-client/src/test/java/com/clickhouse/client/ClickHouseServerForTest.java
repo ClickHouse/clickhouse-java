@@ -331,7 +331,7 @@ public class ClickHouseServerForTest {
                 clickhouseContainer.start();
 
                 if (clickhouseContainer.isRunning()) {
-                    if (!runQuery("CREATE DATABASE IF NOT EXISTS " + getDatabase())) {
+                    if (!runQuery("CREATE DATABASE IF NOT EXISTS `" + getDatabase() + "\`")) {
                         throw new RuntimeException("Failed to create database");
                     }
                 }
@@ -365,6 +365,12 @@ public class ClickHouseServerForTest {
 
     public static boolean runQuery(String sql) {
         LOGGER.info("runQuery: (\"" + sql + "\")");
+
+        try {
+            throw new Exception("test");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         if (clickhouseContainer != null) {
             try {
