@@ -53,6 +53,14 @@ Historically, there are two versions of both components. The previous version of
 
 ## Important
 
+### Artifacts 
+Next artifacts with classifiers will not be published anymore starting release 0.9.0 (June):
+| Artifact | Classifier | Comments |
+|-----------------|---------|----------------------|
+| clickhouse-jdbc | shaded  | Use `all` classifier |  
+| clickhouse-jdbc | http    |                      |
+| clickhouse-jdbc | shaded-all | Use `all` classifier |
+
 ### Upcoming deprecations:
 | Component                      | Version | Comment                                          |
 |--------------------------------|---------|--------------------------------------------------|
