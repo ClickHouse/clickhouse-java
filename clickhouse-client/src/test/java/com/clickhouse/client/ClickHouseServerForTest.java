@@ -353,7 +353,7 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud) {
-            if (!runQuery("DROP DATABASE IF EXISTS " + database)) {
+            if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
                 LOGGER.warn("Failed to drop database for testing.");
             }
         }
@@ -364,7 +364,7 @@ public class ClickHouseServerForTest {
     }
 
     public static boolean runQuery(String sql) {
-        LOGGER.info("Run a query for testing...");
+        LOGGER.info("runQuery: (\"" + sql + "\")");
 
         if (clickhouseContainer != null) {
             try {

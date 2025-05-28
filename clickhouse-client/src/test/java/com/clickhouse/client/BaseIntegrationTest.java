@@ -79,9 +79,9 @@ public abstract class BaseIntegrationTest {
     }
 
     protected boolean createDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS " + dbName);
+        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS `" + dbName + "`");
     }
     protected boolean dropDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS " + dbName);
+        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS `" + dbName + "`");
     }
 }
