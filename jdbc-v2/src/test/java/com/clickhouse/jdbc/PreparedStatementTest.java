@@ -346,6 +346,81 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    void testMultipleWithClauses() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH data1 AS (SELECT 1 AS a), " +
+                             "     data2 AS (SELECT a + 1 AS b FROM data1) " +
+                             "SELECT * FROM data2")) {
+            ResultSet rs = stmt.executeQuery();
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testRecursiveWithClause() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH RECURSIVE numbers AS (" +
+                             "    SELECT 1 AS n " +
+                             "    UNION ALL " +
+                             "    SELECT n + 1 FROM numbers WHERE n < 5" +
+                             ") " +
+                             "SELECT * FROM numbers ORDER BY n")) {
+            ResultSet rs = stmt.executeQuery();
+            for (int i = 1; i <= 5; i++) {
+                assertTrue(rs.next());
+                assertEquals(i, rs.getInt(1));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testWithClauseWithMultipleParameters() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH data AS (" +
+                             "    (SELECT number AS n " +
+                             "    FROM numbers(?) " +
+                             "    WHERE n > ?)" +
+                             ") " +
+                             "SELECT * FROM data WHERE n < ?")) {
+//"WITH data AS (    (SELECT number AS n     FROM numbers(?)     WHERE n > ?)) SELECT * FROM data WHERE n < ?"
+            stmt.setInt(1, 10);  // numbers(10) = 0-9
+            stmt.setInt(2, 3);   // n > 3
+            stmt.setInt(3, 7);   // n < 7
+
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            int expected = 4;     // 4,5,6
+            while (rs.next()) {
+                count++;
+                int n = rs.getInt(1);
+                assertTrue(n > 3 && n < 7);
+            }
+            assertEquals(3, count);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testSelectFromArray() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT * FROM numbers(?)")) {
+            stmt.setInt(1, 10);  // numbers(10) = 0-9
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            assertEquals(10, count);
+        }
+    }
+
+    @Test(groups = { "integration" })
     void testInsert() throws Exception {
         int ROWS = 1000;
         String payload = RandomStringUtils.random(1024, true, true);
