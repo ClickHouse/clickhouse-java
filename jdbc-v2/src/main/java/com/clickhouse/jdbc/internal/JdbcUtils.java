@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
