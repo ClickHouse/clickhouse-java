@@ -58,7 +58,7 @@ Historically, there are two versions of both components. The previous version of
 We are going to retire some JDBC artifacts (actually only classifiers) in *0.9.0*. Here is the list:   
 | Artifact | Classifier | Comments |
 |-----------------|---------|----------------------|
-| clickhouse-jdbc | shaded  | Use one with `all` classifier |  
+| clickhouse-jdbc | shaded  | Use one with `all` classifier instead |  
 | clickhouse-jdbc | http    |                      |
 | clickhouse-jdbc | shaded-all | Use one with `all` classifier |
 
