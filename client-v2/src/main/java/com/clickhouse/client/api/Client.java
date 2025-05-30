@@ -116,6 +116,23 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
+    private static ThreadLocal<String> customQueryIdValue = new ThreadLocal<>();
+
+    /**
+     * Set custom query ID for the current thread. This query ID will be used
+     * for any query triggered from the same thread.
+     */
+    public static void setThreadQueryId(String customQueryId) {
+         customQueryIdValue.set(customQueryId);
+    }
+
+    /**
+     * Remove custom query ID for the current thread.
+     */
+    public static void removeThreadQueryId() {
+        customQueryIdValue.remove();
+    }
+
     private HttpAPIClientHelper httpClientHelper = null;
 
     private final List<Endpoint> endpoints;
@@ -1326,6 +1343,11 @@ public class Client implements AutoCloseable {
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
 
+        String customQueryId = customQueryIdValue.get();
+        if (customQueryId != null) {
+            settings.setQueryId(customQueryId);
+        }
+
         settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
         final InsertSettings finalSettings = settings;
         Supplier<InsertResponse> supplier = () -> {
@@ -1531,6 +1553,11 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
+        String customQueryId = customQueryIdValue.get();
+        if (customQueryId != null) {
+            settings.setQueryId(customQueryId);
+        }
+
         settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
         final InsertSettings finalSettings = settings;
 
@@ -1662,6 +1689,11 @@ public class Client implements AutoCloseable {
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
         applyDefaults(settings);
+
+        String customQueryId = customQueryIdValue.get();
+        if (customQueryId != null) {
+            settings.setQueryId(customQueryId);
+        }
 
         Supplier<QueryResponse> responseSupplier;
 
