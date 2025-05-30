@@ -60,7 +60,7 @@ We are going to retire some JDBC artifacts (actually only classifiers) in *0.9.0
 |-----------------|---------|----------------------|
 | clickhouse-jdbc | shaded  | Use one with `all` classifier instead |  
 | clickhouse-jdbc | http    |                      |
-| clickhouse-jdbc | shaded-all | Use one with `all` classifier |
+| clickhouse-jdbc | shaded-all | Use one with `all` classifier instead |
 
 Artifact `com.clickhouse:clickhouse-jdbc` remains untouched. 
 Artifact `com.clickhouse:clickhouse-jdbc:0.9.0:all` will contain all required classes.  
