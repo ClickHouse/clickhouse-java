@@ -1414,9 +1414,4 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public boolean supportsRefCursors() throws SQLException {
         return false;
     }
-
-    @Override
-    public boolean supportsSharding() throws SQLException {
-        return false;
-    }
 }
