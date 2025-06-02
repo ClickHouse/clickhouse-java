@@ -21,7 +21,7 @@ public class Basic {
     private static final Logger log = LoggerFactory.getLogger(Basic.class);
     static final String TABLE_NAME = "jdbc_example_basic";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         String url = System.getProperty("chUrl", "jdbc:ch://localhost:8123");
 
         // Set user and password if needed
@@ -29,19 +29,15 @@ public class Basic {
         properties.setProperty("user", System.getProperty("chUser", "default"));
         properties.setProperty("password", System.getProperty("chPassword", ""));
 
-        try {
-            createTable(url, properties);
-            insertDateWithPreparedStatement(url, properties);
-            printInsertedData(url, properties);
+        createTable(url, properties);
+        insertDateWithPreparedStatement(url, properties);
+        printInsertedData(url, properties);
 
-            //Customizing client settings
-            setClientSettings(properties);
+        //Customizing client settings
+        setClientSettings(properties);
 
-            //Using HikariCP with ClickHouseDataSource
-            usedPooledConnection(url, properties);
-        } catch (SQLException e) {
-            log.error("Error", e);
-        }
+        //Using HikariCP with ClickHouseDataSource
+        usedPooledConnection(url, properties);
     }
 
     static void createTable(String url, Properties properties) throws SQLException {
