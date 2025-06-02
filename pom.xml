@@ -146,7 +146,8 @@
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
 
-        <minJdk>1.8</minJdk>
+        <minTargetJdk>17</minTargetJdk>
+        <minSourceJdk>17</minSourceJdk>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
@@ -591,10 +592,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>${minJdk}</source>
-                    <target>${minJdk}</target>
-                    <testSource>17</testSource>
-                    <testTarget>17</testTarget>
+                    <source>${minSourceJdk}</source>
+                    <target>${minSourceJdk}</target>
                     <showWarnings>true</showWarnings>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
@@ -812,6 +811,21 @@
                     <name>j8</name>
                 </property>
             </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <target>1.8</target>
+                            <source>1.8</source>
+                            <jdkToolchain>
+                                <version>1.8</version>
+                            </jdkToolchain>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
             <properties>
                 <caffeine.version>2.9.2</caffeine.version>
             </properties>
@@ -948,7 +962,7 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
+                            <source>${minSourceJdk}</source>
                         </configuration>
                         <executions>
                             <execution>
@@ -1044,8 +1058,8 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
-                            <target>${minJdk}</target>
+                            <source>1.8</source>
+                            <target>1.8</target>
                             <showWarnings>true</showWarnings>
                             <compilerArgs>
                                 <arg>-Xlint:all</arg>
@@ -1179,7 +1193,7 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
+                            <source>${minSourceJdk}</source>
                         </configuration>
                         <executions>
                             <execution>

@@ -1,11 +1,5 @@
 package com.clickhouse.jdbc;
 
-import java.nio.charset.StandardCharsets;
-import java.sql.*;
-import java.util.*;
-
-import java.util.Properties;
-
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
@@ -22,6 +16,20 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.nio.charset.StandardCharsets;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.Statement;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Properties;
+import java.util.UUID;
 
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
@@ -345,32 +353,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
     public void getNetworkTimeoutTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getNetworkTimeout());
-    }
-
-    @Test(groups = { "integration" })
-    public void beginRequestTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.beginRequest();//No-op
-    }
-
-    @Test(groups = { "integration" })
-    public void endRequestTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.endRequest();//No-op
-    }
-
-    @Test(groups = { "integration" })
-    public void setShardingKeyIfValidTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKeyIfValid(null, 0));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKeyIfValid(null, null, 0));
-    }
-
-    @Test(groups = { "integration" })
-    public void setShardingKeyTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-       assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null));
-       assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setShardingKey(null, null));
     }
 
     @Test(groups = { "integration" })
