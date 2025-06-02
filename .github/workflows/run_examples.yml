@@ -2,11 +2,7 @@ name: Run Examples
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version"
-        required: true
-
+    
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
@@ -32,18 +28,33 @@ jobs:
             8
             21
           cache: "maven"
+      - name: Cache Artifacts
+        id: cache-ch-artifats
+        uses: actions/cache@v4
+        with:
+            path: ~/.m2/repository/com/clickhouse/**
+            key: ${{ github.run_id  }}-ch-artifacts
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
       - name: Compile examples
         run: |
           cd examples/jdbc
           mvn clean compile
+          echo "Run Id ${{ github.run_id }}"
   run-examples:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     name: Run Examples
     needs: compile
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Restore cached Primes
+        id: cache-primes-restore
+        uses: actions/cache/restore@v4
+        with:
+            path: ~/.m2/repository/com/clickhouse/
+            key: ${{ github.run_id  }}-ch-artifacts
       - name: Run Docker
         run: |
           docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret -p 8123:8123 clickhouse/clickhouse-server
