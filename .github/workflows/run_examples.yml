@@ -55,9 +55,9 @@ jobs:
         with:
             path: ~/.m2/repository/com/clickhouse
             key: ${{ github.run_id  }}-ch-artifacts
-      - name: Run Docker
+      - name: Run Examples
         run: |
-          docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret -p 8123:8123 clickhouse/clickhouse-server
+          docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret -p 8123:8123 clickhouse/clickhouse-server:24.8
           cd examples/jdbc
           mvn --batch-mode --no-transfer-progress --show-version clean compile
-          mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
+          mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic" -DfailOnError=true
