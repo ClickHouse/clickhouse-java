@@ -15,6 +15,7 @@ import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -33,8 +34,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -601,6 +604,29 @@ public class DataTypeTests extends BaseIntegrationTest {
     public static class DTOForDynamicPrimitivesTests {
         private int rowId;
         private Object field;
+    }
+
+    @Test(groups = {"integration"})
+    public void testAllDataTypesKnown() {
+        List<GenericRecord> dbTypes = client.queryAll("SELECT * FROM system.data_type_families");
+        Set<String> unknowTypes = new HashSet<>();
+        for (GenericRecord dbType : dbTypes) {
+            String aliasFor = dbType.getString("alias_to");
+            String typeToCheck;
+            if (StringUtils.isNoneBlank(aliasFor)) {
+                typeToCheck = aliasFor;
+            } else {
+                typeToCheck = dbType.getString("name");
+            }
+
+            try {
+                ClickHouseDataType.valueOf(typeToCheck);
+            } catch (Exception e) {
+                unknowTypes.add(typeToCheck);
+            }
+        }
+
+        Assert.assertTrue(unknowTypes.isEmpty(), "There are some unknown types: " + unknowTypes);
     }
 
     private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {

@@ -258,7 +258,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     }
                     assertEquals(rs.getInt("SEARCHABLE"), DatabaseMetaData.typeSearchable);
                     assertEquals(rs.getBoolean("UNSIGNED_ATTRIBUTE"), !dataType.isSigned());
-                    assertEquals(rs.getBoolean("FIXED_PREC_SCALE"), false);
+                    assertFalse(rs.getBoolean("FIXED_PREC_SCALE"));
                     assertFalse(rs.getBoolean("AUTO_INCREMENT"));
                     assertEquals(rs.getString("LOCAL_TYPE_NAME"), dataType.name());
                     assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
