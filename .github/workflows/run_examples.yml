@@ -28,11 +28,11 @@ jobs:
             8
             21
           cache: "maven"
-      - name: Cache Artifacts
-        id: cache-ch-artifats
-        uses: actions/cache@v4
+      - name: Save Repo Artifacts
+        id: save-repo-artifacts
+        uses: actions/cache/save@v4
         with:
-            path: ~/.m2/repository/com/clickhouse/**
+            path: ~/.m2/repository/com/clickhouse
             key: ${{ github.run_id  }}-ch-artifacts
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
@@ -49,11 +49,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Restore cached Primes
-        id: cache-primes-restore
+      - name: Restore Repo Artifacts
+        id: restore-repo-artifacts
         uses: actions/cache/restore@v4
         with:
-            path: ~/.m2/repository/com/clickhouse/
+            path: ~/.m2/repository/com/clickhouse
             key: ${{ github.run_id  }}-ch-artifacts
       - name: Run Docker
         run: |
