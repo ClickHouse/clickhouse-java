@@ -1,0 +1,52 @@
+name: Examples
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: Compile (JDK 8)
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            21
+          cache: "maven"
+      - name: Build and install libraries
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
+      - name: Compile examples
+        run: |
+          cd examples/jdbc
+          mvn clean compile
+  run-examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: Run Examples
+    steps:
+      - name: Run Docker
+        run: |
+          docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret\
+          -p 8123:8123 clickhouse/clickhouse-server
+          cd examples/jdbc
+          mvn
+          mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
