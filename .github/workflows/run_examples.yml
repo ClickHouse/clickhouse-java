@@ -59,4 +59,5 @@ jobs:
         run: |
           docker run -d --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret -p 8123:8123 clickhouse/clickhouse-server
           cd examples/jdbc
+          mvn --batch-mode --no-transfer-progress --show-version clean compile
           mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic"
