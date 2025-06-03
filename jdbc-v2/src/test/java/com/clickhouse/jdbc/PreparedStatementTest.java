@@ -20,6 +20,8 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -292,17 +294,129 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     void testWithClause() throws Exception {
-        int count = 0;
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("with data as (SELECT number FROM numbers(100)) select * from data ")) {
                 stmt.execute();
                 ResultSet rs = stmt.getResultSet();
+                int count = 0;
                 while (rs.next()) {
                     count++;
                 }
+                assertEquals(count, 100);
             }
         }
-        assertEquals(count, 100);
+    }
+
+    @Test(groups = "integration")
+    void testWithClauseWithParams() throws Exception {
+        final String table = "test_with_stmt";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("INSERT INTO " + table + " VALUES ('A'), ('B')");
+            }
+            final Timestamp target_time = Timestamp.valueOf(LocalDateTime.now());
+            try (PreparedStatement stmt = conn.prepareStatement("WITH " +
+                    " toDateTime(?) as target_time, " +
+                    " (SELECT 123) as magic_number" +
+                    " SELECT *, target_time, magic_number FROM " + table)) {
+                stmt.setTimestamp(1, target_time);
+                stmt.execute();
+                ResultSet rs = stmt.getResultSet();
+                int count = 0;
+                assertEquals(rs.getMetaData().getColumnCount(), 3);
+                while (rs.next()) {
+                    Assert.assertEquals(
+                            rs.getTimestamp("target_time").toLocalDateTime().truncatedTo(ChronoUnit.SECONDS),
+                            target_time.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS));
+                    Assert.assertEquals(rs.getString("magic_number"), "123");
+                    Assert.assertEquals(
+                            rs.getTimestamp(2).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS),
+                            target_time.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime().truncatedTo(ChronoUnit.SECONDS));
+                    Assert.assertEquals(rs.getString(3), "123");
+
+                    count++;
+                }
+                assertEquals(count, 2, "Expected 2 rows");
+
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testMultipleWithClauses() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH data1 AS (SELECT 1 AS a), " +
+                             "     data2 AS (SELECT a + 1 AS b FROM data1) " +
+                             "SELECT * FROM data2")) {
+            ResultSet rs = stmt.executeQuery();
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testRecursiveWithClause() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH RECURSIVE numbers AS (" +
+                             "    SELECT 1 AS n " +
+                             "    UNION ALL " +
+                             "    SELECT n + 1 FROM numbers WHERE n < 5" +
+                             ") " +
+                             "SELECT * FROM numbers ORDER BY n")) {
+            ResultSet rs = stmt.executeQuery();
+            for (int i = 1; i <= 5; i++) {
+                assertTrue(rs.next());
+                assertEquals(i, rs.getInt(1));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testWithClauseWithMultipleParameters() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "WITH data AS (" +
+                             "    (SELECT number AS n " +
+                             "    FROM numbers(?) " +
+                             "    WHERE n > ?)" +
+                             ") " +
+                             "SELECT * FROM data WHERE n < ?")) {
+//"WITH data AS (    (SELECT number AS n     FROM numbers(?)     WHERE n > ?)) SELECT * FROM data WHERE n < ?"
+            stmt.setInt(1, 10);  // numbers(10) = 0-9
+            stmt.setInt(2, 3);   // n > 3
+            stmt.setInt(3, 7);   // n < 7
+
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            int expected = 4;     // 4,5,6
+            while (rs.next()) {
+                count++;
+                int n = rs.getInt(1);
+                assertTrue(n > 3 && n < 7);
+            }
+            assertEquals(3, count);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    void testSelectFromArray() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT * FROM numbers(?)")) {
+            stmt.setInt(1, 10);  // numbers(10) = 0-9
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            assertEquals(10, count);
+        }
     }
 
     @Test(groups = { "integration" })

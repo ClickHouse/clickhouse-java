@@ -87,6 +87,7 @@
                         <configuration>
                             <excludes>
                                 <exclude>META-INF/services/*</exclude>
+                                <exclude>com/clickhouse/client/ClickHouseTestClient.class</exclude>
                             </excludes>
                         </configuration>
                     </execution>

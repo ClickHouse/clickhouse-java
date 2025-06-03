@@ -382,6 +382,7 @@ topClause
 
 fromClause
     : FROM joinExpr
+    | FROM identifier LPAREN QUERY RPAREN
     ;
 
 arrayJoinClause

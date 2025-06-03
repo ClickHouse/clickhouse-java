@@ -28,9 +28,9 @@ public class ClickHouseSimpleRecordTest {
     public void testMismatchedColumnsAndValues() {
 
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseSimpleRecord
-                .of(Map.of("a", 0), new ClickHouseValue[0]));
+                .of(Collections.singletonMap("a", 0), new ClickHouseValue[0]));
 
-        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(Map.of("a", 0),
+        ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(Collections.singletonMap("a", 0),
                 new ClickHouseValue[0]);
         Assert.assertEquals(record.getValues(), new ClickHouseValue[0]);
     }

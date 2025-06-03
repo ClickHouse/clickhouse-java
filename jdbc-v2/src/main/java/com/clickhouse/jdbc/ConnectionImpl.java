@@ -33,16 +33,18 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Savepoint;
-import java.sql.ShardingKey;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
@@ -548,7 +550,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         try {
-            return new com.clickhouse.jdbc.types.Array(List.of(elements), typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
+            List<Object> list =
+                    (elements == null || elements.length == 0) ? Collections.emptyList() : Arrays.stream(elements, 0, elements.length).collect(Collectors.toList());
+            return new com.clickhouse.jdbc.types.Array(list, typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -599,36 +603,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         }
 
         return -1;
-    }
-
-    @Override
-    public void beginRequest() throws SQLException {
-        Connection.super.beginRequest();
-    }
-
-    @Override
-    public void endRequest() throws SQLException {
-        Connection.super.endRequest();
-    }
-
-    @Override
-    public boolean setShardingKeyIfValid(ShardingKey shardingKey, ShardingKey superShardingKey, int timeout) throws SQLException {
-        return Connection.super.setShardingKeyIfValid(shardingKey, superShardingKey, timeout);
-    }
-
-    @Override
-    public boolean setShardingKeyIfValid(ShardingKey shardingKey, int timeout) throws SQLException {
-        return Connection.super.setShardingKeyIfValid(shardingKey, timeout);
-    }
-
-    @Override
-    public void setShardingKey(ShardingKey shardingKey, ShardingKey superShardingKey) throws SQLException {
-        Connection.super.setShardingKey(shardingKey, superShardingKey);
-    }
-
-    @Override
-    public void setShardingKey(ShardingKey shardingKey) throws SQLException {
-        Connection.super.setShardingKey(shardingKey);
     }
 
     /**
