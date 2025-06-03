@@ -56,8 +56,6 @@ public enum ClickHouseDataType {
     DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, 0x11, "TIMESTAMP"),
     DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, 0x12),
     DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x14), // we always write timezone as argument
-    Time64(LocalTime.class, true, false, false, 8, 19, 0, 0, 0, false, 0x35), //  // we always write timezone as argument
-    Time(LocalTime.class, true, false, false, 8, 19, 0, 0, 0, false, 0x32), //  // we always write timezone as argument
     Enum(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17, "ENUM"),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, 0x18),
