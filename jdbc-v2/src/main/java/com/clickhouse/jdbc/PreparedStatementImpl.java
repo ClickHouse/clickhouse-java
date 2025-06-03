@@ -403,21 +403,29 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     private static final Pattern REPLACE_Q_MARK_PATTERN = Pattern.compile("(\"[^\"]*\"|`[^`]*`|'[^']*')|(\\?)");
 
-    public static String replaceQuestionMarks(String sql, String replacement) {
+    public static String replaceQuestionMarks(String sql, final String replacement) {
         Matcher matcher = REPLACE_Q_MARK_PATTERN.matcher(sql);
 
         StringBuilder result = new StringBuilder();
 
+        int lastPos = 0;
         while (matcher.find()) {
-            if (matcher.group(1) != null) {
+            String text;
+            if ((text = matcher.group(1)) != null) {
                 // Quoted string — keep as-is
-                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(1)));
+                String str = Matcher.quoteReplacement(text);
+                result.append(sql, lastPos, matcher.start()).append(str);
+                lastPos = matcher.end();
             } else if (matcher.group(2) != null) {
                 // Question mark outside quotes — replace it
-                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+                String str = Matcher.quoteReplacement(replacement);
+                result.append(sql, lastPos, matcher.start()).append(str);
+                lastPos = matcher.end();
             }
         }
-        matcher.appendTail(result);
+
+        // Add rest of the `sql`
+        result.append(sql, lastPos, sql.length());
         return result.toString();
     }
 

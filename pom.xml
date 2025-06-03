@@ -120,8 +120,8 @@
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.6.0</assembly-plugin.version>
-        <clean-plugin.version>3.3.1</clean-plugin.version>
-        <compiler-plugin.version>3.13.0</compiler-plugin.version>
+        <clean-plugin.version>3.5.0</clean-plugin.version>
+        <compiler-plugin.version>3.14.0</compiler-plugin.version>
         <deploy-plugin.version>3.1.1</deploy-plugin.version>
         <enforcer-plugin.version>3.3.0</enforcer-plugin.version>
         <exec-plugin.version>3.1.0</exec-plugin.version>
@@ -131,22 +131,24 @@
         <gpg-plugin.version>3.1.0</gpg-plugin.version>
         <helper-plugin.version>3.4.0</helper-plugin.version>
         <jacoco-plugin.version>0.8.12</jacoco-plugin.version>
-        <jar-plugin.version>3.3.0</jar-plugin.version>
-        <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
+        <jar-plugin.version>3.4.2</jar-plugin.version>
+        <javadoc-plugin.version>3.11.2</javadoc-plugin.version>
         <native-plugin.version>0.9.23</native-plugin.version>
         <os-plugin.version>1.7.1</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
-        <shade-plugin.version>3.5.0</shade-plugin.version>
-        <source-plugin.version>3.2.1</source-plugin.version>
+        <shade-plugin.version>3.6.0</shade-plugin.version>
+        <source-plugin.version>3.3.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
-        <surefire-plugin.version>3.2.5</surefire-plugin.version>
-        <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
-        <versions-plugin.version>2.16.0</versions-plugin.version>
+        <surefire-plugin.version>3.5.3</surefire-plugin.version>
+        <toolchains-plugin.version>3.2.0</toolchains-plugin.version>
+        <versions-plugin.version>2.18.0</versions-plugin.version>
         <resource-plugin.version>3.3.1</resource-plugin.version>
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
 
-        <minJdk>1.8</minJdk>
+        <minTargetJdk>17</minTargetJdk>
+        <minSourceJdk>17</minSourceJdk>
+        <javadoc.source.version>1.8</javadoc.source.version>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
@@ -591,10 +593,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>${minJdk}</source>
-                    <target>${minJdk}</target>
-                    <testSource>17</testSource>
-                    <testTarget>17</testTarget>
+                    <source>${minSourceJdk}</source>
+                    <target>${minSourceJdk}</target>
                     <showWarnings>true</showWarnings>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
@@ -812,6 +812,21 @@
                     <name>j8</name>
                 </property>
             </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <target>1.8</target>
+                            <source>1.8</source>
+                            <jdkToolchain>
+                                <version>1.8</version>
+                            </jdkToolchain>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
             <properties>
                 <caffeine.version>2.9.2</caffeine.version>
             </properties>
@@ -948,7 +963,7 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
+                            <source>${javadoc.source.version}</source>
                         </configuration>
                         <executions>
                             <execution>
@@ -1044,8 +1059,8 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
-                            <target>${minJdk}</target>
+                            <source>1.8</source>
+                            <target>1.8</target>
                             <showWarnings>true</showWarnings>
                             <compilerArgs>
                                 <arg>-Xlint:all</arg>
@@ -1179,7 +1194,7 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>${minJdk}</source>
+                            <source>${javadoc.source.version}</source>
                         </configuration>
                         <executions>
                             <execution>
