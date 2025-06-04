@@ -13,7 +13,6 @@ object Database {
             .addEndpoint(dbUrl)
             .setUsername(dbUser)
             .setPassword(dbPassword)
-            .useNewImplementation(true)
             .build()
     }
 
