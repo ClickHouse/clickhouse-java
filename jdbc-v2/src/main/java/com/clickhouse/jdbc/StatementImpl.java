@@ -129,7 +129,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
-            LOG.debug("SQL Query: {}", lastStatementSql);
+            LOG.trace("SQL Query: {}", lastStatementSql); // this is not secure for create statements because of passwords
             QueryResponse response;
             if (queryTimeout == 0) {
                 response = connection.client.query(lastStatementSql, mergedSettings).get();
@@ -179,7 +179,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         lastStatementSql = parseJdbcEscapeSyntax(sql);
-        LOG.debug("SQL Query: {}", lastStatementSql);
+        LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
                 : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
