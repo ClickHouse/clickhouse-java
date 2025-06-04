@@ -363,7 +363,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         if (ClickHouseVersion.of(getServerVersion()).check("(,24.3]")) {
             return; // recursive CTEs were introduces in 24.4
         }
-        
+
         try (Connection conn = getJdbcConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "WITH RECURSIVE numbers AS (" +

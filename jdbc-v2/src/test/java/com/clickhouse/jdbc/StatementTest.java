@@ -709,6 +709,9 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testDDLStatements() throws Exception {
+        if (isCloud()) {
+            return; // skip because we do not want to create extra on cloud instance
+        }
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()){
                 Assert.assertFalse(stmt.execute("CREATE USER IF NOT EXISTS 'user011' IDENTIFIED BY 'password'"));
