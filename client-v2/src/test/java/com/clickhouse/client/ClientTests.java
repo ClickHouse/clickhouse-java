@@ -197,7 +197,8 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testDefaultSettings() {
-        try (Client client = new Client.Builder().setUsername("default").addEndpoint("http://localhost:8123").build()) {
+        try (Client client = new Client.Builder().setUsername("default").setPassword("secret")
+                .addEndpoint("http://localhost:8123").build()) {
             Map<String, String> config = client.getConfiguration();
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
                 if (p.getDefaultValue() != null) {
@@ -210,6 +211,7 @@ public class ClientTests extends BaseIntegrationTest {
 
         try (Client client = new Client.Builder()
                 .setUsername("default")
+                .setPassword("secret")
                 .addEndpoint("http://localhost:8123")
                 .setDefaultDatabase("mydb")
                 .setExecutionTimeout(10, MILLIS)
@@ -268,6 +270,7 @@ public class ClientTests extends BaseIntegrationTest {
     public void testWithOldDefaults() {
         try (Client client = new Client.Builder()
                 .setUsername("default")
+                .setPassword("seceret")
                 .addEndpoint("http://localhost:8123")
                 .setDefaultDatabase("default")
                 .setExecutionTimeout(0, MILLIS)

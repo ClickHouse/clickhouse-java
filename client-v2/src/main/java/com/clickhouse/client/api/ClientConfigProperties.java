@@ -22,7 +22,7 @@ public enum ClientConfigProperties {
 
     USER("user", "default"),
 
-    PASSWORD("password", ""),
+    PASSWORD("password"),
 
     /**
      * Maximum number of active connection in internal connection pool.
