@@ -644,7 +644,7 @@ columnExpr
     | CAST LPAREN columnExpr AS columnTypeExpr RPAREN                                    # ColumnExprCast
     | DATE STRING_LITERAL                                                                # ColumnExprDate
     | EXTRACT LPAREN interval FROM columnExpr RPAREN                                     # ColumnExprExtract
-    | INTERVAL columnExpr interval                                                       # ColumnExprInterval
+    | INTERVAL columnExpr interval?                                                      # ColumnExprInterval
     | SUBSTRING LPAREN columnExpr FROM columnExpr (FOR columnExpr)? RPAREN               # ColumnExprSubstring
     | TIMESTAMP STRING_LITERAL                                                           # ColumnExprTimestamp
     | TRIM LPAREN (BOTH | LEADING | TRAILING) STRING_LITERAL FROM columnExpr RPAREN      # ColumnExprTrim

@@ -261,4 +261,20 @@ public class SqlParserTest {
 
         };
     }
+
+    @Test(dataProvider = "testMiscStmtDp")
+    public void testMiscStatements(String sql, int args) {
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors());
+        Assert.assertEquals(stmt.getArgCount(), args);
+    }
+
+    @DataProvider
+    public Object[][] testMiscStmtDp() {
+        return new Object[][] {
+            {"SELECT INTERVAL '1 day'", 0},
+            {"SELECT INTERVAL 1 day", 0},
+        };
+    }
 }
