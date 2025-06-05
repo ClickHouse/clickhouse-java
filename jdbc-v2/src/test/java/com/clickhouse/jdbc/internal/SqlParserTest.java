@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
 
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -192,5 +193,21 @@ public class SqlParserTest {
         for (int i = 0; i < inStr.length; i++) {
             assertEquals(SqlParser.escapeQuotes(inStr[i]), outStr[i]);
         }
+    }
+
+    @Test
+    public void testStmtWithCasts() {
+        String sql = "SELECT ?::integer, ?, '?::integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), 3);
+    }
+
+    @Test
+    public void testStmtWithFunction() {
+        String sql = "SELECT `parseDateTimeBestEffort`(?, ?) as dt FROM table WHERE v > `parseDateTimeBestEffort`(?, ?)  ";
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), 4);
     }
 }

@@ -114,7 +114,6 @@ public class MetadataTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
     }
 }

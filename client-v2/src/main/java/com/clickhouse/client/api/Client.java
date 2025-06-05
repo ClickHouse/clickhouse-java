@@ -15,7 +15,6 @@ import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
@@ -80,9 +79,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.time.temporal.ChronoUnit.MILLIS;
-import static java.time.temporal.ChronoUnit.SECONDS;
-
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
@@ -141,12 +137,12 @@ public class Client implements AutoCloseable {
     private int retries;
     private LZ4Factory lz4Factory = null;
 
-    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
+    private Client(Set<String> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
-        this(endpoints, configuration, useNewImplementation, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
+        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
     }
 
-    private Client(Set<String> endpoints, Map<String,String> configuration, boolean useNewImplementation,
+    private Client(Set<String> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         // Simple initialization
         this.configuration = configuration;
@@ -256,14 +252,22 @@ public class Client implements AutoCloseable {
 
         // Read-only configuration
         private Map<String, String> configuration;
-        private boolean useNewImplementation = true;
 
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         public Builder() {
             this.endpoints = new HashSet<>();
-            this.configuration = new HashMap<String, String>();
+            this.configuration = new HashMap<>();
+
+            for (ClientConfigProperties p : ClientConfigProperties.values()) {
+                if (p.getDefaultValue() != null) {
+                    this.configuration.put(p.getKey(), p.getDefaultValue());
+                }
+            }
+
+            allowBinaryReaderToReuseBuffers(false);
+            columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
         }
 
         /**
@@ -510,7 +514,7 @@ public class Client implements AutoCloseable {
          * @param size - socket send buffer size in bytes
          */
         public Builder setSocketSndbuf(long size) {
-            this.configuration.put(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey(), String.valueOf(size));
+            this.configuration.put(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey(), String.valueOf(size));
             return this;
         }
 
@@ -656,24 +660,11 @@ public class Client implements AutoCloseable {
             return this;
         }
 
-        /**
-         * Switches to new implementation of the client. Default is true.
-         * Throws exception if {@code useNewImplementation == false}
-         * @deprecated
-         */
-        public Builder useNewImplementation(boolean useNewImplementation) {
-            if (!useNewImplementation) {
-                throw new ClientException("switch between new and old version is remove because old version is deprecated.");
-            }
-            return this;
-        }
-
         public Builder setHttpCookiesEnabled(boolean enabled) {
             //TODO: extract to settings string constants
             this.configuration.put("client.http.cookies_enabled", String.valueOf(enabled));
             return this;
         }
-
 
         /**
          * Defines path to the trust store file. It cannot be combined with
@@ -1013,8 +1004,6 @@ public class Client implements AutoCloseable {
         }
 
         public Client build() {
-            setDefaults();
-
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
@@ -1070,127 +1059,8 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("Nor server timezone nor specific timezone is set");
             }
 
-            return new Client(this.endpoints, this.configuration, this.useNewImplementation, this.sharedOperationExecutor,
+            return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
                 this.columnToMethodMatchingStrategy, this.metricRegistry);
-        }
-
-
-        private static final int DEFAULT_NETWORK_BUFFER_SIZE = 300_000;
-
-        /**
-         * Default size for a buffers used in networking.
-         */
-        public static final int DEFAULT_BUFFER_SIZE = 8192;
-        public static final int DEFAULT_SOCKET_BUFFER_SIZE = 804800;
-
-        private void setDefaults() {
-
-            // set default database name if not specified
-            if (!configuration.containsKey(ClientConfigProperties.DATABASE.getKey())) {
-                setDefaultDatabase((String) "default");
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.MAX_EXECUTION_TIME.getKey())) {
-                setExecutionTimeout(0, MILLIS);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.MAX_THREADS_PER_CLIENT.getKey())) {
-                configuration.put(ClientConfigProperties.MAX_THREADS_PER_CLIENT.getKey(),
-                        String.valueOf(0));
-            }
-
-            if (!configuration.containsKey("compression.lz4.uncompressed_buffer_size")) {
-                setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey())) {
-                disableNativeCompression(false);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
-                useServerTimeZone(true);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.SERVER_TIMEZONE.getKey())) {
-                setServerTimeZone("UTC");
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.ASYNC_OPERATIONS.getKey())) {
-                useAsyncRequests(false);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey())) {
-                setMaxConnections(10);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey())) {
-                setConnectionRequestTimeout(10, SECONDS);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CONNECTION_REUSE_STRATEGY.getKey())) {
-                setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CONNECTION_POOL_ENABLED.getKey())) {
-                enableConnectionPool(true);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CONNECTION_TTL.getKey())) {
-                setConnectionTTL(-1, MILLIS);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey())) {
-                retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
-                        ClientFaultCause.ConnectionRequestTimeout);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey())) {
-                setClientNetworkBufferSize(DEFAULT_NETWORK_BUFFER_SIZE);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.RETRY_ON_FAILURE.getKey())) {
-                setMaxRetries(3);
-            }
-
-            if (!configuration.containsKey("client_allow_binary_reader_to_reuse_buffers")) {
-                allowBinaryReaderToReuseBuffers(false);
-            }
-
-            if (columnToMethodMatchingStrategy == null) {
-                columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey())) {
-                useHTTPBasicAuth(true);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey())) {
-                compressClientRequest(false);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey())) {
-                compressServerResponse(true);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey())) {
-                useHttpCompression(false);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.APP_COMPRESSED_DATA.getKey())) {
-                appCompressedData(false);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey())) {
-                setSocketTimeout(0, SECONDS);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey())) {
-                setSocketRcvbuf(DEFAULT_SOCKET_BUFFER_SIZE);
-            }
-
-            if (!configuration.containsKey(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey())) {
-                setSocketSndbuf(DEFAULT_SOCKET_BUFFER_SIZE);
-            }
         }
     }
 

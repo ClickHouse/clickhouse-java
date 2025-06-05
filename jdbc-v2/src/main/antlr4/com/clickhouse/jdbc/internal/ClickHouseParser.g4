@@ -649,6 +649,7 @@ columnExpr
     | LBRACKET columnExprList? RBRACKET                            # ColumnExprArray
     | columnIdentifier                                             # ColumnExprIdentifier
     | QUERY                                                        # ColumnExprParam
+    | QUERY CAST_OP identifier                                     # ColumnExprParamWithCast
     ;
 
 columnArgList
