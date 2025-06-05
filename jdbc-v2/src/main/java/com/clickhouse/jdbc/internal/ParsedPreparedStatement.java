@@ -168,6 +168,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     }
 
     @Override
+    public void enterColumnExprParamWithCast(ClickHouseParser.ColumnExprParamWithCastContext ctx) {
+        appendParameter(ctx.start.getStartIndex());
+    }
+
+    @Override
     public void visitErrorNode(ErrorNode node) {
         setHasErrors(true);
     }
