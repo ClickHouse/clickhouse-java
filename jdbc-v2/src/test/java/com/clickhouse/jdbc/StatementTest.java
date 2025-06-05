@@ -342,7 +342,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
 
     @Test(groups = { "integration" })
-    private void testSettingRole() throws SQLException {
+    public void testSettingRole() throws SQLException {
         if (earlierThan(24, 4)) {//Min version is 24.4
             return;
         }
@@ -551,8 +551,8 @@ public class StatementTest extends JdbcIntegrationTest {
             }
         }
     }
-  
-  
+
+
     @Test(groups = { "integration" })
     public void testNewLineSQLParsing() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -617,7 +617,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    
+
     @Test(groups = { "integration" })
     public void testNullableFixedStringType() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -708,4 +708,25 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testDDLStatements() throws Exception {
+        if (isCloud()) {
+            return; // skip because we do not want to create extra on cloud instance
+        }
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()){
+                Assert.assertFalse(stmt.execute("CREATE USER IF NOT EXISTS 'user011' IDENTIFIED BY 'password'"));
+
+                try (ResultSet rs = stmt.executeQuery("SHOW USERS")) {
+                    boolean found = false;
+                    while (rs.next()) {
+                        if (rs.getString("name").equals("user011")) {
+                            found = true;
+                        }
+                    }
+                    Assert.assertTrue(found);
+                }
+            }
+        }
+    }
 }

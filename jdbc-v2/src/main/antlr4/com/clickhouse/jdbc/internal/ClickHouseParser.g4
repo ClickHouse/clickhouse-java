@@ -142,6 +142,50 @@ createStmt
         engineClause? subqueryClause?                                                                                                    # CreateTableStmt
     | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause? subqueryClause #
         CreateViewStmt
+    | CREATE USER ((IF NOT EXISTS) | (OR REPLACE))? userIdentifier (COMMA userIdentifier)* clusterClause?
+        userIdentifiedClause?
+        userCreateHostClause?
+        validUntilClause?
+        (DEFAULT ROLE identifier (COMMA identifier)*)?
+        (DEFAULT DATABASE identifier | NONE)?
+
+        settingsClause? #CreateUserStmt
+    ;
+
+userIdentifier
+    : (IDENTIFIER | STRING_LITERAL)
+    ;
+
+userIdentifiedClause
+    : IDENTIFIED BY literal
+    | IDENTIFIED WITH userIdentifiedWithClause validUntilClause? (COMMA userIdentifiedWithClause VALID UNTIL literal)*
+    |  NOT IDENTIFIED
+    ;
+
+userIdentifiedWithClause
+    : (PLAINTEXT_PASSWORD | SHA256_PASSWORD | SHA256_HASH | DOUBLE_SHA1_PASSWORD | DOUBLE_SHA1_HASH | SCRAM_SHA256_PASSWORD |  SCRAM_SHA256_HASH | BCRYPT_PASSWORD | BCRYPT_HASH) BY literal
+    | NO_PASSWORD
+    | LDAP SERVER literal
+    | KERBEROS (REALM literal)?
+    | SSL_CERTIFICATE CN literal
+    | SSH_KEY BY KEY literal TYPE literal (COMMA KEY literal TYPE literal)*
+    | HTTP SERVER literal (SCHEMA literal)?
+    ;
+
+userCreateHostClause
+    : HOST (userCreateHostDef (COMMA userCreateHostDef)*) | ANY | NONE
+    ;
+
+userCreateHostDef
+    : LOCAL | NAME literal | REGEXP literal | IP literal | LIKE literal
+    ;
+
+userCreateGranteesClause
+    : GRANTEES (identifier | STRING_LITERAL | ANY | NONE ) (COMMA (identifier | STRING_LITERAL | ANY | NONE ))*
+        (EXCEPT (identifier | STRING_LITERAL) (COMMA (identifier | STRING_LITERAL ))*)
+    ;
+validUntilClause
+    : VALID UNTIL interval
     ;
 
 dictionarySchemaClause

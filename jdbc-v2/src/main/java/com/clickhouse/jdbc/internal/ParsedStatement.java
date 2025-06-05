@@ -103,4 +103,6 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
             setRoles(roles);
         }
     }
+
+
 }
