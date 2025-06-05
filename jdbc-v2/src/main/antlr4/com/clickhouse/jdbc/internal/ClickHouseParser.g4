@@ -168,7 +168,7 @@ userIdentifiedWithClause
     | LDAP SERVER literal
     | KERBEROS (REALM literal)?
     | SSL_CERTIFICATE CN literal
-    | SSH_KEY BY KEY literal TYPE literal
+    | SSH_KEY BY KEY literal TYPE literal (COMMA KEY literal TYPE literal)*
     | HTTP SERVER literal (SCHEMA literal)?
     ;
 

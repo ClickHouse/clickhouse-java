@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -209,5 +210,35 @@ public class SqlParserTest {
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 4);
+    }
+
+    @Test(dataProvider = "testCreateStmtDP")
+    public void testCreateStatement(String sql) {
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors());
+    }
+
+    @DataProvider
+    public static Object[][] testCreateStmtDP() {
+        return new Object[][] {
+                {"CREATE USER 'user01' IDENTIFIED WITH no_password"},
+                {"CREATE USER 'user01' IDENTIFIED WITH plaintext_password BY 'qwerty'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH sha256_password BY 'qwerty' or IDENTIFIED BY 'password'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH sha256_hash BY 'hash' SALT 'salt'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH sha256_hash BY 'hash'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH double_sha1_password BY 'qwerty'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH double_sha1_hash BY 'hash'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH bcrypt_password BY 'qwerty'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH bcrypt_hash BY 'hash'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH ldap SERVER 'server_name'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH kerberos"},
+                {"CREATE USER 'user01' IDENTIFIED WITH kerberos REALM 'realm'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH ssl_certificate CN 'mysite.com:user'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH ssh_key BY KEY 'public_key' TYPE 'ssh-rsa', KEY 'another_public_key' TYPE 'ssh-ed25519'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH http SERVER 'http_server' SCHEME 'basic'"},
+                {"CREATE USER 'user01' IDENTIFIED WITH http SERVER 'http_server'"},
+                {"CREATE USER 'user01' IDENTIFIED BY 'qwerty'"},
+        };
     }
 }
