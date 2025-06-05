@@ -90,6 +90,7 @@ import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Test(groups = {"integration"})
 public class QueryTests extends BaseIntegrationTest {
 
     private final static Random RANDOM = new Random();
@@ -314,7 +315,8 @@ public class QueryTests extends BaseIntegrationTest {
     public void testQueryAllSimple() throws Exception {
         testQueryAllSimple(10);
     }
-    public void testQueryAllSimple(int numberOfRecords) throws Exception {
+
+    void testQueryAllSimple(int numberOfRecords) throws Exception {
         GenericRecord record = client.queryAll("SELECT number FROM system.numbers LIMIT " + numberOfRecords).stream().findFirst().get();
         Assert.assertNotNull(record);
     }
@@ -1304,7 +1306,7 @@ public class QueryTests extends BaseIntegrationTest {
         return "\'" + str + "\'";
     }
 
-    public void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
+    void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
         final String table = "data_types_test_table";
 
         try {

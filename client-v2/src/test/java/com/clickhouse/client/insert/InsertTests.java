@@ -68,6 +68,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
+@Test(groups = {"integration"})
 public class InsertTests extends BaseIntegrationTest {
     private Client client;
     private InsertSettings settings;

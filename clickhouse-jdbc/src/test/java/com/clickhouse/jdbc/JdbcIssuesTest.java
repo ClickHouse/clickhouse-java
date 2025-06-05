@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
+@Test(groups = { "integration" })
 public class JdbcIssuesTest extends JdbcIntegrationTest {
     @BeforeMethod(groups = "integration")
     public void setV1() {
