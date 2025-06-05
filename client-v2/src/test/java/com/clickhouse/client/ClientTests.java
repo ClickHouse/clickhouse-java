@@ -3,7 +3,11 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -23,6 +27,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.time.temporal.ChronoUnit.MILLIS;
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 public class ClientTests extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientTests.class);
@@ -185,6 +192,121 @@ public class ClientTests extends BaseIntegrationTest {
     public void testDisableNative() {
         try (Client client = newClient().disableNativeCompression(true).build()) {
             Assert.assertTrue(client.toString().indexOf("JavaUnsafe") != -1);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testDefaultSettings() {
+        try (Client client = new Client.Builder().setUsername("default").setPassword("secret")
+                .addEndpoint("http://localhost:8123").build()) {
+            Map<String, String> config = client.getConfiguration();
+            for (ClientConfigProperties p : ClientConfigProperties.values()) {
+                if (p.getDefaultValue() != null) {
+                    Assert.assertTrue(config.containsKey(p.getKey()), "Default value should be set for " + p.getKey());
+                    Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
+                }
+            }
+            Assert.assertEquals(config.size(), 27); // to check everything is set. Increment when new added.
+        }
+
+        try (Client client = new Client.Builder()
+                .setUsername("default")
+                .setPassword("secret")
+                .addEndpoint("http://localhost:8123")
+                .setDefaultDatabase("mydb")
+                .setExecutionTimeout(10, MILLIS)
+                .setLZ4UncompressedBufferSize(300_000)
+                .disableNativeCompression(true)
+                .useServerTimeZone(false)
+                .setServerTimeZone("America/Los_Angeles")
+                .useTimeZone("America/Los_Angeles")
+                .useAsyncRequests(true)
+                .setMaxConnections(330)
+                .setConnectionRequestTimeout(20, SECONDS)
+                .setConnectionReuseStrategy(ConnectionReuseStrategy.LIFO)
+                .enableConnectionPool(false)
+                .setConnectionTTL(30, SECONDS)
+                .retryOnFailures(ClientFaultCause.NoHttpResponse)
+                .setClientNetworkBufferSize(500_000)
+                .setMaxRetries(10)
+                .useHTTPBasicAuth(false)
+                .compressClientRequest(true)
+                .compressServerResponse(false)
+                .useHttpCompression(true)
+                .appCompressedData(true)
+                .setSocketTimeout(20, SECONDS)
+                .setSocketRcvbuf(100000)
+                .setSocketSndbuf(100000)
+                .build()) {
+            Map<String, String> config = client.getConfiguration();
+            Assert.assertEquals(config.size(), 28); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
+            Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
+            Assert.assertEquals(config.get(ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey()), "false");
+            Assert.assertEquals(config.get(ClientConfigProperties.SERVER_TIMEZONE.getKey()), "America/Los_Angeles");
+            Assert.assertEquals(config.get(ClientConfigProperties.ASYNC_OPERATIONS.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey()), "330");
+            Assert.assertEquals(config.get(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey()), "20000");
+            Assert.assertEquals(config.get(ClientConfigProperties.CONNECTION_REUSE_STRATEGY.getKey()), "LIFO");
+            Assert.assertEquals(config.get(ClientConfigProperties.CONNECTION_POOL_ENABLED.getKey()), "false");
+            Assert.assertEquals(config.get(ClientConfigProperties.CONNECTION_TTL.getKey()), "30000");
+            Assert.assertEquals(config.get(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey()), "NoHttpResponse");
+            Assert.assertEquals(config.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()), "500000");
+            Assert.assertEquals(config.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey()), "10");
+            Assert.assertEquals(config.get(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey()), "false");
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey()), "false");
+            Assert.assertEquals(config.get(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.APP_COMPRESSED_DATA.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()), "20000");
+            Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey()), "100000");
+            Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testWithOldDefaults() {
+        try (Client client = new Client.Builder()
+                .setUsername("default")
+                .setPassword("seceret")
+                .addEndpoint("http://localhost:8123")
+                .setDefaultDatabase("default")
+                .setExecutionTimeout(0, MILLIS)
+                .setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE)
+                .disableNativeCompression(false)
+                .useServerTimeZone(true)
+                .setServerTimeZone("UTC")
+                .useAsyncRequests(false)
+                .setMaxConnections(10)
+                .setConnectionRequestTimeout(10, SECONDS)
+                .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
+                .enableConnectionPool(true)
+                .setConnectionTTL(-1, MILLIS)
+                .retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
+                        ClientFaultCause.ConnectionRequestTimeout)
+                .setClientNetworkBufferSize(300_000)
+                .setMaxRetries(3)
+                .allowBinaryReaderToReuseBuffers(false)
+                .columnToMethodMatchingStrategy(DefaultColumnToMethodMatchingStrategy.INSTANCE)
+                .useHTTPBasicAuth(true)
+                .compressClientRequest(false)
+                .compressServerResponse(true)
+                .useHttpCompression(false)
+                .appCompressedData(false)
+                .setSocketTimeout(0, SECONDS)
+                .setSocketRcvbuf(8196)
+                .setSocketSndbuf(8196)
+                .build()) {
+            Map<String, String> config = client.getConfiguration();
+            for (ClientConfigProperties p : ClientConfigProperties.values()) {
+                if (p.getDefaultValue() != null) {
+                    Assert.assertTrue(config.containsKey(p.getKey()), "Default value should be set for " + p.getKey());
+                    Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
+                }
+            }
+            Assert.assertEquals(config.size(), 27); // to check everything is set. Increment when new added.
         }
     }
 

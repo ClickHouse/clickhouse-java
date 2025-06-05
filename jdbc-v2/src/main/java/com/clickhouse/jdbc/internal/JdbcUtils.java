@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
@@ -124,7 +123,7 @@ public class JdbcUtils {
 
     public static SQLType convertToSqlType(ClickHouseDataType clickhouseType) {
         if (clickhouseType == null) {
-            return JDBCType.NULL;
+            return JDBCType.OTHER;
         }
 
         return CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(clickhouseType, JDBCType.OTHER);

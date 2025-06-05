@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.std.UUIDDeserializer;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
@@ -1052,6 +1053,29 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 }
 
                 assertEquals(count, 2);
+            }
+        }
+    }
+
+    @Test
+    public void testParamWithCast() throws Exception {
+        final String sql = " SELECT ?::integer, '?::integer', 123, ?:: UUID, ?";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, "1000");
+                UUID uuid = UUID.randomUUID();
+                stmt.setString(1, "1000");
+                stmt.setString(2, uuid.toString());
+                stmt.setInt(3, 3003001);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 1000);
+                    Assert.assertEquals(rs.getString(2), "?::integer");
+                    Assert.assertEquals(rs.getInt(3), 123);
+                    Assert.assertEquals(rs.getString(4), uuid.toString());
+                    Assert.assertEquals(rs.getInt(5), 3003001);
+                }
             }
         }
     }

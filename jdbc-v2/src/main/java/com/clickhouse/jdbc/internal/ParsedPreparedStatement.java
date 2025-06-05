@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.jdbc.PreparedStatementImpl;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -164,6 +163,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterColumnExprParam(ClickHouseParser.ColumnExprParamContext ctx) {
+        appendParameter(ctx.start.getStartIndex());
+    }
+
+    @Override
+    public void enterColumnExprParamWithCast(ClickHouseParser.ColumnExprParamWithCastContext ctx) {
         appendParameter(ctx.start.getStartIndex());
     }
 

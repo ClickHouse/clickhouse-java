@@ -86,14 +86,15 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <apache.httpclient.version>5.2.1</apache.httpclient.version>
+        <apache.httpclient.version>5.3.1</apache.httpclient.version>
         <arrow.version>12.0.1</arrow.version>
-        <asm.version>9.5</asm.version>
+        <asm.version>9.7</asm.version>
         <avro.version>1.11.4</avro.version>
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.12.0</brotli4j.version>
         <caffeine.version>3.1.7</caffeine.version>
         <compress.version>1.27.1</compress.version>
+        <commons-lang3.version>3.16.0</commons-lang3.version>
         <dnsjava.version>3.6.0</dnsjava.version>
         <fastutil.version>8.5.12</fastutil.version>
         <gson.version>2.10.1</gson.version>
@@ -170,21 +171,55 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- essential dependencies -->
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>com.javacc</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>org.apache.commons.compress</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
+
             <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${compress.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-pure-java</artifactId>
+                <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+
+            <!-- extras for V1 -->
+            <dependency>
+                <!-- for aggregate functions -->
                 <groupId>${project.groupId}</groupId>
                 <artifactId>org.roaringbitmap</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
+
 
             <dependency>
                 <groupId>com.aayushatharva.brotli4j</groupId>
@@ -212,11 +247,6 @@
                 <version>${brotli4j.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.google.code.gson</groupId>
-                <artifactId>gson</artifactId>
-                <version>${gson.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
@@ -231,42 +261,54 @@
                 <artifactId>dnsjava</artifactId>
                 <version>${dnsjava.version}</version>
             </dependency>
+
+            <!-- questionable -->
             <dependency>
-                <groupId>io.opencensus</groupId>
-                <artifactId>opencensus-api</artifactId>
-                <version>${opencensus.version}</version>
+<!--                Used in clickhouse-data for JSON Streaming utils -->
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>${gson.version}</version>
             </dependency>
-            <dependency>
-                <groupId>io.opencensus</groupId>
-                <artifactId>opencensus-impl</artifactId>
-                <version>${opencensus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>it.unimi.dsi</groupId>
-                <artifactId>fastutil</artifactId>
-                <version>${fastutil.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.arrow</groupId>
-                <artifactId>arrow-memory</artifactId>
-                <type>pom</type>
-                <version>${arrow.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.arrow</groupId>
-                <artifactId>arrow-vector</artifactId>
-                <version>${arrow.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.avro</groupId>
-                <artifactId>avro</artifactId>
-                <version>${avro.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-compress</artifactId>
-                <version>${compress.version}</version>
-            </dependency>
+
+<!--            remove -->
+<!--            <dependency>-->
+<!--                <groupId>io.opencensus</groupId>-->
+<!--                <artifactId>opencensus-api</artifactId>-->
+<!--                <version>${opencensus.version}</version>-->
+<!--            </dependency>-->
+<!--            <dependency>-->
+<!--                <groupId>io.opencensus</groupId>-->
+<!--                <artifactId>opencensus-impl</artifactId>-->
+<!--                <version>${opencensus.version}</version>-->
+<!--            </dependency>-->
+
+<!--            remove -->
+<!--            <dependency>-->
+<!--                <groupId>it.unimi.dsi</groupId>-->
+<!--                <artifactId>fastutil</artifactId>-->
+<!--                <version>${fastutil.version}</version>-->
+<!--            </dependency>-->
+
+<!--            remove -->
+<!--            <dependency>-->
+<!--                <groupId>org.apache.arrow</groupId>-->
+<!--                <artifactId>arrow-memory</artifactId>-->
+<!--                <type>pom</type>-->
+<!--                <version>${arrow.version}</version>-->
+<!--            </dependency>-->
+<!--            <dependency>-->
+<!--                <groupId>org.apache.arrow</groupId>-->
+<!--                <artifactId>arrow-vector</artifactId>-->
+<!--                <version>${arrow.version}</version>-->
+<!--            </dependency>-->
+
+<!--            remove -->
+<!--            <dependency>-->
+<!--                <groupId>org.apache.avro</groupId>-->
+<!--                <artifactId>avro</artifactId>-->
+<!--                <version>${avro.version}</version>-->
+<!--            </dependency>-->
+
             <dependency>
                 <groupId>org.apache.tomcat</groupId>
                 <artifactId>annotations-api</artifactId>
@@ -282,27 +324,13 @@
                 <artifactId>jctools-core</artifactId>
                 <version>${jctools.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.lz4</groupId>
-                <artifactId>lz4-java</artifactId>
-                <version>${lz4.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.lz4</groupId>
-                <artifactId>lz4-pure-java</artifactId>
-                <version>${lz4.version}</version>
-            </dependency>
 
-            <dependency>
-                <groupId>org.msgpack</groupId>
-                <artifactId>msgpack-core</artifactId>
-                <version>${msgpack.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.ow2.asm</groupId>
-                <artifactId>asm</artifactId>
-                <version>${asm.version}</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>org.msgpack</groupId>-->
+<!--                <artifactId>msgpack-core</artifactId>-->
+<!--                <version>${msgpack.version}</version>-->
+<!--            </dependency>-->
+
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
@@ -328,6 +356,9 @@
                 <artifactId>snappy-java</artifactId>
                 <version>${snappy.version}</version>
             </dependency>
+
+            <!-- Test dependencies -->
+
             <dependency>
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers</artifactId>
@@ -344,6 +375,8 @@
                 <artifactId>testng</artifactId>
                 <version>${testng.version}</version>
             </dependency>
+
+            <!-- testing v1 -->
             <dependency>
                 <groupId>org.mariadb.jdbc</groupId>
                 <artifactId>mariadb-java-client</artifactId>
@@ -376,18 +409,6 @@
                         <artifactId>*</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.openjdk.jmh</groupId>
-                <artifactId>jmh-core</artifactId>
-                <version>${jmh.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.openjdk.jmh</groupId>
-                <artifactId>jmh-generator-annprocess</artifactId>
-                <version>${jmh.version}</version>
-                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -954,7 +975,7 @@
                             <execution>
                                 <id>attach-sources</id>
                                 <goals>
-                                    <goal>jar-no-fork</goal>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                         </executions>
