@@ -233,7 +233,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testTransaction() throws ClickHouseException {
         if (isCloud()) return; //TODO: testTransaction - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
         testAbortTransaction();

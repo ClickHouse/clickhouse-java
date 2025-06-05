@@ -9,6 +9,7 @@ import java.util.Properties;
 
 import static org.testng.Assert.assertThrows;
 
+@Test(groups = { "integration" })
 public class GenericJDBCTest extends JdbcIntegrationTest {
     public Connection getConnection(Properties properties) throws SQLException {
         if (properties == null) {

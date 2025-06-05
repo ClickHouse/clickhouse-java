@@ -16,7 +16,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
-
+@Test(groups = { "integration" })
 public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumnCount() throws Exception {

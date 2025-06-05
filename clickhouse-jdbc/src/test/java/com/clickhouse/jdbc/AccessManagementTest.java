@@ -17,6 +17,7 @@ import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Properties;
 
+@Test(groups = { "integration" })
 public class AccessManagementTest extends JdbcIntegrationTest {
     @BeforeMethod(groups = "integration")
     public void setV1() {

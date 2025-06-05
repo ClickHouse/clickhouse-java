@@ -60,6 +60,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+@Test(groups = { "integration" })
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
     @BeforeMethod(groups = "integration")
     public void setV1() {

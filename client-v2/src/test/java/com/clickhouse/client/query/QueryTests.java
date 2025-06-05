@@ -90,6 +90,7 @@ import java.util.stream.BaseStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Test(groups = {"integration"})
 public class QueryTests extends BaseIntegrationTest {
 
     private final static Random RANDOM = new Random();
