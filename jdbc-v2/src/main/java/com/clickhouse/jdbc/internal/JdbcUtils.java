@@ -124,7 +124,7 @@ public class JdbcUtils {
 
     public static SQLType convertToSqlType(ClickHouseDataType clickhouseType) {
         if (clickhouseType == null) {
-            return JDBCType.NULL;
+            return JDBCType.OTHER;
         }
 
         return CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(clickhouseType, JDBCType.OTHER);
