@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc.internal;
 
-import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -16,7 +15,7 @@ import java.util.regex.Pattern;
 
 public class SqlParser {
 
-    private static Logger LOG = LoggerFactory.getLogger(SqlParser.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SqlParser.class);
 
     public ParsedStatement parsedStatement(String sql) {
 
