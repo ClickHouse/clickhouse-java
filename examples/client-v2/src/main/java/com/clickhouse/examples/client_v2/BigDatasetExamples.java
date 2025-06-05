@@ -40,7 +40,6 @@ public class BigDatasetExamples {
                 .compressServerResponse(false)
                 .compressClientRequest(false)
                 .setLZ4UncompressedBufferSize(1048576)
-                .useNewImplementation(true)
                 // when network buffer and socket buffer are the same size - it is less IO calls and more efficient
                 .setSocketRcvbuf(1_000_000)
                 .setClientNetworkBufferSize(1_000_000)

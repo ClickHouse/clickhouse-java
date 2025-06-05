@@ -90,7 +90,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .addEndpoint(server.getBaseUri())
                 .setUsername("default")
                 .setPassword(getPassword())
-                .useNewImplementation(true)
                 .addProxy(ProxyType.HTTP, "localhost", proxyPort);
         if (connectionTtl != null) {
             clientBuilder.setConnectionTTL(connectionTtl, ChronoUnit.MILLIS);
@@ -180,7 +179,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(getPassword())
                 .retryOnFailures(ClientFaultCause.None)
-                .useNewImplementation(true)
                 .setMaxConnections(1)
                 .setOption(ClickHouseClientOption.ASYNC.getKey(), "true")
                 .setSocketTimeout(10000, ChronoUnit.MILLIS)
@@ -215,7 +213,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .addEndpoint(server.getBaseUri())
                 .setUsername("default")
                 .setPassword(getPassword())
-                .useNewImplementation(true)
                 .setConnectionReuseStrategy(ConnectionReuseStrategy.LIFO)
                 .build()) {
 
@@ -286,7 +283,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, "localhost", faultyServer.port(), false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(true) // because of the internal differences
                 .compressClientRequest(false)
                 .setMaxRetries(maxRetries)
                 .build();
@@ -438,7 +434,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .compressServerResponse(false)
-                .useNewImplementation(true)
                 .build()) {
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                     .willReturn(WireMock.aResponse()
@@ -537,7 +532,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(true)
                 .httpHeader("X-ClickHouse-Test", "default_value")
                 .httpHeader("X-ClickHouse-Test-2", Arrays.asList("default_value1", "default_value2"))
                 .httpHeader("X-ClickHouse-Test-3", Arrays.asList("default_value1", "default_value2"))
@@ -581,7 +575,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(true)
                 .serverSetting("max_threads", "10")
                 .serverSetting("async_insert", "1")
                 .serverSetting("roles", Arrays.asList("role1", "role2"))
@@ -779,7 +772,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(true)
                 .build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
@@ -1051,7 +1043,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", proxyPort, false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .useNewImplementation(true)
                 .build()) {
             int startTime = (int) System.currentTimeMillis();
             try {
@@ -1126,7 +1117,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(false)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useNewImplementation(System.getProperty("client.tests.useNewImplementation", "true").equals("true"));
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
     }
 }
