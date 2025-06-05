@@ -409,7 +409,7 @@
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
+<!--                            <createSourcesJar>true</createSourcesJar>-->
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>shaded</shadedClassifierName>
                             <artifactSet>
@@ -471,7 +471,7 @@
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
+<!--                            <createSourcesJar>true</createSourcesJar>-->
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>all</shadedClassifierName>
                             <artifactSet>
@@ -562,7 +562,7 @@
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
+<!--                            <createSourcesJar>true</createSourcesJar>-->
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>http</shadedClassifierName>
                             <artifactSet>
@@ -610,7 +610,7 @@
                         <configuration>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
+<!--                            <createSourcesJar>true</createSourcesJar>-->
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>default</shadedClassifierName>
                             <artifactSet>
@@ -654,7 +654,7 @@
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
+<!--                            <createSourcesJar>true</createSourcesJar>-->
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>shaded-all</shadedClassifierName>
                             <relocations>
