@@ -525,8 +525,8 @@
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${surefire-plugin.version}</version>
                     <configuration>
-                        <excludedGroups>${excludedGroups}</excludedGroups>
-                        <groups>unit</groups>
+                        <!-- run unit and ungroup tests, except integration group -->
+                        <excludedGroups>integration</excludedGroups>
                         <skipTests>${skipUTs}</skipTests>
                         <useModulePath>false</useModulePath>
                         <redirectTestOutputToFile>true</redirectTestOutputToFile>

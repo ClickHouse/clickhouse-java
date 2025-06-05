@@ -23,6 +23,7 @@ import java.util.Properties;
 import static org.testng.Assert.*;
 
 
+@Test(groups = { "integration" })
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumns() throws Exception {

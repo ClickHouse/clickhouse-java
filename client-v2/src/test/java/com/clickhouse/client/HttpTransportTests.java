@@ -54,6 +54,7 @@ import java.util.regex.Pattern;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.junit.Assert.fail;
 
+@Test(groups = {"integration"})
 public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"},dataProvider = "testConnectionTTLProvider")

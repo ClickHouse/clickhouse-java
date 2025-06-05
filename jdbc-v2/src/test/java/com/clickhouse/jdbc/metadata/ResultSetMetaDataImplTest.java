@@ -16,7 +16,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
-
+@Test(groups = { "integration" })
 public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumnCount() throws Exception {
@@ -171,14 +171,14 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
         }
     }
 
-    public static void assertColumnNames(ResultSet rs, String... names) throws Exception {
+    static void assertColumnNames(ResultSet rs, String... names) throws Exception {
         ResultSetMetaData metadata = rs.getMetaData();
         assertEquals(names.length, metadata.getColumnCount());
         for (int i = 0; i < metadata.getColumnCount(); i++) {
             assertEquals(names[i], metadata.getColumnName(i + 1));
         }
     }
-    public static void assertColumnTypes(ResultSet rs, String... types) throws Exception {
+    static void assertColumnTypes(ResultSet rs, String... types) throws Exception {
         ResultSetMetaData metadata = rs.getMetaData();
         assertEquals(types.length, metadata.getColumnCount());
         for (int i = 0; i < metadata.getColumnCount(); i++) {
