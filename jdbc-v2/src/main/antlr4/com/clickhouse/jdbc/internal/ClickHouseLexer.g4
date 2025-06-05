@@ -223,6 +223,8 @@ OCTAL_LITERAL       : '0' OCT_DIGIT+;
 DECIMAL_LITERAL     : DEC_DIGIT+;
 HEXADECIMAL_LITERAL : '0' X HEX_DIGIT+;
 
+CAST_OP   : '::';
+
 // It's important that quote-symbol is a single character.
 STRING_LITERAL:
     QUOTE_SINGLE (~([\\']) | (BACKSLASH .) | (QUOTE_SINGLE QUOTE_SINGLE))* QUOTE_SINGLE
