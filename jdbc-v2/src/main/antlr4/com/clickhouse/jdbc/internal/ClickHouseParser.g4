@@ -40,7 +40,7 @@ query
 
 // CTE statement
 ctes
-    : WITH namedQuery (',' namedQuery)*
+    : LPAREN? WITH namedQuery (',' namedQuery)* RPAREN?
     ;
 
 namedQuery

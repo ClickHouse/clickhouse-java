@@ -241,4 +241,24 @@ public class SqlParserTest {
                 {"CREATE USER 'user01' IDENTIFIED BY 'qwerty'"},
         };
     }
+
+    @Test(dataProvider = "testCTEStmtsDP")
+    public void testCTEStatements(String sql, int args) {
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors());
+        Assert.assertEquals(stmt.getArgCount(), args);
+    }
+
+    @DataProvider
+    public static Object[][] testCTEStmtsDP() {
+        return new Object[][] {
+                {"with ? as a, ? as b select a, b; -- two CTEs of the first form", 2},
+                {"with a as (select ?), b as (select 2) select * from a, b; -- two CTEs of the second form", 1},
+                {"(with a as (select ?) select * from a);", 1},
+                {"with a as (select 1) select * from a; ", 0},
+                {"(with ? as a select a);", 1},
+
+        };
+    }
 }
