@@ -35,11 +35,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>dnsjava</groupId>
             <artifactId>dnsjava</artifactId>
             <optional>true</optional>
@@ -51,6 +46,7 @@
             </exclusions>
         </dependency>
 
+        <!-- Test Dependencies -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>

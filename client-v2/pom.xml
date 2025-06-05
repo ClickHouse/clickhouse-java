@@ -67,14 +67,9 @@
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
-            <version>9.7</version>
+            <version>${asm.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.17.2</version>
-        </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
@@ -83,7 +78,6 @@
             <scope>compile</scope>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/com.google.guava/guava -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
@@ -92,37 +86,16 @@
 
         <!-- Test Dependencies -->
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
-            <version>${revision}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <scope>test</scope>
-            <optional>true</optional>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <scope>test</scope>
             <version>2.17.2</version>
         </dependency>
-
-        <!-- Test dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
             <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>${slf4j.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -144,9 +117,9 @@
         </dependency>
 
         <dependency>
-            <groupId>com.github.tomakehurst</groupId>
-            <artifactId>wiremock-jre8</artifactId>
-            <version>2.35.2</version>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.13.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -201,7 +174,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>shade-all</id>
+                        <id>all</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
@@ -233,11 +206,6 @@
                                 <relocation>
                                     <pattern>org.ow2</pattern>
                                     <shadedPattern>${shade.base}.org.ow2</shadedPattern>
-                                </relocation>
-
-                                <relocation>
-                                    <pattern>com.fasterxml</pattern>
-                                    <shadedPattern>${shade.base}.com.fasterxml</shadedPattern>
                                 </relocation>
 
                                 <relocation>

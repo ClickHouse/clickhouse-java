@@ -29,62 +29,69 @@
             </exclusions>
         </dependency>
 
+        <!-- Compression -->
+        <dependency>
+            <groupId>org.tukaani</groupId>
+            <artifactId>xz</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.xerial.snappy</groupId>
+            <artifactId>snappy-java</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${compress.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>com.aayushatharva.brotli4j</groupId>
             <artifactId>brotli4j</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-            <optional>true</optional>
-        </dependency>
+
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.arrow</groupId>
-            <artifactId>arrow-memory</artifactId>
-            <type>pom</type>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.arrow</groupId>
-            <artifactId>arrow-vector</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <optional>true</optional>
-        </dependency>
+
         <dependency>
             <groupId>org.brotli</groupId>
             <artifactId>dec</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>org.jctools</groupId>
-            <artifactId>jctools-core</artifactId>
-            <optional>true</optional>
-        </dependency>
+
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <!-- other -->
         <dependency>
-            <groupId>org.msgpack</groupId>
-            <artifactId>msgpack-core</artifactId>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+<!--           for adaptive queue-->
+            <groupId>org.jctools</groupId>
+            <artifactId>jctools-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
@@ -95,16 +102,8 @@
             <artifactId>slf4j-api</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>org.tukaani</groupId>
-            <artifactId>xz</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
-            <optional>true</optional>
-        </dependency>
+
+<!--        Test containers -->
 
         <dependency>
             <groupId>org.slf4j</groupId>
