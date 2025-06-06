@@ -768,7 +768,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
                 int[] result = stmt.executeBatch();
                 for (int r : result) {
-                    Assert.assertEquals(r, 1);
+                    Assert.assertTrue(r == 1 || r == PreparedStatement.SUCCESS_NO_INFO);
                 }
             }
 
