@@ -283,6 +283,16 @@ public class SqlParserTest {
             {"SELECT INTERVAL 1 day", 0},
             {"SELECT * FROM table key WHERE ts = ?", 1},
             {"SELECT * FROM table source WHERE ts = ?", 1},
+            {"SELECT * FROM table after WHERE ts = ?", 1},
+            {"SELECT * FROM table before WHERE ts = ?", 1},
+            {"SELECT * FROM table case WHERE ts = ?", 1},
+            {"SELECT * FROM table cluster WHERE ts = ?", 1},
+            {"SELECT * FROM table current WHERE ts = ?", 1},
+            {"SELECT * FROM table index WHERE ts = ?", 1},
+            {"SELECT * FROM table tables WHERE ts = ?", 1},
+            {"SELECT * FROM table test WHERE ts = ?", 1},
+            {"SELECT * FROM table view WHERE ts = ?", 1},
+            {"SELECT * FROM table primary WHERE ts = ?", 1},
         };
     }
 }
