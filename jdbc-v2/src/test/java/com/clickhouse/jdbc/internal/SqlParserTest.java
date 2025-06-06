@@ -1,9 +1,15 @@
 package com.clickhouse.jdbc.internal;
 
 
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -275,6 +281,8 @@ public class SqlParserTest {
         return new Object[][] {
             {"SELECT INTERVAL '1 day'", 0},
             {"SELECT INTERVAL 1 day", 0},
+            {"SELECT * FROM table key WHERE ts = ?", 1},
+            {"SELECT * FROM table source WHERE ts = ?", 1},
         };
     }
 }

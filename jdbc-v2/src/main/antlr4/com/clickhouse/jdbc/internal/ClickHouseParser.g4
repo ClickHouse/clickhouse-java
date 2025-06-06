@@ -975,6 +975,7 @@ keywordForAlias
     | FIRST
     | ID
     | KEY
+    | SOURCE
     ;
 
 alias
