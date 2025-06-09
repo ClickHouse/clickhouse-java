@@ -1671,8 +1671,8 @@ public class Client implements AutoCloseable {
             int operationTimeout = getOperationTimeout();
             settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .waitEndOfQuery(true);
-            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, params, settings).get() :
-                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+            CompletableFuture<QueryResponse> f = query(sqlQuery, params, settings);
+            try (QueryResponse response = operationTimeout == 0 ? f.get() : f.get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
                     RowBinaryWithNamesAndTypesFormatReader reader =
@@ -1738,8 +1738,8 @@ public class Client implements AutoCloseable {
         try {
             int operationTimeout = getOperationTimeout();
             QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-            try (QueryResponse response = operationTimeout == 0 ? query(sqlQuery, settings).get() :
-                    query(sqlQuery, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+            CompletableFuture<QueryResponse> f = query(sqlQuery, settings);
+            try (QueryResponse response = operationTimeout == 0 ? f.get() : f.get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<T> records = new ArrayList<>();
                 RowBinaryWithNamesAndTypesFormatReader reader =
                         (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
