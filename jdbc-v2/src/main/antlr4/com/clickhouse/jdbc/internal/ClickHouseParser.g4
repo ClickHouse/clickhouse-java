@@ -975,6 +975,16 @@ keywordForAlias
     | FIRST
     | ID
     | KEY
+    | SOURCE
+    | AFTER
+    | CASE
+    | CLUSTER
+    | CURRENT
+    | INDEX
+    | TABLES
+    | TEST
+    | VIEW
+    | PRIMARY
     ;
 
 alias
