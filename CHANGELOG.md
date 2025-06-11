@@ -1,3 +1,25 @@
+## 0.9.0
+
+### Important Changes
+- [repo] Artifacts `clickhouse-jdbc:http`, `clickhouse-jdbc:shaded-all`, `clickhouse-jdbc:shaded` are not published anymore. Use `clickhouse-jdbc:all` instead. It contains all required shaded libraries except `org.slf4j:slf4j-api` because it may not be shaded.
+- [repo] Artifacts `jdbc-v2:all`, `jdbc-v2:http`, `jdbc-v2:shaded` are not published anymore because `jdbc-v2` is part of `clickhouse-jdbc:all`. 
+
+### Bug Fixes
+- [jdbc-v2] Fixed parsing SQL with alias in `FROM` clause when alias name is a keyword (https://github.com/ClickHouse/clickhouse-java/issues/2427)
+- [client-v2] Fixed the issue when parameters are not passed if timeout is set. (https://github.com/ClickHouse/clickhouse-java/issues/2436, https://github.com/ClickHouse/clickhouse-java/issues/2096)
+- [jdbc-v2] Fixed parser logging issue. Now parser uses same logger as the driver. (https://github.com/ClickHouse/clickhouse-java/issues/2428)
+- [jdbc-v2] Fixed parsing `CREATE USER` statements. Now parser recognises it correctly. (https://github.com/ClickHouse/clickhouse-java/issues/2398)
+- [jdbc-v2] Fixed parsing different CTEs statements. (https://github.com/ClickHouse/clickhouse-java/issues/2431, https://github.com/ClickHouse/clickhouse-java/issues/2391, https://github.com/ClickHouse/clickhouse-java/pull/2443)
+- [jdbc-v2] Fixed parsing interval values. (https://github.com/ClickHouse/clickhouse-java/issues/2429)
+- [repo] Fixed running unit/integration tests in the CI. (https://github.com/ClickHouse/clickhouse-java/issues/2430)
+- [jdbc-v2] Fixed parsing parameters when function is in back quotes. (https://github.com/ClickHouse/clickhouse-java/issues/2422)
+- [jdbc-v2] Fixed `ResultSet#findColumn` always returning `0`. (https://github.com/ClickHouse/clickhouse-java/issues/2375)
+
+### Misc
+- [client-v2] Move all default values to `ClientConfigurationProperties` enum. (https://github.com/ClickHouse/clickhouse-java/issues/2269)
+
+### Docs
+- [client-v2] Updated documentation of the configuration parameters and how to set server settings and custom HTTP headers.
 
 ## 0.8.6 
 
