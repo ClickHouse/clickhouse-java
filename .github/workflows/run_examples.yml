@@ -11,53 +11,29 @@ env:
   PREFERRED_LTS_VERSION: "24.3"
 
 jobs:
-  compile:
+  run-examples-with-8-jdk:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    name: Compile (JDK 8)
+    name: Run Examples (JVM 8)
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Check out PR
+      - name: Install JDK 11 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 11
+          cache: "maven"
+      - name: Install libraries
         run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
+          java -version
+          mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DskipITs install
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: |
-            8
-            21
+          java-version: 8
           cache: "maven"
-      - name: Save Repo Artifacts
-        id: save-repo-artifacts
-        uses: actions/cache/save@v4
-        with:
-            path: ~/.m2/repository/com/clickhouse
-            key: ${{ github.run_id  }}-ch-artifacts
-      - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
-      - name: Compile examples
-        run: |
-          cd examples/jdbc
-          mvn clean compile
-          echo "Run Id ${{ github.run_id }}"
-  run-examples:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    name: Run Examples
-    needs: compile
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Restore Repo Artifacts
-        id: restore-repo-artifacts
-        uses: actions/cache/restore@v4
-        with:
-            path: ~/.m2/repository/com/clickhouse
-            key: ${{ github.run_id  }}-ch-artifacts
       - name: Run Examples
         run: |
           java -version
