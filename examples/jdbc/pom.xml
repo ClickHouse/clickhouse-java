@@ -55,6 +55,7 @@
 
         <minJdk>1.8</minJdk>
         <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
+        <slf4j.version>2.0.16</slf4j.version>
     </properties>
 
     <dependencies>
@@ -73,8 +74,14 @@
 
         <dependency>
             <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>2.0.16</version>
+            <version>${slf4j.version}</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
