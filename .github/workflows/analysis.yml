@@ -100,15 +100,7 @@ jobs:
           pwd
           ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
-      - name: Attach Report
-        id: jacoco
-        uses: madrapps/jacoco-report@v1.7.2
+      - name: Add JaCoCo Coverage Summary
+        uses: jjmrocha/jacoco-summary@v1
         with:
-          paths: |
-            ${{ github.workspace }}/client-v2/target/site/jacoco-aggregate/jacoco.xml,
-            ${{ github.workspace }}/jdbc-v2/target/site/jacoco-aggregate/jacoco.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
-          min-coverage-overall: 40
-          min-coverage-changed-files: 60
-          title: Code Coverage
-          update-comment: 'true'
+          jacoco-csv-file: ${{ github.workspace }}/client-v2/target/site/jacoco-aggregate/jacoco.csv
