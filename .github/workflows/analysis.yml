@@ -103,7 +103,9 @@ jobs:
         uses: madrapps/jacoco-report@v1.7.2
         with:
           paths: |
-            ${{ github.workspace }}/**/target/site/jacoco-aggregate/**/jacoco.xml
+            ${{ github.workspace }}/**/target/site/jacoco-aggregate/jacoco.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 40
           min-coverage-changed-files: 60
+          title: Code Coverage
+          update-comment: 'true'
