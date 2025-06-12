@@ -105,7 +105,7 @@ jobs:
         uses: madrapps/jacoco-report@v1.7.2
         with:
           paths: |
-            ${{ github.workspace }}/client-v2/target/site/jacoco-aggregate/jacoco.xml
+            ${{ github.workspace }}/client-v2/target/site/jacoco-aggregate/jacoco.xml,
             ${{ github.workspace }}/jdbc-v2/target/site/jacoco-aggregate/jacoco.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 40
