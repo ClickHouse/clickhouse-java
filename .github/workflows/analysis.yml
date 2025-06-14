@@ -31,10 +31,13 @@ env:
   PREFERRED_LTS_VERSION: "24.3"
 
 jobs:
-  static:
+  sonarcloud:
+    name: SonarCloud
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     timeout-minutes: 30
-    name: Static code analysis
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -97,4 +100,17 @@ jobs:
         run: |
           mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          pwd
+          ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
+      - name: Generate and post coverage report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pwd
+          ls -la
+          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V2 Coverage"
+          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V2 Coverage"
+          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V1 Coverage"
+          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V1 Coverage"
+          cat *-cov.md
