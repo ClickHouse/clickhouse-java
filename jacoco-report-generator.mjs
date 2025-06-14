@@ -206,7 +206,7 @@ ${generateMarkdownTable(classReport, {
     'coverage': 'Coverage',
     'lines covered': 'Lines Covered',
     'lines total': 'Total Lines'
-}, 2)}
+}, 1)}
 
 </details>
 `;
