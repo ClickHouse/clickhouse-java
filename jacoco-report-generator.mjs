@@ -63,13 +63,16 @@ const calculateCoverage = (covered, total) => {
  * Generates a markdown table from data
  * @param {Array} data - Array of objects containing row data
  * @param {Object} headers - Object mapping field names to display names
+ * @param {number} [indent=0] - Number of tabs to indent the entire table
  * @returns {string} Markdown table
  */
-const generateMarkdownTable = (data, headers) => {
+const generateMarkdownTable = (data, headers, indent = 0) => {
     if (!data || data.length === 0) return '';
 
     const headerRow = Object.values(headers);
     const columns = Object.keys(headers);
+    const tab = '    '; // 4 spaces per tab
+    const indentStr = tab.repeat(indent);
     
     // Generate header separator
     const separator = headerRow.map(() => '---');
@@ -79,11 +82,11 @@ const generateMarkdownTable = (data, headers) => {
         columns.map(field => item[field] || '')
     );
     
-    // Combine all parts
+    // Combine all parts with indentation
     const table = [
-        `| ${headerRow.join(' | ')} |`,
-        `| ${separator.join(' | ')} |`,
-        ...rows.map(row => `| ${row.join(' | ')} |`)
+        `${indentStr}| ${headerRow.join(' | ')} |`,
+        `${indentStr}| ${separator.join(' | ')} |`,
+        ...rows.map(row => `${indentStr}| ${row.join(' | ')} |`)
     ].join('\n');
     
     return table;
@@ -138,15 +141,8 @@ const generateJacocoReport = (csvFilePath, outputPath) => {
             
             // Extract package and class names
             const className = row['CLASS'] || '';
-            let packageName = '';
-            
-            if (className) {
-                const lastDotIndex = className.lastIndexOf('.');
-                if (lastDotIndex > 0) {
-                    packageName = className.substring(0, lastDotIndex);
-                }
-            }
-            
+            const packageName = row['PACKAGE'];
+
             // Calculate coverage metrics
             const missed = parseInt(row['LINE_MISSED'] || '0', 10);
             const covered = parseInt(row['LINE_COVERED'] || '0', 10);
@@ -160,7 +156,9 @@ const generateJacocoReport = (csvFilePath, outputPath) => {
             }
             
             if (className) {
-                classCoverage.set(className, {
+                // Create fully qualified class name by combining package and class name
+                const fullyQualifiedName = packageName ? `${packageName}.${className}` : className;
+                classCoverage.set(fullyQualifiedName, {
                     covered,
                     total,
                     coverage: calculateCoverage(covered, total)
@@ -190,9 +188,7 @@ const generateJacocoReport = (csvFilePath, outputPath) => {
                 .sort((a, b) => a.class.localeCompare(b.class));
 
             // Generate markdown content
-            const markdownContent = `# JaCoCo Code Coverage Report
-
-## Coverage Report
+            const markdownContent = `## Coverage Report
 
 ${generateMarkdownTable(packageReport, {
                 'package': 'Package',
@@ -204,12 +200,13 @@ ${generateMarkdownTable(packageReport, {
 
 <details>
   <summary>Class Coverage</summary>
+
 ${generateMarkdownTable(classReport, {
-                'class': 'Class',
-                'coverage': 'Coverage',
-                'lines covered': 'Lines Covered',
-                'lines total': 'Total Lines'
-            })}
+    'class': 'Class',
+    'coverage': 'Coverage',
+    'lines covered': 'Lines Covered',
+    'lines total': 'Total Lines'
+}, 2)}
 
 </details>
 `;
@@ -332,32 +329,52 @@ async function findExistingComment(token, owner, repo, prNumber, commentMarker) 
 // Get command line arguments
 const args = process.argv.slice(2);
 
-if (args.length < 2) {
+function printHelp() {
     console.log('JaCoCo Report Generator');
     console.log('Generates a markdown report from JaCoCo CSV data and can post to GitHub PRs\n');
     console.log('Basic usage:');
-    console.log('  node jacoco-report.mjs <input-csv> <output-md>');
+    console.log('  node jacoco-report.mjs <input-csv> <output-md> [--title "Report Title"]');
     console.log('  <input-csv>  Path to JaCoCo CSV file (e.g., target/site/jacoco/jacoco.csv)');
     console.log('  <output-md>  Path where to save the markdown report\n');
     console.log('GitHub PR comment usage:');
-    console.log('  GITHUB_TOKEN=your_token node jacoco-report.mjs <input-csv> <output-md> --pr <pr-number> [--repo owner/repo]');
-    console.log('  --pr          PR number to post the comment to');
-    console.log('  --repo        Repository in format owner/repo (defaults to current repo)');
+    console.log('  GITHUB_TOKEN=your_token node jacoco-report.mjs <input-csv> <output-md> \\');
+    console.log('    --title "Report Title" \\');
+    console.log('    --pr <pr-number> \\');
+    console.log('    [--repo owner/repo]');
+    console.log('  --title      Title to use for the report (default: "Coverage Report")');
+    console.log('  --pr         PR number to post the comment to');
+    console.log('  --repo       Repository in format owner/repo (defaults to current repo)');
     process.exit(1);
 }
 
-// Parse command line arguments
+if (args.length < 2) {
+    printHelp();
+}
+
 const inputFile = args[0];
 const outputFile = args[1];
+
+// Parse optional arguments
+let title = 'Coverage Report';
 let prNumber = null;
 let repo = null;
+let i = 2;
 
-for (let i = 2; i < args.length; i++) {
-    if (args[i] === '--pr' && args[i + 1]) {
+while (i < args.length) {
+    const arg = args[i];
+    if (arg === '--title' && i + 1 < args.length) {
+        title = args[++i];
+    } else if (arg === '--pr' && i + 1 < args.length) {
         prNumber = parseInt(args[++i], 10);
-    } else if (args[i] === '--repo' && args[i + 1]) {
+    } else if (arg === '--repo' && i + 1 < args.length) {
         repo = args[++i];
+    } else if (arg === '--help' || arg === '-h') {
+        printHelp();
+    } else {
+        console.error(`Unknown argument: ${arg}`);
+        printHelp();
     }
+    i++;
 }
 
 // Get GitHub token from environment
@@ -395,8 +412,9 @@ async function main() {
         
         if (prNumber && githubToken) {
             try {
-                const commentMarker = '<!-- jacoco-coverage-report -->';
-                const comment = `${commentMarker}\n# JaCoCo Coverage Report\n\n${reportContent}`;
+                // Use the full file path in the comment marker and include the custom title
+                const commentMarker = `<!-- jacoco-coverage-report:${inputFile} -->`;
+                const comment = `${commentMarker}\n# ${title}\n\n${reportContent}`;
                 
                 // Find existing comment to update
                 const existingComment = await findExistingComment(
