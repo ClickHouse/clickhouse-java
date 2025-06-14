@@ -1,9 +1,9 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ConnectionInitiationException;
-import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.exception.ConnectionInitiationException;
+import com.clickhouse.client.api.exception.ServerException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

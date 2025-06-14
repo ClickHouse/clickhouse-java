@@ -1,5 +1,7 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.api.exception.ClientException;
+
 /**
  * Represents errors caused by a client misconfiguration.
  */

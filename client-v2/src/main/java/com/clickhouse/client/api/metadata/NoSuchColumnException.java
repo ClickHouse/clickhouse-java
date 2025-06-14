@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.metadata;
 
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 
 public class NoSuchColumnException extends ClientException {
 

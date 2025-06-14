@@ -2,7 +2,7 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.enums.Protocol;

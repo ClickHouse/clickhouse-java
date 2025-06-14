@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;

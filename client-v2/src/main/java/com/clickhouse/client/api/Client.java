@@ -12,6 +12,8 @@ import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.exception.ServerException;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;

@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -33,10 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
