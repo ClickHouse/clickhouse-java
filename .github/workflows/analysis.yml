@@ -100,12 +100,8 @@ jobs:
           pwd
           ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
-      - name: Add coverage to PR
-        id: jacoco
-        uses: madrapps/jacoco-report@v1.7.2
-        with:
-          paths: ${{ github.workspace }}/client-v2/target/site/jacoco-aggregate/jacoco.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
-          min-coverage-overall: 40
-          min-coverage-changed-files: 60
-          debug-mode: 'true'
+      - name: Generate and post coverage report
+        env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+         node jacoco-report-generator.js client-v2/target/site/jacoco/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
