@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.query;
 
-import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.exception.ClientException;
 
 /**
  * Throw when a null value cannot be returned because of data type.
