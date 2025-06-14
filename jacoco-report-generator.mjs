@@ -201,7 +201,7 @@ ${generateMarkdownTable(packageReport, {
 <details>
   <summary>Class Coverage</summary>
 
-  ${generateMarkdownTable(classReport, {
+${generateMarkdownTable(classReport, {
     'class': 'Class',
     'coverage': 'Coverage',
     'lines covered': 'Lines Covered',
