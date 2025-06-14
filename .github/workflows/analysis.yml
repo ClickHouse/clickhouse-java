@@ -97,4 +97,12 @@ jobs:
         run: |
           mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          pwd
+          ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
+      - name: Generate and post coverage report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pwd
+          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
