@@ -93,82 +93,82 @@ const generateMarkdownTable = (data, headers) => {
  * Processes JaCoCo CSV and generates markdown report
  * @param {string} csvFilePath - Path to JaCoCo CSV file
  * @param {string} outputPath - Path to save the markdown report
+ * @returns {Promise<string>} The generated markdown content
  */
 const generateJacocoReport = (csvFilePath, outputPath) => {
-    const results = [];
-    const packageCoverage = new Map();
-    const classCoverage = new Map();
+    return new Promise((resolve, reject) => {
+        const results = [];
+        const packageCoverage = new Map();
+        const classCoverage = new Map();
 
-    if (!fs.existsSync(csvFilePath)) {
-        console.error(`Error: File not found: ${csvFilePath}`);
-        process.exit(1);
-    }
-
-    const fileStream = fs.createReadStream(csvFilePath);
-    
-    fileStream.on('error', (err) => {
-        console.error(`Error reading file: ${err.message}`);
-        process.exit(1);
-    });
-
-    const rl = readline.createInterface({
-        input: fileStream,
-        crlfDelay: Infinity
-    });
-
-    let headers = [];
-    let isFirstLine = true;
-
-    rl.on('line', (line) => {
-        const values = parseCsvLine(line);
-        
-        if (isFirstLine) {
-            headers = values;
-            isFirstLine = false;
+        if (!existsSync(csvFilePath)) {
+            reject(new Error(`File not found: ${csvFilePath}`));
             return;
         }
 
-
-        const row = {};
-        headers.forEach((header, index) => {
-            row[header] = values[index] || '';
+        const fileStream = createReadStream(csvFilePath);
+        
+        fileStream.on('error', (err) => {
+            reject(new Error(`Error reading file: ${err.message}`));
         });
 
-        results.push(row);
-        
-        // Extract package and class names
-        const className = row['CLASS'] || '';
-        let packageName = '';
-        
-        if (className) {
-            const lastDotIndex = className.lastIndexOf('.');
-            if (lastDotIndex > 0) {
-                packageName = className.substring(0, lastDotIndex);
-            }
-        }
-        
-        // Calculate coverage metrics
-        const missed = parseInt(row['LINE_MISSED'] || '0', 10);
-        const covered = parseInt(row['LINE_COVERED'] || '0', 10);
-        const total = missed + covered;
-        
-        if (packageName) {
-            const pkgData = packageCoverage.get(packageName) || { covered: 0, total: 0 };
-            pkgData.covered += covered;
-            pkgData.total += total;
-            packageCoverage.set(packageName, pkgData);
-        }
-        
-        if (className) {
-            classCoverage.set(className, {
-                covered,
-                total,
-                coverage: calculateCoverage(covered, total)
-            });
-        }
-    });
+        const rl = createInterface({
+            input: fileStream,
+            crlfDelay: Infinity
+        });
 
-    rl.on('close', () => {
+        let headers = [];
+        let isFirstLine = true;
+
+        rl.on('line', (line) => {
+            const values = parseCsvLine(line);
+            
+            if (isFirstLine) {
+                headers = values;
+                isFirstLine = false;
+                return;
+            }
+
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+
+            results.push(row);
+            
+            // Extract package and class names
+            const className = row['CLASS'] || '';
+            let packageName = '';
+            
+            if (className) {
+                const lastDotIndex = className.lastIndexOf('.');
+                if (lastDotIndex > 0) {
+                    packageName = className.substring(0, lastDotIndex);
+                }
+            }
+            
+            // Calculate coverage metrics
+            const missed = parseInt(row['LINE_MISSED'] || '0', 10);
+            const covered = parseInt(row['LINE_COVERED'] || '0', 10);
+            const total = missed + covered;
+            
+            if (packageName) {
+                const pkgData = packageCoverage.get(packageName) || { covered: 0, total: 0 };
+                pkgData.covered += covered;
+                pkgData.total += total;
+                packageCoverage.set(packageName, pkgData);
+            }
+            
+            if (className) {
+                classCoverage.set(className, {
+                    covered,
+                    total,
+                    coverage: calculateCoverage(covered, total)
+                });
+            }
+        });
+
+        rl.on('close', () => {
             // Generate package coverage report
             const packageReport = Array.from(packageCoverage.entries())
                 .map(([pkg, { covered, total }]) => ({
@@ -215,13 +215,14 @@ ${generateMarkdownTable(classReport, {
 `;
 
             // Write to file
-            fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-            fs.writeFileSync(outputPath, markdownContent);
+            mkdirSync(dirname(outputPath), { recursive: true });
+            writeFileSync(outputPath, markdownContent);
             
             console.log(`Report generated successfully at: ${outputPath}`);
+            resolve(markdownContent);
         });
+    });
 };
-
 
 /**
  * Posts or updates a comment on a GitHub PR
@@ -252,7 +253,7 @@ async function postOrUpdateComment(token, owner, repo, prNumber, comment, commen
     };
 
     return new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
+        const req = request(options, (res) => {
             let response = '';
             
             res.on('data', (chunk) => {
@@ -300,7 +301,7 @@ async function findExistingComment(token, owner, repo, prNumber, commentMarker) 
     };
 
     return new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
+        const req = request(options, (res) => {
             let response = '';
             
             res.on('data', (chunk) => {
@@ -335,11 +336,11 @@ if (args.length < 2) {
     console.log('JaCoCo Report Generator');
     console.log('Generates a markdown report from JaCoCo CSV data and can post to GitHub PRs\n');
     console.log('Basic usage:');
-    console.log('  node jacoco-report-generator.js <input-csv> <output-md>');
+    console.log('  node jacoco-report.mjs <input-csv> <output-md>');
     console.log('  <input-csv>  Path to JaCoCo CSV file (e.g., target/site/jacoco/jacoco.csv)');
     console.log('  <output-md>  Path where to save the markdown report\n');
     console.log('GitHub PR comment usage:');
-    console.log('  GITHUB_TOKEN=your_token node jacoco-report-generator.js <input-csv> <output-md> --pr <pr-number> [--repo owner/repo]');
+    console.log('  GITHUB_TOKEN=your_token node jacoco-report.mjs <input-csv> <output-md> --pr <pr-number> [--repo owner/repo]');
     console.log('  --pr          PR number to post the comment to');
     console.log('  --repo        Repository in format owner/repo (defaults to current repo)');
     process.exit(1);

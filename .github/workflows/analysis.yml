@@ -102,6 +102,6 @@ jobs:
         continue-on-error: true
       - name: Generate and post coverage report
         env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-         node jacoco-report-generator.js client-v2/target/site/jacoco/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
+          node jacoco-report.mjs client-v2/target/site/jacoco/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
