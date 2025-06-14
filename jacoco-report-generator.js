@@ -169,7 +169,7 @@ const generateJacocoReport = (csvFilePath, outputPath) => {
     });
 
     rl.on('close', () => {
-            // Generate package coverage report
+            // Generate package coverage report with FQN
             const packageReport = Array.from(packageCoverage.entries())
                 .map(([pkg, { covered, total }]) => ({
                     package: pkg,
@@ -179,10 +179,10 @@ const generateJacocoReport = (csvFilePath, outputPath) => {
                 }))
                 .sort((a, b) => a.package.localeCompare(b.package));
 
-            // Generate class coverage report
+            // Generate class coverage report with FQN
             const classReport = Array.from(classCoverage.entries())
                 .map(([cls, { covered, total, coverage }]) => ({
-                    class: cls,
+                    class: cls,  // This is already the FQN
                     coverage,
                     'lines covered': covered,
                     'lines total': total
@@ -204,6 +204,7 @@ ${generateMarkdownTable(packageReport, {
 
 <details>
   <summary>Class Coverage</summary>
+  
 ${generateMarkdownTable(classReport, {
                 'class': 'Class',
                 'coverage': 'Coverage',
@@ -394,8 +395,10 @@ async function main() {
         
         if (prNumber && githubToken) {
             try {
-                const commentMarker = '<!-- jacoco-coverage-report -->';
-                const comment = `${commentMarker}\n# JaCoCo Coverage Report\n\n${reportContent}`;
+                // Extract project name from the path (first non-empty part after splitting by / or \)
+                const projectName = inputFile.split(/[/\\]/).filter(Boolean)[0] || 'coverage';
+                const commentMarker = `<!-- jacoco-coverage-report:${projectName} -->`;
+                const comment = `${commentMarker}\n# Coverage Report (${projectName})\n\n${reportContent}`;
                 
                 // Find existing comment to update
                 const existingComment = await findExistingComment(

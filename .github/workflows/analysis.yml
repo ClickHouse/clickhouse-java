@@ -109,4 +109,6 @@ jobs:
         run: |
           pwd
           ls -la
-          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
+          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --pr ${{ github.event.pull_request.number }}
+          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr ${{ github.event.pull_request.number }}
+          cat *-cov.md
