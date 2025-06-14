@@ -31,10 +31,13 @@ env:
   PREFERRED_LTS_VERSION: "24.3"
 
 jobs:
-  static:
+  sonarcloud:
+    name: SonarCloud
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     timeout-minutes: 30
-    name: Static code analysis
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -101,12 +104,7 @@ jobs:
           ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
       - name: Generate and post coverage report
-        # Add write permissions for pull-requests
-        permissions:
-          contents: read
-          pull-requests: write
         env:
-          # Use the default GITHUB_TOKEN with the right permissions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pwd
