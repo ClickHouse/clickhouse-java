@@ -101,8 +101,14 @@ jobs:
           ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
         continue-on-error: true
       - name: Generate and post coverage report
+        # Add write permissions for pull-requests
+        permissions:
+          contents: read
+          pull-requests: write
         env:
+          # Use the default GITHUB_TOKEN with the right permissions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pwd
+          ls -la
           node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
