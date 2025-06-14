@@ -104,4 +104,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          node jacoco-report.mjs client-v2/target/site/jacoco/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
+          pwd
+          node jacoco-report-generator.mjs client-v2/target/site/jacoco/jacoco.csv coverage.md --pr ${{ github.event.pull_request.number }}
