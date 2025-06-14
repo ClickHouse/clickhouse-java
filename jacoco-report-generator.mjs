@@ -71,7 +71,7 @@ const generateMarkdownTable = (data, headers, indent = 0) => {
 
     const headerRow = Object.values(headers);
     const columns = Object.keys(headers);
-    const tab = '    '; // 4 spaces per tab
+    const tab = '  '; // 4 spaces per tab
     const indentStr = tab.repeat(indent);
     
     // Generate header separator
@@ -201,12 +201,11 @@ ${generateMarkdownTable(packageReport, {
 <details>
   <summary>Class Coverage</summary>
 
-${generateMarkdownTable(classReport, {
+  ${generateMarkdownTable(classReport, {
     'class': 'Class',
     'coverage': 'Coverage',
     'lines covered': 'Lines Covered',
-    'lines total': 'Total Lines'
-}, 1)}
+    'lines total': 'Total Lines'}, 1)}
 
 </details>
 `;
