@@ -100,16 +100,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-          pwd
-          ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
+            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
         continue-on-error: true
       - name: Generate and post coverage report
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          pwd
-          ls -la
           PR_ARG=''
           if [ ! -z $PR_NUMBER ]; then RP_ARG="--pr $PR_NUMBER"; fi;
           echo $PR_ARG
