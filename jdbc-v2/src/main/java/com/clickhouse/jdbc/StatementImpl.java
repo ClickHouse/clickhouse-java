@@ -41,7 +41,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private String lastStatementSql;
     private ParsedStatement parsedStatement;
     protected volatile String lastQueryId;
-    private int maxRows;
+    private long maxRows;
     protected QuerySettings localSettings;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
@@ -240,20 +240,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getMaxRows() throws SQLException {
         ensureOpen();
-        return maxRows;
+        return (int) getLargeMaxRows(); // skip overflow check. 
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-        ensureOpen();
-        maxRows = max;
-        if (max > 0) {
-            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
-            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
-        } else {
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS));
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE));
-        }
+        setLargeMaxRows(max);
     }
 
     @Override
@@ -509,13 +501,20 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setLargeMaxRows(long max) throws SQLException {
         ensureOpen();
-        Statement.super.setLargeMaxRows(max);
+        maxRows = max;
+        if (max > 0) {
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+        } else {
+            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS));
+            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE));
+        }
     }
 
     @Override
     public long getLargeMaxRows() throws SQLException {
         ensureOpen();
-        return getMaxRows();
+        return this.maxRows;
     }
 
     @Override
