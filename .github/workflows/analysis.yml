@@ -114,7 +114,7 @@ jobs:
           if [ ! -z $PR_NUMBER ]; then RP_ARG="--pr $PR_NUMBER"; fi;
           echo $PR_ARG
           node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --title "Client V2 Coverage" ${PR_ARG}
-          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr --title "JDBC V2 Coverage" ${PR_ARG}
+          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --title "JDBC V2 Coverage" ${PR_ARG}
           node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --title "JDBC V1 Coverage" ${PR_ARG}
           node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --title "Client V1 Coverage" ${PR_ARG}
           cat *-cov.md
