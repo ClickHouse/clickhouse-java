@@ -29,6 +29,7 @@ on:
 
 env:
   PREFERRED_LTS_VERSION: "24.3"
+  PR_NUMBER: ${{ github.event.pull_request.number || '' }}
 
 jobs:
   sonarcloud:
@@ -109,8 +110,8 @@ jobs:
         run: |
           pwd
           ls -la
-          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V2 Coverage"
-          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V2 Coverage"
-          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V1 Coverage"
-          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V1 Coverage"
+          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md ${PR_NUMBER:+--pr $PR_NUMBER} --title "Client V2 Coverage"
+          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr ${PR_NUMBER:+--pr $PR_NUMBER} --title "JDBC V2 Coverage"
+          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md ${PR_NUMBER:+--pr $PR_NUMBER} --title "JDBC V1 Coverage"
+          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md ${PR_NUMBER:+--pr $PR_NUMBER} --title "Client V1 Coverage"
           cat *-cov.md
