@@ -86,7 +86,7 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
       - name: Update sonar config
         run: |
-          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
+          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-java\2|' \
             -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
         if: github.repository_owner == 'ClickHouse'
       - name: Build and install
