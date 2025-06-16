@@ -126,7 +126,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             mergedSettings.setQueryId(lastQueryId);
         }
         LOG.debug("Query ID: {}", lastQueryId);
-        LOG.info("Original  SQL" + sql);
 
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
