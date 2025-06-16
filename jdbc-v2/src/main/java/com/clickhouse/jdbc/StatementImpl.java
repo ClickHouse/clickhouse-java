@@ -7,6 +7,7 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
@@ -240,7 +241,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getMaxRows() throws SQLException {
         ensureOpen();
-        return (int) getLargeMaxRows(); // skip overflow check. 
+        return (int) getLargeMaxRows(); // skip overflow check.
     }
 
     @Override
@@ -426,6 +427,29 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     @Override
+    public String enquoteLiteral(String val) throws SQLException {
+        return SQLUtils.enquoteLiteral(val);
+    }
+
+    @Override
+    public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
+        return SQLUtils.enquoteIdentifier(identifier, alwaysQuote);
+    }
+
+    @Override
+    public boolean isSimpleIdentifier(String identifier) throws SQLException {
+        return SQLUtils.isSimpleIdentifier(identifier);
+    }
+
+    @Override
+    public String enquoteNCharLiteral(String val) throws SQLException {
+        if (val == null) {
+            throw new NullPointerException();
+        }
+        return "N" + SQLUtils.enquoteLiteral(val);
+    }
+
+    @Override
     public ResultSet getGeneratedKeys() throws SQLException {
         // TODO: return empty result set or throw exception
         return null;
@@ -549,4 +573,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public String getLastQueryId() {
         return lastQueryId;
     }
+
+
 }

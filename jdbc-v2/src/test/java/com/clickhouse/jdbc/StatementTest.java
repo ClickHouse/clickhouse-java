@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.net.Inet4Address;
@@ -727,6 +728,57 @@ public class StatementTest extends JdbcIntegrationTest {
                     Assert.assertTrue(found);
                 }
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testEnquoteLiteral() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            String[] literals = {"test literal", "with single '", "with double ''", "with triple '''"};
+            for (String literal : literals) {
+                try (ResultSet rs = stmt.executeQuery("SELECT " + stmt.enquoteLiteral(literal))) {
+                    Assert.assertTrue(rs.next());
+                    assertEquals(rs.getString(1), literal);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testEnquoteIdentifier() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            Object[][] identifiers = {{"simple_identifier", false}, {"complex identified", true}};
+            for (Object[] aCase : identifiers) {
+                stmt.enquoteIdentifier((String)aCase[0], (boolean) aCase[1]);
+            }
+        }
+    }
+
+    @DataProvider(name = "ncharLiteralTestData")
+    public Object[][] ncharLiteralTestData() {
+        return new Object[][] {
+                // input, expected output
+                {"test", "N'test'"},
+                {"O'Reilly", "N'O''Reilly'"},
+                {"", "N''"},
+                {"test\nnew line", "N'test\nnew line'"},
+                {"unicode: こんにちは", "N'unicode: こんにちは'"},
+                {"emoji: 😊", "N'emoji: 😊'"},
+                {"quote: \"", "N'quote: \"'"}
+        };
+    }
+
+    @Test(dataProvider = "ncharLiteralTestData")
+    public void testEnquoteNCharLiteral(String input, String expected) throws SQLException {
+        try (Statement stmt = getJdbcConnection().createStatement()) {
+            assertEquals(stmt.enquoteNCharLiteral(input), expected);
+        }
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testEnquoteNCharLiteral_NullInput() throws SQLException {
+        try (Statement stmt = getJdbcConnection().createStatement()) {
+            stmt.enquoteNCharLiteral(null);
         }
     }
 }
