@@ -594,6 +594,11 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Tell client that compression will be handled by application.
+         * @param enabled - indicates that feature is enabled.
+         * @return
+         */
         public Builder appCompressedData(boolean enabled) {
             this.configuration.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), String.valueOf(enabled));
             return this;
