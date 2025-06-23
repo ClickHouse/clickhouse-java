@@ -22,7 +22,7 @@ public class ProcessParser {
     };
 
     public static void parseSummary(String text, OperationMetrics metrics) {
-        Map<String, Integer> map = parse(text == null ? "{}" : text);
+        Map<String, Long> map = parse(text == null ? "{}" : text);
 
         for (ServerMetrics m : ServerMetrics.values()) {
             metrics.updateMetric(m, -1);
@@ -30,7 +30,7 @@ public class ProcessParser {
 
         for (int i = 0; i < SUMMARY_FIELDS.length; i++) {
             String field = SUMMARY_FIELDS[i];
-            Integer value = map.get(field);
+            Long value = map.get(field);
             if (value != null) {
                 metrics.updateMetric(SUMMARY_METRICS[i], value);
             }
@@ -38,7 +38,7 @@ public class ProcessParser {
     }
 
 
-    public static Map<String, Integer> parse(String json) {
+    public static Map<String, Long> parse(String json) {
         if (json == null) {
             throw new IllegalArgumentException("json is null");
         }
@@ -50,7 +50,7 @@ public class ProcessParser {
             throw new IllegalArgumentException("JSON must start with '{' and end with '}'");
         }
 
-        Map<String, Integer> result = new HashMap<>();
+        Map<String, Long> result = new HashMap<>();
 
         String content = json.substring(1, json.length() - 1).trim();
         if (content.isEmpty()) {
@@ -79,7 +79,7 @@ public class ProcessParser {
             }
 
             try {
-                int value = Integer.parseInt(valueStr);
+                long value = Long.parseLong(valueStr);
                 result.put(key, value);
             } catch (NumberFormatException e) {
                 // ignore error
