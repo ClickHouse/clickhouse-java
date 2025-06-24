@@ -425,10 +425,10 @@ public class HttpAPIClientHelper {
 
         } catch (UnknownHostException e) {
             LOG.warn("Host '{}' unknown", server.getBaseURL());
-            throw new ConnectionInitiationException("Unknown host", e);
+            throw e;
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
-            throw new ConnectionInitiationException("Failed to connect", e);
+            throw e;
         }
     }
 
