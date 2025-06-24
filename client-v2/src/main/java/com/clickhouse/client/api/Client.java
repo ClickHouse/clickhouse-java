@@ -813,7 +813,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Sets list of causes that should be retried on.
-         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout]}
+         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout, ServerRetryable]}
          * Use {@link ClientFaultCause#None} to disable retries.
          *
          * @param causes - list of causes
