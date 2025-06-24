@@ -4,10 +4,7 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
@@ -235,7 +232,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");
-        } catch (ClientException e) {
+        } catch (ClickHouseException e) {
             e.printStackTrace();
             assertTrue(e.getCause() instanceof  IllegalArgumentException);
         }
