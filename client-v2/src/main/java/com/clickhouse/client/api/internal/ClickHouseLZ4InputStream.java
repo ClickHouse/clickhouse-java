@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.internal;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseUtils;

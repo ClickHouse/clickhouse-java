@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;

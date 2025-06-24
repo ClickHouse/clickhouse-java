@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;

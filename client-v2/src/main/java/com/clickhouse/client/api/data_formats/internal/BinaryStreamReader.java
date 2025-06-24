@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;

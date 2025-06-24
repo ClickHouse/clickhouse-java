@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.command;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;

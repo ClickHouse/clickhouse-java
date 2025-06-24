@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.serde;
 
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 
 public class DataSerializationException extends ClientException {
 

@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.exception.ClientException;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
