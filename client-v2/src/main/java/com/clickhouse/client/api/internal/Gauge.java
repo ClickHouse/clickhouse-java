@@ -6,8 +6,8 @@ public class Gauge implements Metric {
 
     private volatile long value;
 
-    public Gauge(long readRows) {
-        this.value = readRows;
+    public Gauge(long value) {
+        this.value = value;
     }
 
     public void set(long value) {

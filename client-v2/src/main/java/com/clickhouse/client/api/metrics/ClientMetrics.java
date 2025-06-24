@@ -3,12 +3,12 @@ package com.clickhouse.client.api.metrics;
 public enum ClientMetrics {
 
     /**
-     * Operation duration in nanoseconds.
+     * Operation duration in milliseconds.
      */
     OP_DURATION("client.opDuration"),
 
     /**
-     * Duration of the operation serialization step in nanoseconds.
+     * Duration of the operation serialization step in milliseconds.
      */
     OP_SERIALIZATION("client.opSerialization");
 
