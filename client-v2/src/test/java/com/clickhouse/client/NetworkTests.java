@@ -93,9 +93,14 @@ public class NetworkTests {
     private SSLSocket createSniSocket(String sniHost, String serverHost, int port) throws Exception {
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(null, new TrustManager[] { new X509TrustManager() {
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {}
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {}
-            public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+
+            }
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
         } }, null);
 
         SSLSocketFactory factory = context.getSocketFactory();

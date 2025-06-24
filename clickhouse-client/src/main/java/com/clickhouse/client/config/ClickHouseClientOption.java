@@ -451,7 +451,15 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     CONNECTION_TTL("connection_ttl", 0L,
             "Connection time to live in milliseconds. 0 or negative number means no limit."),
-    MEASURE_REQUEST_TIME("debug_measure_request_time", false, "Whether to measure request time. If true, the time will be logged in debug mode.");
+    MEASURE_REQUEST_TIME("debug_measure_request_time", false, "Whether to measure request time. If true, the time will be logged in debug mode."),
+
+    /**
+     * Comma separated key-value pairs of IP address/host to SNI mapping.
+     * Special mapping {@code _default_} - for default SNI when no match found. Without default mapping only matched targets will have SNI parameter.
+     */
+    SSL_SNI_MAPPING("ssl_sni_map", "", "Comma separated key-value pairs of IP address/host to SNI mapping. Special mapping _default_ - for default SNI when no match found. Without default mapping only matched targets will have SNI parameter.")
+
+    ;
 
     private final String key;
     private final Serializable defaultValue;

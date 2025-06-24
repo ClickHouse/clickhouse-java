@@ -13,6 +13,8 @@ import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.google.common.collect.ImmutableMap;
+import com.google.errorprone.annotations.Immutable;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -58,13 +60,18 @@ import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.Socket;
@@ -256,8 +263,18 @@ public class HttpAPIClientHelper {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         SSLContext sslContext = initSslContext ? createSSLContext() : null;
-        LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
-                : new SSLConnectionSocketFactory(sslContext);
+        LayeredConnectionSocketFactory sslConnectionSocketFactory;
+        if (sslContext != null) {
+            String sniMappingStr = chConfiguration.get(ClientConfigProperties.SSL_SNI_MAPPING.getKey());
+            if (sniMappingStr != null && !sniMappingStr.isEmpty()) {
+                sslConnectionSocketFactory = new CustomSSLConnectionFactory(ClientConfigProperties.toKeyValuePairs(sniMappingStr), sslContext, (hostname, session) -> true);
+            } else {
+                sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
+            }
+        } else {
+            sslConnectionSocketFactory = new DummySSLConnectionSocketFactory();
+        }
+
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
         MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
@@ -825,6 +842,43 @@ public class HttpAPIClientHelper {
             }
 
             return count > 0 ? runningAverage / count : 0;
+        }
+    }
+
+    public static class CustomSSLConnectionFactory extends SSLConnectionSocketFactory {
+
+        private final Map<String, String> sniMapping;
+        private final String defaultSNI;
+
+        public CustomSSLConnectionFactory(Map<String, String> sniMapping, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
+            super(sslContext, hostnameVerifier);
+            this.sniMapping = ImmutableMap.copyOf(sniMapping);
+            this.defaultSNI = sniMapping.get("_default_");
+        }
+
+        @Override
+        protected void prepareSocket(SSLSocket socket, HttpContext context) throws IOException {
+            super.prepareSocket(socket, context);
+
+            if (!sniMapping.isEmpty()) {
+                InetAddress remote = socket.getInetAddress();
+                if (remote != null) { //  actually should be not null here
+                    String sni = sniMapping.get(remote.getHostAddress());
+                    if (sni == null) {
+                        sni = sniMapping.get(remote.getHostName());
+                        if (sni == null) {
+                            sni = defaultSNI;
+                        }
+                    }
+                    if (sni != null && !sni.isEmpty()) {
+                        SSLParameters sslParams = socket.getSSLParameters();
+                        sslParams.setServerNames(Collections.singletonList(new SNIHostName(sni)));
+                        socket.setSSLParameters(sslParams);
+                    }
+                } else {
+                    LOG.warn("Failed to apply SNI - remote address is null");
+                }
+            }
         }
     }
 }

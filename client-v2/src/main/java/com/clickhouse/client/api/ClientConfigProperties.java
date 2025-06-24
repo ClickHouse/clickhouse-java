@@ -5,8 +5,10 @@ import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -140,6 +142,11 @@ public enum ClientConfigProperties {
      * Name of the group under which client metrics appear
      */
     METRICS_GROUP_NAME("metrics_name"),
+
+    /**
+     * Comma separated key-value pairs of IP address/host to SNI mapping. Special mapping {@code _default_} - for default SNI when no match found. Without default mapping only matched targets will have SNI parameter.
+     */
+    SSL_SNI_MAPPING("ssl_sni_mapping", ""),
     ;
 
     private final String key;
@@ -179,6 +186,9 @@ public enum ClientConfigProperties {
 
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
 
+    // Key used to identify default value in configuration map
+    public static final String DEFAULT_KEY = "_default_";
+
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
     }
@@ -206,5 +216,56 @@ public enum ClientConfigProperties {
 
         return Arrays.stream(value.split("(?<!\\\\),")).map(s -> s.replaceAll("\\\\,", ","))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Converts given string to key value pairs.
+     *
+     * @param str string
+     * @return non-null key value pairs
+     */
+    public static Map<String, String> toKeyValuePairs(String str) {
+        if (str == null || str.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> map = new LinkedHashMap<>();
+        String key = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = str.length(); i < len; i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' && i + 1 < len) {
+                ch = str.charAt(++i);
+                builder.append(ch);
+                continue;
+            }
+
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    builder.append(ch);
+                }
+            } else if (ch == '=' && key == null) {
+                key = builder.toString().trim();
+                builder.setLength(0);
+            } else if (ch == ',' && key != null) {
+                String value = builder.toString().trim();
+                builder.setLength(0);
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    map.put(key, value);
+                }
+                key = null;
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (key != null && builder.length() > 0) {
+            String value = builder.toString().trim();
+            if (!key.isEmpty() && !value.isEmpty()) {
+                map.put(key, value);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
     }
 }
