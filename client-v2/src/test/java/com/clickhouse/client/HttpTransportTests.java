@@ -281,7 +281,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try {
             function.apply(mockServerClient);
-        } catch (ClientException e) {
+        } catch (ConnectionInitiationException e) {
             e.printStackTrace();
             if (!shouldFail) {
                 Assert.fail("Unexpected exception", e);
