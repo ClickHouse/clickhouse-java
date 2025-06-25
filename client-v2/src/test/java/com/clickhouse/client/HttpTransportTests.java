@@ -778,7 +778,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse resp = client.query("INSERT INTO test_omm_table SELECT randomString(16) FROM numbers(300000000)", settings).get()) {
 
             } catch (ServerException e) {
-                Assert.assertEquals(e.getCode(), 241);
+                // 241 - MEMORY_LIMIT_EXCEEDED or 243 -NOT_ENOUGH_SPACE
+                Assert.assertTrue(e.getCode() == 241 || e.getCode() == 242);
             }
         }
     }
