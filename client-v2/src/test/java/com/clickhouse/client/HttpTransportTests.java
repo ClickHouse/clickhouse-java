@@ -779,7 +779,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             } catch (ServerException e) {
                 // 241 - MEMORY_LIMIT_EXCEEDED or 243 -NOT_ENOUGH_SPACE
-                Assert.assertTrue(e.getCode() == 241 || e.getCode() == 242);
+                Assert.assertTrue(e.getCode() == 241 || e.getCode() == 243);
             }
         }
     }
