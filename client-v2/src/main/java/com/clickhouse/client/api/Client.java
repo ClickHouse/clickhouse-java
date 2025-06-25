@@ -1464,7 +1464,8 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+            LOG.warn("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+            throw lastException;
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1586,8 +1587,8 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-
-                throw new ClientException("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+                LOG.warn("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+                throw lastException;
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
