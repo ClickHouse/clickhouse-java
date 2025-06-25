@@ -1,5 +1,8 @@
 package com.clickhouse.client.api.sql;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class SQLUtils {
     /**
      * Escapes and quotes a string literal for use in SQL queries.
@@ -111,5 +114,18 @@ public class SQLUtils {
             throw new IllegalArgumentException("Identifier cannot be null");
         }
         return SIMPLE_IDENTIFIER_PATTERN.matcher(identifier).matches();
+    }
+
+    private final static Pattern UNQUOTE_INDENTIFIER = Pattern.compile(
+            "^[\\\"`]?(.+?)[\\\"`]?$"
+    );
+
+    public static String unquoteIdentifier(String str) {
+        Matcher matcher = UNQUOTE_INDENTIFIER.matcher(str.trim());
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return str;
+        }
     }
 }

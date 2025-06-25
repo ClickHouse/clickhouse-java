@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.sql;
 
+import com.clickhouse.jdbc.internal.SqlParser;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -129,6 +130,14 @@ public class SQLUtilsTest {
     public void testIsSimpleIdentifier_NullInput() {
         SQLUtils.isSimpleIdentifier(null);
     }
-    
 
+    @Test
+    public void testUnquoteIdentifier() {
+        String[] names = new String[]{"test", "`test name1`", "\"test name 2\""};
+        String[] expected = new String[]{"test", "test name1", "test name 2"};
+
+        for (int i = 0; i < names.length; i++) {
+            assertEquals(SQLUtils.unquoteIdentifier(names[i]), expected[i]);
+        }
+    }
 }
