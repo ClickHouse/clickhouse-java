@@ -107,7 +107,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_ARG=''
-          if [ ! -z $PR_NUMBER ]; then RP_ARG="--pr $PR_NUMBER"; fi;
+          if [ ! -z $PR_NUMBER ]; then export RP_ARG="--pr $PR_NUMBER"; fi;
+          echo "pr number: $PR_NUMBER";
+          echo "pr number: ${{ github.event.pull_request.number || '' }}"
           echo $PR_ARG
           node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --title "Client V2 Coverage" ${PR_ARG}
           node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --title "JDBC V2 Coverage" ${PR_ARG}
