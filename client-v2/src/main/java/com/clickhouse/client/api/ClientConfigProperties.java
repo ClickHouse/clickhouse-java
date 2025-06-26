@@ -120,7 +120,7 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures",
             String.join(",", ClientFaultCause.NoHttpResponse.name(), ClientFaultCause.ConnectTimeout.name(),
-            ClientFaultCause.ConnectionRequestTimeout.name())),
+            ClientFaultCause.ConnectionRequestTimeout.name(), ClientFaultCause.ServerRetryable.name())),
 
     CLIENT_NAME("client_name"),
 

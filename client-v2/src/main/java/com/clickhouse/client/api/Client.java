@@ -813,7 +813,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Sets list of causes that should be retried on.
-         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout]}
+         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout, ServerRetryable]}
          * Use {@link ClientFaultCause#None} to disable retries.
          *
          * @param causes - list of causes
@@ -1464,7 +1464,8 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+            LOG.warn("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+            throw lastException;
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1586,8 +1587,8 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-
-                throw new ClientException("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+                LOG.warn("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+                throw lastException;
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());

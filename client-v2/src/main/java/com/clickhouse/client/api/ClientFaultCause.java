@@ -8,4 +8,5 @@ public enum ClientFaultCause {
     ConnectTimeout,
     ConnectionRequestTimeout,
     SocketTimeout,
+    ServerRetryable,
 }
