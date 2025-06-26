@@ -901,6 +901,7 @@ keyword
     | NO
     | NOT
     | NULLS
+    | NAME
     | OFFSET
     | ON
     | OPTIMIZE

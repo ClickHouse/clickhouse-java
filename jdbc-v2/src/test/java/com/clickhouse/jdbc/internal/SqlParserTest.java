@@ -273,8 +273,8 @@ public class SqlParserTest {
     public void testMiscStatements(String sql, int args) {
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
-        Assert.assertFalse(stmt.isHasErrors());
         Assert.assertEquals(stmt.getArgCount(), args);
+        Assert.assertFalse(stmt.isHasErrors());
     }
 
     @DataProvider
@@ -296,6 +296,8 @@ public class SqlParserTest {
             {"SELECT * FROM table primary WHERE ts = ?", 1},
             {"insert into events (s) values ('a')", 0},
             {"insert into `events` (s) values ('a')", 0},
+            {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
+            {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
         };
     }
 }
