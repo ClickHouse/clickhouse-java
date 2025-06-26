@@ -294,6 +294,8 @@ public class SqlParserTest {
             {"SELECT * FROM table test WHERE ts = ?", 1},
             {"SELECT * FROM table view WHERE ts = ?", 1},
             {"SELECT * FROM table primary WHERE ts = ?", 1},
+            {"insert into events (s) values ('a')", 0},
+            {"insert into `events` (s) values ('a')", 0},
         };
     }
 }
