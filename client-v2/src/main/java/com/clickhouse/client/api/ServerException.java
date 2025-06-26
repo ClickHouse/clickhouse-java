@@ -63,12 +63,6 @@ public class ServerException extends ClickHouseException {
             case 425: // SYSTEM_ERROR
             case 999: // KEEPER_EXCEPTION
                 return true;
-            case 0:
-                switch (transportProtocolCode) { // Bad request
-                    case 400: // Bad request
-                    case 500: // Internal server error
-                        return true;
-                };
         };
         return false;
     }
