@@ -1,14 +1,7 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientFaultCause;
-import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ConnectionInitiationException;
-import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
@@ -373,7 +366,7 @@ public class HttpAPIClientHelper {
     private final AtomicLong timeToPoolVent = new AtomicLong(0);
 
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
-                                              IOCallback<OutputStream> writeCallback) throws IOException {
+                                              IOCallback<OutputStream> writeCallback) throws Exception {
         if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
@@ -426,15 +419,10 @@ public class HttpAPIClientHelper {
 
         } catch (UnknownHostException e) {
             LOG.warn("Host '{}' unknown", server.getBaseURL());
-            throw new ClientException("Unknown host", e);
+            throw e;
         } catch (ConnectException | NoRouteToHostException e) {
             LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
-            throw new ClientException("Failed to connect", e);
-        } catch (ConnectionRequestTimeoutException | ServerException | NoHttpResponseException | ClientException |
-                 SocketTimeoutException e) {
             throw e;
-        } catch (Exception e) {
-            throw new ClientException(e.getMessage(), e);
         }
     }
 
@@ -635,6 +623,12 @@ public class HttpAPIClientHelper {
             return retryCauses.contains(ClientFaultCause.SocketTimeout);
         }
 
+        // there are some db retryable error codes
+        if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
+            ServerException se = (ServerException) ex;
+            return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
+        }
+
         return false;
     }
 
@@ -648,11 +642,17 @@ public class HttpAPIClientHelper {
         if (cause instanceof ConnectionRequestTimeoutException ||
                 cause instanceof NoHttpResponseException ||
                 cause instanceof ConnectTimeoutException ||
-                cause instanceof ConnectException) {
+                cause instanceof ConnectException ||
+                cause instanceof UnknownHostException ||
+                cause instanceof NoRouteToHostException) {
             return new ConnectionInitiationException(message, cause);
         }
 
-        return new ClientException(message, cause);
+        if (cause instanceof SocketTimeoutException || cause instanceof IOException) {
+            return new DataTransferException(message, cause);
+        }
+        // if we can not identify the exception explicitly we catch as our base exception ClickHouseException
+        return new ClickHouseException(message, cause);
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {

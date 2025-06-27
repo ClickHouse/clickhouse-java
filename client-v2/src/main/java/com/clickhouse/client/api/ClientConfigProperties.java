@@ -61,9 +61,9 @@ public enum ClientConfigProperties {
 
     SOCKET_OPERATION_TIMEOUT("socket_timeout", Integer.class, "0"),
 
-    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class, "8196"),
+    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class, "804800"),
 
-    SOCKET_SNDBUF_OPT("socket_sndbuf",  Integer.class,"8196"),
+    SOCKET_SNDBUF_OPT("socket_sndbuf",  Integer.class,"804800"),
 
     SOCKET_REUSEADDR_OPT("socket_reuseaddr", Boolean.class),
 
@@ -131,7 +131,7 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures", List.class,
             String.join(",", ClientFaultCause.NoHttpResponse.name(), ClientFaultCause.ConnectTimeout.name(),
-            ClientFaultCause.ConnectionRequestTimeout.name())) {
+            ClientFaultCause.ConnectionRequestTimeout.name(), ClientFaultCause.ServerRetryable.name())) {
         @Override
         public Object parseValue(String value) {
             List<String> strValues = (List<String>) super.parseValue(value);
