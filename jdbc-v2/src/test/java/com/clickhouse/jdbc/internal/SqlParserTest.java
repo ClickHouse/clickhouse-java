@@ -275,6 +275,7 @@ public class SqlParserTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors());
         Assert.assertEquals(stmt.getArgCount(), args);
+        System.out.println(stmt.getTable());
     }
 
     @DataProvider
@@ -294,6 +295,8 @@ public class SqlParserTest {
             {"SELECT * FROM table test WHERE ts = ?", 1},
             {"SELECT * FROM table view WHERE ts = ?", 1},
             {"SELECT * FROM table primary WHERE ts = ?", 1},
+            {"insert into events (s) values ('a')", 0},
+            {"insert into `events` (s) values ('a')", 0},
         };
     }
 }

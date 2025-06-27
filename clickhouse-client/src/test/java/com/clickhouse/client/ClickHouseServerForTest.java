@@ -370,13 +370,6 @@ public class ClickHouseServerForTest {
 
     public static boolean runQuery(String sql) {
         LOGGER.info("runQuery: (\"" + sql + "\")");
-
-        try {
-            throw new Exception("test");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         if (clickhouseContainer != null) {
             try {
                 Container.ExecResult res =  clickhouseContainer.execInContainer("clickhouse-client",

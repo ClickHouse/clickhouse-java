@@ -176,7 +176,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings httpHeader(String key, String value) {
-        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, value);
+        rawSettings.put(ClientConfigProperties.httpHeader(key), value);
         return this;
     }
 
@@ -187,7 +187,7 @@ public class InsertSettings {
      * @return same instance of the builder
      */
     public InsertSettings httpHeader(String key, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, ClientConfigProperties.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
         return this;
     }
 
