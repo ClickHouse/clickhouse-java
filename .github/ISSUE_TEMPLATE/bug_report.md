@@ -7,7 +7,26 @@ assignees: ''
 
 ---
 <!--
-    possible labels: bug,client-api-v2,jdbc-v2
+    High Level Area Labels: 
+     - client-api-v2 
+     - client-v1
+     - jdbc-v2
+
+    Specific Area Labels:
+      - packaging
+      - sql-parser
+      - data-type
+      - docs
+      - network
+      - performance
+      - jdbc-metadata
+      - jdbc-insert
+      - jdbc-read
+      - client-insert
+      - client-read
+      - client-pojo-serde
+      - format
+     
 -->
 ## Description
 
