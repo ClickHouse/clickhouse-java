@@ -901,6 +901,7 @@ keyword
     | NO
     | NOT
     | NULLS
+    | NAME
     | OFFSET
     | ON
     | OPTIMIZE
@@ -960,6 +961,7 @@ keyword
     | UPDATE
     | USE
     | USING
+    | USER
     | UUID
     | VALUES
     | VIEW

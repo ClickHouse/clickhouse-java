@@ -135,7 +135,7 @@ MONTH        : M O N T H;
 MOVE         : M O V E;
 MUTATION     : M U T A T I O N;
 NAN_SQL      : N A N; // conflicts with macro NAN
-NAME : N A M E;
+NAME         : N A M E;
 NO           : N O;
 NO_PASSWORD : N O '_' P A S S W O R D;
 NONE         : N O N E;
