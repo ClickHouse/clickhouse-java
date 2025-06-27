@@ -1,5 +1,6 @@
 package com.clickhouse.client.internal;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
@@ -44,5 +45,20 @@ public class SmallTests {
         System.out.println("withZoneSameInstant: " + utcSameInstantDt);
         ZonedDateTime utcSameLocalDt = dt.withZoneSameLocal(ZoneId.of("UTC"));
         System.out.println("withZoneSameLocal: " + utcSameLocalDt);
+    }
+
+    @Test
+    public void testGenConfigParameters() {
+        System.out.println("<br/> <br/> Default: `none` <br/> Enum: `none` <br/> Key: `none` "
+
+
+        );
+        for (ClientConfigProperties p : ClientConfigProperties.values()) {
+            String defaultValue = p.getDefaultValue() == null ? "-" : "`" + p.getDefaultValue() + "`";
+            System.out.println("<br/> <br/> Default: " +defaultValue + " <br/> Enum: `ClientConfigProperties." + p.name() + "` <br/> Key: `" + p.getKey() +"` "
+
+
+            );
+        }
     }
 }
