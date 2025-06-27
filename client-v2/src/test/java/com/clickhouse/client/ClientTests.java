@@ -296,8 +296,8 @@ public class ClientTests extends BaseIntegrationTest {
                 .useHttpCompression(false)
                 .appCompressedData(false)
                 .setSocketTimeout(0, SECONDS)
-                .setSocketRcvbuf(8196)
-                .setSocketSndbuf(8196)
+                .setSocketRcvbuf(804800)
+                .setSocketSndbuf(804800)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
