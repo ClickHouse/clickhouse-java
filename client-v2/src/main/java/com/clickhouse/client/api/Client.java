@@ -7,6 +7,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
@@ -36,7 +37,9 @@ import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
@@ -131,6 +134,8 @@ public class Client implements AutoCloseable {
 
     private final Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
+    private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
+
     // Server context
     private String serverVersion;
     private Object metricsRegistry;
@@ -191,6 +196,26 @@ public class Client implements AutoCloseable {
         }
 
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
+
+        this.typeHintMapping = translateTypeHintMapping(configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey()));
+    }
+
+    private Map<ClickHouseDataType, Class<?>> translateTypeHintMapping(String mappingStr) {
+        if (mappingStr == null || mappingStr.isEmpty()) {
+            return AbstractBinaryFormatReader.NO_TYPE_HINT_MAPPING;
+        }
+
+        Map<String, String> mapping= ClientConfigProperties.toKeyValuePairs(mappingStr);
+        Map<ClickHouseDataType, Class<?>> hintMapping = new HashMap<>();
+        try {
+            for (Map.Entry<String, String> entry : mapping.entrySet()) {
+                hintMapping.put(ClickHouseDataType.of(entry.getKey()),
+                        Class.forName(entry.getValue()));
+            }
+        } catch (ClassNotFoundException e) {
+            throw new ClientMisconfigurationException("Failed to translate type-hint mapping", e);
+        }
+        return hintMapping;
     }
 
     /**
@@ -1000,6 +1025,20 @@ public class Client implements AutoCloseable {
          */
         public Builder setServerVersion(String serverVersion) {
             this.configuration.put(ClientConfigProperties.SERVER_VERSION.getKey(), serverVersion);
+            return this;
+        }
+
+        /**
+         * Defines mapping between ClickHouse data type and target Java type
+         * Used by binary readers to convert values into desired Java type.
+         * @param typeHintMapping - map between ClickHouse data type and Java class
+         * @return this builder instance
+         */
+        public Builder typeHintMapping(Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+            this.configuration.put(ClientConfigProperties.TYPE_HINT_MAPPING.getKey(),
+                    ClientConfigProperties.mapToString(typeHintMapping, (v) -> {
+                        return ((Class<?>) v).getName();
+                    }));
             return this;
         }
 
@@ -1921,23 +1960,20 @@ public class Client implements AutoCloseable {
         BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
                 new BinaryStreamReader.CachingByteBufferAllocator() :
                 new BinaryStreamReader.DefaultByteBufferAllocator();
-
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool);
+                        byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool);
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping);
                 break;
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool);
+                        byteBufferPool, typeHintMapping);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());

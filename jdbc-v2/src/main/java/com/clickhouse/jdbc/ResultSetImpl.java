@@ -35,6 +35,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Map;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
