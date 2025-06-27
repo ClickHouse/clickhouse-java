@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.sql.SQLUtils;
 import org.antlr.v4.runtime.tree.ErrorNode;
 
 import java.util.ArrayList;
@@ -87,7 +88,7 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
         if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(SqlParser.unquoteIdentifier(ctx.databaseIdentifier().getText()));
+            setUseDatabase(SQLUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
         }
     }
 
@@ -98,7 +99,7 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
         } else {
             List<String> roles = new ArrayList<>();
             for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(SqlParser.unquoteIdentifier(id.getText()));
+                roles.add(SQLUtils.unquoteIdentifier(id.getText()));
             }
             setRoles(roles);
         }
