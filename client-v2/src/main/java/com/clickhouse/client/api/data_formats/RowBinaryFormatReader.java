@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -13,10 +14,20 @@ import java.util.Map;
 
 public class RowBinaryFormatReader extends AbstractBinaryFormatReader {
 
-    public RowBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
-                                 BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
-        super(inputStream, querySettings, schema, byteBufferAllocator);
+    public RowBinaryFormatReader(InputStream inputStream,
+                                 QuerySettings querySettings,
+                                 TableSchema schema,
+                                 BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                                 Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+        super(inputStream, querySettings, schema, byteBufferAllocator, typeHintMapping);
         readNextRecord();
+    }
+
+    public RowBinaryFormatReader(InputStream inputStream,
+                                 QuerySettings  querySettings,
+                                 TableSchema schema,
+                                 BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+        this(inputStream, querySettings, schema, byteBufferAllocator, NO_TYPE_HINT_MAPPING);
     }
 
     @Override

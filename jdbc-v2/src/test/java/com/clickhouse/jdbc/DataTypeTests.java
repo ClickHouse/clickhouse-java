@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
@@ -834,6 +835,62 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(mapstrResult.size(), mapSize);
                     for (String key: stringMap.keySet()) {
                         assertEquals(String.valueOf(mapstrResult.get(key)), String.valueOf(stringMap.get(key)));
+                    }
+                }
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testMapTypesWithArrayValues() throws SQLException {
+        runQuery("CREATE TABLE test_maps (order Int8, "
+                + "map Map(String, Array(Int32)), "
+                + "map2 Map(String, Array(Int32))"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert random (valid) values
+        long seed = System.currentTimeMillis();
+        Random rand = new Random(seed);
+        log.info("Random seed was: {}", seed);
+
+        int mapSize = 3;
+        Map<String, int[]> integerMap = new java.util.HashMap<>(mapSize);
+        Map<String, Integer[]> integerMap2 = new java.util.HashMap<>(mapSize);
+        for (int i = 0; i < mapSize; i++) {
+            int[] array = new int[10];
+            Integer[] array2 = new Integer[10];
+            for (int j = 0; j < array.length; j++) {
+                array[j] = array2[j] = rand.nextInt(1000);
+
+            }
+            integerMap.put("key" + i, array);
+            integerMap2.put("key" + i, array2);
+        }
+
+        // Insert random (valid) values
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_maps VALUES ( 1, ?, ?)")) {
+                stmt.setObject(1, integerMap);
+                stmt.setObject(2, integerMap2);
+                stmt.executeUpdate();
+            }
+        }
+
+        // Check the results
+        try (Connection conn = getConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_maps ORDER BY order")) {
+                    assertTrue(rs.next());
+                    Map<Object, Object> mapResult = (Map<Object, Object>) rs.getObject("map");
+                    assertEquals(mapResult.size(), mapSize);
+                    for (String key: integerMap.keySet()) {
+                        Object[] arrayResult = ((List<?>) mapResult.get(key)).toArray();
+                        int[] array = integerMap.get(key);
+                        assertEquals(arrayResult.length, array.length);
+                        for (int i = 0; i < array.length; i++) {
+                            assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
+                        }
                     }
                 }
             }

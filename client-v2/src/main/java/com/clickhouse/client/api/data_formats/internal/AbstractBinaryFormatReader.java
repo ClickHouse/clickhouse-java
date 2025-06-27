@@ -51,6 +51,8 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
+    public static final Map<ClickHouseDataType, Class<?>> NO_TYPE_HINT_MAPPING = null;
+
     private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
 
     protected InputStream input;
@@ -63,8 +65,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private boolean hasNext = true;
     private boolean initialState = true; // reader is in initial state, no records have been read yet
 
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
-                                         BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
         this.input = inputStream;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
@@ -75,7 +76,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
+                defaultTypeHintMap);
         if (schema != null) {
             setSchema(schema);
         }
