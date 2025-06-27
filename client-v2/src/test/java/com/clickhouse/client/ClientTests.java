@@ -285,7 +285,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .enableConnectionPool(true)
                 .setConnectionTTL(-1, MILLIS)
                 .retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
-                        ClientFaultCause.ConnectionRequestTimeout)
+                        ClientFaultCause.ConnectionRequestTimeout, ClientFaultCause.ServerRetryable)
                 .setClientNetworkBufferSize(300_000)
                 .setMaxRetries(3)
                 .allowBinaryReaderToReuseBuffers(false)

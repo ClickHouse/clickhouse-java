@@ -52,9 +52,9 @@ public enum ClientConfigProperties {
 
     SOCKET_OPERATION_TIMEOUT("socket_timeout", "0"),
 
-    SOCKET_RCVBUF_OPT("socket_rcvbuf", "8196"),
+    SOCKET_RCVBUF_OPT("socket_rcvbuf", "804800"),
 
-    SOCKET_SNDBUF_OPT("socket_sndbuf", "8196"),
+    SOCKET_SNDBUF_OPT("socket_sndbuf", "804800"),
 
     SOCKET_REUSEADDR_OPT("socket_reuseaddr"),
 
@@ -120,7 +120,7 @@ public enum ClientConfigProperties {
 
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures",
             String.join(",", ClientFaultCause.NoHttpResponse.name(), ClientFaultCause.ConnectTimeout.name(),
-            ClientFaultCause.ConnectionRequestTimeout.name())),
+            ClientFaultCause.ConnectionRequestTimeout.name(), ClientFaultCause.ServerRetryable.name())),
 
     CLIENT_NAME("client_name"),
 

@@ -12,7 +12,7 @@ on:
 
 env:
   CHC_BRANCH: "main"
-  CHC_VERSION: "0.8.6"
+  # CHC_VERSION: "0.9.0"
   CH_VERSION: "24.8"
 
 jobs:
@@ -59,9 +59,9 @@ jobs:
           EOF
       - name: Update Configuration
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \
-            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ env.CHC_VERSION }}-SNAPSHOT\2|' \
-            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
+          # find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \
+          #   -e 's|^\(    <version>\).*\(</version>\)$|\1${{ env.CHC_VERSION }}-SNAPSHOT\2|' \
+          #   -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Snapshot
         uses: samuelmeuli/action-maven-publish@v1

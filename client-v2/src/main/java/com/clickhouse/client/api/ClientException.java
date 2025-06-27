@@ -1,6 +1,6 @@
 package com.clickhouse.client.api;
 
-public class ClientException extends RuntimeException {
+public class ClientException extends ClickHouseException {
 
     public ClientException(String message) {
         super(message);
