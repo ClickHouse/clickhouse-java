@@ -14,7 +14,6 @@ import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.google.common.collect.ImmutableMap;
-import com.google.errorprone.annotations.Immutable;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -853,7 +852,7 @@ public class HttpAPIClientHelper {
         public CustomSSLConnectionFactory(Map<String, String> sniMapping, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
             super(sslContext, hostnameVerifier);
             this.sniMapping = ImmutableMap.copyOf(sniMapping);
-            this.defaultSNI = sniMapping.get("_default_");
+            this.defaultSNI = sniMapping.get(ClientConfigProperties.DEFAULT_KEY);
         }
 
         @Override
