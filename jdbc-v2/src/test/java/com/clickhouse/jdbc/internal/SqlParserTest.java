@@ -298,6 +298,7 @@ public class SqlParserTest {
             {"insert into `events` (s) values ('a')", 0},
             {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
             {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
+            {"alter table user delete where reg_time = ?", 1},
         };
     }
 }

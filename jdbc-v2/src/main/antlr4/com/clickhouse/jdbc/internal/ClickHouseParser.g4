@@ -961,6 +961,7 @@ keyword
     | UPDATE
     | USE
     | USING
+    | USER
     | UUID
     | VALUES
     | VIEW
