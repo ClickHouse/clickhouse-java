@@ -679,7 +679,9 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testArrayTypes() throws SQLException {
         runQuery("CREATE TABLE test_arrays (order Int8, "
-                + "array Array(Int8), arraystr Array(String), arraytuple Array(Tuple(Int8, String)), arraydate Array(Date)"
+                + "array Array(Int8), arraystr Array(String), "
+                + "arraytuple Array(Tuple(Int8, String)), "
+                + "arraydate Array(Date)"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert random (valid) values
@@ -707,13 +709,25 @@ public class DataTypeTests extends JdbcIntegrationTest {
             arraydate[i] = Date.valueOf(LocalDate.now().plusDays(rand.nextInt(100)));
         }
 
-        // Insert random (valid) values
+        // Insert using `Connection#createArrayOf`
         try (Connection conn = getConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
                 stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
                 stmt.setArray(4, conn.createArrayOf("Date", arraydate));
+                stmt.executeUpdate();
+            }
+        }
+
+        // Insert using common java objects
+        final String INSERT_SQL = "INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)";
+        try (Connection conn = getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(INSERT_SQL)) {
+                stmt.setObject(1, array);
+                stmt.setObject(2, arraystr);
+                stmt.setObject(3, arraytuple);
+                stmt.setObject(4, arraydate);
                 stmt.executeUpdate();
             }
         }
