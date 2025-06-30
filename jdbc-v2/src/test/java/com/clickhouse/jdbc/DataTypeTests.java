@@ -1071,9 +1071,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
             return; // JSON was introduced in 24.10
         }
 
+        Properties createProperties = new Properties();
+        createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
         runQuery("CREATE TABLE test_json (order Int8, "
                 + "json JSON"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ENGINE = MergeTree ORDER BY ()", createProperties);
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
