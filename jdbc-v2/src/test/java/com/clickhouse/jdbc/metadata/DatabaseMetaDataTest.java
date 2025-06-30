@@ -11,23 +11,95 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Types;
-import java.sql.DatabaseMetaData;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 
 @Test(groups = { "integration" })
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumns() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
 
+
+            try (ResultSet rs = dbmd.getColumns(null, ClickHouseServerForTest.getDatabase(), "system.numbers"
+                    , null)) {
+
+                List<String> expectedColumnNames = Arrays.asList(
+                        "TABLE_CAT",
+                        "TABLE_SCHEM",
+                        "TABLE_NAME",
+                        "COLUMN_NAME",
+                        "DATA_TYPE",
+                        "TYPE_NAME",
+                        "COLUMN_SIZE",
+                        "BUFFER_LENGTH",
+                        "DECIMAL_DIGITS",
+                        "NUM_PREC_RADIX",
+                        "NULLABLE",
+                        "REMARKS",
+                        "COLUMN_DEF",
+                        "SQL_DATA_TYPE",
+                        "SQL_DATETIME_SUB",
+                        "CHAR_OCTET_LENGTH",
+                        "ORDINAL_POSITION",
+                        "IS_NULLABLE",
+                        "SCOPE_CATALOG",
+                        "SCOPE_SCHEMA",
+                        "SCOPE_TABLE",
+                        "SOURCE_DATA_TYPE",
+                        "IS_AUTOINCREMENT",
+                        "IS_GENERATEDCOLUMN"
+                );
+
+                List<Integer> expectedColumnTypes = Arrays.asList(
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.SMALLINT,
+                        Types.VARCHAR,
+                        Types.VARCHAR
+                );
+
+                assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetColumnsWithTable() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             final String tableName = "test_get_columns_1";
             conn.createStatement().execute("DROP TABLE IF EXISTS " + tableName);
@@ -92,7 +164,32 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     public void testGetTables() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
+            List<String> expectedColumnNames = Arrays.asList(
+                    "TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "TABLE_TYPE",
+                    "REMARKS",
+                    "TYPE_CAT",
+                    "TYPE_SCHEM",
+                    "TYPE_NAME",
+                    "SELF_REFERENCING_COL_NAME",
+                    "REF_GENERATION");
+
+            List<Integer> expectedTableTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR);
+
             ResultSet rs = dbmd.getTables("system", null, "numbers", null);
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedTableTypes);
             assertTrue(rs.next());
             assertEquals(rs.getString("TABLE_NAME"), "numbers");
             assertEquals(rs.getString("TABLE_TYPE"), "SYSTEM TABLE");
@@ -225,15 +322,57 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getTypeInfo()) {
+                List<String> expectedColumnNames = Arrays.asList(
+                        "TYPE_NAME",
+                        "DATA_TYPE",
+                        "PRECISION",
+                        "LITERAL_PREFIX",
+                        "LITERAL_SUFFIX",
+                        "CREATE_PARAMS",
+                        "NULLABLE",
+                        "CASE_SENSITIVE",
+                        "SEARCHABLE",
+                        "UNSIGNED_ATTRIBUTE",
+                        "FIXED_PREC_SCALE",
+                        "AUTO_INCREMENT",
+                        "LOCAL_TYPE_NAME",
+                        "MINIMUM_SCALE",
+                        "MAXIMUM_SCALE",
+                        "SQL_DATA_TYPE",
+                        "SQL_DATETIME_SUB",
+                        "NUM_PREC_RADIX"
+                );
+
+                List<Integer> expectedColumnTypes = Arrays.asList(
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.SMALLINT,
+                        Types.BOOLEAN,
+                        Types.SMALLINT,
+                        Types.BOOLEAN,
+                        Types.BOOLEAN,
+                        Types.BOOLEAN,
+                        Types.VARCHAR,
+                        Types.SMALLINT,
+                        Types.SMALLINT,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.INTEGER
+                );
+
+
+                // check type match with
                 int count = 0;
                 ResultSetMetaData rsMetaData = rs.getMetaData();
-                assertTrue(rsMetaData.getColumnCount() >= 18, "Expected at least 18 columns in getTypeInfo result set");
-                assertEquals(rsMetaData.getColumnType(2), Types.INTEGER);
-                assertEquals(rsMetaData.getColumnType(7), Types.INTEGER);
+                assertProcedureColumns(rsMetaData, expectedColumnNames, expectedColumnTypes);
+
                 while (rs.next()) {
                     count++;
                     ClickHouseDataType dataType = ClickHouseDataType.of( rs.getString("TYPE_NAME"));
-                    System.out.println("> " + dataType);
                     assertEquals(ClickHouseDataType.of(rs.getString(1)), dataType);
                     assertEquals(rs.getInt("DATA_TYPE"),
                             (int) JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber(),
@@ -282,6 +421,27 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getFunctions(null, null, "mapContains")) {
+
+                List<String> expectedColumnNames = Arrays.asList(
+                        "FUNCTION_CAT",
+                        "FUNCTION_SCHEM",
+                        "FUNCTION_NAME",
+                        "REMARKS",
+                        "FUNCTION_TYPE",
+                        "SPECIFIC_NAME"
+                );
+
+                List<Integer> expectedColumnTypes = Arrays.asList(
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.SMALLINT,
+                        Types.VARCHAR
+                );
+
+                assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+
                 assertTrue(rs.next());
                 assertNull(rs.getString("FUNCTION_CAT"));
                 assertNull(rs.getString("FUNCTION_SCHEM"));
@@ -289,6 +449,62 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertTrue(rs.getString("REMARKS").startsWith("Checks whether the map has the specified key"));
                 assertEquals(rs.getShort("FUNCTION_TYPE"), DatabaseMetaData.functionResultUnknown);
                 assertEquals(rs.getString("SPECIFIC_NAME"), "mapContains");
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetFunctionColumns() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            return; //  Illegal column Int8 of argument of function concat. (ILLEGAL_COLUMN)  TODO: fix in JDBC
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getFunctionColumns(null, null, "mapContains", null)) {
+
+                List<String> expectedColumnNames = Arrays.asList(
+                        "FUNCTION_CAT",
+                        "FUNCTION_SCHEM",
+                        "FUNCTION_NAME",
+                        "COLUMN_NAME",
+                        "COLUMN_TYPE",
+                        "DATA_TYPE",
+                        "TYPE_NAME",
+                        "PRECISION",
+                        "LENGTH",
+                        "SCALE",
+                        "RADIX",
+                        "NULLABLE",
+                        "REMARKS",
+                        "CHAR_OCTET_LENGTH",
+                        "ORDINAL_POSITION",
+                        "IS_NULLABLE",
+                        "SPECIFIC_NAME"
+                );
+
+                List<Integer> expectedColumnTypes = Arrays.asList(
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.VARCHAR,
+                        Types.SMALLINT,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.SMALLINT,
+                        Types.SMALLINT,
+                        Types.SMALLINT,
+                        Types.VARCHAR,
+                        Types.INTEGER,
+                        Types.INTEGER,
+                        Types.VARCHAR,
+                        Types.VARCHAR
+                );
+
+                assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+
             }
         }
     }
@@ -319,12 +535,572 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
-    public void testGetIndexInfo() throws Exception {
+    @Test(groups = {"integration"})
+    public void testGetIndexInfoColumnType() throws Exception {
+
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rs = dbmd.getIndexInfo(null, null, "numbers", false, false);
-            assertFalse(rs.next());
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "NON_UNIQUE",
+                    "INDEX_QUALIFIER",
+                    "INDEX_NAME",
+                    "TYPE",
+                    "ORDINAL_POSITION",
+                    "COLUMN_NAME",
+                    "ASC_OR_DESC",
+                    "CARDINALITY",
+                    "PAGES",
+                    "FILTER_CONDITION");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.BOOLEAN,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.BIGINT,
+                    Types.BIGINT,
+                    Types.VARCHAR
+            );
+
+            ResultSet rs = dbmd.getIndexInfo(null, null, null, false, false);
+            ResultSetMetaData rsmd = rs.getMetaData();
+            assertProcedureColumns(rsmd, expectedColumnNames, expectedColumnTypes);
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testGetProcedures() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            List<String> columnNames = Arrays.asList("PROCEDURE_CAT", "PROCEDURE_SCHEM", "PROCEDURE_NAME", "RESERVED1",
+                    "RESERVED2", "RESERVED3", "REMARKS", "PROCEDURE_TYPE", "SPECIFIC_NAME");
+            List<Integer> columnTypes = Arrays.asList(Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.SMALLINT,
+                    Types.SMALLINT, Types.SMALLINT, Types.VARCHAR, Types.SMALLINT, Types.VARCHAR);
+
+            ResultSet rs = dbmd.getProcedures(null, null, null);
+            ResultSetMetaData rsmd = rs.getMetaData();
+            assertProcedureColumns(rsmd, columnNames, columnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetProceduresColumnType() throws Exception {
+
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+            List<String> expectedColumnNames = Arrays.asList("PROCEDURE_CAT",
+                    "PROCEDURE_SCHEM",
+                    "PROCEDURE_NAME",
+                    "COLUMN_NAME",
+                    "COLUMN_TYPE",
+                    "DATA_TYPE",
+                    "TYPE_NAME",
+                    "PRECISION",
+                    "LENGTH",
+                    "SCALE",
+                    "RADIX",
+                    "NULLABLE",
+                    "REMARKS",
+                    "COLUMN_DEF",
+                    "SQL_DATA_TYPE",
+                    "SQL_DATETIME_SUB",
+                    "CHAR_OCTET_LENGTH",
+                    "ORDINAL_POSITION",
+                    "IS_NULLABLE",
+                    "SPECIFIC_NAME");
+            List<Integer> columnTypes = Arrays.asList(Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.VARCHAR);
+            ResultSetMetaData rsmd = dbmd.getProcedureColumns(null, null, null, null).getMetaData();
+            assertProcedureColumns(rsmd, expectedColumnNames, columnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetColumnPrivileges() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getColumnPrivileges(null, null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "COLUMN_NAME",
+                    "GRANTOR",
+                    "GRANTEE",
+                    "PRIVILEGE",
+                    "IS_GRANTABLE");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetTablePrivileges() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getTablePrivileges(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "GRANTOR",
+                    "GRANTEE",
+                    "PRIVILEGE",
+                    "IS_GRANTABLE");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetVersionColumnsColumns() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getVersionColumns(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("SCOPE",
+                    "COLUMN_NAME",
+                    "DATA_TYPE",
+                    "TYPE_NAME",
+                    "COLUMN_SIZE",
+                    "BUFFER_LENGTH",
+                    "DECIMAL_DIGITS",
+                    "PSEUDO_COLUMN");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.SMALLINT,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetPrimaryKeysColumns() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getPrimaryKeys(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "COLUMN_NAME",
+                    "KEY_SEQ",
+                    "PK_NAME");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetImportedKeys() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getImportedKeys(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
+                    "PKTABLE_SCHEM",
+                    "PKTABLE_NAME",
+                    "PKCOLUMN_NAME",
+                    "FKTABLE_CAT",
+                    "FKTABLE_SCHEM",
+                    "FKTABLE_NAME",
+                    "FKCOLUMN_NAME",
+                    "KEY_SEQ",
+                    "UPDATE_RULE",
+                    "DELETE_RULE",
+                    "FK_NAME",
+                    "PK_NAME",
+                    "DEFERRABILITY");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetExportedKeys() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getExportedKeys(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
+                    "PKTABLE_SCHEM",
+                    "PKTABLE_NAME",
+                    "PKCOLUMN_NAME",
+                    "FKTABLE_CAT",
+                    "FKTABLE_SCHEM",
+                    "FKTABLE_NAME",
+                    "FKCOLUMN_NAME",
+                    "KEY_SEQ",
+                    "UPDATE_RULE",
+                    "DELETE_RULE",
+                    "FK_NAME",
+                    "PK_NAME",
+                    "DEFERRABILITY");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetCrossReference() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getCrossReference(null, null, null, null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
+                    "PKTABLE_SCHEM",
+                    "PKTABLE_NAME",
+                    "PKCOLUMN_NAME",
+                    "FKTABLE_CAT",
+                    "FKTABLE_SCHEM",
+                    "FKTABLE_NAME",
+                    "FKCOLUMN_NAME",
+                    "KEY_SEQ",
+                    "UPDATE_RULE",
+                    "DELETE_RULE",
+                    "FK_NAME",
+                    "PK_NAME",
+                    "DEFERRABILITY");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetUDTs() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getUDTs(null, null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
+                    "TYPE_SCHEM",
+                    "TYPE_NAME",
+                    "CLASS_NAME",
+                    "DATA_TYPE",
+                    "REMARKS",
+                    "BASE_TYPE");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetSuperTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getSuperTypes(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
+                    "TYPE_SCHEM",
+                    "TYPE_NAME",
+                    "SUPERTYPE_CAT",
+                    "SUPERTYPE_SCHEM",
+                    "SUPERTYPE_NAME");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetSuperTables() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getSuperTables(null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "SUPERTABLE_NAME");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetBestRowIdentifier() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getBestRowIdentifier(null, null, null, 0, true);
+
+            List<String> expectedColumnNames = Arrays.asList("SCOPE",
+                    "COLUMN_NAME",
+                    "DATA_TYPE",
+                    "TYPE_NAME",
+                    "COLUMN_SIZE",
+                    "BUFFER_LENGTH",
+                    "DECIMAL_DIGITS",
+                    "PSEUDO_COLUMN");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.SMALLINT,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.SMALLINT,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetAttributes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getAttributes(null, null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
+                    "TYPE_SCHEM",
+                    "TYPE_NAME",
+                    "ATTR_NAME",
+                    "DATA_TYPE",
+                    "ATTR_TYPE_NAME",
+                    "ATTR_SIZE",
+                    "DECIMAL_DIGITS",
+                    "NUM_PREC_RADIX",
+                    "NULLABLE",
+                    "REMARKS",
+                    "ATTR_DEF",
+                    "SQL_DATA_TYPE",
+                    "SQL_DATETIME_SUB",
+                    "CHAR_OCTET_LENGTH",
+                    "ORDINAL_POSITION",
+                    "IS_NULLABLE",
+                    "SCOPE_CATALOG",
+                    "SCOPE_SCHEMA",
+                    "SCOPE_TABLE",
+                    "SOURCE_DATA_TYPE");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.SMALLINT
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetPseudoColumns() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            ResultSet rs = dbmd.getPseudoColumns(null, null, null, null);
+
+            List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "COLUMN_NAME",
+                    "DATA_TYPE",
+                    "COLUMN_SIZE",
+                    "DECIMAL_DIGITS",
+                    "NUM_PREC_RADIX",
+                    "COLUMN_USAGE",
+                    "REMARKS",
+                    "CHAR_OCTET_LENGTH",
+                    "IS_NULLABLE");
+
+            List<Integer> expectedColumnTypes = Arrays.asList(
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.INTEGER,
+                    Types.VARCHAR,
+                    Types.VARCHAR,
+                    Types.INTEGER,
+                    Types.VARCHAR
+            );
+
+            assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+        }
+    }
+
+    private void assertProcedureColumns(ResultSetMetaData rsmd, List<String> expectedColumnNames, List<Integer> expectedColumnTypes) throws SQLException {
+        int columnCount = rsmd.getColumnCount();
+        assertEquals(columnCount, expectedColumnNames.size(), "number of columns");
+        for (int i = 1; i <= columnCount; i++) {
+            String columnName = rsmd.getColumnName(i);
+            int columnType = rsmd.getColumnType(i);
+            assertEquals(columnName, expectedColumnNames.get(i - 1), "Column name mismatch");
+            assertEquals(columnType, expectedColumnTypes.get(i - 1), "Column type mismatch for column name " + columnName + " (" + i + ")");
+        }
+    }
+
 }
