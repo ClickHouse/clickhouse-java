@@ -122,7 +122,6 @@ public class QueryTests extends BaseIntegrationTest {
         client = newClient().build();
 
         delayForProfiler(0);
-        System.out.println("Real port: " + node.getPort());
     }
 
     @AfterMethod(groups = {"integration"})

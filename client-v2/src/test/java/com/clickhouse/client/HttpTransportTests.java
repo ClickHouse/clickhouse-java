@@ -575,7 +575,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                             .withQueryParam("max_threads", WireMock.equalTo("10"))
-                            .withQueryParam("async_insert", WireMock.equalTo("1"))
+                            .withQueryParam("async_insert", WireMock.equalTo("3"))
                             .withQueryParam("roles", WireMock.equalTo("role3,role2"))
                             .withQueryParam("compress", WireMock.equalTo("0"))
                     .willReturn(WireMock.aResponse()
