@@ -280,7 +280,8 @@ public class HttpAPIClientHelper {
             soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, proxyPort));
         }
 
-        if (ClientConfigProperties.HTTP_SAVE_COOKIES.getOrDefault(configuration)) {
+        boolean disableCookies = !((Boolean)ClientConfigProperties.HTTP_SAVE_COOKIES.getOrDefault(configuration));
+        if (disableCookies) {
             clientBuilder.disableCookieManagement();
         }
         SocketConfig socketConfig = soCfgBuilder.build();

@@ -1980,7 +1980,7 @@ public class Client implements AutoCloseable {
 
     /** Returns operation timeout in seconds */
     protected int getOperationTimeout() {
-        return (int) configuration.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey());
+        return ClientConfigProperties.MAX_EXECUTION_TIME.getOrDefault(configuration);
     }
 
     /**

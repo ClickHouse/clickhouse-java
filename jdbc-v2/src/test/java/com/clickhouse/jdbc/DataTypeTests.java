@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1064,8 +1065,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
 
-    @Test
-    public void testJSONTypeSimpleStatement() throws SQLException {
+    @Test(groups = { "integration" })
+    public void testJSONWritingAsString() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,24.8]")) {
+            return; // JSON was introduced in 24.10
+        }
+
         runQuery("CREATE TABLE test_json (order Int8, "
                 + "json JSON"
                 + ") ENGINE = MergeTree ORDER BY ()");
