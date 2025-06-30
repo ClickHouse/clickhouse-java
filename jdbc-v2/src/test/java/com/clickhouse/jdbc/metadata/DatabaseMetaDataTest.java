@@ -1103,4 +1103,28 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+
+
+    @Test(groups = {"integration"})
+    public void testGetDatabaseMajorVersion() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            int majorVersion = dbmd.getDatabaseMajorVersion();
+            String version =  getServerVersion();
+            int majorVersionOfServer = Integer.parseInt(version.split("\\.")[0]);
+            assertEquals(majorVersion, majorVersionOfServer, "Major version");
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testGetDatabaseMinorVersion() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            int minorVersion = dbmd.getDatabaseMinorVersion();
+            String version =  getServerVersion();
+            int minorVersionOfServer = Integer.parseInt(version.split("\\.")[1]);
+            assertEquals(minorVersion, minorVersionOfServer, "Minor version");
+        }
+    }
 }

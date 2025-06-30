@@ -1345,7 +1345,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         try {
             return Integer.parseInt(version.split("\\.")[0]);
         } catch (NumberFormatException e) {
-            log.error("Failed to parse major version from server version: " + version, e);
             throw new SQLException("Failed to parse major version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
