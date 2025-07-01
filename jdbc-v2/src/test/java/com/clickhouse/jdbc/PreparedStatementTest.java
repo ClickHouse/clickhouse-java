@@ -1080,7 +1080,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
-    
+
     @Test(groups = {"integration"})
     public void testSelectWithTableAliasAsKeyword() throws Exception {
         try (Connection conn = getJdbcConnection()) {

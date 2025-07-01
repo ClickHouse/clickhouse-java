@@ -49,7 +49,7 @@ jmh-result.*
 profile.html
 jdbc-v2/gen
 jdbc-v2/src/main/antlr4/com/clickhouse/jdbc/internal/gen
-
+jdbc-v2/src/main/antlr4/com/clickhouse/jdbc/internal/ClickHouseLexer.tokens
 
 # Shell scripts
 *.sh

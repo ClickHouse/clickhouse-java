@@ -18,27 +18,28 @@ public class SqlParser {
     private static final Logger LOG = LoggerFactory.getLogger(SqlParser.class);
 
     public ParsedStatement parsedStatement(String sql) {
+        ParsedStatement parserListener = new ParsedStatement();
+        walkSql(sql,  parserListener);
+        return parserListener;
+    }
 
+    public ParsedPreparedStatement parsePreparedStatement(String sql) {
+        ParsedPreparedStatement parserListener = new ParsedPreparedStatement();
+        walkSql(sql,  parserListener);
+        return parserListener;
+    }
+
+    private ClickHouseParser walkSql(String sql, ClickHouseParserBaseListener listener ) {
         CharStream charStream = CharStreams.fromString(sql);
         ClickHouseLexer lexer = new ClickHouseLexer(charStream);
         ClickHouseParser parser = new ClickHouseParser(new CommonTokenStream(lexer));
         parser.removeErrorListeners();
         parser.addErrorListener(new ParserErrorListener());
-        ClickHouseParser.QueryStmtContext parseTree = parser.queryStmt();
-        ParsedStatement parserListener = new ParsedStatement();
-        IterativeParseTreeWalker.DEFAULT.walk(parserListener, parseTree);
 
-        return parserListener;
-    }
-
-    public ParsedPreparedStatement parsePreparedStatement(String sql) {
-        CharStream charStream = CharStreams.fromString(sql);
-        ClickHouseLexer lexer = new ClickHouseLexer(charStream);
-        ClickHouseParser parser = new ClickHouseParser(new CommonTokenStream(lexer));
         ClickHouseParser.QueryStmtContext parseTree = parser.queryStmt();
-        ParsedPreparedStatement parserListener = new ParsedPreparedStatement();
-        IterativeParseTreeWalker.DEFAULT.walk(parserListener, parseTree);
-        return parserListener;
+        IterativeParseTreeWalker.DEFAULT.walk(listener, parseTree);
+
+        return parser;
     }
 
     private final static Pattern UNQUOTE_INDENTIFIER = Pattern.compile(
