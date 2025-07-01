@@ -69,7 +69,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.input = inputStream;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
-        TimeZone timeZone = useServerTimeZone == Boolean.TRUE && querySettings != null ? querySettings.getServerTimeZone() :
+        TimeZone timeZone = (useServerTimeZone == Boolean.TRUE && querySettings != null) ?
+                querySettings.getServerTimeZone() :
                 (TimeZone) settings.get(ClientConfigProperties.USE_TIMEZONE.getKey());
         if (timeZone == null) {
             throw new ClientException("Time zone is not set. (useServerTimezone:" + useServerTimeZone + ")");

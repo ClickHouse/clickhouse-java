@@ -58,9 +58,9 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery("SELECT toInt8(1), toInt16(1), toInt32(1), toInt64(1) AS a");
                 ResultSetMetaData rsmd = rs.getMetaData();
                 assertEquals(rsmd.getColumnType(1), Types.TINYINT);
-                assertEquals(rsmd.getColumnClassName(1), Integer.class.getName());
+                assertEquals(rsmd.getColumnClassName(1), Byte.class.getName());
                 assertEquals(rsmd.getColumnType(2), Types.SMALLINT);
-                assertEquals(rsmd.getColumnClassName(2), Integer.class.getName());
+                assertEquals(rsmd.getColumnClassName(2), Short.class.getName());
                 assertEquals(rsmd.getColumnType(3), Types.INTEGER);
                 assertEquals(rsmd.getColumnClassName(3), Integer.class.getName());
                 assertEquals(rsmd.getColumnType(4), Types.BIGINT);

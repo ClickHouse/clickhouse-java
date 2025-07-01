@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -28,6 +31,8 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +47,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-
+@Test(groups = { "integration" })
 public class DataTypeTests extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(DataTypeTests.class);
 
@@ -51,12 +56,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Driver.load();
     }
 
-    private Connection getConnection() throws SQLException {
-        return getJdbcConnection();
-    }
-
     private int insertData(String sql) throws SQLException {
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 return stmt.executeUpdate(sql);
             }
@@ -100,7 +101,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         BigInteger uint128 = new BigInteger(128, rand);
         BigInteger uint256 = new BigInteger(256, rand);
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_integers VALUES ( 3, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                 stmt.setInt(1, int8);
                 stmt.setInt(2, int16);
@@ -119,14 +120,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), -128);
-                    assertEquals(rs.getShort("int16"), -32768);
-                    assertEquals(rs.getInt("int32"), -2147483648);
-                    assertEquals(rs.getLong("int64"), -9223372036854775808L);
+                    assertEquals(rs.getByte("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getShort("uint8"), 0);
@@ -137,10 +138,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getBigDecimal("uint256"), new BigDecimal("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), 127);
-                    assertEquals(rs.getShort("int16"), 32767);
-                    assertEquals(rs.getInt("int32"), 2147483647);
-                    assertEquals(rs.getLong("int64"), 9223372036854775807L);
+                    assertEquals(rs.getByte("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("170141183460469231731687303715884105727"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getShort("uint8"), 255);
@@ -170,14 +171,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), -128);
-                    assertEquals(rs.getObject("int16"), -32768);
-                    assertEquals(rs.getObject("int32"), -2147483648);
-                    assertEquals(rs.getObject("int64"), -9223372036854775808L);
+                    assertEquals(rs.getObject("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getObject("int256"), new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("0"));
@@ -188,10 +189,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), 127);
-                    assertEquals(rs.getObject("int16"), 32767);
-                    assertEquals(rs.getObject("int32"), 2147483647);
-                    assertEquals(rs.getObject("int64"), 9223372036854775807L);
+                    assertEquals(rs.getObject("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("170141183460469231731687303715884105727"));
                     assertEquals(rs.getObject("int256"), new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("255"));
@@ -202,10 +203,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), int8);
-                    assertEquals(rs.getObject("int16"), int16);
-                    assertEquals(rs.getObject("int32"), int32);
-                    assertEquals(rs.getObject("int64"), int64);
+                    assertEquals(rs.getObject("int8"), (byte)int8);
+                    assertEquals(rs.getObject("int16"), (short)int16);
+                    assertEquals(rs.getObject("int32"), (int)int32);
+                    assertEquals(rs.getObject("int64"), (long)int64);
                     assertEquals(rs.getObject("int128"), int128);
                     assertEquals(rs.getObject("int256"), int256);
                     assertEquals(rs.getObject("uint8"), uint8);
@@ -218,6 +219,78 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnsignedIntegerTypes() throws Exception {
+        Random rand = new Random();
+        runQuery("CREATE TABLE test_unsigned_integers (order Int8, "
+                + "uint8 Nullable(UInt8), "
+                + "uint16 Nullable(UInt16), "
+                + "uint32 Nullable(UInt32), "
+                + "uint64 Nullable(UInt64), "
+                + "uint128 Nullable(UInt128), "
+                + "uint256 Nullable(UInt256)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert null values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 1, "
+                + "NULL, NULL, NULL, NULL, NULL, NULL)");
+
+        // Insert minimum values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 2, "
+                + "0, 0, 0, 0, 0, 0)");
+
+        // Insert random values
+        int uint8 = rand.nextInt(256);
+        int uint16 = rand.nextInt(65536);
+        long uint32 = rand.nextLong() & 0xFFFFFFFFL;
+        long uint64 = rand.nextLong() & 0xFFFFFFFFFFFFL;
+        BigInteger uint128 = new BigInteger(38, rand);
+        BigInteger uint256 = new BigInteger(77, rand);
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 3, "
+                + uint8 + ", " + uint16 + ", " + uint32 + ", " + uint64 + ", " + uint128 + ", " + uint256 + ")");
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT uint8, uint16, uint32, uint64, uint128, uint256 FROM test_unsigned_integers ORDER BY order")) {
+
+            List<Class<?>> expectedTypes = Arrays.asList(
+                    Short.class, Integer.class, Long.class, BigInteger.class, BigInteger.class, BigInteger.class);
+            List<Class<?>> actualTypes = new ArrayList<>();
+            ResultSetMetaData rsmd = rs.getMetaData();
+            for (int i = 0; i < rsmd.getColumnCount(); i++) {
+                actualTypes.add(Class.forName(rsmd.getColumnClassName(i + 1)));
+            }
+            assertEquals(actualTypes, expectedTypes);
+
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), null);
+            assertEquals((Integer) rs.getObject("uint16"), null);
+            assertEquals((Long) rs.getObject("uint32"), null);
+            assertEquals((BigInteger) rs.getObject("uint64"), null);
+            assertEquals((BigInteger) rs.getObject("uint128"), null);
+            assertEquals((BigInteger) rs.getObject("uint256"), null);
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), (byte) 0);
+            assertEquals((Integer) rs.getObject("uint16"), (short) 0);
+            assertEquals((Long) rs.getObject("uint32"), 0);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint128"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint256"), BigInteger.ZERO);
+
+            assertTrue(rs.next());
+            assertEquals(((Short) rs.getObject("uint8")).intValue(), uint8);
+            assertEquals((Integer) rs.getObject("uint16"), uint16);
+            assertEquals((Long) rs.getObject("uint32"), uint32);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.valueOf(uint64));
+            assertEquals((BigInteger) rs.getObject("uint128"), uint128);
+            assertEquals((BigInteger) rs.getObject("uint256"), uint256);
+
+            assertFalse(rs.next());
         }
     }
 
@@ -246,7 +319,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         BigDecimal dec128 = new BigDecimal(new BigInteger(20, rand) + "." + rand.nextLong(100000000000000000L, 1000000000000000000L));
         BigDecimal dec256 = new BigDecimal(new BigInteger(58, rand) + "." + rand.nextLong(100000000000000000L, 1000000000000000000L));
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_decimals VALUES ( 3, ?, ?, ?, ?, ?)")) {
                 stmt.setBigDecimal(1, dec);
                 stmt.setBigDecimal(2, dec32);
@@ -259,7 +332,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_decimals ORDER BY order")) {
                     assertTrue(rs.next());
@@ -289,7 +362,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_decimals ORDER BY order")) {
                     assertTrue(rs.next());
@@ -353,7 +426,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         final java.sql.Timestamp dateTime649 = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
         dateTime649.setNanos(333333333);
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_dates VALUES ( 4, ?, ?, ?, ?, ?, ?, ?)")) {
                 stmt.setDate(1, date);
                 stmt.setDate(2, date32);
@@ -367,7 +440,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
                     assertTrue(rs.next());
@@ -409,7 +482,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
                     assertTrue(rs.next());
@@ -465,7 +538,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         String uuid = UUID.randomUUID().toString();
         String escaped = "\\xA3\\xA3\\x12\\xA0\\xDF\\x13\\x4E\\x8C\\x87\\x74\\xD4\\x53\\xDB\\xFC\\x34\\x95";
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_strings VALUES ( 1, ?, ?, ?, ?, ?, ?, ? )")) {
                 stmt.setString(1, str);
                 stmt.setString(2, fixed);
@@ -479,7 +552,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings ORDER BY order")) {
                     assertTrue(rs.next());
@@ -499,7 +572,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings ORDER BY order")) {
                     assertTrue(rs.next());
@@ -531,7 +604,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
         InetAddress ipv4AsIpv6 = Inet4Address.getByName("90.176.75.97");
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_ips VALUES ( 1, ?, ?, ?, ? )")) {
                 stmt.setObject(1, ipv4AddressByIp);
                 stmt.setObject(2, ipv4AddressByName);
@@ -542,7 +615,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_ips ORDER BY order")) {
                     assertTrue(rs.next());
@@ -578,7 +651,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Float float32 = rand.nextFloat();
         Double float64 = rand.nextDouble();
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_floats VALUES ( 3, ?, ? )")) {
                 stmt.setFloat(1, float32);
                 stmt.setDouble(2, float64);
@@ -587,7 +660,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
@@ -608,7 +681,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
@@ -644,7 +717,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         boolean bool = rand.nextBoolean();
 
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_booleans VALUES ( 1, ? )")) {
                 stmt.setBoolean(1, bool);
                 stmt.executeUpdate();
@@ -652,7 +725,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_booleans ORDER BY order")) {
                     assertTrue(rs.next());
@@ -664,7 +737,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_booleans ORDER BY order")) {
                     assertTrue(rs.next());
@@ -710,7 +783,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert using `Connection#createArrayOf`
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
@@ -733,7 +806,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_arrays ORDER BY order")) {
                     assertTrue(rs.next());
@@ -768,7 +841,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results with getObject
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_arrays ORDER BY order")) {
                     assertTrue(rs.next());
@@ -826,7 +899,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert random (valid) values
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_maps VALUES ( 1, ?, ? )")) {
                 stmt.setObject(1, integerMap);
                 stmt.setObject(2, stringMap);
@@ -835,7 +908,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_maps ORDER BY order")) {
                     assertTrue(rs.next());
@@ -934,7 +1007,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 + "NULL, NULL, NULL, NULL)");
 
         //Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_nullable ORDER BY order")) {
                     assertTrue(rs.next());
@@ -965,7 +1038,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 lowcardinality));
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_low_cardinality ORDER BY order")) {
                     assertTrue(rs.next());
@@ -996,7 +1069,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         insertData(String.format("INSERT INTO test_aggregate VALUES ( 3, %d, null )", int8));
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT sum(int8) FROM test_aggregate")) {
                     assertTrue(rs.next());
@@ -1036,7 +1109,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         insertData(sql);
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_nested ORDER BY order")) {
                     assertTrue(rs.next());
@@ -1059,7 +1132,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         if (earlierThan(25,1)){
             return;
         }
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET flatten_nested = 0");
                 stmt.execute("CREATE TABLE test_nested_not_flatten (order Int8, "
@@ -1119,7 +1192,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         insertData(sql);
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_tuple ORDER BY order")) {
                     assertTrue(rs.next());
@@ -1138,34 +1211,45 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
 
-    @Test (enabled = false)//TODO: This type is experimental right now
-    public void testJSONTypeSimpleStatement() throws SQLException {
+    @Test(groups = { "integration" })
+    public void testJSONWritingAsString() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,24.8]")) {
+            return; // JSON was introduced in 24.10
+        }
+
+        Properties createProperties = new Properties();
+        createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
         runQuery("CREATE TABLE test_json (order Int8, "
                 + "json JSON"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ENGINE = MergeTree ORDER BY ()", createProperties);
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        String json = "{\"key1\": \"" + rand.nextDouble() + "\", \"key2\": " + rand.nextInt() + ", \"key3\": [\"value3\", 4]}";
+        double key1 =  rand.nextDouble();
+        int key2 =  rand.nextInt();
+        final String json = "{\"key1\": \"" + key1 + "\", \"key2\": " + key2 + ", \"key3\": [1000, \"value3\", 400000]}";
+        final String serverJson = "{\"key1\":\"" + key1 + "\",\"key2\":" + key2 + ",\"key3\":[\"1000\",\"value3\",\"400000\"]}";
         insertData(String.format("INSERT INTO test_json VALUES ( 1, '%s' )", json));
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        Properties props = new Properties();
+        props.setProperty(
+                ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING),
+                "1");
+        props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
+        try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_json ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getString("json"), json);
-
+                    assertEquals(rs.getString("json"), serverJson);
                     assertFalse(rs.next());
                 }
             }
         }
     }
-
-
 
     @Test(groups = { "integration" }, enabled = false)
     public void testGeometricTypesSimpleStatement() throws SQLException {
@@ -1190,7 +1274,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 point, ring, linestring, multilinestring, polygon, multipolygon));
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_geometric ORDER BY order")) {
                     assertTrue(rs.next());
@@ -1240,7 +1324,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         insertData(sql);
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dynamic ORDER BY order")) {
                     assertTrue(rs.next());
@@ -1261,7 +1345,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testTypeConversions() throws Exception {
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1, 'true', '1.0', " +
                         "toDate('2024-12-01'), toDateTime('2024-12-01 12:34:56'), toDateTime64('2024-12-01 12:34:56.789', 3), toDateTime64('2024-12-01 12:34:56.789789', 6), toDateTime64('2024-12-01 12:34:56.789789789', 9)")) {
@@ -1353,7 +1437,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_variant ORDER BY order")) {
                     assertTrue(rs.next());
