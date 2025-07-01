@@ -868,6 +868,17 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
             }
+
+            final String selectSQL = "SELECT * FROM `test_issue_2327` WHERE " +
+                    "`" + getDatabase() + "`.`test_issue_2327`.`uuid` IN (CAST(? AS UUID))";
+            try (PreparedStatement stmt = conn.prepareStatement(selectSQL)) {
+                stmt.setString(1, uuid.toString());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), "testId01");
+                    Assert.assertEquals(rs.getString(2), uuid.toString());
+                }
+            }
         }
 
     }

@@ -212,6 +212,15 @@ public class SqlParserTest {
         Assert.assertEquals(stmt.getArgCount(), 4);
     }
 
+    @Test
+    public void testStmtWithUUID() {
+        String sql = "select sum(value) from `uuid_filter_db`.`uuid_filter_table` where uuid = ?";
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), 1);
+        Assert.assertFalse(stmt.isHasErrors());
+    }
+
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
         SqlParser parser = new SqlParser();
@@ -315,7 +324,8 @@ public class SqlParserTest {
             {"GRANT ON CLUSTER '{cluster}' `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
             {"SELECT * FROM `test_data`.`categories` WHERE id = 1::String or id = ?", 1},
             {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
-                {INSERT_INLINE_DATA, 0}
+            {INSERT_INLINE_DATA, 0},
+                {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
         };
     }
 
