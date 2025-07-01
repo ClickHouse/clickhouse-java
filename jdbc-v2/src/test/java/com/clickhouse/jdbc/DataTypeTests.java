@@ -252,7 +252,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         insertData("INSERT INTO test_unsigned_integers VALUES ( 3, "
                 + uint8 + ", " + uint16 + ", " + uint32 + ", " + uint64 + ", " + uint128 + ", " + uint256 + ")");
 
-        try (Connection conn = getConnection();
+        try (Connection conn = getJdbcConnection();
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery("SELECT * FROM test_unsigned_integers ORDER BY order")) {
 
