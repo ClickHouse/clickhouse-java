@@ -1098,6 +1098,7 @@ keyword
     | GLOBAL
     | GRANULARITY
     | GROUP
+    | GRANT
     | HAVING
     | HIERARCHICAL
     | ID
@@ -1226,6 +1227,7 @@ keywordForAlias
     | TEST
     | VIEW
     | PRIMARY
+    | GRANT
     ;
 
 alias
