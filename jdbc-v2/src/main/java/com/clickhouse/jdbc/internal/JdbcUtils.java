@@ -6,12 +6,15 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
 
+import java.awt.*;
+import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,6 +45,14 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Int16, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.Int32, JDBCType.INTEGER);
         map.put(ClickHouseDataType.Int64, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.Int128, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Int256, JDBCType.OTHER);
+        map.put(ClickHouseDataType.UInt8, JDBCType.SMALLINT);
+        map.put(ClickHouseDataType.UInt16, JDBCType.INTEGER);
+        map.put(ClickHouseDataType.UInt32, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.UInt64, JDBCType.OTHER);
+        map.put(ClickHouseDataType.UInt128, JDBCType.OTHER);
+        map.put(ClickHouseDataType.UInt256, JDBCType.OTHER);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
         map.put(ClickHouseDataType.Bool, JDBCType.BOOLEAN);
@@ -81,8 +92,8 @@ public class JdbcUtils {
         map.put(JDBCType.DECIMAL, java.math.BigDecimal.class);
         map.put(JDBCType.BIT, Boolean.class);
         map.put(JDBCType.BOOLEAN, Boolean.class);
-        map.put(JDBCType.TINYINT, Integer.class);
-        map.put(JDBCType.SMALLINT, Integer.class);
+        map.put(JDBCType.TINYINT, Byte.class);
+        map.put(JDBCType.SMALLINT, Short.class);
         map.put(JDBCType.INTEGER, Integer.class);
         map.put(JDBCType.BIGINT, Long.class);
         map.put(JDBCType.REAL, Float.class);
@@ -115,9 +126,44 @@ public class JdbcUtils {
     private static Map<ClickHouseDataType, Class<?>> getDataTypeClassMap() {
         Map<ClickHouseDataType, Class<?>> map = new HashMap<>();
         for (Map.Entry<ClickHouseDataType, SQLType> e : CLICKHOUSE_TO_SQL_TYPE_MAP.entrySet()) {
-            map.put(e.getKey(), SQL_TYPE_TO_CLASS_MAP.get(e.getValue()));
+            if (e.getValue().equals(JDBCType.OTHER)) {
+                switch (e.getKey()) {
+                    case UInt64:
+                        map.put(e.getKey(), BigInteger.class);
+                        break;
+                    case UInt128:
+                        map.put(e.getKey(), BigInteger.class);
+                        break;
+                    case UInt256:
+                        map.put(e.getKey(), BigInteger.class);
+                        break;
+                    case Int128:
+                        map.put(e.getKey(), BigInteger.class);
+                        break;
+                    case Int256:
+                        map.put(e.getKey(), BigInteger.class);
+                        break;
+                    case Point:
+                        map.put(e.getKey(), double[].class);
+                        break;
+                    case LineString:
+                    case Ring:
+                        map.put(e.getKey(), double[][].class);
+                        break;
+                    case Polygon:
+                    case MultiLineString:
+                        map.put(e.getKey(), double[][][].class);
+                        break;
+                    case MultiPolygon:
+                        map.put(e.getKey(), double[][][][].class);
+                        break;
+                    default:
+                        map.put(e.getKey(), Object.class);
+                }
+            } else {
+                map.put(e.getKey(), SQL_TYPE_TO_CLASS_MAP.get(e.getValue()));
+            }
         }
-
         return map;
     }
 

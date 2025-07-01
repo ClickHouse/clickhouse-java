@@ -21,6 +21,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -30,8 +31,11 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
@@ -120,10 +124,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), -128);
-                    assertEquals(rs.getShort("int16"), -32768);
-                    assertEquals(rs.getInt("int32"), -2147483648);
-                    assertEquals(rs.getLong("int64"), -9223372036854775808L);
+                    assertEquals(rs.getByte("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getShort("uint8"), 0);
@@ -134,10 +138,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getBigDecimal("uint256"), new BigDecimal("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), 127);
-                    assertEquals(rs.getShort("int16"), 32767);
-                    assertEquals(rs.getInt("int32"), 2147483647);
-                    assertEquals(rs.getLong("int64"), 9223372036854775807L);
+                    assertEquals(rs.getByte("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("170141183460469231731687303715884105727"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getShort("uint8"), 255);
@@ -171,10 +175,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), -128);
-                    assertEquals(rs.getObject("int16"), -32768);
-                    assertEquals(rs.getObject("int32"), -2147483648);
-                    assertEquals(rs.getObject("int64"), -9223372036854775808L);
+                    assertEquals(rs.getObject("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getObject("int256"), new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("0"));
@@ -185,10 +189,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), 127);
-                    assertEquals(rs.getObject("int16"), 32767);
-                    assertEquals(rs.getObject("int32"), 2147483647);
-                    assertEquals(rs.getObject("int64"), 9223372036854775807L);
+                    assertEquals(rs.getObject("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("170141183460469231731687303715884105727"));
                     assertEquals(rs.getObject("int256"), new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("255"));
@@ -199,10 +203,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), int8);
-                    assertEquals(rs.getObject("int16"), int16);
-                    assertEquals(rs.getObject("int32"), int32);
-                    assertEquals(rs.getObject("int64"), int64);
+                    assertEquals(rs.getObject("int8"), (byte)int8);
+                    assertEquals(rs.getObject("int16"), (short)int16);
+                    assertEquals(rs.getObject("int32"), (int)int32);
+                    assertEquals(rs.getObject("int64"), (long)int64);
                     assertEquals(rs.getObject("int128"), int128);
                     assertEquals(rs.getObject("int256"), int256);
                     assertEquals(rs.getObject("uint8"), uint8);
@@ -215,6 +219,78 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnsignedIntegerTypes() throws Exception {
+        Random rand = new Random();
+        runQuery("CREATE TABLE test_unsigned_integers (order Int8, "
+                + "uint8 Nullable(UInt8), "
+                + "uint16 Nullable(UInt16), "
+                + "uint32 Nullable(UInt32), "
+                + "uint64 Nullable(UInt64), "
+                + "uint128 Nullable(UInt128), "
+                + "uint256 Nullable(UInt256)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert null values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 1, "
+                + "NULL, NULL, NULL, NULL, NULL, NULL)");
+
+        // Insert minimum values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 2, "
+                + "0, 0, 0, 0, 0, 0)");
+
+        // Insert random values
+        int uint8 = rand.nextInt(256);
+        int uint16 = rand.nextInt(65536);
+        long uint32 = rand.nextLong() & 0xFFFFFFFFL;
+        long uint64 = rand.nextLong() & 0xFFFFFFFFFFFFL;
+        BigInteger uint128 = new BigInteger(38, rand);
+        BigInteger uint256 = new BigInteger(77, rand);
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 3, "
+                + uint8 + ", " + uint16 + ", " + uint32 + ", " + uint64 + ", " + uint128 + ", " + uint256 + ")");
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT uint8, uint16, uint32, uint64, uint128, uint256 FROM test_unsigned_integers ORDER BY order")) {
+
+            List<Class<?>> expectedTypes = Arrays.asList(
+                    Short.class, Integer.class, Long.class, BigInteger.class, BigInteger.class, BigInteger.class);
+            List<Class<?>> actualTypes = new ArrayList<>();
+            ResultSetMetaData rsmd = rs.getMetaData();
+            for (int i = 0; i < rsmd.getColumnCount(); i++) {
+                actualTypes.add(Class.forName(rsmd.getColumnClassName(i + 1)));
+            }
+            assertEquals(actualTypes, expectedTypes);
+
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), null);
+            assertEquals((Integer) rs.getObject("uint16"), null);
+            assertEquals((Long) rs.getObject("uint32"), null);
+            assertEquals((BigInteger) rs.getObject("uint64"), null);
+            assertEquals((BigInteger) rs.getObject("uint128"), null);
+            assertEquals((BigInteger) rs.getObject("uint256"), null);
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), (byte) 0);
+            assertEquals((Integer) rs.getObject("uint16"), (short) 0);
+            assertEquals((Long) rs.getObject("uint32"), 0);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint128"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint256"), BigInteger.ZERO);
+
+            assertTrue(rs.next());
+            assertEquals(((Short) rs.getObject("uint8")).intValue(), uint8);
+            assertEquals((Integer) rs.getObject("uint16"), uint16);
+            assertEquals((Long) rs.getObject("uint32"), uint32);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.valueOf(uint64));
+            assertEquals((BigInteger) rs.getObject("uint128"), uint128);
+            assertEquals((BigInteger) rs.getObject("uint256"), uint256);
+
+            assertFalse(rs.next());
         }
     }
 
