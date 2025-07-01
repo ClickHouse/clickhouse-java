@@ -19,6 +19,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -28,8 +29,11 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
@@ -217,6 +221,78 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnsignedIntegerTypes() throws Exception {
+        Random rand = new Random();
+        runQuery("CREATE TABLE test_unsigned_integers (order Int8, "
+                + "uint8 Nullable(UInt8), "
+                + "uint16 Nullable(UInt16), "
+                + "uint32 Nullable(UInt32), "
+                + "uint64 Nullable(UInt64), "
+                + "uint128 Nullable(UInt128), "
+                + "uint256 Nullable(UInt256)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert null values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 1, "
+                + "NULL, NULL, NULL, NULL, NULL, NULL)");
+
+        // Insert minimum values
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 2, "
+                + "0, 0, 0, 0, 0, 0)");
+
+        // Insert random values
+        int uint8 = rand.nextInt(256);
+        int uint16 = rand.nextInt(65536);
+        long uint32 = rand.nextLong() & 0xFFFFFFFFL;
+        long uint64 = rand.nextLong() & 0xFFFFFFFFFFFFL;
+        BigInteger uint128 = new BigInteger(38, rand);
+        BigInteger uint256 = new BigInteger(77, rand);
+        insertData("INSERT INTO test_unsigned_integers VALUES ( 3, "
+                + uint8 + ", " + uint16 + ", " + uint32 + ", " + uint64 + ", " + uint128 + ", " + uint256 + ")");
+
+        try (Connection conn = getConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM test_unsigned_integers ORDER BY order")) {
+
+            List<Class<?>> expectedTypes = Arrays.asList(
+                    Short.class, Integer.class, Long.class, BigInteger.class, BigInteger.class, BigInteger.class);
+            List<Class<?>> actualTypes = new ArrayList<>();
+            ResultSetMetaData rsmd = rs.getMetaData();
+            for (int i = 2; i <= rsmd.getColumnCount(); i++) {
+                actualTypes.add(Class.forName(rsmd.getColumnClassName(i)));
+            }
+            assertEquals(actualTypes, expectedTypes);
+
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), null);
+            assertEquals((Integer) rs.getObject("uint16"), null);
+            assertEquals((Long) rs.getObject("uint32"), null);
+            assertEquals((BigInteger) rs.getObject("uint64"), null);
+            assertEquals((BigInteger) rs.getObject("uint128"), null);
+            assertEquals((BigInteger) rs.getObject("uint256"), null);
+
+            assertTrue(rs.next());
+            assertEquals((Short) rs.getObject("uint8"), (byte) 0);
+            assertEquals((Integer) rs.getObject("uint16"), (short) 0);
+            assertEquals((Long) rs.getObject("uint32"), 0);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint128"), BigInteger.ZERO);
+            assertEquals((BigInteger) rs.getObject("uint256"), BigInteger.ZERO);
+
+            assertTrue(rs.next());
+            assertEquals(((Short) rs.getObject("uint8")).intValue(), uint8);
+            assertEquals((Integer) rs.getObject("uint16"), uint16);
+            assertEquals((Long) rs.getObject("uint32"), uint32);
+            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.valueOf(uint64));
+            assertEquals((BigInteger) rs.getObject("uint128"), uint128);
+            assertEquals((BigInteger) rs.getObject("uint256"), uint256);
+
+            assertFalse(rs.next());
         }
     }
 
