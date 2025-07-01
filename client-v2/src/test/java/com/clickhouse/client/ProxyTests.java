@@ -135,7 +135,9 @@ public class ProxyTests extends BaseIntegrationTest{
             return; // to specific setup for cloud, may be later
         }
 
-        client.set(clientBuilder(initProxy(), true).build());
+        client.set(clientBuilder(initProxy(), true)
+                .setHttpCookiesEnabled(true)
+                .build());
         final int targetPort = getServer(ClickHouseProtocol.HTTP).getPort();
 
         proxy.get().addStubMapping(post(urlMatching("/.*"))
