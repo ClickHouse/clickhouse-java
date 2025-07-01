@@ -299,6 +299,7 @@ public class SqlParserTest {
             {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
             {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
             {"alter table user delete where reg_time = ?", 1},
+            {"SELECT * FROM a,b WHERE id > ?", 1},
         };
     }
 }
