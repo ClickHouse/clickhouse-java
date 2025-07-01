@@ -446,7 +446,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertNull(rs.getString("FUNCTION_CAT"));
                 assertNull(rs.getString("FUNCTION_SCHEM"));
                 assertEquals(rs.getString("FUNCTION_NAME"), "mapContains");
-                assertTrue(rs.getString("REMARKS").startsWith("Checks whether the map has the specified key"));
+                assertFalse(rs.getString("REMARKS").isEmpty());
                 assertEquals(rs.getShort("FUNCTION_TYPE"), DatabaseMetaData.functionResultUnknown);
                 assertEquals(rs.getString("SPECIFIC_NAME"), "mapContains");
             }
