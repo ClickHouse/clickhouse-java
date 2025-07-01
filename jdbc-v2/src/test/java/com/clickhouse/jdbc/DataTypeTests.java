@@ -124,10 +124,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), -128);
-                    assertEquals(rs.getShort("int16"), -32768);
-                    assertEquals(rs.getInt("int32"), -2147483648);
-                    assertEquals(rs.getLong("int64"), -9223372036854775808L);
+                    assertEquals(rs.getByte("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getShort("uint8"), 0);
@@ -138,10 +138,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getBigDecimal("uint256"), new BigDecimal("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getByte("int8"), 127);
-                    assertEquals(rs.getShort("int16"), 32767);
-                    assertEquals(rs.getInt("int32"), 2147483647);
-                    assertEquals(rs.getLong("int64"), 9223372036854775807L);
+                    assertEquals(rs.getByte("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getShort("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getBigDecimal("int128"), new BigDecimal("170141183460469231731687303715884105727"));
                     assertEquals(rs.getBigDecimal("int256"), new BigDecimal("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getShort("uint8"), 255);
@@ -175,10 +175,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_integers ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), -128);
-                    assertEquals(rs.getObject("int16"), -32768);
-                    assertEquals(rs.getObject("int32"), -2147483648);
-                    assertEquals(rs.getObject("int64"), -9223372036854775808L);
+                    assertEquals(rs.getObject("int8"), Byte.MIN_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MIN_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MIN_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MIN_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("-170141183460469231731687303715884105728"));
                     assertEquals(rs.getObject("int256"), new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("0"));
@@ -189,10 +189,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("0"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), 127);
-                    assertEquals(rs.getObject("int16"), 32767);
-                    assertEquals(rs.getObject("int32"), 2147483647);
-                    assertEquals(rs.getObject("int64"), 9223372036854775807L);
+                    assertEquals(rs.getObject("int8"), Byte.MAX_VALUE);
+                    assertEquals(rs.getObject("int16"), Short.MAX_VALUE);
+                    assertEquals(rs.getObject("int32"), Integer.MAX_VALUE);
+                    assertEquals(rs.getObject("int64"), Long.MAX_VALUE);
                     assertEquals(rs.getObject("int128"), new BigInteger("170141183460469231731687303715884105727"));
                     assertEquals(rs.getObject("int256"), new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967"));
                     assertEquals(rs.getObject("uint8"), Short.valueOf("255"));
@@ -203,10 +203,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("uint256"), new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935"));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("int8"), int8);
-                    assertEquals(rs.getObject("int16"), int16);
-                    assertEquals(rs.getObject("int32"), int32);
-                    assertEquals(rs.getObject("int64"), int64);
+                    assertEquals(rs.getObject("int8"), (byte)int8);
+                    assertEquals(rs.getObject("int16"), (short)int16);
+                    assertEquals(rs.getObject("int32"), (int)int32);
+                    assertEquals(rs.getObject("int64"), (long)int64);
                     assertEquals(rs.getObject("int128"), int128);
                     assertEquals(rs.getObject("int256"), int256);
                     assertEquals(rs.getObject("uint8"), uint8);
@@ -254,14 +254,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection();
                 Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery("SELECT * FROM test_unsigned_integers ORDER BY order")) {
+                ResultSet rs = stmt.executeQuery("SELECT uint8, uint16, uint32, uint64, uint128, uint256 FROM test_unsigned_integers ORDER BY order")) {
 
             List<Class<?>> expectedTypes = Arrays.asList(
                     Short.class, Integer.class, Long.class, BigInteger.class, BigInteger.class, BigInteger.class);
             List<Class<?>> actualTypes = new ArrayList<>();
             ResultSetMetaData rsmd = rs.getMetaData();
-            for (int i = 2; i <= rsmd.getColumnCount(); i++) {
-                actualTypes.add(Class.forName(rsmd.getColumnClassName(i)));
+            for (int i = 0; i < rsmd.getColumnCount(); i++) {
+                actualTypes.add(Class.forName(rsmd.getColumnClassName(i + 1)));
             }
             assertEquals(actualTypes, expectedTypes);
 
