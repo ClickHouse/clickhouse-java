@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.jdbc.internal.ClickHouseParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -725,6 +726,29 @@ public class StatementTest extends JdbcIntegrationTest {
                         }
                     }
                     Assert.assertTrue(found);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSelectWithKeywordsAsTableAlias() throws Exception {
+        String[] keywords = {
+                "ALL", "AND", "ANY", "AS", "ASC", "BY", "CREATE", "DATABASE", "DELETE", "DESC", "DISTINCT", "DROP", "EXISTS", "FROM", "GRANT", "GROUP", "HAVING", "INSERT", "INTO", "LIMIT", "NOT", "NULL", "ON", "ORDER", "REVOKE", "SELECT", "SET", "TABLE", "TO", "UPDATE", "VALUES", "VIEW", "WHILE", "WITH", "WHERE"
+        };
+
+        try (Connection conn = getJdbcConnection()) {
+            for (String keyword : keywords) {
+                String createSql = "CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + keyword + "(id UInt8) ENGINE = MergeTree ORDER BY id";
+                String insertSql = "INSERT INTO " + getDatabase() + "." + keyword + " VALUES (1)";
+                String selectSql = "SELECT * FROM " + getDatabase() + "." + keyword + " AS " + keyword;
+                try (Statement stmt = conn.createStatement()) {
+                    Assert.assertFalse(stmt.execute(createSql));
+                    Assert.assertFalse(stmt.execute(insertSql));
+                    try (ResultSet rs = stmt.executeQuery(selectSql)) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getInt(1), 1);
+                    }
                 }
             }
         }

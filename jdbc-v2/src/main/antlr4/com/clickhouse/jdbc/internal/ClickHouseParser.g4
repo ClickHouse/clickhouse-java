@@ -901,6 +901,7 @@ keyword
     | NO
     | NOT
     | NULLS
+    | NULL_SQL
     | NAME
     | OFFSET
     | ON
