@@ -2,7 +2,6 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.*;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
@@ -64,14 +63,14 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -84,41 +83,37 @@ import java.util.function.Function;
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
-    private static int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
+    private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
-    private CloseableHttpClient httpClient;
+    private final CloseableHttpClient httpClient;
 
-    private Map<String, String> chConfiguration;
-
-    private RequestConfig baseRequestConfig;
+    private final RequestConfig baseRequestConfig;
 
     private String proxyAuthHeaderValue;
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private String defaultUserAgent;
-    private Object metricsRegistry;
+    private final String defaultUserAgent;
+    private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
 
-    public HttpAPIClientHelper(Map<String, String> configuration, Object metricsRegistry, boolean initSslContext) {
-        this.chConfiguration = configuration;
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext) {
         this.metricsRegistry = metricsRegistry;
-        this.httpClient = createHttpClient(initSslContext);
+        this.httpClient = createHttpClient(initSslContext, configuration);
 
         RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
-        MapUtils.applyLong(chConfiguration, "connection_request_timeout",
-                (t) -> reqConfBuilder
-                        .setConnectionRequestTimeout(t, TimeUnit.MILLISECONDS));
+        reqConfBuilder.setConnectionRequestTimeout(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(configuration), TimeUnit.MILLISECONDS);
 
         this.baseRequestConfig = reqConfBuilder.build();
 
-        boolean usingClientCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), "false").equalsIgnoreCase("true");
-        boolean usingServerCompression=  chConfiguration.getOrDefault(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "false").equalsIgnoreCase("true");
-        boolean useHttpCompression = chConfiguration.getOrDefault("client.use_http_compression", "false").equalsIgnoreCase("true");
+        boolean usingClientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(configuration);
+        boolean usingServerCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(configuration);
+
         LOG.debug("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
 
-        defaultRetryCauses = SerializerUtils.parseEnumList(chConfiguration.get(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey()), ClientFaultCause.class);
+        defaultRetryCauses = new HashSet<>(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getOrDefault(configuration));
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
@@ -128,9 +123,10 @@ public class HttpAPIClientHelper {
 
     /**
      * Creates or returns default SSL context.
+     *
      * @return SSLContext
      */
-    public SSLContext createSSLContext() {
+    public SSLContext createSSLContext(Map<String, Object> configuration) {
         SSLContext sslContext;
         try {
             sslContext = SSLContext.getDefault();
@@ -138,26 +134,26 @@ public class HttpAPIClientHelper {
             throw new ClientException("Failed to create default SSL context", e);
         }
         ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
-        String trustStorePath = chConfiguration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
-        if (trustStorePath != null ) {
+        String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
+        if (trustStorePath != null) {
             try {
                 sslContext = sslContextProvider.getSslContextFromKeyStore(
                         trustStorePath,
-                        chConfiguration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
-                        chConfiguration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey())
+                        (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
+                        (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey())
                 );
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
             }
-        } else if (chConfiguration.get(ClientConfigProperties.CA_CERTIFICATE.getKey()) != null ||
-                chConfiguration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()) != null ||
-                chConfiguration.get(ClientConfigProperties.SSL_KEY.getKey()) != null) {
+        } else if (configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey()) != null ||
+                configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()) != null ||
+                configuration.get(ClientConfigProperties.SSL_KEY.getKey()) != null) {
 
             try {
                 sslContext = sslContextProvider.getSslContextFromCerts(
-                        chConfiguration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()),
-                        chConfiguration.get(ClientConfigProperties.SSL_KEY.getKey()),
-                        chConfiguration.get(ClientConfigProperties.CA_CERTIFICATE.getKey())
+                        (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()),
+                        (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey()),
+                        (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey())
                 );
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
@@ -166,37 +162,35 @@ public class HttpAPIClientHelper {
         return sslContext;
     }
 
-    private long CONNECTION_INACTIVITY_CHECK = 5000L;
+    private static final long CONNECTION_INACTIVITY_CHECK = 5000L;
 
-    private ConnectionConfig createConnectionConfig() {
+    private ConnectionConfig createConnectionConfig(Map<String, Object> configuration) {
         ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
-        connConfig.setTimeToLive(MapUtils.getLong(chConfiguration, ClientConfigProperties.CONNECTION_TTL.getKey()),
-                TimeUnit.MILLISECONDS);
-        connConfig.setConnectTimeout(MapUtils.getLong(chConfiguration, ClientConfigProperties.CONNECTION_TIMEOUT.getKey()),
-                TimeUnit.MILLISECONDS);
+
+        ClientConfigProperties.CONNECTION_TTL.<Long>applyIfSet(configuration, (t) -> connConfig.setTimeToLive(t,  TimeUnit.MILLISECONDS));
+        ClientConfigProperties.CONNECTION_TIMEOUT.<Long>applyIfSet(configuration, (t) -> connConfig.setConnectTimeout(t,  TimeUnit.MILLISECONDS));
         connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
 
         return connConfig.build();
     }
 
-    private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
+    private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig, Map<String, Object> configuration) {
         RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
         registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
         registryBuilder.register("https", sslConnectionSocketFactory);
 
         BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
-        connManager.setConnectionConfig(createConnectionConfig());
+        connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
         return connManager;
     }
 
-    private HttpClientConnectionManager poolConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig) {
+    private HttpClientConnectionManager poolConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig, Map<String, Object> configuration) {
         PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                 .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
-        ConnectionReuseStrategy connectionReuseStrategy =
-                ConnectionReuseStrategy.valueOf(chConfiguration.get("connection_reuse_strategy"));
+        ConnectionReuseStrategy connectionReuseStrategy = ClientConfigProperties.CONNECTION_REUSE_STRATEGY.getOrDefault(configuration);
         switch (connectionReuseStrategy) {
             case LIFO:
                 connMgrBuilder.setConnPoolPolicy(PoolReusePolicy.LIFO);
@@ -209,13 +203,11 @@ public class HttpAPIClientHelper {
         }
         LOG.debug("Connection reuse strategy: {}", connectionReuseStrategy);
 
-        connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig());
+        connMgrBuilder.setDefaultConnectionConfig(createConnectionConfig(configuration));
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
-        MapUtils.applyInt(chConfiguration, ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(),
-                connMgrBuilder::setMaxConnPerRoute);
+        ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.applyIfSet(configuration, connMgrBuilder::setMaxConnPerRoute);
 
-
-        int networkBufferSize = MapUtils.getInt(chConfiguration, "client_network_buffer_size");
+        int networkBufferSize = ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getOrDefault(configuration);
         MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
                 Http1Config.custom()
                         .setBufferSize(networkBufferSize)
@@ -228,10 +220,9 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
         poolControl = phccm;
-        if (metricsRegistry != null ) {
+        if (metricsRegistry != null) {
             try {
-                String mGroupName = chConfiguration.getOrDefault(ClientConfigProperties.METRICS_GROUP_NAME.getKey(),
-                        "ch-http-pool");
+                String mGroupName = ClientConfigProperties.METRICS_GROUP_NAME.getOrDefault(configuration);
                 Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
                 Method applyMethod = micrometerLoader.getDeclaredMethod("applyPoolingMetricsBinder", Object.class, String.class, PoolingHttpClientConnectionManager.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, phccm);
@@ -245,61 +236,64 @@ public class HttpAPIClientHelper {
         return phccm;
     }
 
-    public CloseableHttpClient createHttpClient(boolean initSslContext) {
+    public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = initSslContext ? createSSLContext() : null;
+        SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
         LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
                 : new SSLConnectionSocketFactory(sslContext);
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
-        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
+        ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.<Integer>applyIfSet(configuration,
                 (t) -> soCfgBuilder.setSoTimeout(t, TimeUnit.MILLISECONDS));
-        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey(),
-                soCfgBuilder::setRcvBufSize);
-        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey(),
-                soCfgBuilder::setSndBufSize);
-        MapUtils.applyInt(chConfiguration, ClientConfigProperties.SOCKET_LINGER_OPT.getKey(),
-                    (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
-        if (MapUtils.getFlag(chConfiguration, ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT.getKey(), false)) {
-            soCfgBuilder.setTcpNoDelay(true);
-        }
 
+        ClientConfigProperties.SOCKET_RCVBUF_OPT.applyIfSet(configuration,
+                soCfgBuilder::setRcvBufSize);
+
+        ClientConfigProperties.SOCKET_SNDBUF_OPT.applyIfSet(configuration,
+                soCfgBuilder::setSndBufSize);
+
+        ClientConfigProperties.SOCKET_LINGER_OPT.<Integer>applyIfSet(configuration,
+                (v) -> soCfgBuilder.setSoLinger(v, TimeUnit.SECONDS));
+
+        ClientConfigProperties.SOCKET_TCP_NO_DELAY_OPT.applyIfSet(configuration,
+                soCfgBuilder::setTcpNoDelay);
         // Proxy
-        String proxyHost = chConfiguration.get(ClientConfigProperties.PROXY_HOST.getKey());
-        String proxyPort = chConfiguration.get(ClientConfigProperties.PROXY_PORT.getKey());
+        String proxyHost = (String) configuration.get(ClientConfigProperties.PROXY_HOST.getKey());
+        Integer proxyPort = (Integer) configuration.get(ClientConfigProperties.PROXY_PORT.getKey());
         HttpHost proxy = null;
         if (proxyHost != null && proxyPort != null) {
-            proxy = new HttpHost(proxyHost, Integer.parseInt(proxyPort));
+            proxy = new HttpHost(proxyHost, proxyPort);
         }
 
-        String proxyTypeVal = chConfiguration.get(ClientConfigProperties.PROXY_TYPE.getKey());
+        String proxyTypeVal = (String) configuration.get(ClientConfigProperties.PROXY_TYPE.getKey());
         ProxyType proxyType = proxyTypeVal == null ? null : ProxyType.valueOf(proxyTypeVal);
         if (proxyType == ProxyType.HTTP) {
             clientBuilder.setProxy(proxy);
-            if (chConfiguration.containsKey("proxy_password") && chConfiguration.containsKey("proxy_user")) {
-                proxyAuthHeaderValue = "Basic " + Base64.getEncoder().encodeToString(
-                        (chConfiguration.get("proxy_user") + ":" + chConfiguration.get("proxy_password")).getBytes());
+            String proxyUser = (String) configuration.get(ClientConfigProperties.PROXY_USER.getKey());
+            String proxyPassword = (String) configuration.get(ClientConfigProperties.PROXY_PASSWORD.getKey());
+            if (proxyUser != null && proxyPassword != null) {
+                proxyAuthHeaderValue = "Basic " + Base64.getEncoder().encodeToString((proxyUser + ":" + proxyPassword).getBytes(StandardCharsets.UTF_8));
             }
+
         } else if (proxyType == ProxyType.SOCKS) {
-            soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
+            soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, proxyPort));
         }
 
-        if (chConfiguration.getOrDefault("client.http.cookies_enabled", "true")
-                .equalsIgnoreCase("false")) {
+        boolean disableCookies = !((Boolean)ClientConfigProperties.HTTP_SAVE_COOKIES.getOrDefault(configuration));
+        if (disableCookies) {
             clientBuilder.disableCookieManagement();
         }
         SocketConfig socketConfig = soCfgBuilder.build();
 
         // Connection manager
-        boolean isConnectionPooling = MapUtils.getFlag(chConfiguration, "connection_pool_enabled");
-        if (isConnectionPooling) {
-            clientBuilder.setConnectionManager(poolConnectionManager(sslConnectionSocketFactory, socketConfig));
+        if (ClientConfigProperties.CONNECTION_POOL_ENABLED.getOrDefault(configuration)) {
+            clientBuilder.setConnectionManager(poolConnectionManager(sslConnectionSocketFactory, socketConfig, configuration));
         } else {
-            clientBuilder.setConnectionManager(basicConnectionManager(sslConnectionSocketFactory, socketConfig));
+            clientBuilder.setConnectionManager(basicConnectionManager(sslConnectionSocketFactory, socketConfig, configuration));
         }
-        long keepAliveTimeout = MapUtils.getLong(chConfiguration, ClientConfigProperties.HTTP_KEEP_ALIVE_TIMEOUT.getKey());
-        if (keepAliveTimeout > 0) {
+        Long keepAliveTimeout = ClientConfigProperties.HTTP_KEEP_ALIVE_TIMEOUT.getOrDefault(configuration);
+        if (keepAliveTimeout != null && keepAliveTimeout > 0) {
             clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
         }
 
@@ -307,18 +301,19 @@ public class HttpAPIClientHelper {
     }
 
     private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
+
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
      * @param httpResponse - HTTP response
-     * @return
+     * @return exception object with server code
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         try (InputStream body = httpResponse.getEntity().getContent()) {
 
-            byte [] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
-            byte [] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+            byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
+            byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
             StringBuilder msgBuilder = new StringBuilder();
             boolean found = false;
             while (true) {
@@ -369,7 +364,7 @@ public class HttpAPIClientHelper {
     }
 
     private static final long POOL_VENT_TIMEOUT = 10000L;
-    private AtomicLong timeToPoolVent = new AtomicLong(0);
+    private final AtomicLong timeToPoolVent = new AtomicLong(0);
 
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
                                               IOCallback<OutputStream> writeCallback) throws Exception {
@@ -384,30 +379,30 @@ public class HttpAPIClientHelper {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-            addQueryParams(uriBuilder, chConfiguration, requestConfig);
+            addQueryParams(uriBuilder, requestConfig);
             uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         HttpPost req = new HttpPost(uri);
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
-        addHeaders(req, chConfiguration, requestConfig);
+        addHeaders(req, requestConfig);
 
-        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
-        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
-        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
+        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
+        boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
         req.setConfig(baseRequestConfig);
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression, appCompressedData, lz4Factory));
+                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig));
 
         HttpClientContext context = HttpClientContext.create();
 
         try {
             ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
-            boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
-            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression, lz4Factory));
+            boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
+            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression, lz4Factory, requestConfig));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
@@ -434,7 +429,7 @@ public class HttpAPIClientHelper {
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
-    private void addHeaders(HttpPost req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
+    private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
@@ -444,31 +439,33 @@ public class HttpAPIClientHelper {
             req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
 
-        if(requestConfig.containsKey(ClientConfigProperties.DATABASE.getKey())) {
-            req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, requestConfig.get(ClientConfigProperties.DATABASE.getKey()));
-        } else {
-            req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, chConfig.get(ClientConfigProperties.DATABASE.getKey()));
-        }
 
-        if (MapUtils.getFlag(chConfig, "ssl_authentication", false)) {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER.getKey()));
+        req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
+
+
+        if (ClientConfigProperties.SSL_AUTH.getOrDefault(requestConfig)) {
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, ClientConfigProperties.USER.getOrDefault(requestConfig));
             req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
-        } else if (chConfig.getOrDefault(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey(), "true").equalsIgnoreCase("true")) {
+        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.getOrDefault(requestConfig)) {
+            String user = ClientConfigProperties.USER.getOrDefault(requestConfig);
+            String password = ClientConfigProperties.PASSWORD.getOrDefault(requestConfig);
+
             req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
-                    (chConfig.get(ClientConfigProperties.USER.getKey()) + ":" + chConfig.get(ClientConfigProperties.PASSWORD.getKey())).getBytes(StandardCharsets.UTF_8)));
+                    (user + ":" + password).getBytes(StandardCharsets.UTF_8))
+            );
         } else {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, chConfig.get(ClientConfigProperties.USER.getKey()));
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, chConfig.get(ClientConfigProperties.PASSWORD.getKey()));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, ClientConfigProperties.USER.getOrDefault(requestConfig));
+            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
 
         }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
         }
 
-        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
-        boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
-        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
-        boolean appCompressedData = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.APP_COMPRESSED_DATA.getKey());
+        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
+        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
+        boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
         if (useHttpCompression) {
             if (serverCompression) {
@@ -476,12 +473,6 @@ public class HttpAPIClientHelper {
             }
             if (clientCompression && !appCompressedData) {
                 req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
-            }
-        }
-
-        for (String key : chConfig.keySet()) {
-            if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
-                req.setHeader(key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), chConfig.get(key));
             }
         }
 
@@ -507,13 +498,7 @@ public class HttpAPIClientHelper {
         correctUserAgentHeader(req, requestConfig);
     }
 
-    private void addQueryParams(URIBuilder req, Map<String, String> chConfig, Map<String, Object> requestConfig) {
-        for (String key : chConfig.keySet()) {
-            if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
-                req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), chConfig.get(key));
-            }
-        }
-
+    private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
@@ -524,9 +509,9 @@ public class HttpAPIClientHelper {
             }
         }
 
-        boolean clientCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
-        boolean serverCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey());
-        boolean useHttpCompression = MapUtils.getFlag(requestConfig, chConfiguration, ClientConfigProperties.USE_HTTP_COMPRESSION.getKey());
+        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
+        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
         if (useHttpCompression) {
             // enable_http_compression make server react on http header
@@ -542,9 +527,8 @@ public class HttpAPIClientHelper {
             }
         }
 
-        Collection<String> sessionRoles = (Collection<String>) requestConfig.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES.getKey(),
-                ClientConfigProperties.valuesFromCommaSeparated(chConfiguration.getOrDefault(ClientConfigProperties.SESSION_DB_ROLES.getKey(), "")));
-        if (!sessionRoles.isEmpty()) {
+        Collection<String> sessionRoles = ClientConfigProperties.SESSION_DB_ROLES.getOrDefault(requestConfig);
+        if (!(sessionRoles == null || sessionRoles.isEmpty())) {
             sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
         }
 
@@ -559,19 +543,20 @@ public class HttpAPIClientHelper {
     }
 
     private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression,
-                                         boolean appControlledCompression, LZ4Factory lz4Factory) {
-        LOG.debug("client compression: {}, http compression: {}", clientCompression, useHttpCompression);
+                                         boolean appControlledCompression, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+        LOG.debug("wrapRequestEntity: client compression: {}, http compression: {}", clientCompression, useHttpCompression);
 
         if (clientCompression && !appControlledCompression) {
+            int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
-                    MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), false, lz4Factory);
-        } else  {
+                    buffSize, false, lz4Factory);
+        } else {
             return httpEntity;
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression, LZ4Factory lz4Factory) {
-        LOG.debug("server compression: {}, http compression: {}", serverCompression, useHttpCompression);
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+        LOG.debug("wrapResponseEntity: server compression: {}, http compression: {}", serverCompression, useHttpCompression);
 
         if (serverCompression) {
             // Server doesn't compress certain errors like 403
@@ -586,8 +571,8 @@ public class HttpAPIClientHelper {
                 case HttpStatus.SC_BAD_REQUEST:
                 case HttpStatus.SC_INTERNAL_SERVER_ERROR:
                 case HttpStatus.SC_NOT_FOUND:
-                    return new LZ4Entity(httpEntity, useHttpCompression, true, false,
-                            MapUtils.getInt(chConfiguration, "compression.lz4.uncompressed_buffer_size"), true, lz4Factory);
+                    int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
+                    return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
             }
         }
 
@@ -611,8 +596,7 @@ public class HttpAPIClientHelper {
     }
 
     public boolean shouldRetry(Throwable ex, Map<String, Object> requestSettings) {
-        Set<ClientFaultCause> retryCauses = (Set<ClientFaultCause>)
-                requestSettings.getOrDefault(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), defaultRetryCauses);
+        List<ClientFaultCause> retryCauses = ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getOrDefault(requestSettings);
 
         if (retryCauses.contains(ClientFaultCause.None)) {
             return false;
@@ -672,54 +656,12 @@ public class HttpAPIClientHelper {
         return new ClickHouseException(message, cause);
     }
 
-
-    /**
-     * Parses URL parameters.
-     * @param url
-     * @return Map of parameters
-     */
-    public static Map<String, String> parseUrlParameters(URL url) {
-        Map<String, String> params = new HashMap<>();
-
-        try {
-            String path = url.getPath();
-            path = path.substring(path.indexOf('/') + 1);
-            LOG.debug("path: {}", path);
-            if (!path.trim().isEmpty()) {
-                params.put("database", path);
-            } else {
-                params.put("database", "default");
-            }
-
-            String query = url.getQuery();
-            if (query != null) {
-                for (String pair : query.split("&")) {
-                    int idx = pair.indexOf("=");
-                    if (idx > 0) {
-                        params.put(pair.substring(0, idx), pair.substring(idx + 1));
-                    }
-                }
-            }
-        } catch (Exception e) {
-            LOG.error("Failed to parse URL parameters", e);
-        }
-
-        return params;
-    }
-
-
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
         //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        String clientName = chConfiguration.getOrDefault(ClientConfigProperties.CLIENT_NAME.getKey(), "");
-        if (requestConfig != null) {
-            String reqClientName = (String) requestConfig.get(ClientConfigProperties.CLIENT_NAME.getKey());
-            if (reqClientName != null && !reqClientName.isEmpty()) {
-                clientName = reqClientName;
-            }
-        }
+        String clientName = ClientConfigProperties.CLIENT_NAME.getOrDefault(requestConfig);
         String userAgentValue = defaultUserAgent;
         if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
             userAgentValue = clientName + " " + defaultUserAgent;
@@ -730,7 +672,7 @@ public class HttpAPIClientHelper {
         request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
     }
 
-    private  String buildDefaultUserAgent() {
+    private String buildDefaultUserAgent() {
         StringBuilder userAgent = new StringBuilder();
         userAgent.append(Client.CLIENT_USER_AGENT);
 
@@ -799,7 +741,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    public class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+    public static class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
         public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
             super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
         }
@@ -822,7 +764,10 @@ public class HttpAPIClientHelper {
             int count = times.size();
             long runningAverage = 0;
             for (int i = 0; i < count; i++) {
-                runningAverage += times.poll();
+                Long t = times.poll();
+                if (t != null) {
+                    runningAverage += t;
+                }
             }
 
             return count > 0 ? runningAverage / count : 0;
