@@ -82,7 +82,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new UnsupportedOperationException("bug. This PreparedStatement implementation should not be used with queries");
     }
 
@@ -103,7 +103,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public long executeLargeUpdate() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
         // commit whatever changes
         try {
@@ -118,7 +118,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try (InsertResponse response = queryTimeout == 0 ?
                 connection.client.insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get()
                 : connection.client.insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get(queryTimeout, TimeUnit.SECONDS)) {
-            currentResultSet = null;
+            setCurrentResultSet(null);
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
@@ -136,67 +136,67 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, null);
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setByte(parameterIndex, x);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setShort(parameterIndex, x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setInteger(parameterIndex, x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setLong(parameterIndex, x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setFloat(parameterIndex, x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setDouble(parameterIndex, x);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setBigDecimal(parameterIndex, x);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setString(parameterIndex, x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
@@ -217,74 +217,74 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void clearParameters() throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.clearRow();
     }
 
@@ -296,7 +296,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void addBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
         try {
             writer.commitRow();
         } catch (Exception e) {
@@ -306,128 +306,128 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setClob(parameterIndex, x.getCharacterStream());
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setClob(parameterIndex, x, -1);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setReader(parameterIndex, x, length);
     }
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setBlob(parameterIndex, x.getBinaryStream(), x.length());
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setInputStream(parameterIndex, x, length);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setInputStream(parameterIndex, inputStream, -1);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setReader(parameterIndex, x, length);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setNClob(parameterIndex, x.getCharacterStream(), x.length());
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setNClob(parameterIndex, x, -1);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setReader(parameterIndex, x.getCharacterStream(), -1);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, x.getArray());
     }
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, sqlDateToInstant(x, cal));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, sqlTimeToInstant(x, cal));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setDateTime(parameterIndex, sqlTimestampToZDT(x, cal));
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, null);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        checkClosed();
+        ensureOpen();
 
     }
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException("ROWID is not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void setNString(int parameterIndex, String value) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setString(parameterIndex, value);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        checkClosed();
+        ensureOpen();
         // TODO: make proper data conversion in setObject methods
         writer.setValue(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, x);
     }
 
@@ -438,7 +438,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        checkClosed();
+        ensureOpen();
         writer.setValue(parameterIndex, x);
     }
 
@@ -467,7 +467,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public int[] executeBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
         int batchSize = writer.getRowCount();
         long rowsInserted = executeLargeUpdate();
         int[] results = new int[batchSize];
@@ -477,7 +477,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
         int batchSize = writer.getRowCount();
         long rowsInserted = executeLargeUpdate();
         long[] results = new long[batchSize];
