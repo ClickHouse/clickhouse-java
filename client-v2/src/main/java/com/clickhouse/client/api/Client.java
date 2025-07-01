@@ -198,25 +198,7 @@ public class Client implements AutoCloseable {
 
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
 
-        this.typeHintMapping = translateTypeHintMapping(configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey()));
-    }
-
-    private Map<ClickHouseDataType, Class<?>> translateTypeHintMapping(String mappingStr) {
-        if (mappingStr == null || mappingStr.isEmpty()) {
-            return AbstractBinaryFormatReader.NO_TYPE_HINT_MAPPING;
-        }
-
-        Map<String, String> mapping= ClientConfigProperties.toKeyValuePairs(mappingStr);
-        Map<ClickHouseDataType, Class<?>> hintMapping = new HashMap<>();
-        try {
-            for (Map.Entry<String, String> entry : mapping.entrySet()) {
-                hintMapping.put(ClickHouseDataType.of(entry.getKey()),
-                        Class.forName(entry.getValue()));
-            }
-        } catch (ClassNotFoundException e) {
-            throw new ClientMisconfigurationException("Failed to translate type-hint mapping", e);
-        }
-        return hintMapping;
+        this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
     }
 
     /**

@@ -762,22 +762,22 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random(seed);
         log.info("Random seed was: {}", seed);
 
-        Integer[] array = new Integer[rand.nextInt(10)];
+        Integer[] array = new Integer[10];
         for (int i = 0; i < array.length; i++) {
             array[i] = rand.nextInt(256) - 128;
         }
 
-        String[] arraystr = new String[rand.nextInt(10)];
+        String[] arraystr = new String[10];
         for (int i = 0; i < arraystr.length; i++) {
             arraystr[i] = "string" + rand.nextInt(1000);
         }
 
-        Tuple[] arraytuple = new Tuple[rand.nextInt(10) + 1];
+        Tuple[] arraytuple = new Tuple[10];
         for (int i = 0; i < arraytuple.length; i++) {
             arraytuple[i] = new Tuple(rand.nextInt(256) - 128, "string" + rand.nextInt(1000));
         }
 
-        Date[] arraydate = new Date[rand.nextInt(10)];
+        Date[] arraydate = new Date[10];
         for (int i = 0; i < arraydate.length; i++) {
             arraydate[i] = Date.valueOf(LocalDate.now().plusDays(rand.nextInt(100)));
         }
@@ -795,7 +795,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         // Insert using common java objects
         final String INSERT_SQL = "INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)";
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement(INSERT_SQL)) {
                 stmt.setObject(1, array);
                 stmt.setObject(2, arraystr);
@@ -810,65 +810,60 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_arrays ORDER BY order")) {
                     assertTrue(rs.next());
-                    Object[] arrayResult = (Object[]) rs.getArray("array").getArray();
-                    assertEquals(arrayResult.length, array.length);
-                    for (int i = 0; i < array.length; i++) {
-                        assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
-                    }
+                    {
+                        Object[] arrayResult = (Object[]) rs.getArray("array").getArray();
+                        assertEquals(arrayResult.length, array.length);
+                        for (int i = 0; i < array.length; i++) {
+                            assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
+                        }
 
-                    Object[] arraystrResult = (Object[]) rs.getArray("arraystr").getArray();
-                    assertEquals(arraystrResult.length, arraystr.length);
-                    for (int i = 0; i < arraystr.length; i++) {
-                        assertEquals(arraystrResult[i], arraystr[i]);
-                    }
-                    Object[] arraytupleResult = (Object[]) rs.getArray("arraytuple").getArray();
-                    assertEquals(arraytupleResult.length, arraytuple.length);
-                    for (int i = 0; i < arraytuple.length; i++) {
-                        Tuple tuple = arraytuple[i];
-                        Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
-                        assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
-                        assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
-                    }
+                        Object[] arraystrResult = (Object[]) rs.getArray("arraystr").getArray();
+                        assertEquals(arraystrResult.length, arraystr.length);
+                        for (int i = 0; i < arraystr.length; i++) {
+                            assertEquals(arraystrResult[i], arraystr[i]);
+                        }
+                        Object[] arraytupleResult = (Object[]) rs.getArray("arraytuple").getArray();
+                        assertEquals(arraytupleResult.length, arraytuple.length);
+                        for (int i = 0; i < arraytuple.length; i++) {
+                            Tuple tuple = arraytuple[i];
+                            Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
+                            assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
+                            assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                        }
 
-                    Object[] arraydateResult = (Object[]) rs.getArray("arraydate").getArray();
-                    assertEquals(arraydateResult.length, arraydate.length);
-                    for (int i = 0; i < arraydate.length; i++) {
-                        assertEquals(String.valueOf(arraydateResult[i]), String.valueOf(arraydate[i]));
+                        Object[] arraydateResult = (Object[]) rs.getArray("arraydate").getArray();
+                        assertEquals(arraydateResult.length, arraydate.length);
+                        for (int i = 0; i < arraydate.length; i++) {
+                            assertEquals(String.valueOf(arraydateResult[i]), String.valueOf(arraydate[i]));
+                        }
                     }
-                    assertFalse(rs.next());
-                }
-            }
-        }
-
-        // Check the results with getObject
-        try (Connection conn = getJdbcConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_arrays ORDER BY order")) {
                     assertTrue(rs.next());
-                    Object[] arrayResult = (Object[]) ((Array) rs.getObject("array")).getArray();
-                    assertEquals(arrayResult.length, array.length);
-                    for (int i = 0; i < array.length; i++) {
-                        assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
-                    }
+                    {
+                        Object[] arrayResult = (Object[]) ((Array) rs.getObject("array")).getArray();
+                        assertEquals(arrayResult.length, array.length);
+                        for (int i = 0; i < array.length; i++) {
+                            assertEquals(String.valueOf(arrayResult[i]), String.valueOf(array[i]));
+                        }
 
-                    Object[] arraystrResult = (Object[]) ((Array) rs.getObject("arraystr")).getArray();
-                    assertEquals(arraystrResult.length, arraystr.length);
-                    for (int i = 0; i < arraystr.length; i++) {
-                        assertEquals(arraystrResult[i], arraystr[i]);
-                    }
-                    Object[] arraytupleResult = (Object[]) ((Array) rs.getObject("arraytuple")).getArray();
-                    assertEquals(arraytupleResult.length, arraytuple.length);
-                    for (int i = 0; i < arraytuple.length; i++) {
-                        Tuple tuple = arraytuple[i];
-                        Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
-                        assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
-                        assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
-                    }
+                        Object[] arraystrResult = (Object[]) ((Array) rs.getObject("arraystr")).getArray();
+                        assertEquals(arraystrResult.length, arraystr.length);
+                        for (int i = 0; i < arraystr.length; i++) {
+                            assertEquals(arraystrResult[i], arraystr[i]);
+                        }
+                        Object[] arraytupleResult = (Object[]) ((Array) rs.getObject("arraytuple")).getArray();
+                        assertEquals(arraytupleResult.length, arraytuple.length);
+                        for (int i = 0; i < arraytuple.length; i++) {
+                            Tuple tuple = arraytuple[i];
+                            Tuple tupleResult = new Tuple(((Object[]) arraytupleResult[i]));
+                            assertEquals(String.valueOf(tupleResult.getValue(0)), String.valueOf(tuple.getValue(0)));
+                            assertEquals(String.valueOf(tupleResult.getValue(1)), String.valueOf(tuple.getValue(1)));
+                        }
 
-                    Object[] arraydateResult = (Object[]) ((Array) rs.getObject("arraydate")).getArray();
-                    assertEquals(arraydateResult.length, arraydate.length);
-                    for (int i = 0; i < arraydate.length; i++) {
-                        assertEquals(arraydateResult[i], arraydate[i]);
+                        Object[] arraydateResult = (Object[]) ((Array) rs.getObject("arraydate")).getArray();
+                        assertEquals(arraydateResult.length, arraydate.length);
+                        for (int i = 0; i < arraydate.length; i++) {
+                            assertEquals(arraydateResult[i], arraydate[i]);
+                        }
                     }
                     assertFalse(rs.next());
                 }
@@ -931,6 +926,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testMapTypesWithArrayValues() throws SQLException {
+        runQuery("DROP TABLE test_maps;");
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Array(Int32)), "
                 + "map2 Map(String, Array(Int32))"
@@ -956,7 +952,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert random (valid) values
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_maps VALUES ( 1, ?, ?)")) {
                 stmt.setObject(1, integerMap);
                 stmt.setObject(2, integerMap2);
@@ -965,7 +961,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Check the results
-        try (Connection conn = getConnection()) {
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_maps ORDER BY order")) {
                     assertTrue(rs.next());

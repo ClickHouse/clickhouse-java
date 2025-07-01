@@ -1,6 +1,8 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -286,6 +288,10 @@ public enum ClientConfigProperties {
             return TimeZone.getTimeZone(value);
         }
 
+        if (valueType.equals(Map.class)) {
+            return toKeyValuePairs(value);
+        }
+
         return null;
     }
 
@@ -309,7 +315,15 @@ public enum ClientConfigProperties {
         for (ClientConfigProperties config : ClientConfigProperties.values()) {
             String value = tmpMap.remove(config.getKey());
             if (value != null) {
-                parsedConfig.put(config.getKey(), config.parseValue(value));
+                Object parsedValue;
+                switch (config) {
+                    case TYPE_HINT_MAPPING:
+                        parsedValue = translateTypeHintMapping(value);
+                        break;
+                    default:
+                        parsedValue = config.parseValue(value);
+                }
+                parsedConfig.put(config.getKey(), parsedValue);
             }
         }
 
@@ -387,5 +401,23 @@ public enum ClientConfigProperties {
             sb.setLength(sb.length() - 1);
         }
         return sb.toString();
+    }
+
+    public static Map<ClickHouseDataType, Class<?>> translateTypeHintMapping(String mappingStr) {
+        if (mappingStr == null || mappingStr.isEmpty()) {
+            return AbstractBinaryFormatReader.NO_TYPE_HINT_MAPPING;
+        }
+
+        Map<String, String> mapping= ClientConfigProperties.toKeyValuePairs(mappingStr);
+        Map<ClickHouseDataType, Class<?>> hintMapping = new HashMap<>();
+        try {
+            for (Map.Entry<String, String> entry : mapping.entrySet()) {
+                hintMapping.put(ClickHouseDataType.of(entry.getKey()),
+                        Class.forName(entry.getValue()));
+            }
+        } catch (ClassNotFoundException e) {
+            throw new ClientMisconfigurationException("Failed to translate type-hint mapping", e);
+        }
+        return hintMapping;
     }
 }
