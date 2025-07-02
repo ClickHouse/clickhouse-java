@@ -13,8 +13,10 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -284,6 +286,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.CLIENT_NAME.getKey() + "=" + clientName);
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.PRODUCT_NAME.getKey() + "=" + clientName);
     }
+
     private void influenceUserAgentTest(String clientName, String urlParam) throws SQLException {
         Properties info = new Properties();
         info.setProperty("user", "default");
@@ -547,6 +550,21 @@ public class ConnectionTest extends JdbcIntegrationTest {
              Assert.assertEquals(connImpl.getClient().getServerTimeZone(), "GMT");
         }
 
+    }
+    @Parameters(
+        {
+          "foo",
+          "with-dashes",
+          "☺"
+        })
+    @Test(groups = { "integration" })
+    public void testConnectionWithDashDatabaseName(String dbName) throws Exception {
+        Connection conn = this.getJdbcConnection();
+        conn.createStatement().execute("CREATE DATABASE `" + dbName + " `");
+        conn.setSchema(dbName);
+        Assert.assertEquals(
+            conn.createStatement().executeQuery("SELECT 1 FROM `" + dbName + "" ),
+            Integer.valueOf(1));
     }
 
 }
