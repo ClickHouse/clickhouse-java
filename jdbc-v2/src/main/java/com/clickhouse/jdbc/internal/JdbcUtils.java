@@ -229,6 +229,12 @@ public class JdbcUtils {
                     return new Array(convertList(((BinaryStreamReader.ArrayValue) value).asList(), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
                 }
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+            } else if (type == java.sql.Array.class && value instanceof List<?>) {
+                System.out.println(value);
+                if (column != null && column.getArrayBaseColumn() != null) {
+                    return new Array(convertList(((List) value), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                }
+                return new Array((List) value, "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return Inet4Address.getByName(value.toString());

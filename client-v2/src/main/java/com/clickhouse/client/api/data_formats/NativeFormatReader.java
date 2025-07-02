@@ -6,6 +6,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -26,13 +27,19 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     private int blockRowIndex;
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
-                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
-        super(inputStream, settings, null, byteBufferAllocator);
+                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                              Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+        super(inputStream, settings, null, byteBufferAllocator, typeHintMapping);
         try {
             readBlock();
         } catch (IOException e) {
             throw new ClientException("Failed to read block", e);
         }
+    }
+
+    public NativeFormatReader(InputStream inputStream, QuerySettings settings,
+                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+        this(inputStream, settings, byteBufferAllocator, NO_TYPE_HINT_MAPPING);
     }
 
     @Override
