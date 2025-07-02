@@ -1,5 +1,10 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.jdbc.Driver;
+import com.google.common.collect.ImmutableMap;
+
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
@@ -11,11 +16,6 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.jdbc.Driver;
-import com.google.common.collect.ImmutableMap;
 
 public class JdbcConfiguration {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);

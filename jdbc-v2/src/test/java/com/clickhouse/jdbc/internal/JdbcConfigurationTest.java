@@ -1,16 +1,16 @@
 package com.clickhouse.jdbc.internal;
 
-import java.sql.DriverPropertyInfo;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
+import com.clickhouse.client.api.ClientConfigProperties;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import com.clickhouse.client.api.ClientConfigProperties;
+import java.sql.DriverPropertyInfo;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 
