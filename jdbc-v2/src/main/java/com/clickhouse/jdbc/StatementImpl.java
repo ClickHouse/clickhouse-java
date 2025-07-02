@@ -181,7 +181,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         lastStatementSql = parseJdbcEscapeSyntax(sql);
         LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
-        System.out.println(lastStatementSql);
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
                 : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             currentResultSet = null;
