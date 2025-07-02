@@ -30,6 +30,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 
 @Test(groups = { "integration" })
@@ -749,6 +750,8 @@ public class StatementTest extends JdbcIntegrationTest {
                         Assert.assertTrue(rs.next());
                         Assert.assertEquals(rs.getInt(1), 1);
                     }
+                } catch (Exception e) {
+                    fail("failed for keyword: " + keyword, e);
                 }
             }
         }
