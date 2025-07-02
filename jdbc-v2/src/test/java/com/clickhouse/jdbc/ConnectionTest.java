@@ -1,22 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.jdbc.internal.ClientInfoProperties;
-import com.clickhouse.jdbc.internal.DriverProperties;
-import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import org.testng.Assert;
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
@@ -30,6 +13,24 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
 import java.util.UUID;
+
+import org.testng.Assert;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.jdbc.internal.ClientInfoProperties;
+import com.clickhouse.jdbc.internal.DriverProperties;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
@@ -548,5 +549,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
 
     }
+
 
 }
