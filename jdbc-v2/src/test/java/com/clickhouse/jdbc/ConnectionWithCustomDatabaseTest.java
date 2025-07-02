@@ -14,9 +14,9 @@ public class ConnectionWithCustomDatabaseTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testConnectionWithDashDatabaseName() throws Exception {
         Connection conn = this.getJdbcConnection();
-        Assert.assertEquals(
-            conn.createStatement().executeQuery("SELECT 1"),
-            Integer.valueOf(1));
+        java.sql.ResultSet rs = conn.createStatement().executeQuery("SELECT 1");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(1, rs.getInt(1));
     }
 
     protected static String getDatabase() {
