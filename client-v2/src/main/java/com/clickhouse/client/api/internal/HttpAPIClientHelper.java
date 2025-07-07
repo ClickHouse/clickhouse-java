@@ -64,6 +64,7 @@ import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
@@ -98,6 +99,8 @@ public class HttpAPIClientHelper {
 
     private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
         "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
+    private static final Pattern PATTERN_WHITESPACE = Pattern.compile(
+        "\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     private final CloseableHttpClient httpClient;
 
@@ -763,15 +766,21 @@ public class HttpAPIClientHelper {
             return;
         }
         String tString = value.toString();
-        if (tString.isBlank()) {
+        if (PATTERN_WHITESPACE.matcher(tString).matches()) {
             return;
         }
         if (PATTERN_HEADER_VALUE_ASCII.matcher(tString).matches()) {
             req.addHeader(headerName, tString);
         } else {
-            req.addHeader(
-                headerName + "*",
-                "UTF-8''" + URLEncoder.encode(tString, StandardCharsets.UTF_8));
+            String encodedHeaderFieldValue = null;
+            try {
+                encodedHeaderFieldValue = "UTF-8''"
+                    + URLEncoder.encode(tString, StandardCharsets.UTF_8.displayName());
+            } catch(UnsupportedEncodingException uee) {
+                throw new IllegalStateException(
+                    "Error encoding header value.", uee);
+            }
+            req.addHeader(headerName + "*", encodedHeaderFieldValue);
         }
     }
 
