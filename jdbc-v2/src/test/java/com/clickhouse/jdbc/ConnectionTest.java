@@ -284,6 +284,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.CLIENT_NAME.getKey() + "=" + clientName);
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.PRODUCT_NAME.getKey() + "=" + clientName);
     }
+
     private void influenceUserAgentTest(String clientName, String urlParam) throws SQLException {
         Properties info = new Properties();
         info.setProperty("user", "default");
@@ -547,6 +548,38 @@ public class ConnectionTest extends JdbcIntegrationTest {
              Assert.assertEquals(connImpl.getClient().getServerTimeZone(), "GMT");
         }
 
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "validDatabaseNames")
+    public void testConnectionWithValidDatabaseName(String dbName) throws Exception {
+        if (isCloud()) {
+            return;
+        }
+        Connection connCreate = this.getJdbcConnection();
+        connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "`");
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
+        Connection connCheck = this.getJdbcConnection(properties);
+        ResultSet rs = connCheck.createStatement().executeQuery("SELECT 1");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), Integer.valueOf(1));
+        Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
+        connCreate.createStatement().executeUpdate("DROP DATABASE `" + dbName + "`");
+        connCreate.close();
+        connCheck.close();
+    }
+
+    @DataProvider(name = "validDatabaseNames")
+    public Object[][] createValidDatabaseNames() {
+        return new Object[][] {
+            { "foo" },
+            { "with-dashes" },
+            { "☺" },
+            { "foo/bar" },
+            { "foobar 20" },
+            { " leading_and_trailing_spaces   " },
+            { "multi\nline\r\ndos" },
+        };
     }
 
 }
