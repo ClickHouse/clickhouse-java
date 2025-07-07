@@ -14,6 +14,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -450,13 +451,13 @@ public class HttpAPIClientHelper {
             addHeader(
                 req,
                 ClickHouseHttpProto.HEADER_FORMAT,
-                requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+                    ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
         }
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             addHeader(
                 req,
                 ClickHouseHttpProto.HEADER_QUERY_ID,
-                requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()));
+                    (String) requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()));
         }
         addHeader(
             req,
@@ -758,22 +759,22 @@ public class HttpAPIClientHelper {
     }
 
     private static <T> void addHeader(HttpRequest req, String headerName,
-        T value)
+        String value)
     {
         if (value == null) {
             return;
         }
-        String tString = value.toString();
-        if (tString == null || tString.trim().isEmpty()) {
+
+        if (value.trim().isEmpty()) {
             return;
         }
-        if (PATTERN_HEADER_VALUE_ASCII.matcher(tString).matches()) {
-            req.addHeader(headerName, tString);
+        if (PATTERN_HEADER_VALUE_ASCII.matcher(value).matches()) {
+            req.addHeader(headerName, value);
         } else {
             try {
                 req.addHeader(
                         headerName + "*",
-                        "UTF-8''" + URLEncoder.encode(tString, StandardCharsets.UTF_8.name()));
+                        "UTF-8''" + URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
             } catch (UnsupportedEncodingException e) {
                 throw new ClientException("Failed to convert string to UTF8" , e);
             }
