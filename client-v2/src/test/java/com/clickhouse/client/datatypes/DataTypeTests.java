@@ -3,13 +3,16 @@ package com.clickhouse.client.datatypes;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
@@ -24,7 +27,10 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Time;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
@@ -38,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -189,6 +196,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case LowCardinality: // virtual type
                 case LineString: // same as Ring
                 case MultiLineString: // same as MultiPolygon
+                case Time:
+                case Time64:
                     // tested separately
                     continue dataTypesLoop;
 
@@ -406,6 +415,29 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testVariantWithTimeTypes() throws Exception {
+        testVariantWith("Time", new String[]{"field Variant(Time, String)"},
+                new Object[]{
+                        "30:33:30",
+                        TimeUnit.HOURS.toSeconds(100) + TimeUnit.MINUTES.toSeconds(10) + 30
+                },
+                new String[]{
+                        "30:33:30",
+                        "360630", // Time stored as integer by default
+                });
+
+        testVariantWith("Time64", new String[]{"field Variant(Time64, String)"},
+                new Object[]{
+                        "30:33:30",
+                        TimeUnit.HOURS.toSeconds(100) + TimeUnit.MINUTES.toSeconds(10) + 30
+                },
+                new String[]{
+                        "30:33:30",
+                        "360630",
+                });
+    }
+
+    @Test(groups = {"integration"})
     public void testDynamicWithPrimitives() throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -446,6 +478,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Enum: // virtual type
                 case LineString: // same as Ring
                 case MultiLineString: // same as MultiPolygon
+                case Time:
+                case Time64:
                     // no tests or tested in other tests
                     continue;
                 default:
@@ -599,6 +633,29 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
+    @Test(groups = {"integration"})
+    public void testDynamicWithTimeTypes() throws Exception {
+        long _999_hours = TimeUnit.HOURS.toSeconds(999);
+        testDynamicWith("Time",
+                new Object[]{
+                        _999_hours
+                },
+                new String[]{
+                        String.valueOf(_999_hours),
+                });
+
+        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
+                999999999);
+
+        testDynamicWith("Time64",
+                new Object[]{
+                        maxTime64,
+                },
+                new String[]{
+                        "3958241016481971977"
+                });
+    }
+
     @Data
     @AllArgsConstructor
     public static class DTOForDynamicPrimitivesTests {
@@ -629,6 +686,39 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertTrue(unknowTypes.isEmpty(), "There are some unknown types: " + unknowTypes);
     }
 
+    @Test(groups = {"integration"})
+    public void testTimeType() throws Exception {
+        if (isVersionMatch("(,25.4]")) {
+            return;
+        }
+
+        String table = "test_time_type";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "o_num UInt32", "time Time"), (CommandSettings) new CommandSettings().serverSetting("enable_time_time64_type", "1")).get();
+
+        String insertSQL = "INSERT INTO " + table + " VALUES (1, '999:00:00'), (2, '999:59:00'), (3, '000:00:00')";
+        try (QueryResponse response = client.query(insertSQL).get()) {}
+
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+
+        GenericRecord record = records.get(0);
+        Assert.assertEquals(record.getInteger("o_num"), 1);
+        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999));
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999)));
+
+        record = records.get(1);
+        Assert.assertEquals(record.getInteger("o_num"), 2);
+        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59));
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59)));
+
+        record = records.get(2);
+        Assert.assertEquals(record.getInteger("o_num"), 3);
+        Assert.assertEquals(record.getInteger("time"), 0);
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
+    }
+
+
     private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -637,7 +727,8 @@ public class DataTypeTests extends BaseIntegrationTest {
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
+                        .serverSetting("enable_time_time64_type", "1")).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -664,7 +755,9 @@ public class DataTypeTests extends BaseIntegrationTest {
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, actualFields),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
+                (CommandSettings) new CommandSettings()
+                        .serverSetting("allow_experimental_variant_type", "1")
+                        .serverSetting("enable_time_time64_type", "1")).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 

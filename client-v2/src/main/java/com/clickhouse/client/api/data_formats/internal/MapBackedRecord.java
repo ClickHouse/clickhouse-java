@@ -130,6 +130,9 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
                 LocalDateTime dateTime = readValue(colName);
                 return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+            case Time:
+                return Instant.ofEpochSecond(getLong(colName));
+
         }
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }

@@ -301,6 +301,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Enum16:
                 case Variant:
                 case Dynamic:
+                case Time:
+                case Time64:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -449,6 +451,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     ZonedDateTime dateTime = (ZonedDateTime) colValue;
                     return dateTime.toInstant();
                 }
+            case Time:
+            case Time64:
+                return readValue(colName);
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
@@ -631,7 +636,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Instant getInstant(int index) {
-        return readValue(index);
+        return getInstant(schema.columnIndexToName(index));
     }
 
     @Override
