@@ -100,7 +100,7 @@ public class HttpAPIClientHelper {
     private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
         "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
     private static final Pattern PATTERN_WHITESPACE = Pattern.compile(
-        "\s+", Pattern.UNICODE_CHARACTER_CLASS);
+        "\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     private final CloseableHttpClient httpClient;
 
