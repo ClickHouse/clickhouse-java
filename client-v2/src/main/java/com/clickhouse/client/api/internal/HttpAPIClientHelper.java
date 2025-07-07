@@ -64,6 +64,7 @@ import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
@@ -763,15 +764,19 @@ public class HttpAPIClientHelper {
             return;
         }
         String tString = value.toString();
-        if (tString.isBlank()) {
+        if (tString == null || tString.trim().isEmpty()) {
             return;
         }
         if (PATTERN_HEADER_VALUE_ASCII.matcher(tString).matches()) {
             req.addHeader(headerName, tString);
         } else {
-            req.addHeader(
-                headerName + "*",
-                "UTF-8''" + URLEncoder.encode(tString, StandardCharsets.UTF_8));
+            try {
+                req.addHeader(
+                        headerName + "*",
+                        "UTF-8''" + URLEncoder.encode(tString, StandardCharsets.UTF_8.name()));
+            } catch (UnsupportedEncodingException e) {
+                throw new ClientException("Failed to convert string to UTF8" , e);
+            }
         }
     }
 
