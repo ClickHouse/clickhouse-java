@@ -11,16 +11,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -180,9 +179,9 @@ public enum ClientConfigProperties {
     TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
 
     /**
-     * Comma separated key-value pairs of IP address/host to SNI mapping. Special mapping {@code _default_} - for default SNI when no match found. Without default mapping only matched targets will have SNI parameter.
+     * SNI SSL parameter that will be set for each outbound SSL socket.
      */
-    SSL_SNI_MAPPING("ssl_sni_mapping", ""),
+    SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);

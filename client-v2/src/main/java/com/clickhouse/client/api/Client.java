@@ -1030,6 +1030,19 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+
+        /**
+         * SNI SSL parameter that will be set for each outbound SSL socket.
+         * SNI stands for Server Name Indication - an extension to the TLS protocol that allows multiple domains to share the same IP address.
+         *
+         * @param sni - SNI parameter
+         * @return this builder instance
+         */
+        public Builder sslSocketSNI(String sni) {
+            this.configuration.put(ClientConfigProperties.SSL_SOCKET_SNI.getKey(), sni);
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {

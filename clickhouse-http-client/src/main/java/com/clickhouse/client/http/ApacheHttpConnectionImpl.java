@@ -397,8 +397,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     static class SSLSocketFactory extends SSLConnectionSocketFactory {
         private final ClickHouseConfig config;
-        private final Map<String, String> sniMapping;
-        private final String defaultSNI;
+        private final SNIHostName defaultSNI;
 
         private SSLSocketFactory(ClickHouseConfig config) throws SSLException {
             super(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
@@ -407,9 +406,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                             ? new DefaultHostnameVerifier()
                             : (hostname, session) -> true); // NOSONAR
             this.config = config;
-            String sniMappingStr = config.getStrOption(ClickHouseClientOption.SSL_SNI_MAPPING);
-            sniMapping = ClickHouseOption.toKeyValuePairs(sniMappingStr);
-            defaultSNI = sniMapping.get("_default_");
+            String sni = config.getStrOption(ClickHouseClientOption.SSL_SOCKET_SNI);
+            defaultSNI = sni == null || sni.trim().isEmpty() ? null : new SNIHostName(sni);
         }
 
         @Override
@@ -420,25 +418,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         @Override
         protected void prepareSocket(SSLSocket socket, HttpContext context) throws IOException {
             super.prepareSocket(socket, context);
-
-            if (!sniMapping.isEmpty()) {
-                InetAddress remote = socket.getInetAddress();
-                if (remote != null) { //  actually should be not null here
-                    String sni = sniMapping.get(remote.getHostAddress());
-                    if (sni == null) {
-                        sni = sniMapping.get(remote.getHostName());
-                        if (sni == null) {
-                            sni = defaultSNI;
-                        }
-                    }
-                    if (sni != null && !sni.isEmpty()) {
-                        SSLParameters sslParams = socket.getSSLParameters();
-                        sslParams.setServerNames(Collections.singletonList(new SNIHostName(sni)));
-                        socket.setSSLParameters(sslParams);
-                    }
-                } else {
-                    log.warn("Failed to apply SNI - remote address is null");
-                }
+            if (defaultSNI != null) {
+                SSLParameters sslParams = socket.getSSLParameters();
+                sslParams.setServerNames(Collections.singletonList(defaultSNI));
+                socket.setSSLParameters(sslParams);
             }
         }
 
