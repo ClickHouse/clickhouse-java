@@ -210,6 +210,7 @@ public class JdbcConfigurationTest {
             { "jdbc:clickhouse://foo.bar?x&y=z" },
             { "jdbc:clickhouse://foo.bar?x==&y=z" },
             { "jdbc:clickhouse://localhost?☺=value1" },
+            // multiple endpoints are invalid
             { "jdbc:clickhouse://foo,bar" },
             { "jdbc:clickhouse://foo,bar.com:8123" },
         };
