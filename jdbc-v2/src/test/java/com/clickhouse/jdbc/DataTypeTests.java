@@ -294,6 +294,37 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = { "integration" })
+    public void testUUIDTypes() throws Exception {
+        Random rand = new Random();
+        runQuery("CREATE TABLE test_uuids (order Int8, "
+                + "uuid Nullable(UUID) "
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert null values
+        insertData("INSERT INTO test_uuids VALUES ( 1, NULL)");
+
+        // Insert random values
+        UUID uuid = UUID.randomUUID();
+        insertData("INSERT INTO test_uuids VALUES ( 2, "
+                + "'" + uuid + "')");
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT uuid  FROM test_uuids ORDER BY order")) {
+
+            assertTrue(rs.next());
+            assertNull((UUID) rs.getObject("uuid"));
+
+
+            assertTrue(rs.next());
+            assertEquals((UUID) rs.getObject("uuid"), uuid);
+
+            assertFalse(rs.next());
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testDecimalTypes() throws SQLException {
         runQuery("CREATE TABLE test_decimals (order Int8, "

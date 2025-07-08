@@ -333,7 +333,9 @@ public enum ClientConfigProperties {
             }
         }
 
-        LOG.warn("Unknown and unmapped config properties: {}", tmpMap);
+        if (!tmpMap.isEmpty()) {
+            LOG.warn("Unknown and unmapped config properties: {}", tmpMap);
+        }
 
         return parsedConfig;
     }

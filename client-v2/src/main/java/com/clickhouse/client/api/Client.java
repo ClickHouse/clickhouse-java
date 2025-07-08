@@ -1218,7 +1218,7 @@ public class Client implements AutoCloseable {
         Integer retry = (Integer) configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         final int maxRetries = retry == null ? 0 : retry;
 
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
@@ -1421,7 +1421,7 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
 
         StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);

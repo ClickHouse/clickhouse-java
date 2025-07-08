@@ -166,10 +166,9 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         appendParameter(ctx.start.getStartIndex());
     }
 
-
     @Override
-    public void enterColumnExprParamWithCast(ClickHouseParser.ColumnExprParamWithCastContext ctx) {
-        appendParameter(ctx.start.getStartIndex());
+    public void enterColumnExprPrecedence3(ClickHouseParser.ColumnExprPrecedence3Context ctx) {
+        super.enterColumnExprPrecedence3(ctx);
     }
 
     @Override
