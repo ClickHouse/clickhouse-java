@@ -825,7 +825,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
 
         // Insert using common java objects
-        final String INSERT_SQL = "INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)";
+        final String INSERT_SQL = "INSERT INTO test_arrays VALUES ( 2, ?, ?, ?, ?)";
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement(INSERT_SQL)) {
                 stmt.setObject(1, array);
