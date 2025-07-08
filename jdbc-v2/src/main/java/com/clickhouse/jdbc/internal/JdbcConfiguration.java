@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.jdbc.Driver;
 import com.google.common.collect.ImmutableMap;
 
@@ -11,11 +12,14 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -38,7 +42,7 @@ public class JdbcConfiguration {
 
     private final Map<String, String> driverProperties;
 
-    private final String connectionUrl;
+    private final Set<String> connectionURLs;
 
     public boolean isDisableFrameworkDetection() {
         return disableFrameworkDetection;
@@ -74,7 +78,7 @@ public class JdbcConfiguration {
             clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
         }
 
-        this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
+        this.connectionURLs = createConnectionURLs(tmpConnectionUrl, useSSL);
         this.isIgnoreUnsupportedRequests = Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
 
@@ -109,29 +113,60 @@ public class JdbcConfiguration {
         }
     }
 
-    public String getConnectionUrl() {
-        return connectionUrl;
+    Set<String> getConnectionURLs() {
+        return Collections.unmodifiableSet(connectionURLs);
     }
 
     /**
-     * Returns normalized URL that can be passed as parameter to Client#addEndpoint().
-     * Returned url has only schema and authority and doesn't have query parameters or path.
+     * Returns normalized URLs that can be passed as parameter to Client#addEndpoint().
+     * Returned urls have only schema and authority and doesn't have query parameters or path.
      * JDBC URL should have only a single path parameter to specify database name.
      * Note: Some BI tools do not let pass JDBC URL, so ssl is passed as property.
-     * @param url - JDBC url
+     * @param url - JDBC url without path and query parameters
      * @param ssl - if SSL protocol should be used
-     * @return URL without JDBC prefix
+     * @return URLs to be used as endpoints
      */
-    private static String createConnectionURL(String url, boolean ssl) throws SQLException {
-        String adjustedURL = ssl && url.startsWith("http://")
-            ? "https://" + url.substring(7)
-            : url;
+    private static Set<String> createConnectionURLs(String url, boolean ssl) throws SQLException {
         try {
-            URI tmp = URI.create(adjustedURL);
-            return tmp.toASCIIString();
+            URI tmp = URI.create(url);
+            String authority = tmp.getRawAuthority();
+            if (!authority.contains(",")) {
+                return Collections.singleton(checkAndAdjustURL(tmp, ssl));
+            }
+            // split() with single comma character is not expensive
+            String[] hosts = authority.split(",");
+            if (hosts.length == 0) {
+                throw new IllegalArgumentException("No endpoints in URL '" + url + "'");
+            }
+            String proto = tmp.getScheme();
+            return Arrays.stream(hosts)
+                .map(h -> checkAndAdjustURL(URI.create(proto + "://" + h), ssl))
+                .collect(Collectors.toSet());
         } catch (IllegalArgumentException iae) {
             throw new SQLException("Failed to parse URL '" + url + "'", iae);
         }
+    }
+
+    private static String checkAndAdjustURL(URI url, boolean ssl)
+        throws IllegalArgumentException
+    {
+        if (url.getAuthority() == null
+            || url.getAuthority().trim().isEmpty()
+            || url.getAuthority().startsWith(":"))
+        {
+            throw new IllegalArgumentException(
+                "URL has invalid authority '" + url.getAuthority() + "'");
+        }
+        String asciiString = url.toASCIIString();
+        String sslProtoAdjustedURL = ssl && asciiString.startsWith("http://")
+            ? "https://" + asciiString.substring(7)
+            : asciiString;
+        if (url.getPort() > -1) {
+            return sslProtoAdjustedURL;
+        }
+        return ssl || asciiString.startsWith("https://")
+            ? sslProtoAdjustedURL + ":" + String.valueOf(ClickHouseHttpProto.DEFAULT_HTTPS_PORT)
+            : sslProtoAdjustedURL + ":" + String.valueOf(ClickHouseHttpProto.DEFAULT_HTTP_PORT);
     }
 
     private static String stripJDBCPrefix(String url) {
@@ -266,8 +301,8 @@ public class JdbcConfiguration {
     }
 
     public Client.Builder applyClientProperties(Client.Builder builder) {
-        builder.addEndpoint(connectionUrl)
-                .setOptions(clientProperties);
+        builder.setOptions(clientProperties);
+        connectionURLs.forEach(builder::addEndpoint);
         return builder;
     }
 
