@@ -230,7 +230,6 @@ public class JdbcUtils {
                 }
                 return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
             } else if (type == java.sql.Array.class && value instanceof List<?>) {
-                System.out.println(value);
                 if (column != null && column.getArrayBaseColumn() != null) {
                     return new Array(convertList(((List) value), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
                 }

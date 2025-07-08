@@ -343,6 +343,8 @@ public enum ClientConfigProperties {
 
     /**
      * Converts given string to key value pairs.
+     * This is very simple implementation that do not handle edge cases like
+     * {@code k1=v1, ,k2=v2}
      *
      * @param str string
      * @return non-null key value pairs
@@ -391,6 +393,7 @@ public enum ClientConfigProperties {
 
         return Collections.unmodifiableMap(map);
     }
+
 
 
     public static String mapToString(Map<?,?> map, Function<Object, String> valueConverter) {

@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
-    public static final Map<ClickHouseDataType, Class<?>> NO_TYPE_HINT_MAPPING = null;
+    public static final Map<ClickHouseDataType, Class<?>> NO_TYPE_HINT_MAPPING = Collections.emptyMap();
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
 
