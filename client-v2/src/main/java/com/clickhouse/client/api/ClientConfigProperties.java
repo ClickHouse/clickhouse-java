@@ -11,16 +11,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -178,6 +177,11 @@ public enum ClientConfigProperties {
      * Used by binary readers to convert values into desired Java type.
      */
     TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
+
+    /**
+     * SNI SSL parameter that will be set for each outbound SSL socket.
+     */
+    SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
@@ -217,6 +221,9 @@ public enum ClientConfigProperties {
     public static final String HTTP_HEADER_PREFIX = "http_header_";
 
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
+
+    // Key used to identify default value in configuration map
+    public static final String DEFAULT_KEY = "_default_";
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;

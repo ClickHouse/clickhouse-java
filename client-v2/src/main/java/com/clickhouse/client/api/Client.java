@@ -602,6 +602,11 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Tell client that compression will be handled by application.
+         * @param enabled - indicates that feature is enabled.
+         * @return
+         */
         public Builder appCompressedData(boolean enabled) {
             this.configuration.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), String.valueOf(enabled));
             return this;
@@ -1022,6 +1027,19 @@ public class Client implements AutoCloseable {
                     ClientConfigProperties.mapToString(typeHintMapping, (v) -> {
                         return ((Class<?>) v).getName();
                     }));
+            return this;
+        }
+
+
+        /**
+         * SNI SSL parameter that will be set for each outbound SSL socket.
+         * SNI stands for Server Name Indication - an extension to the TLS protocol that allows multiple domains to share the same IP address.
+         *
+         * @param sni - SNI parameter
+         * @return this builder instance
+         */
+        public Builder sslSocketSNI(String sni) {
+            this.configuration.put(ClientConfigProperties.SSL_SOCKET_SNI.getKey(), sni);
             return this;
         }
 

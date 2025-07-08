@@ -451,7 +451,14 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     CONNECTION_TTL("connection_ttl", 0L,
             "Connection time to live in milliseconds. 0 or negative number means no limit."),
-    MEASURE_REQUEST_TIME("debug_measure_request_time", false, "Whether to measure request time. If true, the time will be logged in debug mode.");
+    MEASURE_REQUEST_TIME("debug_measure_request_time", false, "Whether to measure request time. If true, the time will be logged in debug mode."),
+
+    /**
+     *  SNI SSL parameter that will be set for each outbound SSL socket.
+     */
+    SSL_SOCKET_SNI("ssl_socket_sni", "", " SNI SSL parameter that will be set for each outbound SSL socket.")
+
+    ;
 
     private final String key;
     private final Serializable defaultValue;
