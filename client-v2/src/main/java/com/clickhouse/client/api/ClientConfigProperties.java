@@ -1,6 +1,8 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,10 +11,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.Consumer;
@@ -168,6 +173,11 @@ public enum ClientConfigProperties {
 
     BINARY_READER_USE_PREALLOCATED_BUFFERS("client_allow_binary_reader_to_reuse_buffers", Boolean.class, "false"),
 
+    /**
+     * Defines mapping between ClickHouse data type and target Java type
+     * Used by binary readers to convert values into desired Java type.
+     */
+    TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
@@ -278,6 +288,10 @@ public enum ClientConfigProperties {
             return TimeZone.getTimeZone(value);
         }
 
+        if (valueType.equals(Map.class)) {
+            return toKeyValuePairs(value);
+        }
+
         return null;
     }
 
@@ -301,7 +315,15 @@ public enum ClientConfigProperties {
         for (ClientConfigProperties config : ClientConfigProperties.values()) {
             String value = tmpMap.remove(config.getKey());
             if (value != null) {
-                parsedConfig.put(config.getKey(), config.parseValue(value));
+                Object parsedValue;
+                switch (config) {
+                    case TYPE_HINT_MAPPING:
+                        parsedValue = translateTypeHintMapping(value);
+                        break;
+                    default:
+                        parsedValue = config.parseValue(value);
+                }
+                parsedConfig.put(config.getKey(), parsedValue);
             }
         }
 
@@ -316,5 +338,91 @@ public enum ClientConfigProperties {
         }
 
         return parsedConfig;
+    }
+
+
+    /**
+     * Converts given string to key value pairs.
+     * This is very simple implementation that do not handle edge cases like
+     * {@code k1=v1, ,k2=v2}
+     *
+     * @param str string
+     * @return non-null key value pairs
+     */
+    public static Map<String, String> toKeyValuePairs(String str) {
+        if (str == null || str.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> map = new LinkedHashMap<>();
+        String key = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = str.length(); i < len; i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' && i + 1 < len) {
+                ch = str.charAt(++i);
+                builder.append(ch);
+                continue;
+            }
+
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    builder.append(ch);
+                }
+            } else if (ch == '=' && key == null) {
+                key = builder.toString().trim();
+                builder.setLength(0);
+            } else if (ch == ',' && key != null) {
+                String value = builder.toString().trim();
+                builder.setLength(0);
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    map.put(key, value);
+                }
+                key = null;
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (key != null && builder.length() > 0) {
+            String value = builder.toString().trim();
+            if (!key.isEmpty() && !value.isEmpty()) {
+                map.put(key, value);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
+
+
+    public static String mapToString(Map<?,?> map, Function<Object, String> valueConverter) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(valueConverter.apply(entry.getValue())).append(",");
+        }
+
+        if (sb.length() > 0) {
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    public static Map<ClickHouseDataType, Class<?>> translateTypeHintMapping(String mappingStr) {
+        if (mappingStr == null || mappingStr.isEmpty()) {
+            return AbstractBinaryFormatReader.NO_TYPE_HINT_MAPPING;
+        }
+
+        Map<String, String> mapping= ClientConfigProperties.toKeyValuePairs(mappingStr);
+        Map<ClickHouseDataType, Class<?>> hintMapping = new HashMap<>();
+        try {
+            for (Map.Entry<String, String> entry : mapping.entrySet()) {
+                hintMapping.put(ClickHouseDataType.of(entry.getKey()),
+                        Class.forName(entry.getValue()));
+            }
+        } catch (ClassNotFoundException e) {
+            throw new ClientMisconfigurationException("Failed to translate type-hint mapping", e);
+        }
+        return hintMapping;
     }
 }
