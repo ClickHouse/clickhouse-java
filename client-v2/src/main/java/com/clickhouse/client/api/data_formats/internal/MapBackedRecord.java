@@ -5,7 +5,6 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.*;
 
 import java.math.BigDecimal;
@@ -13,7 +12,6 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAmount;
 import java.util.HashMap;
 import java.util.List;
@@ -201,6 +199,8 @@ public class MapBackedRecord implements GenericRecord {
         Object value = readValue(colName);
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else if (value instanceof List<?>) {
+            return (List<T>) value;
         } else {
             throw new ClientException("Column is not of array type");
         }

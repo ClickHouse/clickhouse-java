@@ -4,10 +4,7 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
@@ -26,16 +23,10 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
-import com.clickhouse.data.format.BinaryStreamUtils;
-import lombok.Data;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -59,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
@@ -242,7 +232,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");
-        } catch (ClientException e) {
+        } catch (ClickHouseException e) {
             e.printStackTrace();
             assertTrue(e.getCause() instanceof  IllegalArgumentException);
         }

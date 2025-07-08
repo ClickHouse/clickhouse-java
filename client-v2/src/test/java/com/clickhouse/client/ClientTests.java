@@ -206,7 +206,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 27); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 31); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -239,7 +239,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 28); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 32); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -285,7 +285,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .enableConnectionPool(true)
                 .setConnectionTTL(-1, MILLIS)
                 .retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
-                        ClientFaultCause.ConnectionRequestTimeout)
+                        ClientFaultCause.ConnectionRequestTimeout, ClientFaultCause.ServerRetryable)
                 .setClientNetworkBufferSize(300_000)
                 .setMaxRetries(3)
                 .allowBinaryReaderToReuseBuffers(false)
@@ -296,8 +296,8 @@ public class ClientTests extends BaseIntegrationTest {
                 .useHttpCompression(false)
                 .appCompressedData(false)
                 .setSocketTimeout(0, SECONDS)
-                .setSocketRcvbuf(8196)
-                .setSocketSndbuf(8196)
+                .setSocketRcvbuf(804800)
+                .setSocketSndbuf(804800)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
@@ -306,7 +306,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 27); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 31); // to check everything is set. Increment when new added.
         }
     }
 

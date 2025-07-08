@@ -7,6 +7,7 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
@@ -36,7 +37,9 @@ import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
@@ -115,7 +118,7 @@ public class Client implements AutoCloseable {
     private HttpAPIClientHelper httpClientHelper = null;
 
     private final List<Endpoint> endpoints;
-    private final Map<String, String> configuration;
+    private final Map<String, Object> configuration;
 
     private final Map<String, String> readOnlyConfig;
     
@@ -131,6 +134,8 @@ public class Client implements AutoCloseable {
 
     private final Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
+    private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
+
     // Server context
     private String serverVersion;
     private Object metricsRegistry;
@@ -145,15 +150,16 @@ public class Client implements AutoCloseable {
     private Client(Set<String> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         // Simple initialization
-        this.configuration = configuration;
-        this.readOnlyConfig = Collections.unmodifiableMap(this.configuration);
+        this.configuration = ClientConfigProperties.parseConfigMap(configuration);
+        this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
 
         // Serialization
         this.pojoSerDe = new POJOSerDe(columnToMethodMatchingStrategy);
 
         // Operation Execution
-        boolean isAsyncEnabled = MapUtils.getFlag(this.configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey(), false);
+        boolean isAsyncEnabled = ClientConfigProperties.ASYNC_OPERATIONS.getOrDefault(this.configuration);
+
         if (isAsyncEnabled && sharedOperationExecutor == null) {
             this.isSharedOpExecutorOwned = true;
             this.sharedOperationExecutor = Executors.newCachedThreadPool(new DefaultThreadFactory("chc-operation"));
@@ -179,7 +185,7 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(configuration, metricsRegistry, initSslContext);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -191,6 +197,8 @@ public class Client implements AutoCloseable {
         }
 
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
+
+        this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
     }
 
     /**
@@ -217,7 +225,7 @@ public class Client implements AutoCloseable {
      * @return String - actual default database name.
      */
     public String getDefaultDatabase() {
-        return this.configuration.get("database");
+        return (String) this.configuration.get(ClientConfigProperties.DATABASE.getKey());
     }
 
 
@@ -818,7 +826,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Sets list of causes that should be retried on.
-         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout]}
+         * Default {@code [NoHttpResponse, ConnectTimeout, ConnectionRequestTimeout, ServerRetryable]}
          * Use {@link ClientFaultCause#None} to disable retries.
          *
          * @param causes - list of causes
@@ -850,7 +858,7 @@ public class Client implements AutoCloseable {
          * @return
          */
         public Builder allowBinaryReaderToReuseBuffers(boolean reuse) {
-            this.configuration.put("client_allow_binary_reader_to_reuse_buffers", String.valueOf(reuse));
+            this.configuration.put(ClientConfigProperties.BINARY_READER_USE_PREALLOCATED_BUFFERS.getKey(), String.valueOf(reuse));
             return this;
         }
 
@@ -1008,26 +1016,41 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Defines mapping between ClickHouse data type and target Java type
+         * Used by binary readers to convert values into desired Java type.
+         * @param typeHintMapping - map between ClickHouse data type and Java class
+         * @return this builder instance
+         */
+        public Builder typeHintMapping(Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+            this.configuration.put(ClientConfigProperties.TYPE_HINT_MAPPING.getKey(),
+                    ClientConfigProperties.mapToString(typeHintMapping, (v) -> {
+                        return ((Class<?>) v).getName();
+                    }));
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
             // check if username and password are empty. so can not initiate client?
-            if (!this.configuration.containsKey("access_token") &&
-                (!this.configuration.containsKey("user") || !this.configuration.containsKey("password")) &&
-                !MapUtils.getFlag(this.configuration, "ssl_authentication", false) &&
-                !this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION))) {
+            boolean useSslAuth = MapUtils.getFlag(this.configuration, ClientConfigProperties.SSL_AUTH.getKey());
+            boolean hasAccessToken = this.configuration.containsKey(ClientConfigProperties.ACCESS_TOKEN.getKey());
+            boolean hasUser = this.configuration.containsKey(ClientConfigProperties.USER.getKey());
+            boolean hasPassword = this.configuration.containsKey(ClientConfigProperties.PASSWORD.getKey());
+            boolean customHttpHeaders = this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION));
+
+            if (!(useSslAuth || hasAccessToken || hasUser || hasPassword || customHttpHeaders)) {
                 throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
             }
 
-            if (this.configuration.containsKey("ssl_authentication") &&
-                    (this.configuration.containsKey("password") || this.configuration.containsKey("access_token"))) {
+            if (useSslAuth && (hasAccessToken || hasPassword)) {
                 throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
             }
 
-            if (this.configuration.containsKey("ssl_authentication") &&
-                !this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
+            if (useSslAuth && !this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
                 throw new IllegalArgumentException("SSL authentication requires a client certificate");
             }
 
@@ -1164,17 +1187,16 @@ public class Client implements AutoCloseable {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
-
+        //Add format to the settings
+        if (settings == null) {
+            settings = new InsertSettings();
+        }
 
         String operationId = registerOperationMetrics();
         settings.setOperationId(operationId);
         globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
-        //Add format to the settings
-        if (settings == null) {
-            settings = new InsertSettings();
-        }
 
         boolean hasDefaults = this.tableSchemaHasDefaults.get(tableName);
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
@@ -1198,11 +1220,11 @@ public class Client implements AutoCloseable {
         }
 
 
-        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        final int maxRetries = retry == null ? 0 : Integer.parseInt(retry);
+        Integer retry = (Integer) configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
+        final int maxRetries = retry == null ? 0 : retry;
 
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
-        final InsertSettings finalSettings = settings;
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1324,8 +1346,7 @@ public class Client implements AutoCloseable {
                                                     InsertSettings settings) {
 
         final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
-                Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(),
-                        ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getDefaultValue())) :
+                (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
                 settings.getInputStreamCopyBufferSize();
 
         if (writeBufferSize <= 0) {
@@ -1397,17 +1418,16 @@ public class Client implements AutoCloseable {
 
         Supplier<InsertResponse> responseSupplier;
 
-
         final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
-                Integer.parseInt(configuration.getOrDefault(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), "8192")) :
+                (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
                 settings.getInputStreamCopyBufferSize();
 
         if (writeBufferSize <= 0) {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.name());
-        final InsertSettings finalSettings = settings;
+        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
 
         StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);
         if (columnNames != null && !columnNames.isEmpty()) {
@@ -1469,7 +1489,8 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+            LOG.warn("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+            throw lastException;
         };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1536,14 +1557,13 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
-        applyDefaults(settings);
 
         Supplier<QueryResponse> responseSupplier;
 
             if (queryParams != null) {
                 settings.setOption("statement_params", queryParams);
             }
-            final QuerySettings finalSettings = settings;
+            final QuerySettings finalSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
             responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1591,8 +1611,8 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-
-                throw new ClientException("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
+                LOG.warn("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
+                throw lastException;
             };
 
         return runAsyncOperation(responseSupplier, settings.getAllSettings());
@@ -1921,27 +1941,24 @@ public class Client implements AutoCloseable {
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
         ClickHouseBinaryFormatReader reader = null;
         // Using caching buffer allocator is risky so this parameter is not exposed to the user
-        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers");
+        boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers", false);
         BinaryStreamReader.ByteBufferAllocator byteBufferPool = useCachingBufferAllocator ?
                 new BinaryStreamReader.CachingByteBufferAllocator() :
                 new BinaryStreamReader.DefaultByteBufferAllocator();
-
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool);
+                        byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool);
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping);
                 break;
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool);
+                        byteBufferPool, typeHintMapping);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());
@@ -1957,25 +1974,6 @@ public class Client implements AutoCloseable {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
-    }
-
-    private void applyDefaults(QuerySettings settings) {
-        Map<String, Object> settingsMap = settings.getAllSettings();
-
-        String key = ClientConfigProperties.USE_SERVER_TIMEZONE.getKey();
-        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
-            settings.setOption(key, MapUtils.getFlag(configuration, key));
-        }
-
-        key = ClientConfigProperties.USE_TIMEZONE.getKey();
-        if ( !settings.getUseServerTimeZone() && !settingsMap.containsKey(key) && configuration.containsKey(key)) {
-            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
-        }
-
-        key = ClientConfigProperties.SERVER_TIMEZONE.getKey();
-        if (!settingsMap.containsKey(key) && configuration.containsKey(key)) {
-            settings.setOption(key, TimeZone.getTimeZone(configuration.get(key)));
-        }
     }
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
@@ -2005,7 +2003,7 @@ public class Client implements AutoCloseable {
 
     /** Returns operation timeout in seconds */
     protected int getOperationTimeout() {
-        return Integer.parseInt(configuration.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()));
+        return ClientConfigProperties.MAX_EXECUTION_TIME.getOrDefault(configuration);
     }
 
     /**
@@ -2018,7 +2016,7 @@ public class Client implements AutoCloseable {
     }
 
     public String getUser() {
-        return this.configuration.get(ClientConfigProperties.USER.getKey());
+        return (String) this.configuration.get(ClientConfigProperties.USER.getKey());
     }
 
     public String getServerVersion() {
@@ -2026,7 +2024,8 @@ public class Client implements AutoCloseable {
     }
 
     public String getServerTimeZone() {
-        return this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
+        TimeZone tz = (TimeZone) this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
+        return tz == null ? null : tz.getID();
     }
 
     public String getClientVersion() {
@@ -2039,10 +2038,9 @@ public class Client implements AutoCloseable {
      * @param dbRoles
      */
     public void setDBRoles(Collection<String> dbRoles) {
-        this.configuration.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), ClientConfigProperties.commaSeparated(dbRoles));
-        this.unmodifiableDbRolesView =
-                Collections.unmodifiableCollection(ClientConfigProperties.valuesFromCommaSeparated(
-                        this.configuration.get(ClientConfigProperties.SESSION_DB_ROLES.getKey())));
+        List<String> tmp = new ArrayList<>(dbRoles);
+        this.configuration.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), tmp);
+        this.unmodifiableDbRolesView = ImmutableList.copyOf(tmp);
     }
 
     public void updateClientName(String name) {
@@ -2073,4 +2071,17 @@ public class Client implements AutoCloseable {
     }
 
     public static final String VALUES_LIST_DELIMITER = ",";
+
+    /**
+     * Produces a merge of operation and client settings.
+     * Operation settings override client settings
+     * @param opSettings - operation settings
+     * @return request settings - merged client and operation settings
+     */
+    private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
+        Map<String, Object> requestSettings = new HashMap<>();
+        requestSettings.putAll(configuration);
+        requestSettings.putAll(opSettings);
+        return requestSettings;
+    }
 }
