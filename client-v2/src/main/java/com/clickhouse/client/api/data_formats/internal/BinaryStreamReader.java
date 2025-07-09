@@ -33,10 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -44,6 +42,8 @@ import java.util.concurrent.TimeUnit;
  * It is done mainly to reduce extra memory allocations for reading numbers.
  */
 public class BinaryStreamReader {
+
+    public static final Class<?> NO_TYPE_HINT = null;
 
     private final InputStream input;
 
@@ -55,6 +55,8 @@ public class BinaryStreamReader {
 
     private final boolean jsonAsString;
 
+    private final Class<?> arrayDefaultTypeHint;
+
     /**
      * Createa a BinaryStreamReader instance that will use the provided buffer allocator.
      *
@@ -62,13 +64,18 @@ public class BinaryStreamReader {
      * @param timeZone - timezone to use for date and datetime values
      * @param log - logger
      * @param bufferAllocator - byte buffer allocator
+     * @param jsonAsString - use string to serialize/deserialize JSON columns
+     * @param typeHintMapping - what type use as hint if hint is not set or may not be known.
      */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString) {
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
         this.bufferAllocator = bufferAllocator;
         this.jsonAsString = jsonAsString;
+
+        this.arrayDefaultTypeHint = typeHintMapping == null ||
+                typeHintMapping.isEmpty()? NO_TYPE_HINT : typeHintMapping.get(ClickHouseDataType.Array);
     }
 
     /**
@@ -219,6 +226,7 @@ public class BinaryStreamReader {
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case Array:
+                    if (typeHint == null) { typeHint = arrayDefaultTypeHint;}
                     return convertArray(readArray(actualColumn), typeHint);
                 case Map:
                     return (T) readMap(actualColumn);

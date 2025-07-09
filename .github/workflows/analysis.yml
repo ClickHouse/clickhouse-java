@@ -29,6 +29,7 @@ on:
 
 env:
   PREFERRED_LTS_VERSION: "24.3"
+  PR_NUMBER: ${{ github.event.pull_request.number || '' }}
 
 jobs:
   sonarcloud:
@@ -85,32 +86,30 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
       - name: Update sonar config
         run: |
-          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
+          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-java\2|' \
             -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
         if: github.repository_owner == 'ClickHouse'
       - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+          mvn -q --no-transfer-progress --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -DskipTests install
       - name: Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-          pwd
-          ls -l ./client-v2/target/site/jacoco-aggregate/jacoco.xml
+          mvn -fn --no-transfer-progress --batch-mode -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+            -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
         continue-on-error: true
       - name: Generate and post coverage report
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          pwd
-          ls -la
-          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V2 Coverage"
-          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V2 Coverage"
-          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "JDBC V1 Coverage"
-          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --pr ${{ github.event.pull_request.number }} --title "Client V1 Coverage"
+          PR_ARG=''
+          if [ ! -z $PR_NUMBER ]; then PR_ARG="--pr $PR_NUMBER"; fi;
+          node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --title "Client V2 Coverage" ${PR_ARG}
+          node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --title "JDBC V2 Coverage" ${PR_ARG}
+          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --title "JDBC V1 Coverage" ${PR_ARG}
+          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --title "Client V1 Coverage" ${PR_ARG}
           cat *-cov.md

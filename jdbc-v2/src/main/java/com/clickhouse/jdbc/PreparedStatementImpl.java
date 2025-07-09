@@ -785,6 +785,32 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 listString.append("]");
 
                 return listString.toString();
+            } else if (x.getClass().isArray()) {
+                StringBuilder listString = new StringBuilder();
+                listString.append("[");
+
+
+                if (x.getClass().getComponentType().isPrimitive()) {
+                    int len = java.lang.reflect.Array.getLength(x);
+                    for (int  i = 0; i < len; i++) {
+                        if (i > 0) {
+                            listString.append(", ");
+                        }
+                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i)));
+                    }
+                } else {
+                    int i = 0;
+                    for (Object item : (Object[]) x) {
+                        if (i > 0) {
+                            listString.append(", ");
+                        }
+                        listString.append(encodeObject(item));
+                        i++;
+                    }
+                }
+                listString.append("]");
+
+                return listString.toString();
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");

@@ -167,10 +167,9 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         appendParameter(ctx.start.getStartIndex());
     }
 
-
     @Override
-    public void enterColumnExprParamWithCast(ClickHouseParser.ColumnExprParamWithCastContext ctx) {
-        appendParameter(ctx.start.getStartIndex());
+    public void enterColumnExprPrecedence3(ClickHouseParser.ColumnExprPrecedence3Context ctx) {
+        super.enterColumnExprPrecedence3(ctx);
     }
 
     @Override
@@ -213,10 +212,17 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     }
 
     @Override
+    public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
+        if (ctx.tableIdentifier() != null) {
+            this.table = SqlParser.unquoteIdentifier(ctx.tableIdentifier().getText());
+        }
+    }
+
+    @Override
     public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
         ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
         if (tableId != null) {
-            this.table = tableId.identifier().IDENTIFIER().getText();
+            this.table = SqlParser.unquoteIdentifier(tableId.getText());
         }
 
         ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();

@@ -868,6 +868,17 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getInt(1), 1);
             }
+
+            final String selectSQL = "SELECT * FROM `test_issue_2327` WHERE " +
+                    "`" + getDatabase() + "`.`test_issue_2327`.`uuid` IN (CAST(? AS UUID))";
+            try (PreparedStatement stmt = conn.prepareStatement(selectSQL)) {
+                stmt.setString(1, uuid.toString());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), "testId01");
+                    Assert.assertEquals(rs.getString(2), uuid.toString());
+                }
+            }
         }
 
     }
@@ -1076,6 +1087,35 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     Assert.assertEquals(rs.getInt(3), 123);
                     Assert.assertEquals(rs.getString(4), uuid.toString());
                     Assert.assertEquals(rs.getInt(5), 3003001);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSelectWithTableAliasAsKeyword() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            String[] keywords = {
+                    "ALL", "AND", "ANY", "AS", "ASC", "BY", "CREATE", "DATABASE", "DELETE", "DESC", "DISTINCT", "DROP", "EXISTS", "FROM", "GRANT", "GROUP", "HAVING", "INSERT", "INTO", "LIMIT", "NOT", "NULL", "ON", "ORDER", "REVOKE", "SELECT", "SET", "TABLE", "TO", "UPDATE", "VALUES", "VIEW", "WHILE", "WITH", "WHERE"
+            };
+
+            for (String keyword : keywords) {
+                final String table = keyword;
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                    stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+                    stmt.execute("INSERT INTO `" + table + "` VALUES (1000, 'test')");
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT v1, v2 FROM " + table + " AS " + keyword + " WHERE v1 = ? AND v2 = ?")) {
+                    stmt.setInt(1, 1000);
+                    stmt.setString(2, "test");
+                    stmt.execute();
+                    try (ResultSet rs = stmt.getResultSet()) {
+                        assertTrue(rs.next());
+                        Assert.assertEquals(rs.getInt(1), 1000);
+                        Assert.assertEquals(rs.getString(2), "test");
+                    }
                 }
             }
         }

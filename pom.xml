@@ -67,18 +67,7 @@
         <system>Github</system>
         <url>https://github.com/ClickHouse/clickhouse-java/actions</url>
     </ciManagement>
-
-    <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
-        <repository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-    </distributionManagement>
-
+    
     <properties>
         <revision>0.9.0-SNAPSHOT</revision>
         <project.current.year>2025</project.current.year>
@@ -146,6 +135,7 @@
         <resource-plugin.version>3.3.1</resource-plugin.version>
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
+        <sonar.publish-pluing.version>0.8.0</sonar.publish-pluing.version>
 
         <minTargetJdk>17</minTargetJdk>
         <minSourceJdk>17</minSourceJdk>
@@ -1027,22 +1017,31 @@
                         </configuration>
                     </plugin>
                     <plugin>
-                        <groupId>org.sonatype.plugins</groupId>
-                        <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-deploy</id>
-                                <phase>deploy</phase>
-                                <goals>
-                                    <goal>deploy</goal>
-                                </goals>
-                            </execution>
-                        </executions>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.8.0</version>
+                        <extensions>true</extensions>
                         <configuration>
-                            <serverId>ossrh</serverId>
-                            <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+                            <publishingServerId>central</publishingServerId>
                         </configuration>
                     </plugin>
+<!--                    <plugin>-->
+<!--                        <groupId>org.sonatype.plugins</groupId>-->
+<!--                        <artifactId>nexus-staging-maven-plugin</artifactId>-->
+<!--                        <executions>-->
+<!--                            <execution>-->
+<!--                                <id>default-deploy</id>-->
+<!--                                <phase>deploy</phase>-->
+<!--                                <goals>-->
+<!--                                    <goal>deploy</goal>-->
+<!--                                </goals>-->
+<!--                            </execution>-->
+<!--                        </executions>-->
+<!--                        <configuration>-->
+<!--                            <serverId>ossrh</serverId>-->
+<!--                            <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>-->
+<!--                        </configuration>-->
+<!--                    </plugin>-->
                 </plugins>
             </build>
         </profile>

@@ -20,10 +20,13 @@ public class QuerySettings {
 
     public static final int MINIMAL_READ_BUFFER_SIZE = 8192;
 
-    private Map<String, Object> rawSettings;
+    private final Map<String, Object> rawSettings;
 
+    public QuerySettings(Map<String, Object> rawSettings) {
+        this.rawSettings = rawSettings;
+    }
     public QuerySettings() {
-        this.rawSettings = new HashMap<>();
+        this(new HashMap<>());
     }
 
     /**
@@ -175,7 +178,7 @@ public class QuerySettings {
      * @return same instance of the builder
      */
     public QuerySettings httpHeader(String key, String value) {
-        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, value);
+        rawSettings.put(ClientConfigProperties.httpHeader(key), value);
         return this;
     }
 
@@ -186,7 +189,7 @@ public class QuerySettings {
      * @return same instance of the builder
      */
     public QuerySettings httpHeader(String key, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.HTTP_HEADER_PREFIX + key, ClientConfigProperties.commaSeparated(values));
+        rawSettings.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
         return this;
     }
 

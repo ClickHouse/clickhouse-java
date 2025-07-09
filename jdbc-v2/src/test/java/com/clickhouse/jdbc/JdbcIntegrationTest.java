@@ -1,9 +1,8 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseServerForTest;
-
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.logging.Logger;
@@ -20,6 +19,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     public String getEndpointString() {
         return getEndpointString(isCloud());
     }
+
     public String getEndpointString(boolean includeDbName) {
         return "jdbc:ch:" + (isCloud() ? "" : "http://") +
                 ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, false) + "/" + (includeDbName ? ClickHouseServerForTest.getDatabase() : "");
@@ -38,7 +38,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             info.putAll(properties);
         }
 
-        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+        info.putIfAbsent(ClientConfigProperties.DATABASE.getKey(), getDatabase());
 
         return new ConnectionImpl(getEndpointString(), info);
     }
@@ -47,6 +47,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         return ClickHouseServerForTest.getDatabase();
     }
 
+    @Override
     protected boolean runQuery(String query) {
         return runQuery(query, new Properties());
     }

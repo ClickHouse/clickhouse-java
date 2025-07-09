@@ -1,15 +1,9 @@
 package com.clickhouse.jdbc.internal;
 
 
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -184,7 +178,7 @@ public class SqlParserTest {
 
     @Test
     public void testStmtWithCasts() {
-        String sql = "SELECT ?::integer, ?, '?::integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
+        String sql = "SELECT ?::integer, ?, '?:: integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 3);
@@ -196,6 +190,15 @@ public class SqlParserTest {
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 4);
+    }
+
+    @Test
+    public void testStmtWithUUID() {
+        String sql = "select sum(value) from `uuid_filter_db`.`uuid_filter_table` where uuid = ?";
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), 1);
+        Assert.assertFalse(stmt.isHasErrors());
     }
 
     @Test(dataProvider = "testCreateStmtDP")
@@ -253,8 +256,8 @@ public class SqlParserTest {
     public void testMiscStatements(String sql, int args) {
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
-        Assert.assertFalse(stmt.isHasErrors());
         Assert.assertEquals(stmt.getArgCount(), args);
+        Assert.assertFalse(stmt.isHasErrors());
     }
 
     @DataProvider
@@ -274,6 +277,40 @@ public class SqlParserTest {
             {"SELECT * FROM table test WHERE ts = ?", 1},
             {"SELECT * FROM table view WHERE ts = ?", 1},
             {"SELECT * FROM table primary WHERE ts = ?", 1},
+            {"insert into events (s) values ('a')", 0},
+            {"insert into `events` (s) values ('a')", 0},
+            {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
+            {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
+            {"alter table user delete where reg_time = ?", 1},
+            {"SELECT * FROM a,b WHERE id > ?", 1},
+            {"DROP USER IF EXISTS default_impersonation_user", 0},
+            {"DROP ROLE IF EXISTS `vkonfwxapllzkkgkqdvt`", 0},
+            {"CREATE ROLE `kjxrsscptauligukwgmf` ON CLUSTER '{cluster}'", 0},
+            {"GRANT SELECT ON `test_data`.`venues` TO `vkonfwxapllzkkgkqdvt`", 0},
+            {"GRANT `uqkczgnpmpuktxhwvqqd` TO `default_impersonation_user`", 0},
+            {"SET ROLE NONE", 0},
+            {"CREATE ROLE IF NOT EXISTS row_a ON CLUSTER '{cluster}'", 0},
+            {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `test_data`.`products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
+            {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
+            {"GRANT ON CLUSTER '{cluster}' row_a, row_b, row_c TO metabase_impersonation_test_user", 0},
+            {"GRANT ON CLUSTER '{cluster}' SELECT ON metabase_impersonation_test.test_1751397165968 TO metabase_impersonation_test_user", 0},
+            {"CREATE ROW POLICY OR REPLACE policy_row_a ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'a' TO row_a", 0},
+            {"CREATE ROW POLICY OR REPLACE policy_row_b ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'b' TO row_b", 0},
+            {"CREATE ROW POLICY OR REPLACE policy_row_c ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'c' TO row_c", 0},
+            {"GRANT SELECT ON `metabase_test_role_db`.`*` TO `metabase_test_role`,`metabase-test-role`", 0},
+            {"GRANT SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`,`metabase-test-role`", 0},
+            {"GRANT `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
+            {"GRANT ON CLUSTER '{cluster}' SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`, `metabase-test-role`", 0},
+            {"GRANT ON CLUSTER '{cluster}' `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
+            {"SELECT * FROM `test_data`.`categories` WHERE id = 1::String or id = ?", 1},
+            {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
+            {INSERT_INLINE_DATA, 0},
+                {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
         };
     }
+
+    private static final String INSERT_INLINE_DATA =
+            "INSERT INTO `interval_15_XUTLZWBLKMNZZPRZSKRF`.`checkins` (`timestamp`, `id`) " +
+                    "VALUES ((`now64`(9) + INTERVAL -225 second), 1)";
+
 }

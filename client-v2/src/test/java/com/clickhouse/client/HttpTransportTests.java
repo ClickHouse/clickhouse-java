@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
@@ -35,6 +36,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -280,7 +282,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         try {
             function.apply(mockServerClient);
-        } catch (ClientException e) {
+        } catch (ConnectionInitiationException e) {
             e.printStackTrace();
             if (!shouldFail) {
                 Assert.fail("Unexpected exception", e);
@@ -574,7 +576,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                             .withQueryParam("max_threads", WireMock.equalTo("10"))
-                            .withQueryParam("async_insert", WireMock.equalTo("1"))
+                            .withQueryParam("async_insert", WireMock.equalTo("3"))
                             .withQueryParam("roles", WireMock.equalTo("role3,role2"))
                             .withQueryParam("compress", WireMock.equalTo("0"))
                     .willReturn(WireMock.aResponse()
@@ -777,7 +779,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             try (QueryResponse resp = client.query("INSERT INTO test_omm_table SELECT randomString(16) FROM numbers(300000000)", settings).get()) {
 
             } catch (ServerException e) {
-                Assert.assertEquals(e.getCode(), 241);
+                // 241 - MEMORY_LIMIT_EXCEEDED or 243 -NOT_ENOUGH_SPACE
+                Assert.assertTrue(e.getCode() == 241 || e.getCode() == 243);
             }
         }
     }
@@ -1098,6 +1101,23 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testSNIWithCloud() throws Exception {
+        if (!isCloud()) {
+            // skip for local env
+            return;
+        }
+
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        String ip = InetAddress.getByName(node.getHost()).getHostAddress();
+        try (Client c = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, ip, node.getPort(), true)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .sslSocketSNI(node.getHost()).build()) {
+            c.execute("SELECT 1");
+        }
+    }
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

@@ -2,10 +2,14 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.google.common.collect.ImmutableMap;
 
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Comparator;
@@ -13,18 +17,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JdbcConfiguration.class);
-    public static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
-    public static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
 
-    public static final String USE_SSL_PROP = "ssl";
+    private static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
+    private static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
+    static final String USE_SSL_PROP = "ssl";
 
-    final boolean disableFrameworkDetection;
+    private static final String PARSE_URL_CONN_URL_PROP = "connection_url";
+    private static final Pattern PATTERN_HTTP_TOKEN = Pattern.compile(
+        "[A-Za-z0-9!#$%&'*+\\.\\^_`\\|~-]+");
+
+    private final boolean disableFrameworkDetection;
 
     final Map<String, String> clientProperties;
     public Map<String, String> getClientProperties() {
@@ -70,12 +76,38 @@ public class JdbcConfiguration {
         }
 
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
-        this.isIgnoreUnsupportedRequests= Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
+        this.isIgnoreUnsupportedRequests = Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
 
-    public static boolean acceptsURL(String url) {
-        // TODO: should be also checked for http/https
-        return url.startsWith(PREFIX_CLICKHOUSE) || url.startsWith(PREFIX_CLICKHOUSE_SHORT);
+    /**
+     * This method (only) checks if this driver is probably responsible for the
+     * connection as given in {@code url}, no further sanity checks are
+     * performed.
+     *
+     * @param url
+     *            the JDBC connection URL
+     * @return {@link true} if ClickHouse JDBC driver is responsible for
+     *         connection, {@code false} else
+     * @throws SQLException
+     *             if there is a technical error parsing the {@code url}
+     */
+    public static boolean acceptsURL(String url) throws SQLException {
+        if (url == null) {
+            throw new SQLException("URL is null");
+        }
+        if (!url.startsWith(PREFIX_CLICKHOUSE)
+            && !url.startsWith(PREFIX_CLICKHOUSE_SHORT))
+        {
+            return false;
+        }
+        try {
+            URI uri = new URI(url);
+            // make sure uri is used
+            return "jdbc".equals(uri.getScheme());
+        } catch (URISyntaxException urise) {
+            throw new SQLException(
+                "Not a valid URL '" + url + "'. ", urise);
+        }
     }
 
     public String getConnectionUrl() {
@@ -88,19 +120,18 @@ public class JdbcConfiguration {
      * JDBC URL should have only a single path parameter to specify database name.
      * Note: Some BI tools do not let pass JDBC URL, so ssl is passed as property.
      * @param url - JDBC url
-     * @param ssl - if SSL protocol should be used when protocol is not specified
+     * @param ssl - if SSL protocol should be used
      * @return URL without JDBC prefix
      */
-    static String createConnectionURL(String url, boolean ssl) throws SQLException {
-        if (url.startsWith("//")) {
-            url = (ssl ? "https:" : "http:") + url;
-        }
-
+    private static String createConnectionURL(String url, boolean ssl) throws SQLException {
+        String adjustedURL = ssl && url.startsWith("http://")
+            ? "https://" + url.substring(7)
+            : url;
         try {
-            URI tmp = URI.create(url);
-            return tmp.getScheme() + "://" + tmp.getAuthority();
-        } catch (Exception e) {
-            throw new SQLException("Failed to parse url", e);
+            URI tmp = URI.create(adjustedURL);
+            return tmp.toASCIIString();
+        } catch (IllegalArgumentException iae) {
+            throw new SQLException("Failed to parse URL '" + url + "'", iae);
         }
     }
 
@@ -110,76 +141,65 @@ public class JdbcConfiguration {
         } else if (url.startsWith(PREFIX_CLICKHOUSE_SHORT)) {
             return url.substring(PREFIX_CLICKHOUSE_SHORT.length());
         } else {
-            throw new IllegalArgumentException("Specified URL doesn't have jdbc any of prefixes: [ " + PREFIX_CLICKHOUSE + ", " + PREFIX_CLICKHOUSE_SHORT + " ]");
+            throw new IllegalArgumentException("Specified JDBC URL doesn't have any of prefixes: [ "
+                + PREFIX_CLICKHOUSE + ", " + PREFIX_CLICKHOUSE_SHORT + " ]");
         }
     }
 
-    List<DriverPropertyInfo> listOfProperties;
+    private List<DriverPropertyInfo> listOfProperties;
 
-    /**
-     * RegExp that extracts main parts:
-     * <ul>
-     *     <li>1 - protocol (ex.: {@code http:}) (optional)</li>
-     *     <li>2 - host (ex.: {@code localhost} (required)</li>
-     *     <li>3 - port (ex.: {@code 8123 } (optional)</li>
-     *     <li>4 - database name (optional)</li>
-     *     <li>5 - query parameters as is (optional)</li>
-     * </ul>
-     */
-    private static final Pattern URL_REGEXP = Pattern.compile("(https?:)?\\/\\/([\\w\\.\\-]+|\\[[0-9a-fA-F:]+\\]):?([\\d]*)(?:\\/([\\w]+))?\\/?\\??(.*)$");
-
-    /**
-     * Extracts positions of parameters names.
-     * Match will be {@code param1=} or {@code &param2=}.
-     * There is limitation to not have '=' in values.
-     */
-    private static final Pattern PARAM_EXTRACT_REGEXP = Pattern.compile("(?:&?[\\w\\.]+)=(?:[\\\\w])*");
     private Map<String, String> parseUrl(String url) throws SQLException {
         Map<String, String> properties = new HashMap<>();
-
-        // process host and protocol
-        url = stripJDBCPrefix(url);
-        Matcher m = URL_REGEXP.matcher(url);
-        if (!m.find()) {
-            throw new SQLException("Invalid url " + url);
+        String myURL = null;
+        try {
+            myURL = stripJDBCPrefix(url);
+        } catch (Exception e) {
+            throw new SQLException(
+                "Error determining JDBC prefix from URL '" + url + "'", e);
         }
-        String proto = m.group(1);
-        String host = m.group(2);
-        String port = m.group(3);
-
-        String connectionUrl = (proto == null ? "" : proto)  + "//" + host + (port.isEmpty() ? "" : ":" + port);
-        properties.put(PARSE_URL_CONN_URL_PROP, connectionUrl);
-
-        // Set database if present
-        String database = m.group(4);
-        if (database != null && !database.isEmpty()) {
-            properties.put(ClientConfigProperties.DATABASE.getKey(), database);
+        if (myURL.startsWith("//")) {
+            myURL = "http://" + myURL.substring(2);
         }
-
-        // Parse query string
-        String queryStr = m.group(5);
-        if (queryStr != null && !queryStr.isEmpty()) {
-            Matcher qm = PARAM_EXTRACT_REGEXP.matcher(queryStr);
-
-            if (qm.find()) {
-                String name = queryStr.substring(qm.start() + (queryStr.charAt(qm.start()) == '&' ? 1 : 0), qm.end() - 1);
-                int valStartPos = qm.end();
-                while (qm.find()) {
-                    String value = queryStr.substring(valStartPos, qm.start());
-                    properties.put(name, value);
-                    name = queryStr.substring(qm.start() + (queryStr.charAt(qm.start()) == '&' ? 1 : 0), qm.end() - 1);
-                    valStartPos = qm.end();
+        URI uri = null;
+        try {
+            uri = new URI(myURL);
+        } catch (URISyntaxException urise) {
+            throw new SQLException(
+                "Invalid JDBC URL '" + url + "'", urise);
+        }
+        if (uri.getAuthority() == null) {
+            throw new SQLException(
+                "Invalid authority part JDBC URL '" + url + "'");
+        }
+        properties.put(PARSE_URL_CONN_URL_PROP, uri.getScheme() + "://"
+            + uri.getRawAuthority()); // will be parsed again later
+        if (uri.getPath() != null
+            && !uri.getPath().isBlank()
+            && !"/".equals(uri.getPath()))
+        {
+            properties.put(
+                ClientConfigProperties.DATABASE.getKey(),
+                uri.getPath().substring(1));
+        }
+        if (uri.getQuery() != null && !uri.getQuery().isBlank()) {
+            for (String pair : uri.getRawQuery().split("&")) {
+                String[] p = pair.split("=", 2);
+                if (p.length != 2 || p[0] == null || p[1] == null) {
+                    throw new SQLException("Invalid query parameter '" + pair + "'");
                 }
-
-                String value = queryStr.substring(valStartPos);
-                properties.put(name, value);
+                String key = URLDecoder.decode(p[0], StandardCharsets.UTF_8);
+                if (key == null || key.isBlank() || !PATTERN_HTTP_TOKEN.matcher(key).matches()) {
+                    throw new SQLException("Invalid query parameter key in pair'" + pair + "'");
+                }
+                String value = URLDecoder.decode(p[1], StandardCharsets.UTF_8);
+                if (value == null || value.isBlank() || "=".equals(value)) {
+                    throw new SQLException("Invalid query parameter value in pair '" + pair + "'");
+                }
+                properties.put(key.trim(), value);
             }
         }
-
         return properties;
     }
-
-    private static final String PARSE_URL_CONN_URL_PROP = "connection_url";
 
     private void initProperties(Map<String, String> urlProperties, Properties providedProperties) {
 
@@ -248,7 +268,8 @@ public class JdbcConfiguration {
 
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
-                .setOptions(clientProperties);
+                .setOptions(clientProperties)
+                .typeHintMapping(defaultTypeHintMapping());
         return builder;
     }
 
@@ -267,5 +288,11 @@ public class JdbcConfiguration {
     public boolean isBetaFeatureEnabled(DriverProperties prop) {
         String value = driverProperties.getOrDefault(prop.getKey(), prop.getDefaultValue());
         return Boolean.parseBoolean(value);
+    }
+
+    private Map<ClickHouseDataType, Class<?>> defaultTypeHintMapping() {
+        Map<ClickHouseDataType, Class<?>> mapping = new HashMap<>();
+        mapping.put(ClickHouseDataType.Array, List.class);
+        return mapping;
     }
 }
