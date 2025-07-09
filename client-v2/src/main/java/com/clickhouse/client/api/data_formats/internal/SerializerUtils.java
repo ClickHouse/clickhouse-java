@@ -198,6 +198,8 @@ public class SerializerUtils {
             column = enumValue2Column((Enum)value);
         } else if (value instanceof List<?> || (value !=null && value.getClass().isArray())) {
             column = listValue2Column(value);
+        } else if (value instanceof Instant) {
+            column = ClickHouseColumn.of("v", "Time64(9)");
         } else if (value == null) {
             column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
         } else {
@@ -398,6 +400,10 @@ public class SerializerUtils {
             case AggregateFunction:
                 stream.write(binTag);
                 break;
+            case Time64:
+                stream.write(binTag);
+                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
+                break;
             default:
                 stream.write(binTag);
         }
@@ -545,6 +551,12 @@ public class SerializerUtils {
                 writeDateTime64(stream, value, column.getScale(), zoneId);
                 break;
             }
+            case Time:
+                BinaryStreamUtils.writeInt32(stream, convertToInteger(value));
+                break;
+            case Time64:
+                serializeTime64(stream, value);
+                break;
             case UUID:
                 BinaryStreamUtils.writeUuid(stream, (UUID) value);
                 break;
@@ -637,6 +649,19 @@ public class SerializerUtils {
             throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to " + column.getDataType());
         }
         BinaryStreamUtils.writeUnsignedInt64(stream, v);
+    }
+
+    private static void serializeTime64(OutputStream stream, Object value) throws IOException {
+        if (value instanceof BigInteger) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, (BigInteger) value);
+        } else if (value instanceof Long) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
+        } else if (value instanceof Instant) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond()).shiftLeft(32)
+                    .add(BigInteger.valueOf(((Instant) value).getNano())));
+        } else {
+            throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to Time64");
+        }
     }
 
     private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {

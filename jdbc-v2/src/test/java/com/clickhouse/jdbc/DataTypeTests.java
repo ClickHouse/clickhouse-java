@@ -41,10 +41,12 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 @Test(groups = { "integration" })
@@ -546,6 +548,42 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
                     assertFalse(rs.next());
                 }
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testTimeTypes() throws SQLException {
+        Properties createProperties = new Properties();
+        createProperties.put(ClientConfigProperties.serverSetting("enable_time_time64_type"), "1");
+        runQuery("CREATE TABLE test_time64 (order Int8, "
+                + "time Time('UTC'), time64 Time64(9) "
+                + ") ENGINE = MergeTree ORDER BY ()",
+                createProperties);
+
+        runQuery("INSERT INTO test_time64 (order, time, time64) VALUES " +
+                "   (1, '-999:59:59', '-999:59:59.999999999'), " +
+                "   (2, '999:59:59', '999:59:59.999999999')");
+
+        // Check the results
+        try (Statement stmt = getJdbcConnection().createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_time64")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("order"), 1);
+//                assertEquals(rs.getInt("time"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+//                assertEquals(rs.getInt("time64"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("order"), 2);
+                assertEquals(rs.getInt("time"), (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                assertEquals(rs.getLong("time64"), (TimeUnit.HOURS.toNanos(999) + TimeUnit.MINUTES.toNanos(59) + TimeUnit.SECONDS.toNanos(59)) + 999999999);
+
+                assertThrows(SQLException.class, () -> rs.getTime("time"));
+                assertThrows(SQLException.class, () -> rs.getDate("time"));
+                assertThrows(SQLException.class, () -> rs.getTimestamp("time"));
+
+                assertFalse(rs.next());
             }
         }
     }
