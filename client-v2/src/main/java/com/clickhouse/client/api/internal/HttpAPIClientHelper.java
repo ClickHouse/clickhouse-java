@@ -1,10 +1,20 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.api.*;
+import com.clickhouse.client.api.ClickHouseException;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.DataTransferException;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -50,11 +60,16 @@ import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
@@ -63,6 +78,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -79,11 +95,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
+
+    private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
+        "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
 
     private final CloseableHttpClient httpClient;
 
@@ -240,8 +260,17 @@ public class HttpAPIClientHelper {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
-        LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
-                : new SSLConnectionSocketFactory(sslContext);
+        LayeredConnectionSocketFactory sslConnectionSocketFactory;
+        if (sslContext != null) {
+            String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+            if (socketSNI != null && !socketSNI.trim().isEmpty()) {
+                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
+            } else {
+                sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
+            }
+        } else {
+            sslConnectionSocketFactory = new DummySSLConnectionSocketFactory();
+        }
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
         ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.<Integer>applyIfSet(configuration,
@@ -287,7 +316,7 @@ public class HttpAPIClientHelper {
         SocketConfig socketConfig = soCfgBuilder.build();
 
         // Connection manager
-        if (ClientConfigProperties.CONNECTION_POOL_ENABLED.getOrDefault(configuration)) {
+        if (ClientConfigProperties.CONNECTION_POOL_ENABLED.<Boolean>getOrDefault(configuration)) {
             clientBuilder.setConnectionManager(poolConnectionManager(sslConnectionSocketFactory, socketConfig, configuration));
         } else {
             clientBuilder.setConnectionManager(basicConnectionManager(sslConnectionSocketFactory, socketConfig, configuration));
@@ -430,36 +459,55 @@ public class HttpAPIClientHelper {
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
-        req.addHeader(HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+        addHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
-            req.addHeader(ClickHouseHttpProto.HEADER_FORMAT, requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_FORMAT,
+                    ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
         }
-
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-            req.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_QUERY_ID,
+                    (String) requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()));
         }
+        addHeader(
+            req,
+            ClickHouseHttpProto.HEADER_DATABASE,
+            ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
 
-
-        req.addHeader(ClickHouseHttpProto.HEADER_DATABASE, ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
-
-
-        if (ClientConfigProperties.SSL_AUTH.getOrDefault(requestConfig)) {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, ClientConfigProperties.USER.getOrDefault(requestConfig));
-            req.addHeader(ClickHouseHttpProto.HEADER_SSL_CERT_AUTH, "on");
-        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.getOrDefault(requestConfig)) {
+        if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_DB_USER,
+                ClientConfigProperties.USER.getOrDefault(requestConfig));
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_SSL_CERT_AUTH,
+                "on");
+        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
             String user = ClientConfigProperties.USER.getOrDefault(requestConfig);
             String password = ClientConfigProperties.PASSWORD.getOrDefault(requestConfig);
-
-            req.addHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
-                    (user + ":" + password).getBytes(StandardCharsets.UTF_8))
-            );
+            // Use as-is, no encoding allowed
+            req.addHeader(
+                HttpHeaders.AUTHORIZATION,
+                "Basic " + Base64.getEncoder().encodeToString(
+                    (user + ":" + password).getBytes(StandardCharsets.UTF_8)));
         } else {
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_USER, ClientConfigProperties.USER.getOrDefault(requestConfig));
-            req.addHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
-
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_DB_USER,
+                ClientConfigProperties.USER.getOrDefault(requestConfig));
+            addHeader(
+                req,
+                ClickHouseHttpProto.HEADER_DB_PASSWORD,
+                ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
         }
         if (proxyAuthHeaderValue != null) {
-            req.addHeader(HttpHeaders.PROXY_AUTHORIZATION, proxyAuthHeaderValue);
+            req.addHeader(
+                HttpHeaders.PROXY_AUTHORIZATION,
+                proxyAuthHeaderValue);
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -469,10 +517,10 @@ public class HttpAPIClientHelper {
 
         if (useHttpCompression) {
             if (serverCompression) {
-                req.addHeader(HttpHeaders.ACCEPT_ENCODING, "lz4");
+                addHeader(req, HttpHeaders.ACCEPT_ENCODING, "lz4");
             }
             if (clientCompression && !appCompressedData) {
-                req.addHeader(HttpHeaders.CONTENT_ENCODING, "lz4");
+                addHeader(req, HttpHeaders.CONTENT_ENCODING, "lz4");
             }
         }
 
@@ -480,15 +528,19 @@ public class HttpAPIClientHelper {
             if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
                 Object val = requestConfig.get(key);
                 if (val != null) {
-                    req.setHeader(key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()), String.valueOf(val));
+                    addHeader(
+                        req,
+                        key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()),
+                        String.valueOf(val));
                 }
             }
         }
 
-
         // Special cases
-        if (req.containsHeader(HttpHeaders.AUTHORIZATION) && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
-                req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD))) {
+        if (req.containsHeader(HttpHeaders.AUTHORIZATION)
+            && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
+                req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD)))
+        {
             // user has set auth header for purpose, lets remove ours
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_USER);
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_PASSWORD);
@@ -668,7 +720,6 @@ public class HttpAPIClientHelper {
         } else if (userAgentHeader != null) {
             userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
         }
-
         request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
     }
 
@@ -718,6 +769,29 @@ public class HttpAPIClientHelper {
 
     public void close() {
         httpClient.close(CloseMode.IMMEDIATE);
+    }
+
+    private static <T> void addHeader(HttpRequest req, String headerName,
+        String value)
+    {
+        if (value == null) {
+            return;
+        }
+
+        if (value.trim().isEmpty()) {
+            return;
+        }
+        if (PATTERN_HEADER_VALUE_ASCII.matcher(value).matches()) {
+            req.addHeader(headerName, value);
+        } else {
+            try {
+                req.addHeader(
+                        headerName + "*",
+                        "UTF-8''" + URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
+            } catch (UnsupportedEncodingException e) {
+                throw new ClientException("Failed to convert string to UTF8" , e);
+            }
+        }
     }
 
     /**
@@ -771,6 +845,27 @@ public class HttpAPIClientHelper {
             }
 
             return count > 0 ? runningAverage / count : 0;
+        }
+    }
+
+    public static class CustomSSLConnectionFactory extends SSLConnectionSocketFactory {
+
+        private final SNIHostName defaultSNI;
+
+        public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
+            super(sslContext, hostnameVerifier);
+            this.defaultSNI = defaultSNI == null || defaultSNI.trim().isEmpty() ? null : new SNIHostName(defaultSNI);
+        }
+
+        @Override
+        protected void prepareSocket(SSLSocket socket, HttpContext context) throws IOException {
+            super.prepareSocket(socket, context);
+
+            if (defaultSNI != null) {
+                SSLParameters sslParams = socket.getSSLParameters();
+                sslParams.setServerNames(Collections.singletonList(defaultSNI));
+                socket.setSSLParameters(sslParams);
+            }
         }
     }
 }

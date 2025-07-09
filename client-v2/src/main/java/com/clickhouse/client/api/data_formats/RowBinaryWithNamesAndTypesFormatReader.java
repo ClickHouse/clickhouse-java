@@ -6,6 +6,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -17,11 +18,20 @@ import java.util.Map;
 
 public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormatReader implements Iterator<Map<String, Object>> {
 
-    public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream, QuerySettings querySettings,
-                                                  BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
-        super(inputStream, querySettings, null, byteBufferAllocator);
+    public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream,
+                                                  QuerySettings querySettings,
+                                                  BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                                                  Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+        super(inputStream, querySettings, null, byteBufferAllocator, typeHintMapping);
         readSchema();
     }
+
+    public  RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream,
+                                                   QuerySettings querySettings,
+                                                   BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+        this(inputStream, querySettings, byteBufferAllocator, NO_TYPE_HINT_MAPPING);
+    }
+
 
     private void readSchema() {
         try {

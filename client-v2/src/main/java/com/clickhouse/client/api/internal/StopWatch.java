@@ -33,6 +33,10 @@ public class StopWatch implements Metric {
         return TimeUnit.NANOSECONDS.toMillis(elapsedNanoTime);
     }
 
+    public long getElapsedNanos() {
+        return elapsedNanoTime;
+    }
+
     @Override
     public String toString() {
         return "{" +

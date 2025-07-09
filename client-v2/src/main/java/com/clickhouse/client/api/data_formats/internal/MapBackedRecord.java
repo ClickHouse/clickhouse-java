@@ -202,6 +202,8 @@ public class MapBackedRecord implements GenericRecord {
         Object value = readValue(colName);
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else if (value instanceof List<?>) {
+            return (List<T>) value;
         } else {
             throw new ClientException("Column is not of array type");
         }

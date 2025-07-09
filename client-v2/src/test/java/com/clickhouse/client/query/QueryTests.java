@@ -18,6 +18,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.StopWatch;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -569,6 +570,35 @@ public class QueryTests extends BaseIntegrationTest {
         boolean[] col4Array = reader.getBooleanArray("col4");
         Assert.assertEquals(col4Array, ((List)data.get(0).get("col4")).toArray());
         Assert.assertEquals(reader.getList("col5"), ((List)data.get(0).get("col5")));
+    }
+
+
+    @Test
+    public void testPrimitiveArrays() throws Exception {
+        final String table = "primitive_arrays_test_table";
+
+        try (QueryResponse response = client.query("SELECT [1, 2, 3]::Array(UInt32) as arr").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            reader.next();
+            Assert.assertEquals(reader.readValue(1).getClass(), BinaryStreamReader.ArrayValue.class);
+            Assert.assertEquals(reader.getList(1).get(0).getClass(), Long.class);
+            Assert.assertEquals(reader.getList(1), Arrays.asList((long)1, (long)2, (long)3));
+            Assert.assertEquals(reader.getLongArray(1),  new long[]{1, 2, 3});
+            Assert.assertThrows(ClientException.class, () -> reader.getIntArray(1));
+        }
+
+        try (Client client1 = newClient().typeHintMapping(Collections.singletonMap(ClickHouseDataType.Array, List.class)).build();
+                QueryResponse response = client1.query("SELECT [1, 2, 3]::Array(UInt32) as arr").get()) {
+            ClickHouseBinaryFormatReader reader = client1.newBinaryFormatReader(response);
+
+            reader.next();
+            Assert.assertEquals(reader.readValue(1).getClass(), ArrayList.class);
+            Assert.assertEquals(reader.getList(1).get(0).getClass(), Long.class);
+            Assert.assertEquals(reader.getList(1), Arrays.asList((long)1, (long)2, (long)3));
+            Assert.assertEquals(reader.getLongArray(1),  new long[]{1, 2, 3});
+            Assert.assertThrows(ClientException.class, () -> reader.getIntArray(1));
+        }
     }
 
     @Test
@@ -1411,7 +1441,7 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), rowsToInsert); // 10 rows in the table
             Assert.assertEquals(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong(), rowsToInsert);
             Assert.assertEquals(response.getReadRows(), rowsToInsert);
-            Assert.assertTrue(metrics.getMetric(ClientMetrics.OP_DURATION).getLong() > 0);
+            Assert.assertTrue(((StopWatch)metrics.getMetric(ClientMetrics.OP_DURATION)).getElapsedNanos() > 0);
             Assert.assertEquals(metrics.getQueryId(), uuid);
             Assert.assertEquals(response.getQueryId(), uuid);
         }
