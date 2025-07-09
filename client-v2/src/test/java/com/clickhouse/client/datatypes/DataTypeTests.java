@@ -687,7 +687,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testTimeType() throws Exception {
+    public void testTime64() throws Exception {
         if (isVersionMatch("(,25.4]")) {
             return;
         }
@@ -696,7 +696,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "o_num UInt32", "time Time"), (CommandSettings) new CommandSettings().serverSetting("enable_time_time64_type", "1")).get();
 
-        String insertSQL = "INSERT INTO " + table + " VALUES (1, '999:00:00'), (2, '999:59:00'), (3, '000:00:00')";
+        String insertSQL = "INSERT INTO " + table + " VALUES (1, '999:00:00'), (2, '999:59:00'), (3, '000:00:00'), (4, '-999:59:59')";
         try (QueryResponse response = client.query(insertSQL).get()) {}
 
 
@@ -716,6 +716,11 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(record.getInteger("o_num"), 3);
         Assert.assertEquals(record.getInteger("time"), 0);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
+
+        record = records.get(3);
+        Assert.assertEquals(record.getInteger("o_num"), 4);
+        Assert.assertEquals(record.getInteger("time"), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59)));
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59)));
     }
 
 

@@ -477,7 +477,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             case Date32:
                 return readValue(colName);
             default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
         }
     }
 
