@@ -11,6 +11,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
@@ -54,8 +55,11 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.VersionInfo;
 
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -66,10 +70,9 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketOption;
-import java.net.SocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -394,6 +397,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     static class SSLSocketFactory extends SSLConnectionSocketFactory {
         private final ClickHouseConfig config;
+        private final SNIHostName defaultSNI;
 
         private SSLSocketFactory(ClickHouseConfig config) throws SSLException {
             super(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
@@ -402,11 +406,23 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                             ? new DefaultHostnameVerifier()
                             : (hostname, session) -> true); // NOSONAR
             this.config = config;
+            String sni = config.getStrOption(ClickHouseClientOption.SSL_SOCKET_SNI);
+            defaultSNI = sni == null || sni.trim().isEmpty() ? null : new SNIHostName(sni);
         }
 
         @Override
         public Socket createSocket(HttpContext context) throws IOException {
             return AbstractSocketClient.setSocketOptions(config, new Socket());
+        }
+
+        @Override
+        protected void prepareSocket(SSLSocket socket, HttpContext context) throws IOException {
+            super.prepareSocket(socket, context);
+            if (defaultSNI != null) {
+                SSLParameters sslParams = socket.getSSLParameters();
+                sslParams.setServerNames(Collections.singletonList(defaultSNI));
+                socket.setSSLParameters(sslParams);
+            }
         }
 
         public static SSLSocketFactory create(ClickHouseConfig config) throws SSLException {

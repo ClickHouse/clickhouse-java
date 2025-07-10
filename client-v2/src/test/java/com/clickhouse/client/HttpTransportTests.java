@@ -36,6 +36,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -1100,6 +1101,23 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testSNIWithCloud() throws Exception {
+        if (!isCloud()) {
+            // skip for local env
+            return;
+        }
+
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        String ip = InetAddress.getByName(node.getHost()).getHostAddress();
+        try (Client c = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, ip, node.getPort(), true)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .sslSocketSNI(node.getHost()).build()) {
+            c.execute("SELECT 1");
+        }
+    }
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.google.common.collect.ImmutableMap;
 
@@ -278,7 +279,8 @@ public class JdbcConfiguration {
 
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
-                .setOptions(clientProperties);
+                .setOptions(clientProperties)
+                .typeHintMapping(defaultTypeHintMapping());
         return builder;
     }
 
@@ -299,4 +301,9 @@ public class JdbcConfiguration {
         return Boolean.parseBoolean(value);
     }
 
+    private Map<ClickHouseDataType, Class<?>> defaultTypeHintMapping() {
+        Map<ClickHouseDataType, Class<?>> mapping = new HashMap<>();
+        mapping.put(ClickHouseDataType.Array, List.class);
+        return mapping;
+    }
 }

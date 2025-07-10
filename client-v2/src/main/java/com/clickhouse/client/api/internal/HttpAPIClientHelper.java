@@ -60,8 +60,12 @@ import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -256,8 +260,17 @@ public class HttpAPIClientHelper {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
-        LayeredConnectionSocketFactory sslConnectionSocketFactory = sslContext == null ? new DummySSLConnectionSocketFactory()
-                : new SSLConnectionSocketFactory(sslContext);
+        LayeredConnectionSocketFactory sslConnectionSocketFactory;
+        if (sslContext != null) {
+            String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+            if (socketSNI != null && !socketSNI.trim().isEmpty()) {
+                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
+            } else {
+                sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
+            }
+        } else {
+            sslConnectionSocketFactory = new DummySSLConnectionSocketFactory();
+        }
         // Socket configuration
         SocketConfig.Builder soCfgBuilder = SocketConfig.custom();
         ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.<Integer>applyIfSet(configuration,
@@ -832,6 +845,27 @@ public class HttpAPIClientHelper {
             }
 
             return count > 0 ? runningAverage / count : 0;
+        }
+    }
+
+    public static class CustomSSLConnectionFactory extends SSLConnectionSocketFactory {
+
+        private final SNIHostName defaultSNI;
+
+        public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
+            super(sslContext, hostnameVerifier);
+            this.defaultSNI = defaultSNI == null || defaultSNI.trim().isEmpty() ? null : new SNIHostName(defaultSNI);
+        }
+
+        @Override
+        protected void prepareSocket(SSLSocket socket, HttpContext context) throws IOException {
+            super.prepareSocket(socket, context);
+
+            if (defaultSNI != null) {
+                SSLParameters sslParams = socket.getSSLParameters();
+                sslParams.setServerNames(Collections.singletonList(defaultSNI));
+                socket.setSSLParameters(sslParams);
+            }
         }
     }
 }

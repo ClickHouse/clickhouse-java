@@ -8,8 +8,8 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
-import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseBitmap;
@@ -24,6 +24,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -51,6 +52,8 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryFormatReader {
 
+    public static final Map<ClickHouseDataType, Class<?>> NO_TYPE_HINT_MAPPING = Collections.emptyMap();
+
     private static final Logger LOG = LoggerFactory.getLogger(AbstractBinaryFormatReader.class);
 
     protected InputStream input;
@@ -63,8 +66,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private boolean hasNext = true;
     private boolean initialState = true; // reader is in initial state, no records have been read yet
 
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
-                                         BinaryStreamReader.ByteBufferAllocator byteBufferAllocator) {
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
         this.input = inputStream;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
@@ -76,7 +78,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
-        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString);
+        this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
+                defaultTypeHintMap);
         if (schema != null) {
             setSchema(schema);
         }
@@ -522,23 +525,36 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public <T> List<T> getList(String colName) {
-        try {
-            BinaryStreamReader.ArrayValue array = readValue(colName);
-            return array.asList();
-        } catch (ClassCastException e) {
-            throw new ClientException("Column is not of array type", e);
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else if (value instanceof List<?>) {
+            return (List<T>) value;
+        } else {
+            throw new ClientException("Column is not of array type");
         }
     }
 
 
-    private <T> T getPrimitiveArray(String colName) {
+    private <T> T getPrimitiveArray(String colName, Class<?> componentType) {
         try {
-            BinaryStreamReader.ArrayValue array = readValue(colName);
-            if (array.itemType.isPrimitive()) {
-                return (T) array.array;
-            } else {
-                throw new ClientException("Array is not of primitive type");
+            Object value = readValue(colName);
+            if (value instanceof BinaryStreamReader.ArrayValue) {
+                BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+                if (array.itemType.isPrimitive()) {
+                    return (T) array.array;
+                } else {
+                    throw new ClientException("Array is not of primitive type");
+                }
+            } else if (value instanceof List<?>) {
+                List<?> list = (List<?>) value;
+                Object array = Array.newInstance(componentType, list.size());
+                for (int i = 0; i < list.size(); i++) {
+                    Array.set(array, i, list.get(i));
+                }
+                return (T)array;
             }
+            throw new ClientException("Column is not of array type");
         } catch (ClassCastException e) {
             throw new ClientException("Column is not of array type", e);
         }
@@ -546,32 +562,56 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte[] getByteArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName, byte.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public int[] getIntArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName, int.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public long[] getLongArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName,  long.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public float[] getFloatArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName,  float.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public double[] getDoubleArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName,  double.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public boolean[] getBooleanArray(String colName) {
-        return getPrimitiveArray(colName);
+        try {
+            return getPrimitiveArray(colName,  boolean.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
@@ -691,32 +731,32 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+       return getByteArray(schema.columnIndexToName(index));
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getIntArray(schema.columnIndexToName(index));
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return  getLongArray(schema.columnIndexToName(index));
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getFloatArray(schema.columnIndexToName(index));
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getDoubleArray(schema.columnIndexToName(index));
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getBooleanArray(schema.columnIndexToName(index));
     }
 
     @Override
