@@ -495,7 +495,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         if (isClosed()) {
             return false;
         }
-        return client.ping(Duration.ofSeconds(timeout).toMillis());
+        return timeout == 0
+            ? client.ping()
+            : client.ping(Duration.ofSeconds(timeout).toMillis());
     }
 
     @Override
