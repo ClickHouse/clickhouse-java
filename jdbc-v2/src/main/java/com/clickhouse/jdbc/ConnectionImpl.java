@@ -15,6 +15,7 @@ import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlParser;
 import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +36,7 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -487,13 +489,15 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
-        checkOpen();
         if (timeout < 0) {
             throw new SQLException("Timeout must be >= 0", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
-
-        //TODO: This is a placeholder implementation
-        return true;
+        if (isClosed()) {
+            return false;
+        }
+        return timeout == 0
+            ? client.ping()
+            : client.ping(Duration.ofSeconds(timeout).toMillis());
     }
 
     @Override
