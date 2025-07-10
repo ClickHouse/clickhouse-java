@@ -36,6 +36,7 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -494,7 +495,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         if (isClosed()) {
             return false;
         }
-        return client.ping(timeout * 1_000);
+        return client.ping(Duration.ofSeconds(timeout).toMillis());
     }
 
     @Override
