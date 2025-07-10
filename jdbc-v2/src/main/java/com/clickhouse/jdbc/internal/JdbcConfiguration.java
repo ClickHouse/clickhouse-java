@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.google.common.collect.ImmutableMap;
@@ -129,7 +130,14 @@ public class JdbcConfiguration {
             : url;
         try {
             URI tmp = URI.create(adjustedURL);
-            return tmp.toASCIIString();
+            String asciiString = tmp.toASCIIString();
+            if (tmp.getPort() < 0) {
+                String port = ssl || adjustedURL.startsWith("https")
+                    ? ":" + ClickHouseHttpProto.DEFAULT_HTTPS_PORT
+                    : ":" + ClickHouseHttpProto.DEFAULT_HTTP_PORT;
+                asciiString += port;
+            }
+            return asciiString;
         } catch (IllegalArgumentException iae) {
             throw new SQLException("Failed to parse URL '" + url + "'", iae);
         }
@@ -170,6 +178,9 @@ public class JdbcConfiguration {
         if (uri.getAuthority() == null) {
             throw new SQLException(
                 "Invalid authority part JDBC URL '" + url + "'");
+        }
+        if (uri.getAuthority().contains(",")) {
+            throw new SQLException("Multiple endpoints not supported");
         }
         properties.put(PARSE_URL_CONN_URL_PROP, uri.getScheme() + "://"
             + uri.getRawAuthority()); // will be parsed again later
