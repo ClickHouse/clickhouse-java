@@ -42,28 +42,6 @@ public class SqlParser {
         return parser;
     }
 
-    private final static Pattern UNQUOTE_INDENTIFIER = Pattern.compile(
-            "^[\\\"`]?(.+?)[\\\"`]?$"
-    );
-
-    public static String unquoteIdentifier(String str) {
-        Matcher matcher = UNQUOTE_INDENTIFIER.matcher(str.trim());
-        if (matcher.find()) {
-            return matcher.group(1);
-        } else {
-            return str;
-        }
-    }
-
-    public static String escapeQuotes(String str) {
-        if (str == null || str.isEmpty()) {
-            return str;
-        }
-        return str
-                .replace("'", "\\'")
-                .replace("\"", "\\\"");
-    }
-
     private static class ParserErrorListener extends BaseErrorListener {
         @Override
         public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
