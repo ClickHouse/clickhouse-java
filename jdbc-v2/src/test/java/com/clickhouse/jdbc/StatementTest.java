@@ -1,8 +1,11 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.jdbc.internal.ClickHouseParser;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -42,6 +45,9 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteQuerySimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
+                Assert.assertThrows(SQLException.class, () -> stmt.setFetchDirection(100));
+                stmt.setFetchDirection(ResultSet.FETCH_REVERSE);
+                assertEquals(stmt.getFetchDirection(), ResultSet.FETCH_FORWARD); // we support only this direction
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getByte(1), 1);
@@ -164,6 +170,8 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
+                assertEquals(stmt.getUpdateCount(), 3);
+                assertEquals(stmt.getLargeUpdateCount(), 3L);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleFloats ORDER BY num")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getFloat(1), 1.1f);
@@ -173,6 +181,7 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getFloat(1), 3.3f);
                     assertFalse(rs.next());
                 }
+                assertEquals(stmt.getUpdateCount(), -1);
             }
         }
     }
@@ -696,6 +705,10 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteWithMaxRows() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
+                stmt.setMaxRows(10);
+                assertEquals(stmt.getMaxRows(), 10);
+                assertEquals(stmt.getLargeMaxRows(), 10);
+
                 stmt.setMaxRows(1);
                 int count = 0;
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
@@ -707,6 +720,40 @@ public class StatementTest extends JdbcIntegrationTest {
                 // https://clickhouse.com/docs/en/operations/settings/query-complexity#setting-max_result_rows
                 // https://clickhouse.com/docs/en/operations/settings/query-complexity#result-overflow-mode
                 assertTrue(count > 0 && count < 100000);
+            }
+        }
+
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
+                ServerSettings.RESULT_OVERFLOW_MODE_THROW);
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), "100");
+        try (Connection conn = getJdbcConnection(props);
+            Statement stmt = conn.createStatement()) {
+
+            Assert.assertThrows(SQLException.class, () -> stmt.execute("SELECT * FROM generate_series(0, 100000)"));
+
+            {
+                stmt.setMaxRows(10);
+
+                int count = 0;
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
+                    while (rs.next()) {
+                        count++;
+                    }
+                }
+                assertTrue(count > 0 && count < 100000);
+            }
+
+            {
+                stmt.setMaxRows(0);
+
+                int count = 0;
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 99999)")) {
+                    while (rs.next()) {
+                        count++;
+                    }
+                }
+                assertEquals(count, 100000);
             }
         }
     }
@@ -777,10 +824,143 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(expectedExceptions = IllegalArgumentException.class)
+    @Test
     public void testEnquoteNCharLiteral_NullInput() throws SQLException {
         try (Statement stmt = getJdbcConnection().createStatement()) {
-            stmt.enquoteNCharLiteral(null);
+            Assert.assertThrows(NullPointerException.class, () -> stmt.enquoteNCharLiteral(null));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testIsSimpleIdentifier() throws Exception {
+        Object[][] identifiers = new Object[][] {
+                // identifier, expected result
+                {"Hello", true},
+                {"hello_world", true},
+                {"Hello123", true},
+                {"H", true},  // minimum length
+                {"a".repeat(128), true},  // maximum length
+
+                // Test cases from requirements
+                {"G'Day", false},
+                {"\"\"Bruce Wayne\"\"", false},
+                {"GoodDay$", false},
+                {"Hello\"\"World", false},
+                {"\"\"Hello\"\"World\"\"", false},
+
+                // Additional test cases
+                {"", false},  // empty string
+                {"123test", false},  // starts with number
+                {"_test", false},  // starts with underscore
+                {"test-name", false},  // contains hyphen
+                {"test name", false},  // contains space
+                {"test\"name", false},  // contains quote
+                {"test.name", false},  // contains dot
+                {"a".repeat(129), false},  // exceeds max length
+                {"testName", true},
+                {"TEST_NAME", true},
+                {"test123", true},
+                {"t123", true},
+                {"t", true}
+        };
+        try (Statement stmt = getJdbcConnection().createStatement()) {
+            for (int i = 0; i < identifiers.length; i++) {
+                assertEquals(stmt.isSimpleIdentifier((String) identifiers[i][0]), identifiers[i][1]);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecuteQueryWithNoResultSetWhenExpected() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            Assert.expectThrows(SQLException.class, () ->
+                    stmt.executeQuery("CREATE TABLE test_empty_table (id String) Engine Memory"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUpdateQueryWithResultSet() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.RESULTSET_AUTO_CLOSE.getKey(), "false");
+        props.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "1");
+        props.setProperty(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "500");
+        try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement()) {
+            stmt.setQueryTimeout(1);
+            ResultSet rs = stmt.executeQuery("SELECT 1");
+            boolean failedOnTimeout = false;
+            try {
+                stmt.executeQuery("SELECT 1");
+            } catch (SQLException ignore) {
+                failedOnTimeout = true;
+            }
+            assertTrue(failedOnTimeout, "Connection seems closed when should not");
+            // no exception expected. Response should be closed automatically
+            rs.close();
+            stmt.executeUpdate("SELECT 1");
+            stmt.executeUpdate("SELECT 1");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCloseOnCompletion() throws Exception {
+        try (Connection conn = getJdbcConnection();) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                    rs.next();
+                }
+                Assert.assertFalse(stmt.isClosed());
+                Assert.assertFalse(stmt.isCloseOnCompletion());
+                stmt.closeOnCompletion();
+                Assert.assertTrue(stmt.isCloseOnCompletion());
+
+                try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                    rs.next();
+                }
+                Assert.assertTrue(stmt.isClosed());
+            }
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.closeOnCompletion();
+                try (ResultSet rs = stmt.executeQuery("CREATE TABLE test_empty_table (id String) Engine Memory")) {
+                }catch (Exception ex){
+                    ex.printStackTrace();
+                }
+
+                Assert.assertTrue(stmt.isClosed());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testMaxFieldSize() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            Assert.assertThrows(SQLException.class, () -> stmt.setMaxFieldSize(-1));
+            stmt.setMaxFieldSize(300);
+            Assert.assertEquals(stmt.getMaxFieldSize(), 300);
+            stmt.setMaxFieldSize(4);
+            ResultSet rs = stmt.executeQuery("SELECT 'long_string'");
+            rs.next();
+//            Assert.assertEquals(rs.getString(1).length(), 4);
+//            Assert.assertEquals(rs.getString(1), "long");
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testVariousSimpleMethods() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            Assert.assertEquals(stmt.getQueryTimeout(), 0);
+            stmt.setQueryTimeout(100);
+            Assert.assertEquals(stmt.getQueryTimeout(), 100);
+            stmt.setFetchSize(100);
+            Assert.assertEquals(stmt.getFetchSize(), 0); // we ignore this hint
+            Assert.assertEquals(stmt.getResultSetConcurrency(), ResultSet.CONCUR_READ_ONLY);
+            Assert.assertEquals(stmt.getResultSetType(), ResultSet.TYPE_FORWARD_ONLY);
+            Assert.assertNotNull(stmt.getConnection());
+            Assert.assertEquals(stmt.getResultSetHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+            assertFalse(stmt.isPoolable());
+            stmt.setPoolable(true);
+            assertTrue(stmt.isPoolable());
         }
     }
 }

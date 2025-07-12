@@ -214,7 +214,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
         if (ctx.tableIdentifier() != null) {
-            this.table = SqlParser.unquoteIdentifier(ctx.tableIdentifier().getText());
+            this.table = SQLUtils.unquoteIdentifier(ctx.tableIdentifier().getText());
         }
     }
 
@@ -222,7 +222,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
         ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
         if (tableId != null) {
-            this.table = SqlParser.unquoteIdentifier(tableId.getText());
+            this.table = SQLUtils.unquoteIdentifier(tableId.getText());
         }
 
         ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();

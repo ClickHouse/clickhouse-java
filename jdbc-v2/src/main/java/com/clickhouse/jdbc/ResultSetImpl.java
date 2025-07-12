@@ -130,6 +130,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     response = null;
                 }
             }
+            parentStatement.onResultSetClosed(this);
         }
 
         if (e != null) {

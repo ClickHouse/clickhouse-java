@@ -8,12 +8,12 @@ import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.ref.WeakReference;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -35,7 +35,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     // State
     private volatile boolean closed;
-    private final ConcurrentLinkedQueue<WeakReference<ResultSetImpl>> resultSets;
+    private final ConcurrentLinkedQueue<ResultSetImpl> resultSets;
     protected ResultSetImpl currentResultSet;
     protected OperationMetrics metrics;
     protected List<String> batch;
@@ -43,6 +43,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private ParsedStatement parsedStatement;
     protected volatile String lastQueryId;
     private long maxRows;
+    private boolean closeOnCompletion;
+    private boolean resultSetAutoClose;
+    private int maxFieldSize;
+
+    // settings local to a statement
     protected QuerySettings localSettings;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
@@ -54,6 +59,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.maxRows = 0;
         this.localSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), new QuerySettings());
         this.resultSets=  new ConcurrentLinkedQueue<>();
+        this.resultSetAutoClose = connection.getJdbcConfig().isSet(DriverProperties.RESULTSET_AUTO_CLOSE);
     }
 
     protected void ensureOpen() throws SQLException {
@@ -111,30 +117,24 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         ensureOpen();
 
-        // TODO: method should throw exception if no result set returned
-
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
-        closeCurrentResultSet();
-
-        QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
-        if (maxRows > 0) {
-            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
-            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+        if (resultSetAutoClose) {
+            closeCurrentResultSet();
         }
 
-        if (mergedSettings.getQueryId() != null) {
-            lastQueryId = mergedSettings.getQueryId();
-        } else {
-            lastQueryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(lastQueryId);
+        QuerySettings mergedSettings = QuerySettings.merge(settings, new  QuerySettings());
+        if (mergedSettings.getQueryId() == null) {
+            final String queryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(queryId);
         }
+        lastQueryId = mergedSettings.getQueryId();
         LOG.debug("Query ID: {}", lastQueryId);
 
+        QueryResponse response = null;
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
             LOG.trace("SQL Query: {}", lastStatementSql); // this is not secure for create statements because of passwords
-            QueryResponse response;
             if (queryTimeout == 0) {
                 response = connection.client.query(lastStatementSql, mergedSettings).get();
             } else {
@@ -146,11 +146,21 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
-
+            if (reader.getSchema() == null) {
+                throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+            }
             metrics = response.getMetrics();
             setCurrentResultSet(new ResultSetImpl(this, response, reader));
             return currentResultSet;
         } catch (Exception e) {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (Exception ex) {
+                    LOG.warn("Failed to close response after exception", e);
+                }
+            }
+            onResultSetClosed(null);
             throw ExceptionUtils.toSqlState(e);
         }
     }
@@ -167,19 +177,19 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected int executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
         ensureOpen();
 
-        // TODO: method should throw exception if result set returned
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
-        closeCurrentResultSet();
+        if (resultSetAutoClose) {
+            closeCurrentResultSet();
+        }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        if (mergedSettings.getQueryId() != null) {
-            lastQueryId = mergedSettings.getQueryId();
-        } else {
-            lastQueryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(lastQueryId);
+        if (mergedSettings.getQueryId() == null) {
+            final String queryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(queryId);
         }
+        lastQueryId = mergedSettings.getQueryId();
 
         lastStatementSql = parseJdbcEscapeSyntax(sql);
         LOG.trace("SQL Query: {}", lastStatementSql);
@@ -212,9 +222,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void close() throws SQLException {
         closed = true;
         closeCurrentResultSet();
-        for (WeakReference<ResultSetImpl> refRs : resultSets) {
-            ResultSetImpl resultSet = refRs.get();
-            if (resultSet != null) {
+        for (ResultSetImpl resultSet : resultSets) {
+            if (resultSet != null &&  !resultSet.isClosed()) {
                 try {
                     resultSet.close();
                 } catch (Exception e) {
@@ -227,15 +236,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getMaxFieldSize() throws SQLException {
         ensureOpen();
-        return 0;
+        return this.maxFieldSize;
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         ensureOpen();
-        if (!connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (max <= 0) {
+            throw new SQLException("max should be a  positive integer.");
         }
+        this.maxFieldSize = max;
     }
 
     @Override
@@ -307,7 +317,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ResultSetImpl tmp = currentResultSet;
         currentResultSet = resultSet;
         if (tmp != null) {
-            resultSets.add(new WeakReference<>(tmp));
+            resultSets.add(tmp);
         }
     }
 
@@ -355,8 +365,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         ensureOpen();
-        if (!connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (direction != ResultSet.FETCH_FORWARD && direction != ResultSet.FETCH_REVERSE && direction != ResultSet.FETCH_UNKNOWN) {
+            throw new SQLException("Invalid fetch direction: " + direction + ". Should be one of ResultSet.FETCH_FORWARD, ResultSet.FETCH_REVERSE, or ResultSet.FETCH_UNKNOW");
         }
     }
 
@@ -418,6 +428,15 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ConnectionImpl getConnection() throws SQLException {
         return connection;
+    }
+
+    /**
+     * Returns instance of local settings. Can be used to override settings.
+     *
+     * @return QuerySettings that is used as base for each request.
+     */
+    public QuerySettings getLocalSettings() {
+        return localSettings;
     }
 
     @Override
@@ -509,11 +528,26 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void closeOnCompletion() throws SQLException {
         ensureOpen();
+        this.closeOnCompletion = true;
+    }
+
+    // called each time query is complete or result set is closed
+    public void onResultSetClosed(ResultSetImpl resultSet) throws SQLException {
+        if (resultSet != null) {
+            this.resultSets.remove(resultSet);
+        }
+
+        if (this.closeOnCompletion) {
+            if ((resultSets.isEmpty()) && (currentResultSet == null || currentResultSet.isClosed())) {
+                // last result set is closed.
+                this.closed = true;
+            }
+        }
     }
 
     @Override
     public boolean isCloseOnCompletion() throws SQLException {
-        return false;
+        return this.closeOnCompletion;
     }
 
     @Override
@@ -526,12 +560,20 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void setLargeMaxRows(long max) throws SQLException {
         ensureOpen();
         maxRows = max;
+        // This method override user set overflow mode on purpose:
+        // 1. Spec clearly states that after calling this method with a limit > 0 all rows over limit are dropped.
+        // 2. Calling this method should not cause throwing exception for future queries what only `break` can guarantee
+        // 3. If user wants different behavior then they are can use connection properties.
         if (max > 0) {
             localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
-            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
+                    ServerSettings.RESULT_OVERFLOW_MODE_BREAK);
         } else {
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS));
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE));
+            // overriding potential client settings (set thru connection setup)
+            // there is no no limit value so we use very large limit.
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), Long.MAX_VALUE);
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
+                    ServerSettings.RESULT_OVERFLOW_MODE_BREAK);
         }
     }
 
@@ -573,6 +615,4 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public String getLastQueryId() {
         return lastQueryId;
     }
-
-
 }

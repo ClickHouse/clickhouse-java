@@ -10,6 +10,9 @@ import org.antlr.v4.runtime.tree.IterativeParseTreeWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class SqlParser {
 
     private static final Logger LOG = LoggerFactory.getLogger(SqlParser.class);
