@@ -64,6 +64,11 @@ public class Main {
         jsonExample.writeData();
         jsonExample.readData();
 
+        // Demonstrate Time and Time64 types
+        TimeTypesExample timeExample = new TimeTypesExample(endpoint, user, password, database);
+        timeExample.demonstrateTimeTypes();
+        timeExample.demonstrateTimeQueries();
+
         log.info("Done");
         Runtime.getRuntime().exit(0);
     }

@@ -56,6 +56,8 @@ public enum ClickHouseDataType {
     DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, 0x11, "TIMESTAMP"),
     DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, 0x12),
     DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x14), // we always write timezone as argument
+    Time(LocalTime.class, true, false, false, 4, 10, 0, 0, 0, false, 0x32), // 32-bit seconds since midnight
+    Time64(LocalTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x34), // 64-bit nanoseconds since midnight
     Enum(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17, "ENUM"),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, 0x18),
@@ -218,6 +220,8 @@ public enum ClickHouseDataType {
         map.put(DateTime64, setOf(LocalDateTime.class, ZonedDateTime.class));
         map.put(DateTime32, setOf(LocalDateTime.class, ZonedDateTime.class));
         map.put(DateTime, setOf(LocalDateTime.class, ZonedDateTime.class));
+        map.put(Time, setOf(LocalTime.class));
+        map.put(Time64, setOf(LocalTime.class));
 
         map.put(Enum8, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
         map.put(Enum16, setOf(java.lang.String.class,byte.class, Byte.class, short.class, Short.class, int.class, Integer.class, long.class, Long.class));
