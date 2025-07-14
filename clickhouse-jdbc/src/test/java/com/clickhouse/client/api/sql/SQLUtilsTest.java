@@ -18,7 +18,7 @@ public class SQLUtilsTest {
             {"O'Reilly", "'O''Reilly'"},
             {"😊👍", "'😊👍'"},
             {"", "''"},
-            {"single'quote'double''quote\"", "'single''quote''doubl''e''"}
+            {"single'quote'double''quote\"", "'single''quote''double''''quote\"'"}
         };
     }
 
