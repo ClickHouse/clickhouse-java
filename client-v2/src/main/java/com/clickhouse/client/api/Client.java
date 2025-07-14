@@ -1616,13 +1616,7 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(httpResponse, responseFormat, finalSettings, metrics);
 
                     } catch (Exception e) {
-                        if (httpResponse != null) {
-                            try {
-                                httpResponse.close();
-                            } catch (IOException ex) {
-                                throw new ClientException("Failed to close response", e);
-                            }
-                        }
+                        httpClientHelper.closeQuietly(httpResponse);
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
                                 (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
