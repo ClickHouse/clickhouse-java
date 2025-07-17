@@ -1,11 +1,13 @@
 package com.clickhouse.jdbc.metadata;
 
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.StatementImpl;
 import com.clickhouse.jdbc.internal.ClientInfoProperties;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
@@ -862,9 +864,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "'NO' as IS_AUTOINCREMENT, " +
                 "'NO' as IS_GENERATEDCOLUMN " +
                 " FROM system.columns" +
-                " WHERE database LIKE '" + (schemaPattern == null ? "%" : SqlParser.escapeQuotes(schemaPattern)) + "'" +
-                " AND table LIKE '" + (tableNamePattern == null ? "%" : SqlParser.escapeQuotes(tableNamePattern)) + "'" +
-                " AND name LIKE '" + (columnNamePattern == null ? "%" : SqlParser.escapeQuotes(columnNamePattern)) + "'" +
+                " WHERE database LIKE " + SQLUtils.enquoteLiteral(schemaPattern == null ? "%" : schemaPattern) +
+                " AND table LIKE " + SQLUtils.enquoteLiteral(tableNamePattern == null ? "%" : tableNamePattern) +
+                " AND name LIKE " + SQLUtils.enquoteLiteral(columnNamePattern == null ? "%" : columnNamePattern) +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
             return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))

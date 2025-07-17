@@ -277,6 +277,11 @@ public class JdbcConfiguration {
         return driverProperties.getOrDefault(key, defaultValue);
     }
 
+    public Boolean isSet(DriverProperties driverProp) {
+        String v = driverProperties.getOrDefault(driverProp.getKey(), driverProp.getDefaultValue());
+        return Boolean.parseBoolean(v);
+    }
+
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties)

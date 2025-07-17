@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.sql.SQLUtils;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,7 +145,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
         if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(SqlParser.unquoteIdentifier(ctx.databaseIdentifier().getText()));
+            setUseDatabase(SQLUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
         }
     }
 
@@ -155,7 +156,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         } else {
             List<String> roles = new ArrayList<>();
             for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(SqlParser.unquoteIdentifier(id.getText()));
+                roles.add(SQLUtils.unquoteIdentifier(id.getText()));
             }
             setRoles(roles);
         }
@@ -213,7 +214,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     @Override
     public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
         if (ctx.tableIdentifier() != null) {
-            this.table = SqlParser.unquoteIdentifier(ctx.tableIdentifier().getText());
+            this.table = SQLUtils.unquoteIdentifier(ctx.tableIdentifier().getText());
         }
     }
 
@@ -221,7 +222,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
         ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
         if (tableId != null) {
-            this.table = SqlParser.unquoteIdentifier(tableId.getText());
+            this.table = SQLUtils.unquoteIdentifier(tableId.getText());
         }
 
         ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
