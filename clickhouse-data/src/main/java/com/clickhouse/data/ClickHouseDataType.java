@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -70,7 +71,7 @@ public enum ClickHouseDataType {
     // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
     UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, 0x03, "INT UNSIGNED", "INTEGER UNSIGNED",
             "MEDIUMINT UNSIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x0A,"BIGINT", "BIGINT SIGNED", "TIME"),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x0A,"BIGINT", "BIGINT SIGNED"),
     IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
     IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
     IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
@@ -127,6 +128,8 @@ public enum ClickHouseDataType {
     AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
     Variant(List.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2A),
     Dynamic(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2B),
+    Time(LocalDateTime.class, true, false, false, 4, 9, 0, 0, 9, false, 0x32), // 0x33 for Time(Timezone)
+    Time64(LocalDateTime.class, true, false, false, 8, 9, 0, 0, 0, false, 0x34), // 0x35 for Time64(P, Timezone)
     ;
 
     public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =
@@ -236,6 +239,9 @@ public enum ClickHouseDataType {
         map.put(IntervalMillisecond, timeIntervalClasses);
         map.put(IntervalMicrosecond, timeIntervalClasses);
         map.put(IntervalNanosecond, timeIntervalClasses);
+
+        map.put(Time,  Collections.unmodifiableSet(new HashSet<>(Arrays.asList(Integer.class, Long.class, Instant.class))));
+        map.put(Time64,  Collections.unmodifiableSet(new HashSet<>(Arrays.asList(Integer.class, Long.class, BigInteger.class, Instant.class))));
 
         return map;
     }
