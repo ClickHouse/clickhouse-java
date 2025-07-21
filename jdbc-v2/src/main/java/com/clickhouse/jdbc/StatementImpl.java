@@ -347,13 +347,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int getUpdateCount() throws SQLException {
         ensureOpen();
-        if (currentResultSet == null && metrics != null) {
-            int updateCount = (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
-            metrics = null;// clear metrics
-            return updateCount;
-        }
-
-        return -1;
+        return (int) getLargeUpdateCount();
     }
 
     @Override
@@ -553,7 +547,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public long getLargeUpdateCount() throws SQLException {
         ensureOpen();
-        return getUpdateCount();
+        if (currentResultSet == null && metrics != null) {
+            long updateCount = metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
+            metrics = null;// clear metrics
+            return updateCount;
+        }
+
+        return -1L;
     }
 
     @Override

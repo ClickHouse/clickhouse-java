@@ -70,7 +70,7 @@ public enum ClickHouseDataType {
     // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
     UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, 0x03, "INT UNSIGNED", "INTEGER UNSIGNED",
             "MEDIUMINT UNSIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x0A,"BIGINT", "BIGINT SIGNED", "TIME"),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x0A,"BIGINT", "BIGINT SIGNED"),
     IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
     IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),
     IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false, 0x22),

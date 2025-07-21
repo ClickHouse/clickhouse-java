@@ -171,7 +171,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
                 assertEquals(stmt.getUpdateCount(), 3);
-                assertEquals(stmt.getLargeUpdateCount(), 3L);
+                assertEquals(stmt.getLargeUpdateCount(), -1L);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleFloats ORDER BY num")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getFloat(1), 1.1f);
