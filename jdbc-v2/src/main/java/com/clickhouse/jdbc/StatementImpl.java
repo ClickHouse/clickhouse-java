@@ -3,8 +3,6 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
@@ -16,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -35,9 +32,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     // State
     private volatile boolean closed;
-    private final ConcurrentLinkedQueue<ResultSetImpl> resultSets;
+    private final ConcurrentLinkedQueue<ResultSetImpl> resultSets; // all result sets linked to this statement
     protected ResultSetImpl currentResultSet;
-    protected OperationMetrics metrics;
+    protected long currentUpdateCount = -1;
     protected List<String> batch;
     private String lastStatementSql;
     private ParsedStatement parsedStatement;
@@ -54,7 +51,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.connection = connection;
         this.queryTimeout = 0;
         this.closed = false;
-        this.metrics = null;
         this.batch = new ArrayList<>();
         this.maxRows = 0;
         this.localSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), new QuerySettings());
@@ -97,7 +93,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         ensureOpen();
-        return executeQueryImpl(sql, localSettings);
+        currentUpdateCount = -1;
+        currentResultSet = executeQueryImpl(sql, localSettings);
+        return currentResultSet;
     }
 
     private void closeCurrentResultSet() {
@@ -149,9 +147,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             if (reader.getSchema() == null) {
                 throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            metrics = response.getMetrics();
-            setCurrentResultSet(new ResultSetImpl(this, response, reader));
-            return currentResultSet;
+            return new ResultSetImpl(this, response, reader);
         } catch (Exception e) {
             if (response != null) {
                 try {
@@ -168,13 +164,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         ensureOpen();
-        parsedStatement = connection.getSqlParser().parsedStatement(sql);
-        int updateCount = executeUpdateImpl(sql, localSettings);
-        postUpdateActions();
-        return updateCount;
+        return (int)executeLargeUpdate(sql);
     }
 
-    protected int executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
+    protected long executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
         ensureOpen();
 
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
@@ -196,9 +189,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
                 : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
-            setCurrentResultSet(null);
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
-            metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -308,28 +299,17 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ensureOpen();
     }
 
-    /**
-     * Remembers current result set to be able to close it later.
-     * Sets current resultset to a new value
-     * @param resultSet new current resultset
-     */
-    protected void setCurrentResultSet(ResultSetImpl resultSet) {
-        ResultSetImpl tmp = currentResultSet;
-        currentResultSet = resultSet;
-        if (tmp != null) {
-            resultSets.add(tmp);
-        }
-    }
-
     @Override
     public boolean execute(String sql) throws SQLException {
         ensureOpen();
         parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        currentUpdateCount = -1;
+        currentResultSet = null;
         if (parsedStatement.isHasResultSet()) {
-            executeQueryImpl(sql, localSettings); // keep open to allow getResultSet()
+            currentResultSet = executeQueryImpl(sql, localSettings);
             return true;
         } else {
-            executeUpdateImpl(sql, localSettings);
+            currentUpdateCount = executeUpdateImpl(sql, localSettings);
             postUpdateActions();
             return false;
         }
@@ -339,9 +319,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public ResultSet getResultSet() throws SQLException {
         ensureOpen();
 
-        ResultSet resultSet = currentResultSet;
-        setCurrentResultSet(null);
-        return resultSet;
+        return currentResultSet;
     }
 
     @Override
@@ -353,7 +331,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public boolean getMoreResults() throws SQLException {
         ensureOpen();
-        return false;
+        return getMoreResults(Statement.CLOSE_CURRENT_RESULT);
     }
 
     @Override
@@ -435,8 +413,17 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public boolean getMoreResults(int current) throws SQLException {
-        // TODO: implement query batches. When multiple selects in the batch.
-        return false;
+        // This method designed to iterate over multiple resultsets after "execute(sql)" method is called
+        // But we have at most only one always
+        // Then we should close any existing and return false to indicate that no more result are present
+
+        if (currentResultSet != null && current != Statement.KEEP_CURRENT_RESULT) {
+            currentResultSet.close();
+        }
+
+        currentResultSet = null;
+        currentUpdateCount = -1;
+        return false; // false indicates that no more results (or it is an update count)
     }
 
     @Override
@@ -547,13 +534,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public long getLargeUpdateCount() throws SQLException {
         ensureOpen();
-        if (currentResultSet == null && metrics != null) {
-            long updateCount = metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
-            metrics = null;// clear metrics
-            return updateCount;
-        }
-
-        return -1L;
+        return currentUpdateCount;
     }
 
     @Override
@@ -590,22 +571,25 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public long executeLargeUpdate(String sql) throws SQLException {
-        return executeUpdate(sql);
+        parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        long updateCount = executeUpdateImpl(sql, localSettings);
+        postUpdateActions();
+        return updateCount;
     }
 
     @Override
     public long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        return executeUpdate(sql, autoGeneratedKeys);
+        return executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        return executeUpdate(sql, columnIndexes);
+        return executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, String[] columnNames) throws SQLException {
-        return executeUpdate(sql, columnNames);
+        return executeLargeUpdate(sql);
     }
 
     /**

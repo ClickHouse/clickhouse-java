@@ -3,8 +3,6 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.sql.SQLUtils;
-import com.clickhouse.jdbc.internal.ClickHouseParser;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +30,9 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
 
 
 @Test(groups = { "integration" })
@@ -170,8 +168,6 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
-                assertEquals(stmt.getUpdateCount(), 3);
-                assertEquals(stmt.getLargeUpdateCount(), -1L);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleFloats ORDER BY num")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getFloat(1), 1.1f);
@@ -961,6 +957,56 @@ public class StatementTest extends JdbcIntegrationTest {
             assertFalse(stmt.isPoolable());
             stmt.setPoolable(true);
             assertTrue(stmt.isPoolable());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecute() throws Exception {
+        // This test verifies multi-resultset scenario (we may have only one resultset at a time)
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            // has result set and no update count
+            Assert.assertTrue(stmt.execute("SELECT 1"));
+            ResultSet rs = stmt.getResultSet();
+            Assert.assertTrue(rs.next());
+            assertEquals(rs.getInt(1), 1);
+            ResultSet rs2 = stmt.getResultSet();
+            assertSame(rs, rs2);
+            Assert.assertFalse(rs.next());
+            Assert.assertFalse(rs2.next());
+            Assert.assertEquals(stmt.getUpdateCount(), -1);
+            assertFalse(rs.isClosed());
+            Assert.assertFalse(stmt.getMoreResults());
+            assertTrue(rs.isClosed());
+            Assert.assertNull(stmt.getResultSet());
+        }
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            // no result set and update count
+            Assert.assertFalse(stmt.execute("CREATE TABLE test_multi_result (id Int32) Engine MergeTree ORDER BY ()"));
+            Assert.assertNull(stmt.getResultSet());
+            Assert.assertEquals(stmt.getUpdateCount(), 0);
+            Assert.assertFalse(stmt.getMoreResults());
+
+            // no result set and has update count
+            Assert.assertFalse(stmt.execute("INSERT INTO test_multi_result VALUES (1), (2), (3)"));
+            Assert.assertNull(stmt.getResultSet());
+            Assert.assertEquals(stmt.getUpdateCount(), 3);
+            Assert.assertFalse(stmt.getMoreResults());
+            Assert.assertEquals(stmt.getUpdateCount(), -1);
+        }
+
+        // keep current resultset
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            // has result set and no update count
+            Assert.assertTrue(stmt.execute("SELECT 1"));
+            ResultSet rs = stmt.getResultSet();
+            Assert.assertEquals(stmt.getUpdateCount(), -1);
+            assertFalse(rs.isClosed());
+            Assert.assertFalse(stmt.getMoreResults(Statement.KEEP_CURRENT_RESULT));
+            Assert.assertNull(stmt.getResultSet());
+            assertFalse(rs.isClosed());
+            assertTrue(rs.next());
+            assertEquals(rs.getInt(1), 1);
         }
     }
 }

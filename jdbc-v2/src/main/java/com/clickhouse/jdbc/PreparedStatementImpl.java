@@ -134,7 +134,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public int executeUpdate() throws SQLException {
         ensureOpen();
-        return super.executeUpdateImpl(buildSQL(), localSettings);
+        return (int) super.executeUpdateImpl(buildSQL(), localSettings);
     }
 
     @Override
@@ -298,7 +298,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         } else {
             List<Integer> results = new ArrayList<>();
             for (String sql : batch) {
-                results.add(executeUpdateImpl(sql, localSettings));
+                results.add((int) executeUpdateImpl(sql, localSettings));
             }
             return results.stream().mapToInt(Integer::intValue).toArray();
         }
@@ -313,7 +313,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         } else {
             List<Integer> results = new ArrayList<>();
             for (String sql : batch) {
-                results.add(executeUpdateImpl(sql, localSettings));
+                results.add((int) executeUpdateImpl(sql, localSettings));
             }
             return results.stream().mapToLong(Integer::longValue).toArray();
         }
@@ -328,7 +328,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
         insertSql.setLength(insertSql.length() - 1);
 
-        int updateCount = super.executeUpdateImpl(insertSql.toString(), localSettings);
+        int updateCount = (int) super.executeUpdateImpl(insertSql.toString(), localSettings);
         if (updateCount == batchValues.size()) {
             return Collections.nCopies(batchValues.size(), 1);
         } else {

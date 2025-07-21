@@ -118,9 +118,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try (InsertResponse response = queryTimeout == 0 ?
                 connection.client.insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get()
                 : connection.client.insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get(queryTimeout, TimeUnit.SECONDS)) {
-            setCurrentResultSet(null);
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
-            metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
