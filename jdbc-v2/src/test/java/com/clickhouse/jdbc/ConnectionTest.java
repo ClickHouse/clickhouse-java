@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -33,7 +34,6 @@ import java.util.UUID;
 
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
-
 
 public class ConnectionTest extends JdbcIntegrationTest {
 
@@ -569,8 +569,32 @@ public class ConnectionTest extends JdbcIntegrationTest {
         connCheck.close();
     }
 
+    @Test(groups = { "integration" })
+    public void closedConnectionIsInvalid() throws Exception {
+        if (isCloud()) {
+            return;
+        }
+        Connection connection = this.getJdbcConnection();
+        Assert.assertTrue(connection.isValid(3));
+        connection.close();
+        Assert.assertFalse(connection.isValid(3));
+    }
+
+    @Test(groups = { "integration" })
+    public void connectionWithWrongCredentialsIsInvalid() throws Exception {
+        if (isCloud()) {
+            return;
+        }
+        Connection connection = this.getJdbcConnection();
+        Assert.assertTrue(connection.isValid(3));
+        Properties properties = new Properties();
+        properties.put("password", "invalid");
+        connection = this.getJdbcConnection(properties);
+        Assert.assertFalse(connection.isValid(3));
+    }
+
     @DataProvider(name = "validDatabaseNames")
-    public Object[][] createValidDatabaseNames() {
+    private static Object[][] createValidDatabaseNames() {
         return new Object[][] {
             { "foo" },
             { "with-dashes" },
