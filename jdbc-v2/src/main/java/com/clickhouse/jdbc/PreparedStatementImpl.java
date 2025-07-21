@@ -262,10 +262,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public boolean execute() throws SQLException {
         ensureOpen();
         if (parsedPreparedStatement.isHasResultSet()) {
-            super.executeQueryImpl(buildSQL(), localSettings);
+            currentResultSet = super.executeQueryImpl(buildSQL(), localSettings);
             return true;
         } else {
-            super.executeUpdateImpl(buildSQL(), localSettings);
+            currentUpdateCount = super.executeUpdateImpl(buildSQL(), localSettings);
             return false;
         }
     }

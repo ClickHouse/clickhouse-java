@@ -33,6 +33,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 
 @Test(groups = { "integration" })
@@ -329,6 +330,15 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getString("FNSUBSTRING"), "ll");
                     assertThrows(SQLException.class, () -> rs.getString(14));
                     assertFalse(rs.next());
+                }
+            }
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setEscapeProcessing(false);
+                try (ResultSet rs = stmt.executeQuery("SELECT {d '2021-11-01'} AS D")) {
+                    fail("Expected to fail");
+                } catch (SQLException e) {
+                    // ignore
                 }
             }
         }

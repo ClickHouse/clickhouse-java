@@ -43,6 +43,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private boolean closeOnCompletion;
     private boolean resultSetAutoClose;
     private int maxFieldSize;
+    private boolean escapeProcessingEnabled;
 
     // settings local to a statement
     protected QuerySettings localSettings;
@@ -56,6 +57,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.localSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), new QuerySettings());
         this.resultSets=  new ConcurrentLinkedQueue<>();
         this.resultSetAutoClose = connection.getJdbcConfig().isSet(DriverProperties.RESULTSET_AUTO_CLOSE);
+        this.escapeProcessingEnabled = true;
     }
 
     protected void ensureOpen() throws SQLException {
@@ -65,24 +67,26 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
 
-    protected static String parseJdbcEscapeSyntax(String sql) {
+    private String parseJdbcEscapeSyntax(String sql) {
         LOG.trace("Original SQL: {}", sql);
-        // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
-        sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
+        if (escapeProcessingEnabled) {
+            // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
+            sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
 
-        // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
-        sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
+            // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
+            sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
 
-        // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
-        sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
+            // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
+            sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
 
-        // Handle outer escape syntax
-        //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
+            // Handle outer escape syntax
+            //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
 
-        // Clean new empty lines in sql
-        sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
-        // Add more replacements as needed for other JDBC escape sequences
-        LOG.trace("Parsed SQL: {}", sql);
+            // Clean new empty lines in sql
+            sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
+            // Add more replacements as needed for other JDBC escape sequences
+        }
+        LOG.trace("Escaped SQL: {}", sql);
         return sql;
     }
 
@@ -253,7 +257,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
         ensureOpen();
-        //TODO: Should we support this?
+        this.escapeProcessingEnabled = enable;
     }
 
     @Override
