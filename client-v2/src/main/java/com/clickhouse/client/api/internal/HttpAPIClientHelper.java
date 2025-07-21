@@ -428,8 +428,9 @@ public class HttpAPIClientHelper {
 
         HttpClientContext context = HttpClientContext.create();
 
+        ClassicHttpResponse httpResponse = null;
         try {
-            ClassicHttpResponse httpResponse = httpClient.executeOpen(null, req, context);
+            httpResponse = httpClient.executeOpen(null, req, context);
             boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression, lz4Factory, requestConfig));
 
@@ -448,11 +449,23 @@ public class HttpAPIClientHelper {
             return httpResponse;
 
         } catch (UnknownHostException e) {
+            closeQuietly(httpResponse);
             LOG.warn("Host '{}' unknown", server.getBaseURL());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
+            closeQuietly(httpResponse);
             LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
             throw e;
+        }
+    }
+
+    public void closeQuietly(ClassicHttpResponse httpResponse) {
+        if (httpResponse != null) {
+            try {
+                httpResponse.close();
+            } catch (IOException e) {
+                LOG.warn("Failed to close response");
+            }
         }
     }
 

@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -121,7 +122,7 @@ public class Client implements AutoCloseable {
     private final Map<String, Object> configuration;
 
     private final Map<String, String> readOnlyConfig;
-    
+
     private final POJOSerDe pojoSerDe;
 
     private final ExecutorService sharedOperationExecutor;
@@ -291,7 +292,7 @@ public class Client implements AutoCloseable {
          */
         public Builder addEndpoint(String endpoint) {
             try {
-                URL endpointURL = new java.net.URL(endpoint);
+                URL endpointURL = new URL(endpoint);
 
                 if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
                     addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
@@ -300,7 +301,7 @@ public class Client implements AutoCloseable {
                 } else {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
-            } catch (java.net.MalformedURLException e) {
+            } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
             return this;
@@ -380,7 +381,7 @@ public class Client implements AutoCloseable {
 
         /**
          * Makes client to use SSL Client Certificate to authenticate with server.
-         * Client certificate should be set as well. {@link Client.Builder#setClientCertificate(String)}
+         * Client certificate should be set as well. {@link Builder#setClientCertificate(String)}
          * @param useSSLAuthentication
          * @return
          */
@@ -1583,8 +1584,9 @@ public class Client implements AutoCloseable {
                 Endpoint selectedEndpoint = getNextAliveNode();
                 RuntimeException lastException = null;
                 for (int i = 0; i <= retries; i++) {
+                    ClassicHttpResponse httpResponse = null;
                     try {
-                        ClassicHttpResponse httpResponse =
+                        httpResponse =
                                 httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory, output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
                                     output.close();
@@ -1614,6 +1616,7 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(httpResponse, responseFormat, finalSettings, metrics);
 
                     } catch (Exception e) {
+                        httpClientHelper.closeQuietly(httpResponse);
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
                                 (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {

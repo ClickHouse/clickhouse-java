@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -23,15 +25,17 @@ public class JdbcConfigurationTest {
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost"),
         new JdbcConfigurationTestData("jdbc:clickhouse:http://localhost"),
         new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost")
-            .withExpectedConnectionURL("https://localhost"),
+            .withExpectedConnectionURL("https://localhost:8443"),
+        new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost:8123")
+            .withExpectedConnectionURL("https://localhost:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost")
             .withAdditionalConnectionParameters(
                 Map.of(JdbcConfiguration.USE_SSL_PROP, "true"))
-            .withExpectedConnectionURL("https://localhost")
+            .withExpectedConnectionURL("https://localhost:8443")
             .withAdditionalExpectedClientProperties(
                 Map.of("ssl", "true")),
         new JdbcConfigurationTestData("jdbc:clickhouse://[::1]")
-            .withExpectedConnectionURL("http://[::1]"),
+            .withExpectedConnectionURL("http://[::1]:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://[::1]:8123")
             .withExpectedConnectionURL("http://[::1]:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8443")
@@ -111,14 +115,22 @@ public class JdbcConfigurationTest {
                     ))
     };
 
+    @SuppressWarnings("deprecation")
     @Test(dataProvider = "validURLTestData")
     public void testParseURLValid(String jdbcURL, Properties properties,
-        String connectionUrl, Map<String, String> expectedClientProps)
+        String connectionURL, Map<String, String> expectedClientProps)
             throws Exception
     {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcURL, properties);
-        assertEquals(configuration.getConnectionUrl(), connectionUrl);
+        assertEquals(configuration.getConnectionUrl(), connectionURL);
         assertEquals(configuration.clientProperties, expectedClientProps);
+        Client.Builder bob = new Client.Builder();
+        configuration.applyClientProperties(bob);
+        Client client = bob.build();
+        assertEquals(client.getEndpoints().size(), 1);
+        assertEquals(
+            client.getEndpoints().iterator().next(),
+            connectionURL);
     }
 
     @Test(dataProvider = "invalidURLs")
@@ -198,6 +210,9 @@ public class JdbcConfigurationTest {
             { "jdbc:clickhouse://foo.bar?x&y=z" },
             { "jdbc:clickhouse://foo.bar?x==&y=z" },
             { "jdbc:clickhouse://localhost?☺=value1" },
+            // multiple endpoints are invalid
+            { "jdbc:clickhouse://foo,bar" },
+            { "jdbc:clickhouse://foo,bar.com:8123" },
         };
     }
 
@@ -210,7 +225,7 @@ public class JdbcConfigurationTest {
             Map.of( "user", "default", "password", "");
 
         private static final String DEFAULT_EXPECTED_CONNECTION_URL =
-            "http://localhost";
+            "http://localhost:8123";
 
         private final String url;
         private final Properties connectionParameters;
