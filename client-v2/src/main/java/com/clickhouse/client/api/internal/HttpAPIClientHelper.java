@@ -98,7 +98,10 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class HttpAPIClientHelper {
-    private static final Logger LOG = LoggerFactory.getLogger(Client.class);
+
+    public static final String KEY_STATEMENT_PARAMS = "statement_params";
+
+    private static final Logger LOG = LoggerFactory.getLogger(HttpAPIClientHelper.class);
 
     private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
@@ -567,11 +570,9 @@ public class HttpAPIClientHelper {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey("statement_params")) {
-            Map<String, Object> params = (Map<String, Object>) requestConfig.get("statement_params");
-            for (Map.Entry<String, Object> entry : params.entrySet()) {
-                req.addParameter("param_" + entry.getKey(), String.valueOf(entry.getValue()));
-            }
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> req.addParameter("param_" + k, (String.valueOf(v))));
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
