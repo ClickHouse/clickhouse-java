@@ -103,7 +103,7 @@ public class DataTypeUtils {
         if (object instanceof Instant) {
             return formatInstant((Instant) object, dataTypeHint, timeZone);
         }
-        return escapeString(String.valueOf(object));
+        return String.valueOf(object);
     }
 
     private static String formatInstant(Instant instant, ClickHouseDataType dataTypeHint,
@@ -135,10 +135,6 @@ public class DataTypeUtils {
         int nanosLength = Math.min(9, nanos.length());
         nanos.getChars(0, nanosLength, n, 9 - nanosLength);
         return String.valueOf(instant.getEpochSecond()) + "." + new String(n);
-    }
-
-    private static String escapeString(String x) {
-        return x.replace("\\", "\\\\").replace("'", "\\'");
     }
 
 }

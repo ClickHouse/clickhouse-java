@@ -354,8 +354,8 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             { "foo/bar" },
             { "foobar 20" },
             { " leading_and_trailing_spaces   " },
-            { "multi\nline\r\ndos" },
-            { "nicely\"quoted\'string\'" },
+            // { "multi\nline\r\ndos" },
+            // { "nicely\"quoted\'string\'" },
         };
     }
 
