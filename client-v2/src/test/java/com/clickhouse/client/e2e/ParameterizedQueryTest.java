@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import com.clickhouse.client.BaseIntegrationTest;
@@ -232,6 +233,31 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         }
     }
 
+    @Test(dataProvider = "stringParameters")
+    void testStringParams(String paramValue) throws Exception {
+        String table = "test_params_unicode";
+        String column = "val";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + "(" + column + " String) Engine = Memory").get();
+        client.query(
+            "INSERT INTO " + table + "(" + column + ") VALUES ('" + paramValue + "')").get();
+        try (QueryResponse r = client.query(
+            "SELECT " + column + " FROM " + table + " WHERE " + column + "='" + paramValue + "'").get();
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(r))
+        {
+            reader.next();
+            Assert.assertEquals(reader.getString(1), paramValue);
+        }
+        try (QueryResponse r = client.query(
+            "SELECT " + column + " FROM " + table + " WHERE " + column + "={x:String}",
+            Collections.singletonMap("x", paramValue)).get();
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(r))
+        {
+            reader.next();
+            Assert.assertEquals(reader.getString(1), paramValue);
+        }
+    }
+
     private int[] queryInstant(String tableName, String fieldName, String operator,
         Instant param, int scale) throws InterruptedException, ExecutionException, Exception
     {
@@ -255,13 +281,13 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
         return new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .compressClientRequest(false)
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
-                .serverSetting(ServerSettings.ASYNC_INSERT, "0");
+            .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
+            .setUsername("default")
+            .setPassword(ClickHouseServerForTest.getPassword())
+            .compressClientRequest(false)
+            .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+            .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+            .serverSetting(ServerSettings.ASYNC_INSERT, "0");
     }
 
     private void prepareDataSet(String table, List<String> columns, List<Supplier<Object>> valueGenerators,
@@ -317,6 +343,20 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
 
         }
         return values;
+    }
+
+    @DataProvider(name = "stringParameters")
+    private static Object[][] createStringParameterValues() {
+        return new Object[][] {
+            { "foo" },
+            { "with-dashes" },
+            { "☺" },
+            { "foo/bar" },
+            { "foobar 20" },
+            { " leading_and_trailing_spaces   " },
+            { "multi\nline\r\ndos" },
+            { "nicely\"quoted\'string\'" },
+        };
     }
 
 }

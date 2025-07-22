@@ -2027,6 +2027,7 @@ public class Client implements AutoCloseable {
      * @return - set of endpoints
      * @deprecated
      */
+    @Deprecated
     public Set<String> getEndpoints() {
         return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
     }
@@ -2108,4 +2109,5 @@ public class Client implements AutoCloseable {
         }
         return newMap;
     }
+
 }
