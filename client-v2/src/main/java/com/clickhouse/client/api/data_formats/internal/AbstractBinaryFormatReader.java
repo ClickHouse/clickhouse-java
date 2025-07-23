@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -455,8 +456,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     return dateTime.toInstant();
                 }
             case Time:
+                return Instant.ofEpochSecond(getLong(colName));
             case Time64:
-                return readValue(colName);
+                return DataTypeUtils.instantFromTime64Integer(column.getScale(), getLong(colName));
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
@@ -711,22 +713,22 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(int index) {
-        return readValue(index);
+        return getGeoPoint(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(int index) {
-        return readValue(index);
+        return getGeoRing(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoPolygonValue getGeoPolygon(int index) {
-        return readValue(index);
+        return getGeoPolygon(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index) {
-        return readValue(index);
+        return getGeoMultiPolygon(schema.columnIndexToName(index));
     }
 
     @Override
@@ -808,11 +810,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public LocalDate getLocalDate(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDate();
-        }
-        return (LocalDate) value;
+       return getLocalDate(schema.columnIndexToName(index));
     }
 
     @Override
@@ -826,11 +824,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDateTime();
-        }
-        return (LocalDateTime) value;
+        return getLocalDateTime(schema.columnIndexToName(index));
     }
 
     @Override
@@ -844,11 +838,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public OffsetDateTime getOffsetDateTime(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toOffsetDateTime();
-        }
-        return (OffsetDateTime) value;
+        return getOffsetDateTime(schema.columnIndexToName(index));
     }
 
     @Override

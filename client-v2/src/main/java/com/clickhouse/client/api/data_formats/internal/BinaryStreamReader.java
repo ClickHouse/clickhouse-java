@@ -187,9 +187,9 @@ public class BinaryStreamReader {
                 case DateTime64:
                     return convertDateTime(readDateTime64(scale, timezone), typeHint);
                 case Time:
-                    return (T) (Long) readUnsignedIntLE();
+                    return (T) (Integer) readIntLE();
                 case Time64:
-                    return (T) readBigIntegerLE(INT64_SIZE, true);
+                    return (T) (Long) (readLongLE());
                 case IntervalYear:
                 case IntervalQuarter:
                 case IntervalMonth:
