@@ -1,17 +1,28 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.value.*;
+import com.clickhouse.data.value.ClickHouseBitmap;
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.time.*;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.HashMap;
 import java.util.List;
@@ -130,6 +141,11 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
                 LocalDateTime dateTime = readValue(colName);
                 return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+            case Time:
+                return Instant.ofEpochSecond(getLong(colName));
+            case Time64:
+                return DataTypeUtils.instantFromTime64Integer(column.getScale(), getLong(colName));
+
         }
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
@@ -248,7 +264,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public boolean hasValue(int colIndex) {
-        return record.containsKey(schema.columnIndexToName(colIndex));
+        return hasValue(schema.columnIndexToName(colIndex));
     }
 
     @Override
@@ -293,27 +309,27 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return readValue(index);
+        return getBigInteger(schema.columnIndexToName(index));
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return readValue(index);
+        return getBigDecimal(schema.columnIndexToName(index));
     }
 
     @Override
     public Instant getInstant(int index) {
-        return readValue(index);
+        return getInstant(schema.columnIndexToName(index));
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
-        return readValue(index);
+        return getZonedDateTime(schema.columnIndexToName(index));
     }
 
     @Override
     public Duration getDuration(int index) {
-        return readValue(index);
+        return getDuration(schema.columnIndexToName(index));
     }
 
     @Override
@@ -338,22 +354,22 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(int index) {
-        return readValue(index);
+        return getGeoPoint(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(int index) {
-        return readValue(index);
+        return getGeoRing(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoPolygonValue getGeoPolygon(int index) {
-        return readValue(index);
+        return getGeoPolygon(schema.columnIndexToName(index));
     }
 
     @Override
     public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index) {
-        return readValue(index);
+        return getGeoMultiPolygon(schema.columnIndexToName(index));
     }
 
     @Override
@@ -423,11 +439,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public LocalDate getLocalDate(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDate();
-        }
-        return (LocalDate) value;
+        return getLocalDate(schema.columnIndexToName(index));
     }
 
     @Override
@@ -451,11 +463,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDateTime();
-        }
-        return (LocalDateTime) value;
+       return getLocalDateTime(schema.columnIndexToName(index));
     }
 
     @Override
@@ -469,11 +477,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public OffsetDateTime getOffsetDateTime(int index) {
-        Object value = readValue(index);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toOffsetDateTime();
-        }
-        return (OffsetDateTime) value;
+        return getOffsetDateTime(schema.columnIndexToName(index));
     }
 
     @Override

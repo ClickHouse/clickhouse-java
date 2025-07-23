@@ -2,12 +2,18 @@ package com.clickhouse.client.api;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
 
 import com.clickhouse.data.ClickHouseDataType;
+
+import static com.clickhouse.client.api.data_formats.internal.BinaryStreamReader.BASES;
 
 public class DataTypeUtils {
 
@@ -113,4 +119,21 @@ public class DataTypeUtils {
         return INSTANT_FORMATTER.format(instant);
     }
 
+    public static Instant instantFromTime64Integer(int precision, long value) {
+        int nanoSeconds = 0;
+        if (precision > 0) {
+            int factor = BinaryStreamReader.BASES[precision];
+            nanoSeconds = (int) (value % factor);
+            value /= factor;
+            if (nanoSeconds < 0) {
+                nanoSeconds += factor;
+                value--;
+            }
+            if (nanoSeconds > 0L) {
+                nanoSeconds *= BASES[9 - precision];
+            }
+        }
+
+        return Instant.ofEpochSecond(value, nanoSeconds);
+    }
 }
