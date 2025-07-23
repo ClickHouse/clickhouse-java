@@ -36,11 +36,11 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 
-@Test(groups = { "integration" })
+@Test(groups = {"integration"})
 public class StatementTest extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(StatementTest.class);
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQuerySimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -59,12 +59,12 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getLong("num"), 1);
                     assertFalse(rs.next());
                 }
-                Assert.assertFalse(((StatementImpl)stmt).getLastQueryId().isEmpty());
+                Assert.assertFalse(((StatementImpl) stmt).getLastQueryId().isEmpty());
             }
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQuerySimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -80,7 +80,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQueryBooleans() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -94,7 +94,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQueryStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -108,7 +108,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQueryNulls() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -124,7 +124,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQueryDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -144,7 +144,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateSimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -163,7 +163,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateSimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -183,7 +183,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateBooleans() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -202,7 +202,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateStrings() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -221,7 +221,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateNulls() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -240,7 +240,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateDates() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -263,7 +263,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteUpdateBatch() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -291,7 +291,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testJdbcEscapeSyntax() throws Exception {
         if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
             return; // there is no `timestamp` function TODO: fix in JDBC
@@ -344,7 +344,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteQueryTimeout() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -359,7 +359,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testSettingRole() throws SQLException {
         if (earlierThan(24, 4)) {//Min version is 24.4
             return;
@@ -445,7 +445,7 @@ public class StatementTest extends JdbcIntegrationTest {
             Array numberArray = rs.getArray("number_array");
             assertEquals(((Object[]) numberArray.getArray()).length, 3);
             System.out.println(((Object[]) numberArray.getArray())[0].getClass().getName());
-            assertEquals(numberArray.getArray(), new short[] {1, 2, 3} );
+            assertEquals(numberArray.getArray(), new short[]{1, 2, 3});
             Array stringArray = rs.getArray("str_array");
             assertEquals(((Object[]) stringArray.getArray()).length, 3);
             assertEquals(Arrays.stream(((Object[]) stringArray.getArray())).toList(), Arrays.asList("val1", "val2", "val3"));
@@ -453,7 +453,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testWithIPs() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -481,14 +481,14 @@ public class StatementTest extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
-                for (int i = 0; i< maxNumConnections * 2; i++) {
+                for (int i = 0; i < maxNumConnections * 2; i++) {
                     stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
                 }
             }
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testConcurrentCancel() throws Exception {
         int maxNumConnections = 3;
         Properties p = new Properties();
@@ -524,7 +524,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testTextFormatInResponse() throws Exception {
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
-            Assert.expectThrows(SQLException.class, () ->stmt.executeQuery("SELECT 1 FORMAT JSON"));
+            Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
         }
     }
 
@@ -543,7 +543,7 @@ public class StatementTest extends JdbcIntegrationTest {
         assertEquals(count, 100);
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testSwitchDatabase() throws Exception {
         String databaseName = getDatabase() + "_test_switch";
         String createSql = "CREATE TABLE switchDatabaseWithUse (id UInt8, words String) ENGINE = MergeTree ORDER BY ()";
@@ -571,7 +571,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testNewLineSQLParsing() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
@@ -636,7 +636,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testNullableFixedStringType() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ENGINE Memory;";
@@ -644,12 +644,12 @@ public class StatementTest extends JdbcIntegrationTest {
                 int r = stmt.executeUpdate(sqlCreate);
                 assertEquals(r, 0);
             }
-            try(Statement stmt = conn.createStatement()) {
+            try (Statement stmt = conn.createStatement()) {
                 String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
                 int r = stmt.executeUpdate(sqlInsert);
                 assertEquals(r, 1);
             }
-            try(Statement stmt = conn.createStatement()) {
+            try (Statement stmt = conn.createStatement()) {
                 String sqlSelect = "SELECT * FROM `data_types`";
                 ResultSet rs = stmt.executeQuery(sqlSelect);
                 assertTrue(rs.next());
@@ -659,7 +659,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(rs.getString(4), "val4");
                 assertFalse(rs.next());
             }
-            try(Statement stmt = conn.createStatement()) {
+            try (Statement stmt = conn.createStatement()) {
                 String sqlSelect = "SELECT f4 FROM `data_types`";
                 ResultSet rs = stmt.executeQuery(sqlSelect);
                 assertTrue(rs.next());
@@ -668,7 +668,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testWasNullFlagArray() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             String sql = "SELECT NULL, ['value1', 'value2']";
@@ -707,7 +707,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testExecuteWithMaxRows() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -734,7 +734,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 ServerSettings.RESULT_OVERFLOW_MODE_THROW);
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), "100");
         try (Connection conn = getJdbcConnection(props);
-            Statement stmt = conn.createStatement()) {
+             Statement stmt = conn.createStatement()) {
 
             Assert.assertThrows(SQLException.class, () -> stmt.execute("SELECT * FROM generate_series(0, 100000)"));
 
@@ -770,7 +770,7 @@ public class StatementTest extends JdbcIntegrationTest {
             return; // skip because we do not want to create extra on cloud instance
         }
         try (Connection conn = getJdbcConnection()) {
-            try (Statement stmt = conn.createStatement()){
+            try (Statement stmt = conn.createStatement()) {
                 Assert.assertFalse(stmt.execute("CREATE USER IF NOT EXISTS 'user011' IDENTIFIED BY 'password'"));
 
                 try (ResultSet rs = stmt.executeQuery("SHOW USERS")) {
@@ -804,14 +804,14 @@ public class StatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             Object[][] identifiers = {{"simple_identifier", false}, {"complex identified", true}};
             for (Object[] aCase : identifiers) {
-                stmt.enquoteIdentifier((String)aCase[0], (boolean) aCase[1]);
+                stmt.enquoteIdentifier((String) aCase[0], (boolean) aCase[1]);
             }
         }
     }
 
     @DataProvider(name = "ncharLiteralTestData")
     public Object[][] ncharLiteralTestData() {
-        return new Object[][] {
+        return new Object[][]{
                 // input, expected output
                 {"test", "N'test'"},
                 {"O'Reilly", "N'O''Reilly'"},
@@ -839,7 +839,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testIsSimpleIdentifier() throws Exception {
-        Object[][] identifiers = new Object[][] {
+        Object[][] identifiers = new Object[][]{
                 // identifier, expected result
                 {"Hello", true},
                 {"hello_world", true},
@@ -928,7 +928,7 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.closeOnCompletion();
                 try (ResultSet rs = stmt.executeQuery("CREATE TABLE test_empty_table (id String) Engine Memory")) {
-                }catch (Exception ex){
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
 

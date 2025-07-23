@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.sql;
 
+import org.apache.commons.lang3.StringUtils;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -93,7 +94,7 @@ public class SQLUtilsTest {
             {"hello_world", true},
             {"Hello123", true},
             {"H", true},  // minimum length
-            {"a".repeat(128), true},  // maximum length
+            {StringUtils.repeat("a", 128), true},  // maximum length
             
             // Test cases from requirements
             {"G'Day", false},
@@ -110,7 +111,7 @@ public class SQLUtilsTest {
             {"test name", false},  // contains space
             {"test\"name", false},  // contains quote
             {"test.name", false},  // contains dot
-            {"a".repeat(129), false},  // exceeds max length
+            {StringUtils.repeat("a", 129), false},  // exceeds max length
             {"testName", true},
             {"TEST_NAME", true},
             {"test123", true},

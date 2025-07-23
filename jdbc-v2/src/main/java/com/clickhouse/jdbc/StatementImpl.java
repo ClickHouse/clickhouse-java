@@ -237,7 +237,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         ensureOpen();
-        if (max <= 0) {
+        if (max < 0) {
             throw new SQLException("max should be a  positive integer.");
         }
         this.maxFieldSize = max;
@@ -342,7 +342,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void setFetchDirection(int direction) throws SQLException {
         ensureOpen();
         if (direction != ResultSet.FETCH_FORWARD && direction != ResultSet.FETCH_REVERSE && direction != ResultSet.FETCH_UNKNOWN) {
-            throw new SQLException("Invalid fetch direction: " + direction + ". Should be one of ResultSet.FETCH_FORWARD, ResultSet.FETCH_REVERSE, or ResultSet.FETCH_UNKNOW");
+            throw new SQLException("Invalid fetch direction: " + direction + ". Should be one of ResultSet.FETCH_FORWARD, ResultSet.FETCH_REVERSE, or ResultSet.FETCH_UNKNOWN");
         }
     }
 

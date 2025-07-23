@@ -62,6 +62,10 @@ public class SQLUtils {
      * @return true if the identifier needs to be quoted, false otherwise
      */
     private static boolean needsQuoting(String identifier) {
+        if (identifier == null) {
+            throw new IllegalArgumentException("identifier cannot be null");
+        }
+
         if (identifier.isEmpty()) {
             return true;
         }
