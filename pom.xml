@@ -713,6 +713,7 @@
                             </execution>
                             <execution>
                                 <id>jacoco-prepare-it</id>
+                                <phase>pre-integration-test</phase>
                                 <goals>
                                     <goal>prepare-agent</goal>
                                 </goals>
@@ -720,30 +721,30 @@
                                     <destFile>${project.build.directory}/coverage-reports/jacoco-it.exec</destFile>
                                 </configuration>
                             </execution>
-                            <execution>
-                                <id>jacoco-ut</id>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                                <configuration>
-                                    <skip>${skipUTs}</skip>
-                                    <destFile>${project.build.directory}/coverage-reports/jacoco-ut.exec</destFile>
-                                    <propertyName>surefireArgLine</propertyName>
-                                    <append>true</append>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>jacoco-it</id>
-                                <goals>
-                                    <goal>prepare-agent-integration</goal>
-                                </goals>
-                                <configuration>
-                                    <skip>${skipITs}</skip>
-                                    <destFile>${project.build.directory}/coverage-reports/jacoco-it.exec</destFile>
-                                    <propertyName>failsafeArgLine</propertyName>
-                                    <append>true</append>
-                                </configuration>
-                            </execution>
+<!--                            <execution>-->
+<!--                                <id>jacoco-ut</id>-->
+<!--                                <goals>-->
+<!--                                    <goal>prepare-agent</goal>-->
+<!--                                </goals>-->
+<!--                                <configuration>-->
+<!--                                    <skip>${skipUTs}</skip>-->
+<!--                                    <destFile>${project.build.directory}/coverage-reports/jacoco-ut.exec</destFile>-->
+<!--                                    <propertyName>surefireArgLine</propertyName>-->
+<!--                                    <append>true</append>-->
+<!--                                </configuration>-->
+<!--                            </execution>-->
+<!--                            <execution>-->
+<!--                                <id>jacoco-it</id>-->
+<!--                                <goals>-->
+<!--                                    <goal>prepare-agent-integration</goal>-->
+<!--                                </goals>-->
+<!--                                <configuration>-->
+<!--                                    <skip>${skipITs}</skip>-->
+<!--                                    <destFile>${project.build.directory}/coverage-reports/jacoco-it.exec</destFile>-->
+<!--                                    <propertyName>failsafeArgLine</propertyName>-->
+<!--                                    <append>true</append>-->
+<!--                                </configuration>-->
+<!--                            </execution>-->
                             <execution>
                                 <id>jacoco-it-report</id>
                                 <phase>post-integration-test</phase>
@@ -757,7 +758,7 @@
                             </execution>
                             <execution>
                                 <id>jacoco-ut-report</id>
-                                <phase>prepare-package</phase>
+                                <phase>test</phase>
                                 <goals>
                                     <goal>report</goal>
                                 </goals>
@@ -1025,23 +1026,6 @@
                             <publishingServerId>central</publishingServerId>
                         </configuration>
                     </plugin>
-<!--                    <plugin>-->
-<!--                        <groupId>org.sonatype.plugins</groupId>-->
-<!--                        <artifactId>nexus-staging-maven-plugin</artifactId>-->
-<!--                        <executions>-->
-<!--                            <execution>-->
-<!--                                <id>default-deploy</id>-->
-<!--                                <phase>deploy</phase>-->
-<!--                                <goals>-->
-<!--                                    <goal>deploy</goal>-->
-<!--                                </goals>-->
-<!--                            </execution>-->
-<!--                        </executions>-->
-<!--                        <configuration>-->
-<!--                            <serverId>ossrh</serverId>-->
-<!--                            <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>-->
-<!--                        </configuration>-->
-<!--                    </plugin>-->
                 </plugins>
             </build>
         </profile>

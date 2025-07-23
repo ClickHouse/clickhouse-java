@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.sql;
 
-import com.clickhouse.jdbc.internal.SqlParser;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
