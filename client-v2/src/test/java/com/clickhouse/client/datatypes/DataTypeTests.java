@@ -5,11 +5,13 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
@@ -19,17 +21,19 @@ import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -189,6 +194,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case LowCardinality: // virtual type
                 case LineString: // same as Ring
                 case MultiLineString: // same as MultiPolygon
+                case Time:
+                case Time64:
                     // tested separately
                     continue dataTypesLoop;
 
@@ -406,6 +413,32 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testVariantWithTime64Types() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
+        testVariantWith("Time", new String[]{"field Variant(Time, String)"},
+                new Object[]{
+                        "30:33:30",
+                        TimeUnit.HOURS.toSeconds(100) + TimeUnit.MINUTES.toSeconds(10) + 30
+                },
+                new String[]{
+                        "30:33:30",
+                        "360630", // Time stored as integer by default
+                });
+
+        testVariantWith("Time64", new String[]{"field Variant(Time64, String)"},
+                new Object[]{
+                        "30:33:30",
+                        TimeUnit.HOURS.toSeconds(100) + TimeUnit.MINUTES.toSeconds(10) + 30
+                },
+                new String[]{
+                        "30:33:30",
+                        "360630",
+                });
+    }
+
+    @Test(groups = {"integration"})
     public void testDynamicWithPrimitives() throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -446,6 +479,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Enum: // virtual type
                 case LineString: // same as Ring
                 case MultiLineString: // same as MultiPolygon
+                case Time:
+                case Time64:
                     // no tests or tested in other tests
                     continue;
                 default:
@@ -599,6 +634,33 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
+    @Test(groups = {"integration"})
+    public void testDynamicWithTime64Types() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
+
+        long _999_hours = TimeUnit.HOURS.toSeconds(999);
+        testDynamicWith("Time",
+                new Object[]{
+                        _999_hours
+                },
+                new String[]{
+                        String.valueOf(_999_hours),
+                });
+
+        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
+                999999999);
+
+        testDynamicWith("Time64",
+                new Object[]{
+                        maxTime64,
+                },
+                new String[]{
+                        "3958241016481971977"
+                });
+    }
+
     @Data
     @AllArgsConstructor
     public static class DTOForDynamicPrimitivesTests {
@@ -629,6 +691,135 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertTrue(unknowTypes.isEmpty(), "There are some unknown types: " + unknowTypes);
     }
 
+    @Test(groups = {"integration"})
+    public void testTimeDataType() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
+
+
+        String table = "test_time_type";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "o_num UInt32", "time Time"), (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+        String insertSQL = "INSERT INTO " + table + " VALUES (1, '999:00:00'), (2, '999:59:59'), (3, '000:00:00'), (4, '-999:59:59')";
+        try (QueryResponse response = client.query(insertSQL).get()) {}
+
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+
+        GenericRecord record = records.get(0);
+        Assert.assertEquals(record.getInteger("o_num"), 1);
+        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999));
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999)));
+
+        record = records.get(1);
+        Assert.assertEquals(record.getInteger("o_num"), 2);
+        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+
+        record = records.get(2);
+        Assert.assertEquals(record.getInteger("o_num"), 3);
+        Assert.assertEquals(record.getInteger("time"), 0);
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
+
+        record = records.get(3);
+        Assert.assertEquals(record.getInteger("o_num"), 4);
+        Assert.assertEquals(record.getInteger("time"), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+        Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(-
+                (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testTime64() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
+
+        String table = "test_time64_type";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "o_num UInt32", "t_sec Time64(0)",  "t_ms Time64(3)", "t_us Time64(6)", "t_ns Time64(9)"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+        String[][] values = new String[][] {
+                {"00:01:00.123", "00:01:00.123", "00:01:00.123456", "00:01:00.123456789"},
+                {"-00:01:00.123", "-00:01:00.123", "-00:01:00.123456", "-00:01:00.123456789"},
+                {"-999:59:59.999", "-999:59:59.999", "-999:59:59.999999", "-999:59:59.999999999"},
+                {"999:59:59.999", "999:59:59.999", "999:59:59.999999", "999:59:59.999999999"},
+        };
+
+        Long[][] expectedValues = new Long[][] {
+                {timeToSec(0, 1,0), timeToMs(0, 1,0) + 123, timeToUs(0, 1,0) + 123456, timeToNs(0, 1,0) + 123456789},
+                {-timeToSec(0, 1,0), -(timeToMs(0, 1,0) + 123), -(timeToUs(0, 1,0) + 123456), -(timeToNs(0, 1,0) + 123456789)},
+                {-timeToSec(999,59, 59), -(timeToMs(999,59, 59) + 999),
+                    -(timeToUs(999, 59, 59) + 999999), -(timeToNs(999, 59, 59) + 999999999)},
+                {timeToSec(999,59, 59), timeToMs(999,59, 59) + 999,
+                    timeToUs(999, 59, 59) + 999999, timeToNs(999, 59, 59) + 999999999},
+        };
+        
+        String[][] expectedInstantStrings = new String[][] {
+                {"1970-01-01T00:01:00Z",
+                "1970-01-01T00:01:00.123Z",
+                "1970-01-01T00:01:00.123456Z",
+                "1970-01-01T00:01:00.123456789Z"},
+
+                {"1969-12-31T23:59:00Z",
+                "1969-12-31T23:58:59.877Z",
+                "1969-12-31T23:58:59.876544Z",
+                "1969-12-31T23:58:59.876543211Z"},
+
+                {"1969-11-20T08:00:01Z",
+                "1969-11-20T08:00:00.001Z",
+                "1969-11-20T08:00:00.000001Z",
+                "1969-11-20T08:00:00.000000001Z"},
+
+
+                {"1970-02-11T15:59:59Z",
+                "1970-02-11T15:59:59.999Z",
+                "1970-02-11T15:59:59.999999Z",
+                "1970-02-11T15:59:59.999999999Z"},
+        };
+        
+        for  (int i = 0; i < values.length; i++) {
+            StringBuilder insertSQL = new StringBuilder("INSERT INTO " + table + " VALUES (" + i + ", ");
+            for (int j = 0; j < values[i].length; j++) {
+                insertSQL.append("'").append(values[i][j]).append("', ");
+            }
+            insertSQL.setLength(insertSQL.length() - 2);
+            insertSQL.append(");");
+
+            client.query(insertSQL.toString()).get().close();
+
+            List<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+
+            GenericRecord record = records.get(0);
+            Assert.assertEquals(record.getInteger("o_num"), i);
+            for (int j = 0; j < values[i].length; j++) {
+                Assert.assertEquals(record.getLong(j + 2), expectedValues[i][j], "failed at value "  +j);
+                Instant actualInstant = record.getInstant(j + 2);
+                Assert.assertEquals(actualInstant.toString(), expectedInstantStrings[i][j], "failed at value "  +j);
+            }
+
+            client.execute("TRUNCATE TABLE " + table).get();
+        }
+    }
+    
+    private static long timeToSec(int hours, int minutes, int seconds) {
+        return TimeUnit.HOURS.toSeconds(hours) + TimeUnit.MINUTES.toSeconds(minutes) + seconds;
+    }
+
+    private static long timeToMs(int hours, int minutes, int seconds) {
+        return TimeUnit.HOURS.toMillis(hours) + TimeUnit.MINUTES.toMillis(minutes) + TimeUnit.SECONDS.toMillis(seconds);
+    }
+
+    private static long timeToUs(int hours, int minutes, int seconds) {
+        return TimeUnit.HOURS.toMicros(hours) + TimeUnit.MINUTES.toMicros(minutes) + TimeUnit.SECONDS.toMicros(seconds);
+    }
+
+    private static long timeToNs(int hours, int minutes, int seconds) {
+        return TimeUnit.HOURS.toNanos(hours) + TimeUnit.MINUTES.toNanos(minutes) + TimeUnit.SECONDS.toNanos(seconds);
+    }
+
     private void testDynamicWith(String withWhat, Object[] values, String[] expectedStrValues) throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -637,7 +828,8 @@ public class DataTypeTests extends BaseIntegrationTest {
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
+                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -664,7 +856,9 @@ public class DataTypeTests extends BaseIntegrationTest {
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, actualFields),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
+                (CommandSettings) new CommandSettings()
+                        .serverSetting("allow_experimental_variant_type", "1")
+                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 

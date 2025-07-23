@@ -1334,8 +1334,10 @@ public class QueryTests extends BaseIntegrationTest {
     private static String sq(String str) {
         return "\'" + str + "\'";
     }
-
     void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers) {
+        testDataTypes(columns, valueGenerators, verifiers, Collections.emptyMap());
+    }
+    void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers, Map<String, String> serverSettings) {
         final String table = "data_types_test_table";
 
         try {
@@ -1343,6 +1345,10 @@ public class QueryTests extends BaseIntegrationTest {
             client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
 
             // Create table
+            CommandSettings commandSettings = new CommandSettings();
+            for (Map.Entry<String, String> entry : serverSettings.entrySet()) {
+                commandSettings.serverSetting(entry.getKey(), entry.getValue());
+            }
             StringBuilder createStmtBuilder = new StringBuilder();
             createStmtBuilder.append("CREATE TABLE IF NOT EXISTS ").append(table).append(" (");
             for (String column : columns) {
@@ -1350,7 +1356,7 @@ public class QueryTests extends BaseIntegrationTest {
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
             createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
-            client.execute(createStmtBuilder.toString()).get(10, TimeUnit.SECONDS);
+            client.execute(createStmtBuilder.toString(), commandSettings).get(10, TimeUnit.SECONDS);
 
 
             // Insert data

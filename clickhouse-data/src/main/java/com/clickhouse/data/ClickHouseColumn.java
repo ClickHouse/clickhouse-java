@@ -211,6 +211,7 @@ public final class ClickHouseColumn implements Serializable {
                 }
                 break;
             case DateTime32:
+            case Time:
                 if (size > 0) {
                     column.template = ClickHouseOffsetDateTimeValue.ofNull(
                             column.scale,
@@ -219,6 +220,7 @@ public final class ClickHouseColumn implements Serializable {
                 }
                 break;
             case DateTime64:
+            case Time64:
                 if (size > 0) {
                     column.scale = Integer.parseInt(column.parameters.get(0));
                 }

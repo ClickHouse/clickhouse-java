@@ -14,7 +14,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.TimeZone;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class ClickHouseBinaryFormatReaderTest {
@@ -70,11 +69,11 @@ public class ClickHouseBinaryFormatReaderTest {
             Assert.assertEquals(reader.getBoolean(name), Boolean.TRUE);
             Assert.assertEquals(reader.getByte(name), (byte)testValue);
             Assert.assertEquals(reader.getShort(name), (short)testValue);
-            Assert.assertEquals(reader.getInteger(name), (int)testValue);
-            Assert.assertEquals(reader.getLong(name), (long)testValue);
+            Assert.assertEquals(reader.getInteger(name), testValue);
+            Assert.assertEquals(reader.getLong(name), testValue);
 
-            Assert.assertEquals(reader.getFloat(name), (float) testValue);
-            Assert.assertEquals(reader.getDouble(name), (double) testValue);
+            Assert.assertEquals(reader.getFloat(name), testValue);
+            Assert.assertEquals(reader.getDouble(name), testValue);
             Assert.assertEquals(reader.getBigInteger(name), BigInteger.valueOf((testValue)));
 
             Assert.assertTrue(reader.getBigDecimal(name).compareTo(BigDecimal.valueOf((testValue))) == 0);

@@ -17,9 +17,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
@@ -29,7 +26,14 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
-import java.time.*;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,8 +57,6 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
 public class SerializerUtils {
-
-    private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
 
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
@@ -198,6 +200,8 @@ public class SerializerUtils {
             column = enumValue2Column((Enum)value);
         } else if (value instanceof List<?> || (value !=null && value.getClass().isArray())) {
             column = listValue2Column(value);
+        } else if (value instanceof Instant) {
+            column = ClickHouseColumn.of("v", "Time64(9)");
         } else if (value == null) {
             column = PREDEFINED_TYPE_COLUMNS.get(Void.class);
         } else {
@@ -398,6 +402,10 @@ public class SerializerUtils {
             case AggregateFunction:
                 stream.write(binTag);
                 break;
+            case Time64:
+                stream.write(binTag);
+                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
+                break;
             default:
                 stream.write(binTag);
         }
@@ -545,6 +553,12 @@ public class SerializerUtils {
                 writeDateTime64(stream, value, column.getScale(), zoneId);
                 break;
             }
+            case Time:
+                BinaryStreamUtils.writeInt32(stream, convertToInteger(value));
+                break;
+            case Time64:
+                serializeTime64(stream, value);
+                break;
             case UUID:
                 BinaryStreamUtils.writeUuid(stream, (UUID) value);
                 break;
@@ -637,6 +651,19 @@ public class SerializerUtils {
             throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to " + column.getDataType());
         }
         BinaryStreamUtils.writeUnsignedInt64(stream, v);
+    }
+
+    private static void serializeTime64(OutputStream stream, Object value) throws IOException {
+        if (value instanceof BigInteger) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, (BigInteger) value);
+        } else if (value instanceof Long) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
+        } else if (value instanceof Instant) {
+            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond()).shiftLeft(32)
+                    .add(BigInteger.valueOf(((Instant) value).getNano())));
+        } else {
+            throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to Time64");
+        }
     }
 
     private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
@@ -1070,6 +1097,9 @@ public class SerializerUtils {
         } else if (value instanceof ZonedDateTime) {
             ZonedDateTime dt = (ZonedDateTime) value;
             epochDays = (int)dt.withZoneSameInstant(targetTz).toLocalDate().toEpochDay();
+        } else if (value instanceof OffsetDateTime) {
+            OffsetDateTime dt = (OffsetDateTime) value;
+            epochDays = (int) dt.atZoneSameInstant(targetTz).toLocalDate().toEpochDay();
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Long");
         }
