@@ -414,6 +414,9 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testVariantWithTime64Types() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
         testVariantWith("Time", new String[]{"field Variant(Time, String)"},
                 new Object[]{
                         "30:33:30",
@@ -633,6 +636,10 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testDynamicWithTime64Types() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
+
         long _999_hours = TimeUnit.HOURS.toSeconds(999);
         testDynamicWith("Time",
                 new Object[]{
@@ -686,9 +693,10 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTimeDataType() throws Exception {
-        if (isVersionMatch("(,25.4]")) {
-            return;
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
         }
+
 
         String table = "test_time_type";
         client.execute("DROP TABLE IF EXISTS " + table).get();
@@ -724,8 +732,8 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTime64() throws Exception {
-        if (isVersionMatch("(,25.4]")) {
-            return;
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
         }
 
         String table = "test_time64_type";

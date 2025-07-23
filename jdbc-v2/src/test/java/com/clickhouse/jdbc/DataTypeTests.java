@@ -555,7 +555,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testTimeTypes() throws SQLException {
-        if (ClickHouseVersion.of(getServerVersion()).check("(,25.6]")) {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,25.5]")) {
             return; // Time64 introduced in 25.6
         }
         Properties createProperties = new Properties();
