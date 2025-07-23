@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -231,7 +232,8 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         String table = "test_params_unicode";
         String column = "val";
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + "(" + column + " String) Engine = Memory").get();
+        client.execute("CREATE TABLE " + table + "(" + column + " String) "
+            + "ENGINE = MergeTree ORDER BY tuple()").get();
         client.query(
             "INSERT INTO " + table + "(" + column + ") VALUES ('" + paramValue + "')").get();
         try (QueryResponse r = client.query(
