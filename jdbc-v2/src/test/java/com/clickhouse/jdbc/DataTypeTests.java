@@ -555,8 +555,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testTimeTypes() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,25.6]")) {
+            return; // Time64 introduced in 25.6
+        }
         Properties createProperties = new Properties();
-        createProperties.put(ClientConfigProperties.serverSetting("enable_time_time64_type"), "1");
+        createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
         runQuery("CREATE TABLE test_time64 (order Int8, "
                 + "time Time('UTC'), time64 Time64(9) "
                 + ") ENGINE = MergeTree ORDER BY ()",

@@ -692,7 +692,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         String table = "test_time_type";
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, "o_num UInt32", "time Time"), (CommandSettings) new CommandSettings().serverSetting("enable_time_time64_type", "1")).get();
+        client.execute(tableDefinition(table, "o_num UInt32", "time Time"), (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         String insertSQL = "INSERT INTO " + table + " VALUES (1, '999:00:00'), (2, '999:59:59'), (3, '000:00:00'), (4, '-999:59:59')";
         try (QueryResponse response = client.query(insertSQL).get()) {}
@@ -731,7 +731,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         String table = "test_time64_type";
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "o_num UInt32", "t_sec Time64(0)",  "t_ms Time64(3)", "t_us Time64(6)", "t_ns Time64(9)"),
-                (CommandSettings) new CommandSettings().serverSetting("enable_time_time64_type", "1")).get();
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         String[][] values = new String[][] {
                 {"00:01:00.123", "00:01:00.123", "00:01:00.123456", "00:01:00.123456789"},
@@ -821,7 +821,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
                 (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
-                        .serverSetting("enable_time_time64_type", "1")).get();
+                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -850,7 +850,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client.execute(tableDefinition(table, actualFields),
                 (CommandSettings) new CommandSettings()
                         .serverSetting("allow_experimental_variant_type", "1")
-                        .serverSetting("enable_time_time64_type", "1")).get();
+                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
