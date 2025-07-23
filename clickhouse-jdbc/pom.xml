@@ -169,7 +169,7 @@
                             </buildArgs>
                             <classpath>
                                 <param>
-                                    ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
+                                    ${project.build.directory}/${project.artifactId}-${project.version}-all.jar</param>
                             </classpath>
                             <agent>
                                 <enabled>true</enabled>
@@ -400,7 +400,7 @@
                                 <excludes>
                                     <!-- provided libraries -->
                                     <exclude>io.micrometer:*</exclude>
-                                    <exclude>org.slf4j:*</exclude>
+                                    <exclude>org.slf4j:slf4j-simple</exclude>
                                 </excludes>
                             </artifactSet>
                             <relocations>
