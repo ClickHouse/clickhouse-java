@@ -9,8 +9,6 @@ import java.util.Objects;
 
 import com.clickhouse.data.ClickHouseDataType;
 
-import static java.time.temporal.ChronoField.NANO_OF_SECOND;
-
 public class DataTypeUtils {
 
     /**
@@ -30,7 +28,7 @@ public class DataTypeUtils {
 
     private static final DateTimeFormatter INSTANT_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS)
-        .appendFraction(NANO_OF_SECOND, 9, 9, true)
+        .appendFraction(ChronoField.NANO_OF_SECOND, 9, 9, true)
         .toFormatter();
 
     /**
