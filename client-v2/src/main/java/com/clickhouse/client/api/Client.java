@@ -7,7 +7,6 @@ import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
-import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
@@ -37,7 +36,6 @@ import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -1575,7 +1573,7 @@ public class Client implements AutoCloseable {
         Supplier<QueryResponse> responseSupplier;
 
             if (queryParams != null) {
-                settings.setOption("statement_params", queryParams);
+                settings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
             }
             final QuerySettings finalSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
             responseSupplier = () -> {
@@ -2027,6 +2025,7 @@ public class Client implements AutoCloseable {
      * @return - set of endpoints
      * @deprecated
      */
+    @Deprecated
     public Set<String> getEndpoints() {
         return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
     }
@@ -2100,4 +2099,5 @@ public class Client implements AutoCloseable {
         requestSettings.putAll(opSettings);
         return requestSettings;
     }
+
 }
