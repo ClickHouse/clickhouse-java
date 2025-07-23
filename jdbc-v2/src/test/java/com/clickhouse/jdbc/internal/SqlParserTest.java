@@ -177,26 +177,6 @@ public class SqlParserTest {
     }
 
     @Test
-    public void testUnquoteIdentifier() {
-        String[] names = new String[]{"test", "`test name1`", "\"test name 2\""};
-        String[] expected = new String[]{"test", "test name1", "test name 2"};
-
-        for (int i = 0; i < names.length; i++) {
-            assertEquals(SqlParser.unquoteIdentifier(names[i]), expected[i]);
-        }
-    }
-
-    @Test
-    public void testEscapeQuotes() {
-        String[] inStr = new String[]{"%valid_name%", "' OR 1=1 --", "\" OR 1=1 --"};
-        String[] outStr = new String[]{"%valid_name%", "\\' OR 1=1 --", "\\\" OR 1=1 --"};
-
-        for (int i = 0; i < inStr.length; i++) {
-            assertEquals(SqlParser.escapeQuotes(inStr[i]), outStr[i]);
-        }
-    }
-
-    @Test
     public void testStmtWithCasts() {
         String sql = "SELECT ?::integer, ?, '?:: integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
         SqlParser parser = new SqlParser();

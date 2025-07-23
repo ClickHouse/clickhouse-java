@@ -19,7 +19,7 @@ public enum DriverProperties {
     SECURE_CONNECTION("ssl", "false"),
 
     /**
-     * query settings to be passed along with query operation.
+     * Query settings to be passed along with query operation.
      * {@see com.clickhouse.client.api.query.QuerySettings}
      */
     DEFAULT_QUERY_SETTINGS("default_query_settings", null),
@@ -31,7 +31,13 @@ public enum DriverProperties {
      */
     BETA_ROW_BINARY_WRITER("beta.row_binary_for_simple_insert", "false"),
 
+    /**
+     *  Enables closing result set before
+     */
+    RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", "true"),
     ;
+
+
     private final String key;
 
     private final String defaultValue;

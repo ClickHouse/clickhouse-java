@@ -33,6 +33,10 @@ public final class ServerSettings {
      */
     public static final String RESULT_OVERFLOW_MODE = "result_overflow_mode";
 
+    public static final String RESULT_OVERFLOW_MODE_THROW = "throw";
+
+    public static final String RESULT_OVERFLOW_MODE_BREAK  = "break";
+
     public static final String ASYNC_INSERT = "async_insert";
 
     public static final String WAIT_ASYNC_INSERT = "wait_for_async_insert";

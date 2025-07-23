@@ -3,10 +3,10 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
@@ -14,12 +14,12 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -31,52 +31,62 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected boolean isPoolable = false; // Statement is not poolable by default
 
     // State
-    protected boolean closed;
+    private volatile boolean closed;
+    private final ConcurrentLinkedQueue<ResultSetImpl> resultSets; // all result sets linked to this statement
     protected ResultSetImpl currentResultSet;
-    protected OperationMetrics metrics;
+    protected long currentUpdateCount = -1;
     protected List<String> batch;
     private String lastStatementSql;
     private ParsedStatement parsedStatement;
     protected volatile String lastQueryId;
-    private int maxRows;
+    private long maxRows;
+    private boolean closeOnCompletion;
+    private boolean resultSetAutoClose;
+    private int maxFieldSize;
+    private boolean escapeProcessingEnabled;
+
+    // settings local to a statement
     protected QuerySettings localSettings;
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
         this.queryTimeout = 0;
         this.closed = false;
-        this.currentResultSet = null;
-        this.metrics = null;
         this.batch = new ArrayList<>();
         this.maxRows = 0;
         this.localSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), new QuerySettings());
+        this.resultSets=  new ConcurrentLinkedQueue<>();
+        this.resultSetAutoClose = connection.getJdbcConfig().isSet(DriverProperties.RESULTSET_AUTO_CLOSE);
+        this.escapeProcessingEnabled = true;
     }
 
-    protected void checkClosed() throws SQLException {
+    protected void ensureOpen() throws SQLException {
         if (closed) {
             throw new SQLException("Statement is closed", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
         }
     }
 
 
-    protected static String parseJdbcEscapeSyntax(String sql) {
+    private String parseJdbcEscapeSyntax(String sql) {
         LOG.trace("Original SQL: {}", sql);
-        // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
-        sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
+        if (escapeProcessingEnabled) {
+            // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
+            sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
 
-        // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
-        sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
+            // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
+            sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
 
-        // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
-        sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
+            // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
+            sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
 
-        // Handle outer escape syntax
-        //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
+            // Handle outer escape syntax
+            //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
 
-        // Clean new empty lines in sql
-        sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
-        // Add more replacements as needed for other JDBC escape sequences
-        LOG.trace("Parsed SQL: {}", sql);
+            // Clean new empty lines in sql
+            sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
+            // Add more replacements as needed for other JDBC escape sequences
+        }
+        LOG.trace("Escaped SQL: {}", sql);
         return sql;
     }
 
@@ -86,11 +96,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        checkClosed();
-        return executeQueryImpl(sql, localSettings);
+        ensureOpen();
+        currentUpdateCount = -1;
+        currentResultSet = executeQueryImpl(sql, localSettings);
+        return currentResultSet;
     }
 
-    private void closePreviousResultSet() {
+    private void closeCurrentResultSet() {
         if (currentResultSet != null) {
             LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
             // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
@@ -99,38 +111,32 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             } catch (Exception e) {
                 LOG.error("Failed to close previous result set", e);
             } finally {
-                currentResultSet = null;
+                currentResultSet = null; // no need to remember we have closed it already
             }
         }
     }
 
     protected ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
-        checkClosed();
-
-        // TODO: method should throw exception if no result set returned
+        ensureOpen();
 
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
-        closePreviousResultSet();
-
-        QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
-        if (maxRows > 0) {
-            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
-            mergedSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
+        if (resultSetAutoClose) {
+            closeCurrentResultSet();
         }
 
-        if (mergedSettings.getQueryId() != null) {
-            lastQueryId = mergedSettings.getQueryId();
-        } else {
-            lastQueryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(lastQueryId);
+        QuerySettings mergedSettings = QuerySettings.merge(settings, new  QuerySettings());
+        if (mergedSettings.getQueryId() == null) {
+            final String queryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(queryId);
         }
+        lastQueryId = mergedSettings.getQueryId();
         LOG.debug("Query ID: {}", lastQueryId);
 
+        QueryResponse response = null;
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
             LOG.trace("SQL Query: {}", lastStatementSql); // this is not secure for create statements because of passwords
-            QueryResponse response;
             if (queryTimeout == 0) {
                 response = connection.client.query(lastStatementSql, mergedSettings).get();
             } else {
@@ -142,50 +148,52 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
             ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
-
-            currentResultSet = new ResultSetImpl(this, response, reader);
-            metrics = response.getMetrics();
+            if (reader.getSchema() == null) {
+                throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+            }
+            return new ResultSetImpl(this, response, reader);
         } catch (Exception e) {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (Exception ex) {
+                    LOG.warn("Failed to close response after exception", e);
+                }
+            }
+            onResultSetClosed(null);
             throw ExceptionUtils.toSqlState(e);
         }
-
-        return currentResultSet;
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        checkClosed();
-        parsedStatement = connection.getSqlParser().parsedStatement(sql);
-        int updateCount = executeUpdateImpl(sql, localSettings);
-        postUpdateActions();
-        return updateCount;
+        ensureOpen();
+        return (int)executeLargeUpdate(sql);
     }
 
-    protected int executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
-        checkClosed();
+    protected long executeUpdateImpl(String sql, QuerySettings settings) throws SQLException {
+        ensureOpen();
 
-        // TODO: method should throw exception if result set returned
         // Closing before trying to do next request. Otherwise, deadlock because previous connection will not be
         // release before this one completes.
-        closePreviousResultSet();
+        if (resultSetAutoClose) {
+            closeCurrentResultSet();
+        }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
 
-        if (mergedSettings.getQueryId() != null) {
-            lastQueryId = mergedSettings.getQueryId();
-        } else {
-            lastQueryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(lastQueryId);
+        if (mergedSettings.getQueryId() == null) {
+            final String queryId = UUID.randomUUID().toString();
+            mergedSettings.setQueryId(queryId);
         }
+        lastQueryId = mergedSettings.getQueryId();
 
         lastStatementSql = parseJdbcEscapeSyntax(sql);
         LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
                 : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
-            currentResultSet = null;
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
-            metrics = response.getMetrics();
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -208,65 +216,59 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void close() throws SQLException {
         closed = true;
-        if (currentResultSet != null) {
-            try {
-                currentResultSet.close();
-            } catch (Exception e) {
-                LOG.debug("Failed to close current result set", e);
-            } finally {
-                currentResultSet = null;
+        closeCurrentResultSet();
+        for (ResultSetImpl resultSet : resultSets) {
+            if (resultSet != null &&  !resultSet.isClosed()) {
+                try {
+                    resultSet.close();
+                } catch (Exception e) {
+                    LOG.error("Failed to close result set", e);
+                }
             }
         }
     }
 
     @Override
     public int getMaxFieldSize() throws SQLException {
-        checkClosed();
-        return 0;
+        ensureOpen();
+        return this.maxFieldSize;
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
-        checkClosed();
-        if (!connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Set max field size is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureOpen();
+        if (max < 0) {
+            throw new SQLException("max should be a  positive integer.");
         }
+        this.maxFieldSize = max;
     }
 
     @Override
     public int getMaxRows() throws SQLException {
-        checkClosed();
-        return maxRows;
+        ensureOpen();
+        return (int) getLargeMaxRows(); // skip overflow check.
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-        checkClosed();
-        maxRows = max;
-        if (max > 0) {
-            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
-            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), "break");
-        } else {
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS));
-            localSettings.resetOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE));
-        }
+        setLargeMaxRows(max);
     }
 
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
-        checkClosed();
-        //TODO: Should we support this?
+        ensureOpen();
+        this.escapeProcessingEnabled = enable;
     }
 
     @Override
     public int getQueryTimeout() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return queryTimeout;
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
-        checkClosed();
+        ensureOpen();
         queryTimeout = seconds;
     }
 
@@ -287,29 +289,31 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public void setCursorName(String name) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        currentUpdateCount = -1;
+        currentResultSet = null;
         if (parsedStatement.isHasResultSet()) {
-            currentResultSet = executeQueryImpl(sql, localSettings); // keep open to allow getResultSet()
+            currentResultSet = executeQueryImpl(sql, localSettings);
             return true;
         } else {
-            executeUpdateImpl(sql, localSettings);
+            currentUpdateCount = executeUpdateImpl(sql, localSettings);
             postUpdateActions();
             return false;
         }
@@ -317,77 +321,69 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public ResultSet getResultSet() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
-        ResultSet resultSet = currentResultSet;
-        currentResultSet = null;
-        return resultSet;
+        return currentResultSet;
     }
 
     @Override
     public int getUpdateCount() throws SQLException {
-        checkClosed();
-        if (currentResultSet == null && metrics != null) {
-            int updateCount = (int) metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
-            metrics = null;// clear metrics
-            return updateCount;
-        }
-
-        return -1;
+        ensureOpen();
+        return (int) getLargeUpdateCount();
     }
 
     @Override
     public boolean getMoreResults() throws SQLException {
-        checkClosed();
-        return false;
+        ensureOpen();
+        return getMoreResults(Statement.CLOSE_CURRENT_RESULT);
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
-        checkClosed();
-        if (!connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Set fetch direction is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureOpen();
+        if (direction != ResultSet.FETCH_FORWARD && direction != ResultSet.FETCH_REVERSE && direction != ResultSet.FETCH_UNKNOWN) {
+            throw new SQLException("Invalid fetch direction: " + direction + ". Should be one of ResultSet.FETCH_FORWARD, ResultSet.FETCH_REVERSE, or ResultSet.FETCH_UNKNOWN");
         }
     }
 
     @Override
     public int getFetchDirection() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return ResultSet.FETCH_FORWARD;
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
-        checkClosed();
+        ensureOpen();
     }
 
     @Override
     public int getFetchSize() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return 0;
     }
 
     @Override
     public int getResultSetConcurrency() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return ResultSet.CONCUR_READ_ONLY;
     }
 
     @Override
     public int getResultSetType() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     @Override
     public void addBatch(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         batch.add(sql);
     }
 
     @Override
     public void clearBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
         batch.clear();
     }
 
@@ -397,7 +393,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     private List<Integer> executeBatchImpl() throws SQLException {
-        checkClosed();
+        ensureOpen();
         List<Integer> results = new ArrayList<>();
         for (String sql : batch) {
             results.add(executeUpdate(sql));
@@ -410,10 +406,51 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return connection;
     }
 
+    /**
+     * Returns instance of local settings. Can be used to override settings.
+     *
+     * @return QuerySettings that is used as base for each request.
+     */
+    public QuerySettings getLocalSettings() {
+        return localSettings;
+    }
+
     @Override
     public boolean getMoreResults(int current) throws SQLException {
-        // TODO: implement query batches. When multiple selects in the batch.
-        return false;
+        // This method designed to iterate over multiple resultsets after "execute(sql)" method is called
+        // But we have at most only one always
+        // Then we should close any existing and return false to indicate that no more result are present
+
+        if (currentResultSet != null && current != Statement.KEEP_CURRENT_RESULT) {
+            currentResultSet.close();
+        }
+
+        currentResultSet = null;
+        currentUpdateCount = -1;
+        return false; // false indicates that no more results (or it is an update count)
+    }
+
+    @Override
+    public String enquoteLiteral(String val) throws SQLException {
+        return SQLUtils.enquoteLiteral(val);
+    }
+
+    @Override
+    public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
+        return SQLUtils.enquoteIdentifier(identifier, alwaysQuote);
+    }
+
+    @Override
+    public boolean isSimpleIdentifier(String identifier) throws SQLException {
+        return SQLUtils.isSimpleIdentifier(identifier);
+    }
+
+    @Override
+    public String enquoteNCharLiteral(String val) throws SQLException {
+        if (val == null) {
+            throw new NullPointerException();
+        }
+        return "N" + SQLUtils.enquoteLiteral(val);
     }
 
     @Override
@@ -464,7 +501,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void setPoolable(boolean poolable) throws SQLException {
-        checkClosed();
+        ensureOpen();
         this.isPoolable = poolable;
     }
 
@@ -475,30 +512,60 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public void closeOnCompletion() throws SQLException {
-        checkClosed();
+        ensureOpen();
+        this.closeOnCompletion = true;
+    }
+
+    // called each time query is complete or result set is closed
+    public void onResultSetClosed(ResultSetImpl resultSet) throws SQLException {
+        if (resultSet != null) {
+            this.resultSets.remove(resultSet);
+        }
+
+        if (this.closeOnCompletion) {
+            if ((resultSets.isEmpty()) && (currentResultSet == null || currentResultSet.isClosed())) {
+                // last result set is closed.
+                this.closed = true;
+            }
+        }
     }
 
     @Override
     public boolean isCloseOnCompletion() throws SQLException {
-        return false;
+        return this.closeOnCompletion;
     }
 
     @Override
     public long getLargeUpdateCount() throws SQLException {
-        checkClosed();
-        return getUpdateCount();
+        ensureOpen();
+        return currentUpdateCount;
     }
 
     @Override
     public void setLargeMaxRows(long max) throws SQLException {
-        checkClosed();
-        Statement.super.setLargeMaxRows(max);
+        ensureOpen();
+        maxRows = max;
+        // This method override user set overflow mode on purpose:
+        // 1. Spec clearly states that after calling this method with a limit > 0 all rows over limit are dropped.
+        // 2. Calling this method should not cause throwing exception for future queries what only `break` can guarantee
+        // 3. If user wants different behavior then they are can use connection properties.
+        if (max > 0) {
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), maxRows);
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
+                    ServerSettings.RESULT_OVERFLOW_MODE_BREAK);
+        } else {
+            // overriding potential client settings (set thru connection setup)
+            // there is no no limit value so we use very large limit.
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), Long.MAX_VALUE);
+            localSettings.setOption(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
+                    ServerSettings.RESULT_OVERFLOW_MODE_BREAK);
+        }
     }
 
     @Override
     public long getLargeMaxRows() throws SQLException {
-        checkClosed();
-        return getMaxRows();
+        ensureOpen();
+        return this.maxRows;
     }
 
     @Override
@@ -508,22 +575,25 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     @Override
     public long executeLargeUpdate(String sql) throws SQLException {
-        return executeUpdate(sql);
+        parsedStatement = connection.getSqlParser().parsedStatement(sql);
+        long updateCount = executeUpdateImpl(sql, localSettings);
+        postUpdateActions();
+        return updateCount;
     }
 
     @Override
     public long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        return executeUpdate(sql, autoGeneratedKeys);
+        return executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        return executeUpdate(sql, columnIndexes);
+        return executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, String[] columnNames) throws SQLException {
-        return executeUpdate(sql, columnNames);
+        return executeLargeUpdate(sql);
     }
 
     /**

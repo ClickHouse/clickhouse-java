@@ -127,79 +127,79 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return super.executeQueryImpl(buildSQL(), localSettings);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        checkClosed();
-        return super.executeUpdateImpl(buildSQL(), localSettings);
+        ensureOpen();
+        return (int) super.executeUpdateImpl(buildSQL(), localSettings);
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setNull(parameterIndex, sqlType, null);
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
@@ -220,25 +220,25 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void clearParameters() throws SQLException {
-        checkClosed();
+        ensureOpen();
         Arrays.fill(this.values, null);
     }
 
@@ -248,31 +248,31 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setObject(parameterIndex, x, targetSqlType, 0);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setObject(parameterIndex, x, Types.OTHER);
     }
 
     @Override
     public boolean execute() throws SQLException {
-        checkClosed();
+        ensureOpen();
         if (parsedPreparedStatement.isHasResultSet()) {
-            super.executeQueryImpl(buildSQL(), localSettings);
+            currentResultSet = super.executeQueryImpl(buildSQL(), localSettings);
             return true;
         } else {
-            super.executeUpdateImpl(buildSQL(), localSettings);
+            currentUpdateCount = super.executeUpdateImpl(buildSQL(), localSettings);
             return false;
         }
     }
 
     @Override
     public void addBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
         if (insertStmtWithValues) {
             StringBuilder valuesClause = new StringBuilder(valueListTmpl);
@@ -290,7 +290,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public int[] executeBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
         if (insertStmtWithValues) {
             // run executeBatch
@@ -298,7 +298,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         } else {
             List<Integer> results = new ArrayList<>();
             for (String sql : batch) {
-                results.add(executeUpdateImpl(sql, localSettings));
+                results.add((int) executeUpdateImpl(sql, localSettings));
             }
             return results.stream().mapToInt(Integer::intValue).toArray();
         }
@@ -306,14 +306,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
         if (insertStmtWithValues) {
             return executeInsertBatch().stream().mapToLong(Integer::longValue).toArray();
         } else {
             List<Integer> results = new ArrayList<>();
             for (String sql : batch) {
-                results.add(executeUpdateImpl(sql, localSettings));
+                results.add((int) executeUpdateImpl(sql, localSettings));
             }
             return results.stream().mapToLong(Integer::longValue).toArray();
         }
@@ -328,7 +328,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
         insertSql.setLength(insertSql.length() - 1);
 
-        int updateCount = super.executeUpdateImpl(insertSql.toString(), localSettings);
+        int updateCount = (int) super.executeUpdateImpl(insertSql.toString(), localSettings);
         if (updateCount == batchValues.size()) {
             return Collections.nCopies(batchValues.size(), 1);
         } else {
@@ -338,13 +338,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         if (!connection.config.isIgnoreUnsupportedRequests()) {
             throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
         }
@@ -352,25 +352,25 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        checkClosed();
+        ensureOpen();
 
         if (resultSetMetaData == null && currentResultSet == null) {
             // before execution
@@ -431,7 +431,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
     }
 
@@ -445,7 +445,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
     }
 
@@ -459,7 +459,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
     }
 
@@ -473,13 +473,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(null);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
@@ -493,134 +493,134 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
      */
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        checkClosed();
+        ensureOpen();
         return parameterMetaData;
     }
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException("ROWID type is not supported by ClickHouse.",
                 ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void setNString(int parameterIndex, String x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setObject(parameterIndex, x, JDBCType.valueOf(targetSqlType), scaleOrLength);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        checkClosed();
+        ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
-        checkClosed();
+        ensureOpen();
         setObject(parameterIndex, x, targetSqlType, 0);
     }
 
@@ -631,7 +631,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final void addBatch(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "addBatch(String) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -639,7 +639,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final boolean execute(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "execute(String) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -647,7 +647,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "execute(String, int) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -655,7 +655,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final boolean execute(String sql, int[] columnIndexes) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "execute(String, int[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -663,7 +663,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final boolean execute(String sql, String[] columnNames) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "execute(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -671,7 +671,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final long executeLargeUpdate(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeLargeUpdate(String) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -679,7 +679,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeLargeUpdate(String, int) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -687,7 +687,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final long executeLargeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeLargeUpdate(String, int[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -695,7 +695,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final long executeLargeUpdate(String sql, String[] columnNames) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeLargeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -703,7 +703,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final ResultSet executeQuery(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeQuery(String) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -711,7 +711,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final int executeUpdate(String sql) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeUpdate(String) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -719,7 +719,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeUpdate(String, int) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -727,7 +727,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeUpdate(String, int[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
@@ -735,7 +735,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public final int executeUpdate(String sql, String[] columnNames) throws SQLException {
-        checkClosed();
+        ensureOpen();
         throw new SQLException(
                         "executeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
