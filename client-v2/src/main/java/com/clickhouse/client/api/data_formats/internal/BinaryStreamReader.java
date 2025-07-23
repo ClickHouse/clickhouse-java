@@ -104,7 +104,7 @@ public class BinaryStreamReader {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
-                return (T) null;
+                return null;
             }
         }
 
@@ -592,7 +592,7 @@ public class BinaryStreamReader {
 
         return bytes;
     }
-    
+
     /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
@@ -968,7 +968,7 @@ public class BinaryStreamReader {
      */
     public static ZonedDateTime readDateTime32(InputStream input, byte[] buff, TimeZone tz) throws IOException {
         long time = readUnsignedIntLE(input, buff);
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(Math.max(time, 0L)), tz.toZoneId()).atZone(tz.toZoneId());
+        return Instant.ofEpochSecond(Math.max(time, 0L)).atZone(tz.toZoneId());
     }
 
     /**

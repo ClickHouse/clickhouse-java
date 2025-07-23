@@ -17,9 +17,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
@@ -29,7 +26,14 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.sql.Timestamp;
-import java.time.*;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,8 +57,6 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
 public class SerializerUtils {
-
-    private static final Logger LOG = LoggerFactory.getLogger(SerializerUtils.class);
 
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
@@ -1095,6 +1097,9 @@ public class SerializerUtils {
         } else if (value instanceof ZonedDateTime) {
             ZonedDateTime dt = (ZonedDateTime) value;
             epochDays = (int)dt.withZoneSameInstant(targetTz).toLocalDate().toEpochDay();
+        } else if (value instanceof OffsetDateTime) {
+            OffsetDateTime dt = (OffsetDateTime) value;
+            epochDays = (int) dt.atZoneSameInstant(targetTz).toLocalDate().toEpochDay();
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Long");
         }

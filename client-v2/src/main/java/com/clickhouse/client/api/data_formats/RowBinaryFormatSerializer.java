@@ -3,7 +3,6 @@ package com.clickhouse.client.api.data_formats;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
 import java.io.IOException;
@@ -132,7 +131,7 @@ public class RowBinaryFormatSerializer {
     }
 
     public void writeDate(ZonedDateTime value) throws IOException {
-        SerializerUtils.writeDate(out, value, ZoneId.of("UTC"));
+        SerializerUtils.writeDate(out, value, value.getZone());
     }
 
     public void writeDate32(ZonedDateTime value, ZoneId targetTz) throws IOException {
