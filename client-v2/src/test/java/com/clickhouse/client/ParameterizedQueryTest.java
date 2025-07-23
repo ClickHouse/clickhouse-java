@@ -1,8 +1,4 @@
-/*
- * Copyright (c) 2025 Riege Software. All rights reserved.
- * Use is subject to license terms.
- */
-package com.clickhouse.client.e2e;
+package com.clickhouse.client;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -26,10 +22,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
@@ -45,7 +37,6 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
 
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = newClient().build();
     }
 
@@ -81,14 +72,14 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
                 () -> Integer.valueOf(rowId.incrementAndGet() % 2),
                 () -> testValues.get(rowId.get() % 2).toLocalDate()
                     .toString(),
-                () -> DataTypeUtils.format(
+                () -> DataTypeUtils.formatInstant(
                     testValues.get(rowId.get() % 2).toInstant(),
                     ClickHouseDataType.DateTime),
-                () -> DataTypeUtils.format(
+                () -> DataTypeUtils.formatInstant(
                     testValues.get(rowId.get() % 2).toInstant()),
-                () -> DataTypeUtils.format(
+                () -> DataTypeUtils.formatInstant(
                     testValues.get(rowId.get() % 2).toInstant()),
-                () -> DataTypeUtils.format(
+                () -> DataTypeUtils.formatInstant(
                     testValues.get(rowId.get() % 2).toInstant())),
             2);
 
@@ -101,12 +92,14 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             "INSERT INTO " + tableName + " (id, d, dt, dt64_3, dt64_9, dt64_3_lax) "
                 + "VALUES ("
                 + rowId.incrementAndGet() + ", "
-                + "'" + DataTypeUtils.format(manualTestValue, ClickHouseDataType.Date, tzUTC) + "', "
-                + "'" + DataTypeUtils.format(manualTestValue, ClickHouseDataType.DateTime) + "', "
+                + "'" + DataTypeUtils.formatInstant(manualTestValue, ClickHouseDataType.Date, tzUTC) + "', "
+                + "'" + DataTypeUtils.formatInstant(manualTestValue, ClickHouseDataType.DateTime) + "', "
                 + "{manualTestValue:DateTime64}, "
                 + "{manualTestValue:DateTime64(9)}, "
                 + "{manualTestValue:DateTime64})",
-            Collections.singletonMap("manualTestValue", manualTestValue));
+            Collections.singletonMap(
+                "manualTestValue",
+                DataTypeUtils.formatInstant(manualTestValue)));
 
         try (QueryResponse response = client.query(
                 "SELECT * FROM " + tableName + " ORDER by id ASC").get();
@@ -190,7 +183,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             { "dt", "<", testValues.get(1).toInstant(), -1, new int[] { 0, 1, 2 } },
             { "dt", ">", testValues.get(1).toInstant(), -1, new int[0] },
 
-            // dt63_3 column
+            // dt64_3 column
             { "dt64_3", "=", Instant.now(), -1, new int[0] },
             { "dt64_3", "=", testValues.get(1).toInstant(), -1, new int[]{ 1 } },
             { "dt64_3", "=", testValues.get(1).toInstant().truncatedTo(ChronoUnit.MILLIS),
@@ -199,7 +192,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
                 -1, new int[] { 0, 2 } },
             { "dt64_3", ">", testValues.get(1).toInstant(), -1, new int[0] },
 
-            // dt63_9 column
+            // dt64_9 column
             { "dt64_9", "=", Instant.now(), 9, new int[0] },
             { "dt64_9", "=", testValues.get(1).toInstant(), 9,
                 new int[]{ 1 } },
@@ -208,7 +201,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             { "dt64_9", "<", testValues.get(1).toInstant(), 9, new int[] { 0, 2 } },
             { "dt64_9", ">", testValues.get(1).toInstant(), 9, new int[0] },
 
-            // dt63_3_lax column
+            // dt64_3_lax column
             { "dt64_3_lax", "=", Instant.now(), -1, new int[0] },
             { "dt64_3_lax", "=", testValues.get(1).toInstant(), -1,
                 new int[]{ 1 } },
@@ -233,7 +226,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         }
     }
 
-    @Test(dataProvider = "stringParameters")
+    @Test(groups = {"integration"}, dataProvider = "stringParameters")
     void testStringParams(String paramValue) throws Exception {
         String table = "test_params_unicode";
         String column = "val";
@@ -265,7 +258,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
                 "SELECT id FROM " + tableName + " WHERE " + fieldName + " "
                     + operator + " {x:DateTime64" + (scale > 0 ? "(" + scale  + ")" : "") + "} "
                     + "ORDER by id ASC",
-                Collections.singletonMap("x", param)).get();
+                Collections.singletonMap("x", DataTypeUtils.formatInstant(param))).get();
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response))
         {
             List<Integer> ints = new ArrayList<>(3);
@@ -354,6 +347,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             { "foo/bar" },
             { "foobar 20" },
             { " leading_and_trailing_spaces   " },
+            // https://github.com/ClickHouse/ClickHouse/issues/70240
             // { "multi\nline\r\ndos" },
             // { "nicely\"quoted\'string\'" },
         };

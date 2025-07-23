@@ -38,15 +38,17 @@ class DataTypeUtilsTests {
 
     @Test
     void formatInstantForDateNullInstant() {
-        assertEquals("", DataTypeUtils.format(
-            null, ClickHouseDataType.Date, ZoneId.systemDefault()));
+        assertThrows(
+            NullPointerException.class,
+            () -> DataTypeUtils.formatInstant(null, ClickHouseDataType.Date,
+                ZoneId.systemDefault()));
     }
 
     @Test
     void formatInstantForDateNullTimeZone() {
         assertThrows(
             NullPointerException.class,
-            () -> DataTypeUtils.format(Instant.now(), ClickHouseDataType.Date, null));
+            () -> DataTypeUtils.formatInstant(Instant.now(), ClickHouseDataType.Date, null));
     }
 
     @Test
@@ -55,13 +57,19 @@ class DataTypeUtilsTests {
         ZoneId tzLAX = ZoneId.of("America/Los_Angeles");
         Instant instant = ZonedDateTime.of(
             2025, 7, 20, 5, 5, 42, 0, tzBER).toInstant();
-        assertEquals(DataTypeUtils.format(instant, ClickHouseDataType.Date, tzBER), "2025-07-20");
-        assertEquals(DataTypeUtils.format(instant, ClickHouseDataType.Date, tzLAX), "2025-07-19");
+        assertEquals(
+            DataTypeUtils.formatInstant(instant, ClickHouseDataType.Date, tzBER),
+            "2025-07-20");
+        assertEquals(
+            DataTypeUtils.formatInstant(instant, ClickHouseDataType.Date, tzLAX),
+            "2025-07-19");
     }
 
     @Test
-    void formatNullValue() {
-        assertEquals("", DataTypeUtils.format(null));
+    void formatInstantNullValue() {
+        assertThrows(
+            NullPointerException.class,
+            () -> DataTypeUtils.formatInstant(null));
     }
 
     @Test
@@ -69,7 +77,7 @@ class DataTypeUtilsTests {
         TimeZone tzBER = TimeZone.getTimeZone("Europe/Berlin");
         Instant instant = ZonedDateTime.of(
             2025, 7, 20, 5, 5, 42, 232323, tzBER.toZoneId()).toInstant();
-        String formatted = DataTypeUtils.format(instant, ClickHouseDataType.DateTime);
+        String formatted = DataTypeUtils.formatInstant(instant, ClickHouseDataType.DateTime);
         assertEquals(formatted, "1752980742");
         assertEquals(
             Instant.ofEpochSecond(Long.parseLong(formatted)),
@@ -81,7 +89,7 @@ class DataTypeUtilsTests {
         TimeZone tzBER = TimeZone.getTimeZone("Europe/Berlin");
         Instant instant = ZonedDateTime.of(
             2025, 7, 20, 5, 5, 42, 232323232, tzBER.toZoneId()).toInstant();
-        String formatted = DataTypeUtils.format(instant);
+        String formatted = DataTypeUtils.formatInstant(instant);
         assertEquals(formatted, "1752980742.232323232");
         String[] formattedParts = formatted.split("\\.");
         assertEquals(
@@ -96,7 +104,7 @@ class DataTypeUtilsTests {
         TimeZone tzBER = TimeZone.getTimeZone("Europe/Berlin");
         Instant instant = ZonedDateTime.of(
             2025, 7, 20, 5, 5, 42, 23, tzBER.toZoneId()).toInstant();
-        String formatted = DataTypeUtils.format(instant);
+        String formatted = DataTypeUtils.formatInstant(instant);
         assertEquals(formatted, "1752980742.000000023");
         String[] formattedParts = formatted.split("\\.");
         assertEquals(
@@ -113,11 +121,11 @@ class DataTypeUtilsTests {
         Instant instant = ZonedDateTime.of(
             2025, 7, 20, 5, 5, 42, 232323232, tzBER.toZoneId()).toInstant();
         assertEquals(
-            DataTypeUtils.format(
+            DataTypeUtils.formatInstant(
                 instant.truncatedTo(ChronoUnit.SECONDS)),
             "1752980742.000000000");
         assertEquals(
-            DataTypeUtils.format(
+            DataTypeUtils.formatInstant(
                 instant.truncatedTo(ChronoUnit.MILLIS)),
             "1752980742.232000000");
     }

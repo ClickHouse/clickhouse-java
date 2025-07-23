@@ -1573,9 +1573,7 @@ public class Client implements AutoCloseable {
         Supplier<QueryResponse> responseSupplier;
 
             if (queryParams != null) {
-                settings.setOption(
-                    HttpAPIClientHelper.KEY_STATEMENT_PARAMS,
-                    formatQueryParameters(queryParams));
+                settings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
             }
             final QuerySettings finalSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
             responseSupplier = () -> {
@@ -2100,14 +2098,6 @@ public class Client implements AutoCloseable {
         requestSettings.putAll(configuration);
         requestSettings.putAll(opSettings);
         return requestSettings;
-    }
-
-    private Map<String, String> formatQueryParameters(Map<String, Object> queryParams) {
-        HashMap<String, String> newMap = new HashMap<>(queryParams.size());
-        for (String key : queryParams.keySet()) {
-            newMap.put(key, DataTypeUtils.format(queryParams.get(key)));
-        }
-        return newMap;
     }
 
 }

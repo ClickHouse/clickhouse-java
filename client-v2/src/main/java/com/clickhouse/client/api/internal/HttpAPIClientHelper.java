@@ -572,7 +572,7 @@ public class HttpAPIClientHelper {
         }
         if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
             Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, (String.valueOf(v))));
+            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
