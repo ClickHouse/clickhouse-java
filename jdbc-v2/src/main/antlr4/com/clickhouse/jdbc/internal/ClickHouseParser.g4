@@ -49,7 +49,7 @@ namedQuery
     ;
 
 columnAliases
-    : LPAREN? identifier (',' identifier)* RPAREN?
+    : LPAREN identifier (',' identifier)* RPAREN
     ;
 
 cteUnboundCol
