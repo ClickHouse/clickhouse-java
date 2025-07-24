@@ -1036,9 +1036,6 @@
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
     </session_log>
 
-    <!-- Parameters for embedded dictionaries, used in Yandex.Metrica.
-         See https://clickhouse.com/docs/en/dicts/internal_dicts/
-    -->
 
     <!-- Path to file with region hierarchy. -->
     <!-- <path_to_regions_hierarchy_file>/opt/geo/regions_hierarchy.txt</path_to_regions_hierarchy_file> -->

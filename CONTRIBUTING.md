@@ -85,7 +85,6 @@ In the case you don't want to use docker and/or prefer to test against an existi
 - add below two configuration files to the existing server and expose all defaults ports for external access
   - [ports.xml](../../blob/main/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
   - and [users.xml](../../blob/main/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
-    Note: you may need to change root element from `clickhouse` to `yandex` when testing old version of ClickHouse.
 - make sure ClickHouse binary(usually `/usr/bin/clickhouse`) is available in PATH, as it's required to test `clickhouse-cli-client`
 - put `test.properties` under either `~/.clickhouse` or `src/test/resources` of your project, with content like below:
   ```properties
