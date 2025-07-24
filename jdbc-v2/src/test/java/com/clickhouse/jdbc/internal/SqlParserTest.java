@@ -281,6 +281,7 @@ public class SqlParserTest {
             {"insert into `events` (s) values ('a')", 0},
             {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
             {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
+            {"SELECT COUNT() FROM system.databases WHERE name = ?", 1},
             {"alter table user delete where reg_time = ?", 1},
             {"SELECT * FROM a,b WHERE id > ?", 1},
             {"DROP USER IF EXISTS default_impersonation_user", 0},
@@ -304,8 +305,24 @@ public class SqlParserTest {
             {"GRANT ON CLUSTER '{cluster}' `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
             {"SELECT * FROM `test_data`.`categories` WHERE id = 1::String or id = ?", 1},
             {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
+            {"select * from test_data.categories WHERE test_data.categories.name = ? limit 4", 1},
             {INSERT_INLINE_DATA, 0},
-                {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
+            {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
+            {"SELECT DISTINCT ON (column) FROM table WHERE column > ?", 1},
+            {"SELECT * FROM test_table \nUNION\n DISTINCT SELECT * FROM test_table", 0},
+            {"SELECT * FROM test_table \nUNION\n ALL SELECT * FROM test_table", 0},
+            {"SELECT * FROM test_table1 \nUNION\n SELECT * FROM test_table2 WHERE test_table2.column1 = ?", 1},
+            {COMPLEX_CTE, 4},
+            {SIMPLE_CTE, 0},
+            {CTE_CONSTANT_AS_VARIABLE, 1},
+            {"select toYear(dt) year from test WHERE val=?", 1},
+            {"select 1 year, 2 hour, 3 minute, 4 second", 0},
+            {"select toYear(dt) AS year from test WHERE val=?", 1},
+            {"select toYear(dt) AS yearx from test WHERE val=?", 1},
+            {"SELECT v FROM t WHERE f in (?)", 1},
+            {"SELECT v FROM t WHERE a > 10 AND event NOT IN (?)", 1},
+            {"SELECT v FROM t WHERE f in (1, 2, 3)", 0},
+            {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1}
         };
     }
 
@@ -313,4 +330,83 @@ public class SqlParserTest {
             "INSERT INTO `interval_15_XUTLZWBLKMNZZPRZSKRF`.`checkins` (`timestamp`, `id`) " +
                     "VALUES ((`now64`(9) + INTERVAL -225 second), 1)";
 
+    private static final String COMPLEX_CTE = "WITH ? AS starting_time, ? AS ending_time, 0 AS session_timeout, '{start}' AS starting_event, '{end}' AS ending_event, SessionData AS (\n" +
+            "    WITH\n" +
+            "        date,\n" +
+            "        arraySort(\n" +
+            "            groupArray(\n" +
+            "              (\n" +
+            "                  tracking.event.time,\n" +
+            "                  tracking.event.event\n" +
+            "              )\n" +
+            "            )\n" +
+            "        ) AS _sorted_events,\n" +
+            "        arrayEnumerate(_sorted_events) AS _event_serial,\n" +
+            "        arrayDifference(_sorted_events.1) AS _event_time_diff,\n" +
+            "        \n" +
+            "        arrayFilter(\n" +
+            "            (x, y, z) -> y > session_timeout OR z.2 = starting_event,\n" +
+            "            _event_serial,\n" +
+            "            _event_time_diff,\n" +
+            "            _sorted_events\n" +
+            "        ) AS _gap_index_1,\n" +
+            "\n" +
+            "        arrayFilter(\n" +
+            "            (x, y) -> y.2 = ending_event,\n" +
+            "            _event_serial,\n" +
+            "            _sorted_events\n" +
+            "        ) AS _gap_index_2_,\n" +
+            "        arrayMap(\n" +
+            "            x -> x + 1,\n" +
+            "            _gap_index_2_\n" +
+            "        ) AS _gap_index_2,\n" +
+            "\n" +
+            "        arrayMap(x -> if (has(_gap_index_1,x) OR has(_gap_index_2,x), 1, 0), _event_serial) AS _session_splitter,\n" +
+            "        arraySplit((x, y) -> y, _sorted_events, _session_splitter) AS _session_chain\n" +
+            "    SELECT\n" +
+            "        date,\n" +
+            "        user_id AS user_id,\n" +
+            "        arrayJoin(_session_chain) AS event_chain,\n" +
+            "        \n" +
+            "        arrayCompact(x -> x.2, event_chain) AS event_chain_dedup\n" +
+            "    FROM tracking.event\n" +
+            "    WHERE\n" +
+            "        project=? AND time>=starting_time AND time<ending_time\n" +
+            "        AND event NOT IN (?)\n" +
+            "    GROUP BY\n" +
+            "        date,\n" +
+            "        user_id\n" +
+            "),\n" +
+            "SessionOverallInfo AS (\n" +
+            "    SELECT\n" +
+            "        date,\n" +
+            "        COUNT(*) AS number_of_sessions\n" +
+            "    FROM SessionData\n" +
+            "    GROUP BY date\n" +
+            ")\n" +
+            "SELECT\n" +
+            "    SessionOverallInfo.date, SessionOverallInfo.number_of_sessions AS number_of_total_sessions\n" +
+            "FROM\n" +
+            "    SessionOverallInfo\n" +
+            "ORDER BY\n" +
+            "    SessionOverallInfo.date";
+
+    private static final String SIMPLE_CTE = "WITH cte_numbers AS\n" +
+            "(\n" +
+            "    SELECT\n" +
+            "        num\n" +
+            "    FROM generateRandom('num UInt64', NULL)\n" +
+            "    LIMIT 1000000\n" +
+            ")\n" +
+            "SELECT\n" +
+            "    count()\n" +
+            "FROM cte_numbers\n" +
+            "WHERE num IN (SELECT num FROM cte_numbers)";
+
+    private static final String CTE_CONSTANT_AS_VARIABLE = "WITH '2019-08-01 15:23:00' AS ts_upper_bound\n" +
+            "SELECT *\n" +
+            "FROM hits\n" +
+            "WHERE\n" +
+            "    EventDate = toDate(?) AND\n" +
+            "    EventTime <= ts_upper_bound;";
 }

@@ -1120,4 +1120,41 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testCTEWithUnboundCol() throws Exception {
+
+        try (Connection conn = getJdbcConnection()) {
+            String cte = "with ? as text, numz as (select text, number from system.numbers limit 10) select * from numz";
+            try (PreparedStatement stmt = conn.prepareStatement(cte)) {
+                stmt.setString(1, "1000");
+
+                ResultSet rs = stmt.executeQuery();
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "1000");
+                assertEquals(rs.getString(2), "0");
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testWithInClause() throws Exception {
+
+        try (Connection conn = getJdbcConnection()) {
+            String cte = "select number from system.numbers where number in (?) limit 10";
+            Long[] filter =  new Long[]{2L, 4L, 6L};
+            try (PreparedStatement stmt = conn.prepareStatement(cte)) {
+                stmt.setArray(1, conn.createArrayOf("Int64", filter));
+                ResultSet rs = stmt.executeQuery();
+
+                for (Long filterValue : filter) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getLong(1), filterValue);
+                }
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+
 }

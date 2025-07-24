@@ -41,15 +41,20 @@ query
 
 // CTE statement
 ctes
-    : LPAREN? WITH namedQuery (',' namedQuery)* RPAREN?
+    : LPAREN? WITH (cteUnboundCol COMMA)* namedQuery (COMMA namedQuery)* RPAREN?
     ;
 
 namedQuery
-    : name = identifier (columnAliases)? AS '(' query ')'
+    : name = identifier (columnAliases)? AS LPAREN query RPAREN
     ;
 
 columnAliases
-    : '(' identifier (',' identifier)* ')'
+    : LPAREN identifier (',' identifier)* RPAREN
+    ;
+
+cteUnboundCol
+    : (literal AS identifier) # CteUnboundColLiteral
+    | (QUERY AS identifier) # CteUnboundColParam
     ;
 
 // ALTER statement
@@ -407,7 +412,7 @@ projectionSelectStmt
 // SELECT statement
 
 selectUnionStmt
-    : selectStmtWithParens (UNION ALL selectStmtWithParens)*
+    : selectStmtWithParens (UNION (ALL|DISTINCT)? selectStmtWithParens)*
     ;
 
 selectStmtWithParens
@@ -1228,6 +1233,12 @@ keywordForAlias
     | VIEW
     | PRIMARY
     | GRANT
+    | YEAR
+    | DAY
+    | MONTH
+    | HOUR
+    | MINUTE
+    | SECOND
     ;
 
 alias

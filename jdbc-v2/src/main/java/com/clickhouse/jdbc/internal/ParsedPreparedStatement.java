@@ -173,6 +173,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     }
 
     @Override
+    public void enterCteUnboundColParam(ClickHouseParser.CteUnboundColParamContext ctx) {
+        appendParameter(ctx.start.getStartIndex());
+    }
+
+    @Override
     public void visitErrorNode(ErrorNode node) {
         setHasErrors(true);
     }
