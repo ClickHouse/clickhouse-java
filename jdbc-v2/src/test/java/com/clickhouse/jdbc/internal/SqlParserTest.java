@@ -307,15 +307,22 @@ public class SqlParserTest {
             {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
             {"select * from test_data.categories WHERE test_data.categories.name = ? limit 4", 1},
             {INSERT_INLINE_DATA, 0},
-                {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
-                {"SELECT DISTINCT ON (column) FROM table WHER column > ?", 1},
-                {"SELECT * FROM test_table \nUNION\n DISTINCT SELECT * FROM test_table", 0},
-                {"SELECT * FROM test_table1 \nUNION\n SELECT * FROM test_table2 WHERE test_table2.column1 = ?", 1},
-            {PARAMETRIZED_VIEW, 0},
-            {COMPLEX_CTE, 0},
+            {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
+            {"SELECT DISTINCT ON (column) FROM table WHERE column > ?", 1},
+            {"SELECT * FROM test_table \nUNION\n DISTINCT SELECT * FROM test_table", 0},
+            {"SELECT * FROM test_table \nUNION\n ALL SELECT * FROM test_table", 0},
+            {"SELECT * FROM test_table1 \nUNION\n SELECT * FROM test_table2 WHERE test_table2.column1 = ?", 1},
+            {COMPLEX_CTE, 4},
+            {SIMPLE_CTE, 0},
+            {CTE_CONSTANT_AS_VARIABLE, 1},
             {"select toYear(dt) year from test WHERE val=?", 1},
+            {"select 1 year, 2 hour, 3 minute, 4 second", 0},
             {"select toYear(dt) AS year from test WHERE val=?", 1},
             {"select toYear(dt) AS yearx from test WHERE val=?", 1},
+            {"SELECT v FROM t WHERE f in (?)", 1},
+            {"SELECT v FROM t WHERE a > 10 AND event NOT IN (?)", 1},
+            {"SELECT v FROM t WHERE f in (1, 2, 3)", 0},
+            {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1}
         };
     }
 
@@ -323,15 +330,7 @@ public class SqlParserTest {
             "INSERT INTO `interval_15_XUTLZWBLKMNZZPRZSKRF`.`checkins` (`timestamp`, `id`) " +
                     "VALUES ((`now64`(9) + INTERVAL -225 second), 1)";
 
-    private static final String PARAMETRIZED_VIEW = "CREATE VIEW default.test\n" +
-            "AS \n" +
-            "WITH    \n" +
-            "    toDateTime({from:String}, 'Asia/Seoul') AS FROM,    \n" +
-            "    date_add(FROM, INTERVAL 1 MINUTE) AS TO,    \n" +
-            "    {target_id:String} AS TARGET_ID \n" +
-            "SELECT FROM, TO, TARGET_ID";
-
-    private static final String COMPLEX_CTE = "WITH ? AS starting_time, ? AS ending_time, ? AS session_timeout, ? AS starting_event, ? AS ending_event, SessionData AS (\n" +
+    private static final String COMPLEX_CTE = "WITH ? AS starting_time, ? AS ending_time, 0 AS session_timeout, '{start}' AS starting_event, '{end}' AS ending_event, SessionData AS (\n" +
             "    WITH\n" +
             "        date,\n" +
             "        arraySort(\n" +
@@ -373,7 +372,7 @@ public class SqlParserTest {
             "    FROM tracking.event\n" +
             "    WHERE\n" +
             "        project=? AND time>=starting_time AND time<ending_time\n" +
-            "        AND event NOT IN (?, ?, ?, ?)\n" +
+            "        AND event NOT IN (?)\n" +
             "    GROUP BY\n" +
             "        date,\n" +
             "        user_id\n" +
@@ -391,4 +390,23 @@ public class SqlParserTest {
             "    SessionOverallInfo\n" +
             "ORDER BY\n" +
             "    SessionOverallInfo.date";
+
+    private static final String SIMPLE_CTE = "WITH cte_numbers AS\n" +
+            "(\n" +
+            "    SELECT\n" +
+            "        num\n" +
+            "    FROM generateRandom('num UInt64', NULL)\n" +
+            "    LIMIT 1000000\n" +
+            ")\n" +
+            "SELECT\n" +
+            "    count()\n" +
+            "FROM cte_numbers\n" +
+            "WHERE num IN (SELECT num FROM cte_numbers)";
+
+    private static final String CTE_CONSTANT_AS_VARIABLE = "WITH '2019-08-01 15:23:00' AS ts_upper_bound\n" +
+            "SELECT *\n" +
+            "FROM hits\n" +
+            "WHERE\n" +
+            "    EventDate = toDate(?) AND\n" +
+            "    EventTime <= ts_upper_bound;";
 }
