@@ -169,7 +169,7 @@
                             </buildArgs>
                             <classpath>
                                 <param>
-                                    ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
+                                    ${project.build.directory}/${project.artifactId}-${project.version}-all.jar</param>
                             </classpath>
                             <agent>
                                 <enabled>true</enabled>
