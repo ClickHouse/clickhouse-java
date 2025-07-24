@@ -400,7 +400,7 @@
                                 <excludes>
                                     <!-- provided libraries -->
                                     <exclude>io.micrometer:*</exclude>
-                                    <exclude>org.slf4j:slf4j-simple</exclude>
+                                    <exclude>org.slf4j:*</exclude>
                                 </excludes>
                             </artifactSet>
                             <relocations>
