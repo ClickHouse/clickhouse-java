@@ -1,6 +1,9 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -10,11 +13,14 @@ import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -59,7 +65,6 @@ import java.util.regex.Pattern;
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
-    public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
     public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
@@ -128,7 +133,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public ResultSet executeQuery() throws SQLException {
         ensureOpen();
-        return super.executeQueryImpl(buildSQL(), localSettings);
+        String buildSQL = buildSQL();
+        LOG.debug("Executing SQL: " + buildSQL);
+        return super.executeQueryImpl(buildSQL, localSettings);
     }
 
     @Override
@@ -221,19 +228,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        setAsciiStream(parameterIndex, x, (long)length);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, (long) length);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        setBinaryStream(parameterIndex, x, (long)length);
     }
 
     @Override
@@ -249,13 +256,33 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         ensureOpen();
-        setObject(parameterIndex, x, targetSqlType, 0);
+        // targetSQLType is only of JDBCType
+        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), null);
+    }
+
+    @Override
+    public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
+        ensureOpen();
+        // targetSQLType is only of JDBCType
+        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), scaleOrLength);
+    }
+
+    @Override
+    public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
+        ensureOpen();
+        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), null);
+    }
+
+    @Override
+    public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
+        ensureOpen();
+        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), scaleOrLength);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
         ensureOpen();
-        setObject(parameterIndex, x, Types.OTHER);
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     @Override
@@ -291,31 +318,24 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public int[] executeBatch() throws SQLException {
         ensureOpen();
-
-        if (insertStmtWithValues) {
-            // run executeBatch
-            return executeInsertBatch().stream().mapToInt(Integer::intValue).toArray();
-        } else {
-            List<Integer> results = new ArrayList<>();
-            for (String sql : batch) {
-                results.add((int) executeUpdateImpl(sql, localSettings));
-            }
-            return results.stream().mapToInt(Integer::intValue).toArray();
-        }
+        return executeBatchImpl().stream().mapToInt(Integer::intValue).toArray();
     }
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
         ensureOpen();
+        return executeBatchImpl().stream().mapToLong(Integer::longValue).toArray();
+    }
 
+    private List<Integer> executeBatchImpl() throws SQLException {
         if (insertStmtWithValues) {
-            return executeInsertBatch().stream().mapToLong(Integer::longValue).toArray();
+            return executeInsertBatch();
         } else {
             List<Integer> results = new ArrayList<>();
             for (String sql : batch) {
                 results.add((int) executeUpdateImpl(sql, localSettings));
             }
-            return results.stream().mapToLong(Integer::longValue).toArray();
+            return results;
         }
     }
 
@@ -339,7 +359,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        setCharacterStream(1, x, (long)length);
     }
 
     @Override
@@ -513,7 +533,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, length);
     }
 
     @Override
@@ -547,27 +567,21 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     @Override
-    public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        ensureOpen();
-        setObject(parameterIndex, x, JDBCType.valueOf(targetSqlType), scaleOrLength);
-    }
-
-    @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, length);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, length);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, length);
     }
 
     @Override
@@ -610,18 +624,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
         values[parameterIndex - 1] = encodeObject(x);
-    }
-
-    @Override
-    public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
-    }
-
-    @Override
-    public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
-        ensureOpen();
-        setObject(parameterIndex, x, targetSqlType, 0);
     }
 
     @Override
@@ -740,21 +742,24 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                         "executeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
     }
-
     private static String encodeObject(Object x) throws SQLException {
+        return encodeObject(x, null);
+    }
+
+    private static String encodeObject(Object x, Long length) throws SQLException {
         LOG.trace("Encoding object: {}", x);
 
         try {
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                return "'" + escapeString((String) x) + "'";
+                return "'" + SQLUtils.escapeSingleQuotes((String) x) + "'";
             } else if (x instanceof Boolean) {
                 return (Boolean) x ? "1" : "0";
             } else if (x instanceof Date) {
-                return "'" + DATE_FORMATTER.format(((Date) x).toLocalDate()) + "'";
+                return "'" + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + "'";
             } else if (x instanceof LocalDate) {
-                return "'" + DATE_FORMATTER.format((LocalDate) x) + "'";
+                return "'" + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + "'";
             } else if (x instanceof Time) {
                 return "'" + TIME_FORMATTER.format(((Time) x).toLocalTime()) + "'";
             } else if (x instanceof LocalTime) {
@@ -836,23 +841,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
                 return mapString.toString();
             } else if (x instanceof Reader) {
-                StringBuilder sb = new StringBuilder();
-                Reader reader = (Reader) x;
-                char[] buffer = new char[1024];
-                int len;
-                while ((len = reader.read(buffer)) != -1) {
-                    sb.append(buffer, 0, len);
-                }
-                return "'" + escapeString(sb.toString()) + "'";
+                return encodeCharacterStream((Reader) x, length);
             } else if (x instanceof InputStream) {
-                StringBuilder sb = new StringBuilder();
-                InputStream is = (InputStream) x;
-                byte[] buffer = new byte[1024];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    sb.append(new String(buffer, 0, len));
-                }
-                return "'" + escapeString(sb.toString()) + "'";
+                return encodeCharacterStream((InputStream) x, length);
             } else if (x instanceof Object[]) {
                 StringBuilder arrayString = new StringBuilder();
                 arrayString.append("[");
@@ -883,17 +874,58 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 tupleString.append(")");
                 return tupleString.toString();
             } else if (x instanceof UUID) {
-                return "'" + escapeString(((UUID) x).toString()) + "'";
+                return "'" + ((UUID) x).toString() + "'";
             }
 
-            return escapeString(x.toString());//Escape single quotes
+            return SQLUtils.escapeSingleQuotes(x.toString()); //Escape single quotes
         } catch (Exception e) {
             LOG.error("Error encoding object", e);
             throw new SQLException("Error encoding object", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
     }
 
-    private static String escapeString(String x) {
-        return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
+    private static String encodeCharacterStream(InputStream stream, Long length) throws SQLException {
+        return encodeCharacterStream(new InputStreamReader(stream, StandardCharsets.UTF_8), length);
+    }
+
+    private static String encodeCharacterStream(Reader reader, Long length) throws SQLException {
+        if (reader == null) {
+            throw new  SQLException("Source cannot be null");
+        }
+
+        StringBuilder sb = new StringBuilder();
+        try (reader) {
+            char[] buffer = new char[1024];
+            int len;
+            while ((len = reader.read(buffer)) != -1) {
+                sb.append(buffer, 0, len);
+            }
+        } catch (IOException e) {
+            LOG.error("Error reading string from input stream", e);
+            throw new SQLException("Error reading string from input stream", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
+        }
+
+        if (length == null) {
+            return "'" + SQLUtils.escapeSingleQuotes(sb.toString()) + "'";
+        } else {
+            return "'" + SQLUtils.escapeSingleQuotes(sb.substring(0, length.intValue())) + "'";
+        }
+    }
+
+    private ClickHouseDataType jdbcType2ClickHouseDataType(JDBCType type) {
+        return null;
+    }
+
+    private ClickHouseDataType sqlType2ClickHouseDataType(SQLType type) throws SQLException {
+        if (type instanceof JDBCType) {
+            return jdbcType2ClickHouseDataType((JDBCType) type);
+        } else  if (type instanceof ClickHouseDataType) {
+            return (ClickHouseDataType) type;
+        }
+        throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+    }
+
+    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
+        return encodeObject(x) + "::" + clickHouseDataType.name();
     }
 }

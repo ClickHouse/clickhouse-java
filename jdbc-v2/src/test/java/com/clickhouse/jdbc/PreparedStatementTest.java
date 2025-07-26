@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.DriverProperties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.std.UUIDDeserializer;
@@ -9,6 +11,8 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
@@ -168,11 +172,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Ignore("Not supported yet")
     @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Int8)")) {
                 stmt.setBytes(1, new byte[] { 1, 2, 3 });
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
@@ -191,6 +194,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-01"));
+                    assertFalse(rs.next());
+                }
+
+                stmt.setDate(1, java.sql.Date.valueOf("2021-01-02"));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-02"));
+                    assertFalse(rs.next());
+                }
+
+                stmt.setObject(1, java.sql.Date.valueOf("2021-01-02"));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-02"));
                     assertFalse(rs.next());
                 }
             }
@@ -255,6 +272,93 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     Array a3 = rs.getObject(1) instanceof Array ? (Array) rs.getObject(1) : null;
                     assertNotNull(a3);
                     assertEquals(Arrays.deepToString((Object[]) a3.getArray()), "[[a], [b], [c]]");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testTuple() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setObject(1, new Tuple("a", 1));
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(Arrays.asList(rs.getObject(1, Object[].class)).toString(), "[a, 1]");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integrations"})
+    public void testSetAsciiStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setAsciiStream(1, new ByteArrayInputStream(value.getBytes()));
+                stmt.setAsciiStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integrations"})
+    public void testSetUnicodeStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setUnicodeStream(1, new ByteArrayInputStream(value.getBytes()),  value.length());
+                stmt.setUnicodeStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integrations"})
+    public void testSetBinaryStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setBinaryStream(1, new ByteArrayInputStream(value.getBytes()));
+                stmt.setBinaryStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testSetNCharacterStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setNCharacterStream(1, new InputStreamReader(new ByteArrayInputStream(value.getBytes())));
+                stmt.setNCharacterStream(2, new InputStreamReader(new ByteArrayInputStream(value.getBytes())), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
                     assertFalse(rs.next());
                 }
             }
@@ -804,7 +908,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         String table = "test_batch_text";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
-        System.out.println("testBatchInsert seed" + seed);
         try (Connection conn = getJdbcConnection()) {
 
             try (Statement stmt = conn.createStatement()) {
@@ -1156,5 +1259,21 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testTypeCasts() throws Exception {
 
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                   stmt.setObject(1, 100, ClickHouseDataType.Int8);
+                   stmt.setObject(2, 100, ClickHouseDataType.Int8);
+
+                   try (ResultSet rs = stmt.executeQuery()) {
+                       rs.next();
+                       assertEquals(rs.getInt(1), 100);
+                       assertEquals(rs.getString(2), ClickHouseDataType.Int8.getName());
+                   }
+            }
+        }
+
+    }
 }

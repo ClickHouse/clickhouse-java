@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
 
@@ -240,6 +241,8 @@ public class JdbcUtils {
             } else if (type == Inet6Address.class && value instanceof Inet4Address) {
                 // Convert Inet4Address to Inet6Address
                 return Inet6Address.getByName(value.toString());
+            } else if (type == Tuple.class && value.getClass().isArray()) {
+                return new Tuple(true, value);
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
