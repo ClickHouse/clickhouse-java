@@ -341,10 +341,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         } else if (value instanceof ZonedDateTime) {
             ClickHouseDataType dataType = column.getDataType();
             ZonedDateTime zdt = (ZonedDateTime) value;
-            if (dataType == ClickHouseDataType.Date) {
-                return zdt.format(com.clickhouse.client.api.DataTypeUtils.DATE_FORMATTER);
+            switch (dataType) { // should not be null
+                case Date:
+                case Date32:
+                    return zdt.format(DataTypeUtils.DATE_FORMATTER);
+                case DateTime:
+                case DateTime32:
+                    return zdt.format(DataTypeUtils.DATETIME_FORMATTER);
+                default:
+                    return value.toString();
             }
-            return value.toString();
         } else if (value instanceof BinaryStreamReader.EnumValue) {
             return ((BinaryStreamReader.EnumValue)value).name;
         } else if (value instanceof Number ) {

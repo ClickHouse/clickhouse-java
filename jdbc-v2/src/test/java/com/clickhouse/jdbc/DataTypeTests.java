@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
@@ -26,6 +27,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -207,8 +209,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     assertEquals(rs.getObject("int8"), (byte)int8);
                     assertEquals(rs.getObject("int16"), (short)int16);
-                    assertEquals(rs.getObject("int32"), (int)int32);
-                    assertEquals(rs.getObject("int64"), (long)int64);
+                    assertEquals(rs.getObject("int32"), int32);
+                    assertEquals(rs.getObject("int64"), int64);
                     assertEquals(rs.getObject("int128"), int128);
                     assertEquals(rs.getObject("int256"), int256);
                     assertEquals(rs.getObject("uint8"), uint8);
@@ -269,28 +271,28 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
 
             assertTrue(rs.next());
-            assertEquals((Short) rs.getObject("uint8"), null);
-            assertEquals((Integer) rs.getObject("uint16"), null);
-            assertEquals((Long) rs.getObject("uint32"), null);
-            assertEquals((BigInteger) rs.getObject("uint64"), null);
-            assertEquals((BigInteger) rs.getObject("uint128"), null);
-            assertEquals((BigInteger) rs.getObject("uint256"), null);
+            assertEquals(rs.getObject("uint8"), null);
+            assertEquals(rs.getObject("uint16"), null);
+            assertEquals(rs.getObject("uint32"), null);
+            assertEquals(rs.getObject("uint64"), null);
+            assertEquals(rs.getObject("uint128"), null);
+            assertEquals(rs.getObject("uint256"), null);
 
             assertTrue(rs.next());
             assertEquals((Short) rs.getObject("uint8"), (byte) 0);
             assertEquals((Integer) rs.getObject("uint16"), (short) 0);
             assertEquals((Long) rs.getObject("uint32"), 0);
-            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.ZERO);
-            assertEquals((BigInteger) rs.getObject("uint128"), BigInteger.ZERO);
-            assertEquals((BigInteger) rs.getObject("uint256"), BigInteger.ZERO);
+            assertEquals(rs.getObject("uint64"), BigInteger.ZERO);
+            assertEquals(rs.getObject("uint128"), BigInteger.ZERO);
+            assertEquals(rs.getObject("uint256"), BigInteger.ZERO);
 
             assertTrue(rs.next());
             assertEquals(((Short) rs.getObject("uint8")).intValue(), uint8);
             assertEquals((Integer) rs.getObject("uint16"), uint16);
             assertEquals((Long) rs.getObject("uint32"), uint32);
-            assertEquals((BigInteger) rs.getObject("uint64"), BigInteger.valueOf(uint64));
-            assertEquals((BigInteger) rs.getObject("uint128"), uint128);
-            assertEquals((BigInteger) rs.getObject("uint256"), uint256);
+            assertEquals(rs.getObject("uint64"), BigInteger.valueOf(uint64));
+            assertEquals(rs.getObject("uint128"), uint128);
+            assertEquals(rs.getObject("uint256"), uint256);
 
             assertFalse(rs.next());
         }
@@ -317,11 +319,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery("SELECT uuid  FROM test_uuids ORDER BY order")) {
 
             assertTrue(rs.next());
-            assertNull((UUID) rs.getObject("uuid"));
+            assertNull(rs.getObject("uuid"));
 
 
             assertTrue(rs.next());
-            assertEquals((UUID) rs.getObject("uuid"), uuid);
+            assertEquals(rs.getObject("uuid"), uuid);
 
             assertFalse(rs.next());
         }
@@ -549,6 +551,57 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+        }
+
+        try (Connection conn = getJdbcConnection();
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order"))
+        {
+            assertTrue(rs.next());
+            assertEquals(rs.getString("date"), "1970-01-01");
+            assertEquals(rs.getString("date32"), "1970-01-01");
+            assertEquals(rs.getString("dateTime"), "1970-01-01 00:00:00");
+            assertEquals(rs.getString("dateTime32"), "1970-01-01 00:00:00");
+            assertEquals(rs.getString("dateTime643"), "1970-01-01T00:00Z[UTC]");
+            assertEquals(rs.getString("dateTime646"), "1970-01-01T00:00Z[UTC]");
+            assertEquals(rs.getString("dateTime649"), "1970-01-01T00:00Z[UTC]");
+
+            assertTrue(rs.next());
+            assertEquals(rs.getString("date"), "2149-06-06");
+            assertEquals(rs.getString("date32"), "2299-12-31");
+            assertEquals(rs.getString("dateTime"), "2106-02-07 06:28:15");
+            assertEquals(rs.getString("dateTime32"), "2106-02-07 06:28:15");
+            assertEquals(rs.getString("dateTime643"), "2261-12-31T23:59:59.999Z[UTC]");
+            assertEquals(rs.getString("dateTime646"), "2261-12-31T23:59:59.999999Z[UTC]");
+            assertEquals(rs.getString("dateTime649"), "2261-12-31T23:59:59.999999999Z[UTC]");
+
+            ZoneId tzServer = ZoneId.of(((ConnectionImpl) conn).getClient().getServerTimeZone());
+            assertTrue(rs.next());
+            assertEquals(
+                rs.getString("date"),
+                Instant.ofEpochMilli(date.getTime()).atZone(tzServer).toLocalDate().toString());
+            assertEquals(
+                rs.getString("date32"),
+                Instant.ofEpochMilli(date32.getTime()).atZone(tzServer).toLocalDate().toString());
+            assertEquals(
+                rs.getString("dateTime"),
+                DataTypeUtils.DATETIME_FORMATTER.format(
+                    Instant.ofEpochMilli(dateTime.getTime()).atZone(tzServer)));
+            assertEquals(
+                rs.getString("dateTime32"),
+                DataTypeUtils.DATETIME_FORMATTER.format(
+                    Instant.ofEpochMilli(dateTime32.getTime()).atZone(tzServer)));
+            assertEquals(
+                rs.getString("dateTime643"),
+                dateTime643.toInstant().atZone(tzServer).toString());
+            assertEquals(
+                rs.getString("dateTime646"),
+                dateTime646.toInstant().atZone(tzServer).toString());
+            assertEquals(
+                rs.getString("dateTime649"),
+                dateTime649.toInstant().atZone(tzServer).toString());
+
+            assertFalse(rs.next());
         }
     }
 
@@ -1446,7 +1499,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getTimestamp(5).toString(), "2024-12-01 12:34:56.0");
                     assertTrue(rs.getObject(5) instanceof Timestamp);
                     assertEquals(rs.getObject(5), Timestamp.valueOf("2024-12-01 12:34:56"));
-                    assertEquals(rs.getString(5), "2024-12-01T12:34:56Z[UTC]");
+                    assertEquals(rs.getString(5), "2024-12-01 12:34:56");
                     assertEquals(rs.getObject(5, LocalDateTime.class), LocalDateTime.of(2024, 12, 1, 12, 34, 56));
                     assertEquals(rs.getObject(5, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 12, 34, 56, 0, ZoneId.of("UTC")));
                     assertEquals(String.valueOf(rs.getObject(5, new HashMap<String, Class<?>>(){{put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);}})), "2024-12-01T12:34:56");
