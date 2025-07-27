@@ -117,15 +117,18 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-    private String buildSQL() {
+    private String buildSQL() throws SQLException {
         StringBuilder compiledSql = new StringBuilder(originalSql);
         int posOffset = 0;
         int[] positions = parsedPreparedStatement.getParamPositions();
         for (int i = 0; i < argCount; i++) {
             int p = positions[i] + posOffset;
             String val = values[i];
-            compiledSql.replace(p, p+1, val == null ? "NULL" : val);
-            posOffset += val == null ? 0 : val.length() - 1;
+            if (val == null) {
+                throw new SQLException("Parameter at position '" + i + "' is not set");
+            }
+            compiledSql.replace(p, p+1, val);
+            posOffset += val.length() - 1;
         }
         return compiledSql.toString();
     }
@@ -134,7 +137,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public ResultSet executeQuery() throws SQLException {
         ensureOpen();
         String buildSQL = buildSQL();
-        LOG.debug("Executing SQL: " + buildSQL);
         return super.executeQueryImpl(buildSQL, localSettings);
     }
 
@@ -894,12 +896,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
 
         StringBuilder sb = new StringBuilder();
-        try (reader) {
+        try {
             char[] buffer = new char[1024];
             int len;
             while ((len = reader.read(buffer)) != -1) {
                 sb.append(buffer, 0, len);
             }
+
+            reader.close();
         } catch (IOException e) {
             LOG.error("Error reading string from input stream", e);
             throw new SQLException("Error reading string from input stream", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
@@ -912,20 +916,35 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-    private ClickHouseDataType jdbcType2ClickHouseDataType(JDBCType type) {
-        return null;
+    private ClickHouseDataType jdbcType2ClickHouseDataType(JDBCType type) throws SQLException{
+        ClickHouseDataType clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
+        if (clickHouseDataType == null) {
+            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+        }
+
+        return clickHouseDataType;
     }
 
     private ClickHouseDataType sqlType2ClickHouseDataType(SQLType type) throws SQLException {
+        ClickHouseDataType clickHouseDataType = null;
         if (type instanceof JDBCType) {
-            return jdbcType2ClickHouseDataType((JDBCType) type);
+            clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
         } else  if (type instanceof ClickHouseDataType) {
-            return (ClickHouseDataType) type;
+            clickHouseDataType = (ClickHouseDataType) type;
         }
-        throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+
+        if (clickHouseDataType == null) {
+            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+        }
+
+        return clickHouseDataType;
     }
 
     private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
-        return encodeObject(x) + "::" + clickHouseDataType.name();
+        String encodedObject = encodeObject(x);
+        if (clickHouseDataType != null) {
+            encodedObject += "::" + clickHouseDataType.name();
+        }
+        return encodedObject;
     }
 }

@@ -42,6 +42,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 
 @Test(groups = { "integration" })
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -1152,7 +1153,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
                 stmt.setInt(1, 10);
                 // do not set second value
-                assertEquals(stmt.executeUpdate(), 1);
+                expectThrows(SQLException.class, stmt::executeUpdate);
                 stmt.setInt(1, 20);
                 stmt.setObject(2, null);
                 assertEquals(stmt.executeUpdate(), 1);
@@ -1167,7 +1168,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertNull(rs.getObject(2));
                 }
 
-                assertEquals(count, 2);
+                assertEquals(count, 1);
             }
         }
     }
@@ -1261,7 +1262,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTypeCasts() throws Exception {
-
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
                    stmt.setObject(1, 100, ClickHouseDataType.Int8);
@@ -1274,6 +1274,36 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                    }
             }
         }
+    }
 
+    @Test(groups = {"integration"})
+    public void testCheckOfParametersAreSet() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ? as v1, ? as v2, ? as v3")) {
+                stmt.setString(1, "Test");
+                stmt.setObject(2, null);
+                stmt.setString(3, null);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    Assert.assertEquals(rs.getString(1), "Test");
+                    Assert.assertEquals(rs.getInt(2), 0);
+                    Assert.assertTrue(rs.wasNull());
+                    Assert.assertNull(rs.getString(2));
+                    Assert.assertTrue(rs.wasNull());
+                }
+
+                stmt.clearParameters();
+                stmt.setString(1, "Test");
+                stmt.setObject(2, null);
+                Assert.expectThrows(SQLException.class, stmt::executeQuery);
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO t VALUES (?, ?, ?)")) {
+                stmt.setString(1, "Test");
+
+                Assert.expectThrows(SQLException.class, stmt::executeUpdate);
+            }
+        }
     }
 }

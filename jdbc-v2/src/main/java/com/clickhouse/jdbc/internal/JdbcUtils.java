@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -166,6 +167,35 @@ public class JdbcUtils {
             }
         }
         return map;
+    }
+
+    public static final Map<SQLType, ClickHouseDataType> SQL_TO_CLICKHOUSE_TYPE_MAP = createSQLToClickHouseDataTypeMap();
+
+    private static Map<SQLType, ClickHouseDataType> createSQLToClickHouseDataTypeMap() {
+        Map<SQLType, ClickHouseDataType> map = new HashMap<>();
+        map.put(JDBCType.TINYINT, ClickHouseDataType.Int8);
+        map.put(JDBCType.SMALLINT, ClickHouseDataType.Int16);
+        map.put(JDBCType.INTEGER, ClickHouseDataType.Int32);
+        map.put(JDBCType.BIGINT, ClickHouseDataType.Int64);
+        map.put(JDBCType.FLOAT, ClickHouseDataType.Float32);
+        map.put(JDBCType.REAL, ClickHouseDataType.Float32);
+        map.put(JDBCType.DOUBLE, ClickHouseDataType.Float64);
+        map.put(JDBCType.BOOLEAN, ClickHouseDataType.Bool);
+        map.put(JDBCType.DATE, ClickHouseDataType.Date32);
+        map.put(JDBCType.TIME, ClickHouseDataType.Time);
+        map.put(JDBCType.TIMESTAMP, ClickHouseDataType.DateTime64);
+        map.put(JDBCType.TIMESTAMP_WITH_TIMEZONE, ClickHouseDataType.DateTime64);
+        map.put(JDBCType.BINARY, ClickHouseDataType.String);
+        map.put(JDBCType.VARBINARY, ClickHouseDataType.String);
+        map.put(JDBCType.LONGVARBINARY, ClickHouseDataType.String);
+        map.put(JDBCType.CHAR, ClickHouseDataType.String);
+        map.put(JDBCType.NCHAR, ClickHouseDataType.String);
+        map.put(JDBCType.VARCHAR, ClickHouseDataType.String);
+        map.put(JDBCType.LONGNVARCHAR, ClickHouseDataType.String);
+        map.put(JDBCType.NVARCHAR, ClickHouseDataType.String);
+        map.put(JDBCType.DECIMAL, ClickHouseDataType.Decimal32);
+        map.put(JDBCType.ARRAY, ClickHouseDataType.Array);
+        return Collections.unmodifiableMap(map);
     }
 
     public static SQLType convertToSqlType(ClickHouseDataType clickhouseType) {
