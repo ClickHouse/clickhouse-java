@@ -348,6 +348,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case DateTime:
                 case DateTime32:
                     return zdt.format(DataTypeUtils.DATETIME_FORMATTER);
+                case DateTime64:
+                    return zdt.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER);
                 default:
                     return value.toString();
             }

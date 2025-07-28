@@ -1130,7 +1130,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             for (int i = 0; i < tableIdentifier.length; i++) {
                 String tableId = tableIdentifier[i];
-                System.out.println(">> " + tableId);
                 final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
                     stmt.setInt(1, i + 10);
@@ -1300,6 +1299,39 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {"ed0c77a3-2e4b-4954-98ee-22a4fdad9565", ClickHouseDataType.UUID, ClickHouseDataType.UUID},
                 {"::ffff:127.0.0.1", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
                 {"116.253.40.133", ClickHouseDataType.IPv4, ClickHouseDataType.IPv4},
+                {100, JDBCType.TINYINT, ClickHouseDataType.Int8}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJDBCTypeCastDP")
+    public void testJDBCTypeCast(Object value, int targetType, ClickHouseDataType expectedType) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                stmt.setObject(1, value, targetType);
+                stmt.setObject(2, value, targetType);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    assertEquals(rs.getString(2), expectedType.getName());
+                    switch (expectedType) {
+                        case IPv4:
+                            assertEquals(rs.getString(1), "/" + value);
+                            break;
+                        case IPv6:
+                            // do not check
+                            break;
+                        default:
+                            assertEquals(rs.getString(1), String.valueOf(value));
+                    }
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testJDBCTypeCastDP")
+    public static Object[][] testJDBCTypeCastDP() {
+        return new Object[][] {
+                {100, JDBCType.TINYINT.getVendorTypeNumber().intValue(), ClickHouseDataType.Int8}
         };
     }
 
@@ -1310,6 +1342,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 for (ClickHouseDataType type : JdbcUtils.INVALID_TARGET_TYPES) {
                     expectThrows(SQLException.class, ()->stmt.setObject(1, "", type));
                 }
+
+                expectThrows(SQLException.class, ()->stmt.setObject(1, "", JDBCType.OTHER.getVendorTypeNumber()));
+                expectThrows(SQLException.class, ()->stmt.setObject(1, "", ClickHouseDataType.DateTime64));
             }
         }
     }
@@ -1335,7 +1370,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         return new Object[][] {
                 {0.123456789, ClickHouseDataType.Decimal64, 3, "0.123", "Decimal(18, 3)"},
                 {"hello", ClickHouseDataType.FixedString, 5, "hello", "FixedString(5)"},
-                {"2017-10-02 10:20:30.333333", ClickHouseDataType.DateTime64, 3, "2017-10-02T10:20:30.333", "DateTime64(3)"}
+                {"2017-10-02 10:20:30.333333", ClickHouseDataType.DateTime64, 3, "2017-10-02 10:20:30.333", "DateTime64(3)"}
         };
     }
 

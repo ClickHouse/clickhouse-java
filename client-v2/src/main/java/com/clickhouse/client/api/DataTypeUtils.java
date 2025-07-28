@@ -30,7 +30,9 @@ public class DataTypeUtils {
     /**
      * Formatter for the DateTime type with nanoseconds.
      */
-    public static DateTimeFormatter DATETIME_WITH_NANOS_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.nnnnnnnnn");
+    public static DateTimeFormatter DATETIME_WITH_NANOS_FORMATTER = new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd HH:mm:ss")
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .toFormatter();
 
     private static final DateTimeFormatter INSTANT_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS)
