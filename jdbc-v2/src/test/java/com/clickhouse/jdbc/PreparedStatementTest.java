@@ -4,11 +4,10 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.std.UUIDDeserializer;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
-import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -16,10 +15,12 @@ import java.io.InputStreamReader;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -1260,20 +1261,82 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testTypeCasts() throws Exception {
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastsDP")
+    public void testTypeCastsWithoutArgument(Object value, SQLType targetType, ClickHouseDataType expectedType) throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
-                   stmt.setObject(1, 100, ClickHouseDataType.Int8);
-                   stmt.setObject(2, 100, ClickHouseDataType.Int8);
+               stmt.setObject(1, value, targetType);
+               stmt.setObject(2, value, targetType);
 
-                   try (ResultSet rs = stmt.executeQuery()) {
-                       rs.next();
-                       assertEquals(rs.getInt(1), 100);
-                       assertEquals(rs.getString(2), ClickHouseDataType.Int8.getName());
+               try (ResultSet rs = stmt.executeQuery()) {
+                   rs.next();
+                   assertEquals(rs.getString(2), expectedType.getName());
+                   switch (expectedType) {
+                       case IPv4:
+                           assertEquals(rs.getString(1), "/" + value);
+                           break;
+                       case IPv6:
+                           // do not check
+                           break;
+                       default:
+                           assertEquals(rs.getString(1), String.valueOf(value));
                    }
+               }
             }
         }
+    }
+
+    @DataProvider(name = "testTypeCastsDP")
+    public static Object[][] testTypeCastsDP() {
+        return new Object[][] {
+                {100, ClickHouseDataType.Int8, ClickHouseDataType.Int8},
+                {100L, ClickHouseDataType.Int16, ClickHouseDataType.Int16},
+                {100L, ClickHouseDataType.Int32, ClickHouseDataType.Int32},
+                {100L, ClickHouseDataType.Int64, ClickHouseDataType.Int64},
+                 {100L, ClickHouseDataType.UInt8, ClickHouseDataType.UInt8},
+                {100L, ClickHouseDataType.UInt16, ClickHouseDataType.UInt16},
+                {100L, ClickHouseDataType.UInt32, ClickHouseDataType.UInt32},
+                {100L, ClickHouseDataType.UInt64, ClickHouseDataType.UInt64},
+                {"ed0c77a3-2e4b-4954-98ee-22a4fdad9565", ClickHouseDataType.UUID, ClickHouseDataType.UUID},
+                {"::ffff:127.0.0.1", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
+                {"116.253.40.133", ClickHouseDataType.IPv4, ClickHouseDataType.IPv4},
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testTypesInvalidForCast() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                for (ClickHouseDataType type : JdbcUtils.INVALID_TARGET_TYPES) {
+                    expectThrows(SQLException.class, ()->stmt.setObject(1, "", type));
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastWithScaleOrLengthDP")
+    public void testTypeCastWithScaleOrLength(Object value, SQLType targetType, Integer scaleOrLength, String expectedValue,
+                                              String expectedType) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                stmt.setObject(1, value, targetType, scaleOrLength);
+                stmt.setObject(2, value, targetType, scaleOrLength);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    assertEquals(rs.getString(1), expectedValue);
+                    assertEquals(rs.getString(2), expectedType);
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testTypeCastWithScaleOrLengthDP")
+    public static Object[][] testTypeCastWithScaleOrLengthDP() {
+        return new Object[][] {
+                {0.123456789, ClickHouseDataType.Decimal64, 3, "0.123", "Decimal(18, 3)"},
+                {"hello", ClickHouseDataType.FixedString, 5, "hello", "FixedString(5)"},
+                {"2017-10-02 10:20:30.333333", ClickHouseDataType.DateTime64, 3, "2017-10-02T10:20:30.333", "DateTime64(3)"}
+        };
     }
 
     @Test(groups = {"integration"})

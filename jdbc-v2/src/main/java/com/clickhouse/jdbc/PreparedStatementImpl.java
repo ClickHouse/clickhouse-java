@@ -40,7 +40,6 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -931,6 +930,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
         } else  if (type instanceof ClickHouseDataType) {
             clickHouseDataType = (ClickHouseDataType) type;
+            if (JdbcUtils.INVALID_TARGET_TYPES.contains(clickHouseDataType)) {
+                throw new  SQLException("Type " + clickHouseDataType + " cannot be used as target type here because requires additional parameters and API doesn't have a way to pass them. ");
+            }
         }
 
         if (clickHouseDataType == null) {
@@ -944,6 +946,12 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         String encodedObject = encodeObject(x);
         if (clickHouseDataType != null) {
             encodedObject += "::" + clickHouseDataType.name();
+            if (clickHouseDataType.hasParameter()) {
+                if (scaleOrLength == null) {
+                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
+                }
+                encodedObject += "(" + scaleOrLength + ")";
+            }
         }
         return encodedObject;
     }

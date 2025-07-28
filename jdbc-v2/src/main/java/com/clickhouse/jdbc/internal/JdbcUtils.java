@@ -24,9 +24,11 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -123,6 +125,9 @@ public class JdbcUtils {
         map.put(JDBCType.SQLXML, java.sql.SQLXML.class);
         return ImmutableMap.copyOf(map);
     }
+
+    public static final Set<ClickHouseDataType> INVALID_TARGET_TYPES = EnumSet.of(ClickHouseDataType.Nested, ClickHouseDataType.Enum8, ClickHouseDataType.Enum16, ClickHouseDataType.Enum,
+            ClickHouseDataType.Tuple, ClickHouseDataType.Map, ClickHouseDataType.Nothing, ClickHouseDataType.Nullable, ClickHouseDataType.Variant);
 
     public static final Map<ClickHouseDataType, Class<?>> DATA_TYPE_CLASS_MAP = getDataTypeClassMap();
     private static Map<ClickHouseDataType, Class<?>> getDataTypeClassMap() {
