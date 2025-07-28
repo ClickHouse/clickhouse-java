@@ -295,7 +295,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integrations"})
+    @Test(groups = {"integration"})
     public void testSetAsciiStream() throws Exception {
         final String value = "Some long string with '' to check quote escaping";
         try (Connection conn = getJdbcConnection()) {
@@ -313,7 +313,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integrations"})
+    @Test(groups = {"integration"})
     public void testSetUnicodeStream() throws Exception {
         final String value = "Some long string with '' to check quote escaping";
         try (Connection conn = getJdbcConnection()) {
@@ -331,7 +331,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integrations"})
+    @Test(groups = {"integration"})
     public void testSetBinaryStream() throws Exception {
         final String value = "Some long string with '' to check quote escaping";
         try (Connection conn = getJdbcConnection()) {

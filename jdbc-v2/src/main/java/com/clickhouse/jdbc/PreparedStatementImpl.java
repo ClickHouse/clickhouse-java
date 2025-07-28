@@ -360,7 +360,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
         ensureOpen();
-        setCharacterStream(1, x, (long)length);
+        setCharacterStream(parameterIndex, x, (long)length);
     }
 
     @Override
