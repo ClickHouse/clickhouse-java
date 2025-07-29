@@ -611,7 +611,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @DataProvider(name = "testGetMetadataDataProvider")
     static Object[][] testGetMetadataDataProvider() {
         return new Object[][] {
-                {"INSERT INTO `%s` VALUES (?, ?, ?)", 0, new Object[]{"test", 0.3f, 0.4f}, 0},
+                {"INSERT INTO `%s` VALUES (?, ?, ?)", 3, new Object[]{"test", 0.3f, 0.4f}, 3},
                 {"SELECT * FROM `%s`", 3, null, 3},
                 {"SHOW TABLES", 0, null, 1}
         };
