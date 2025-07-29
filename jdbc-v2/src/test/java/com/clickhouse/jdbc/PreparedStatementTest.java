@@ -1404,4 +1404,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test
+    public void testParameterCount() throws Exception {
+        try (Connection conn = getJdbcConnection();) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, ? as v1, ? as v2")) {
+                Assert.assertEquals(stmt.getMetaData().getColumnCount(), 3);
+            }
+            try (PreparedStatement stmt = conn.prepareStatement("WITH toDateTime(?) AS target_time SELECT * FROM table")) {
+                Assert.assertEquals(stmt.getMetaData().getColumnCount(), 1);
+            }
+        }
+    }
 }

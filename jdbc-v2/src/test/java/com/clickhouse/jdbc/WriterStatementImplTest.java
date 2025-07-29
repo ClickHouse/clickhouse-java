@@ -12,7 +12,7 @@ import java.util.Properties;
 
 @Test(groups = {"integration"})
 public class WriterStatementImplTest extends JdbcIntegrationTest {
-    
+
 
     @Test(groups = {"integration"})
     public void testTargetTypeMethodThrowException() throws SQLException {

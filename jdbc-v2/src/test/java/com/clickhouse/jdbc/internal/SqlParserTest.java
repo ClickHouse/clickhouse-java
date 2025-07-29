@@ -247,8 +247,8 @@ public class SqlParserTest {
                 {"(with a as (select ?) select * from a);", 1},
                 {"with a as (select 1) select * from a; ", 0},
                 {"(with ? as a select a);", 1},
-                {"select * from ( with x as ( select 9 ) select * from x );", 0}
-
+                {"select * from ( with x as ( select 9 ) select * from x );", 0},
+                {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1}
         };
     }
 

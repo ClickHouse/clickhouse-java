@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
@@ -60,6 +61,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
@@ -251,7 +254,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     int getParametersCount() {
-        return values.length;
+        return argCount;
     }
 
     @Override
@@ -409,7 +412,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             }
 
             if (resultSetMetaData == null) {
-                resultSetMetaData = new ResultSetMetaDataImpl(Collections.emptyList(),
+                List<ClickHouseColumn> columns = IntStream.range(0, argCount)
+                        .mapToObj(value -> ClickHouseColumn.of("v_" + value, "Nothing"))
+                        .collect(Collectors.toList());
+                resultSetMetaData = new ResultSetMetaDataImpl(columns,
                         connection.getSchema(), connection.getCatalog(),
                         "", JdbcUtils.DATA_TYPE_CLASS_MAP);
             }
