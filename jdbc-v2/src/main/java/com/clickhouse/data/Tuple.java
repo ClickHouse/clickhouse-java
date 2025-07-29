@@ -46,6 +46,9 @@ public class Tuple {
         if (this == obj) {
             return true;
         }
+        if (obj == null) {
+            return false;
+        }
         if (obj instanceof Tuple) {
             Tuple other = (Tuple) obj;
             return Arrays.equals(values, other.values);
