@@ -7,10 +7,12 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.google.common.collect.ImmutableMap;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.UnsupportedCharsetException;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Comparator;
@@ -195,19 +197,23 @@ public class JdbcConfiguration {
         }
         if (uri.getQuery() != null && !uri.getQuery().trim().isEmpty()) {
             for (String pair : uri.getRawQuery().split("&")) {
-                String[] p = pair.split("=", 2);
-                if (p.length != 2 || p[0] == null || p[1] == null) {
-                    throw new SQLException("Invalid query parameter '" + pair + "'");
+                try {
+                    String[] p = pair.split("=", 2);
+                    if (p.length != 2 || p[0] == null || p[1] == null) {
+                        throw new SQLException("Invalid query parameter '" + pair + "'");
+                    }
+                    String key = URLDecoder.decode(p[0], StandardCharsets.UTF_8.name());
+                    if (key == null || key.trim().isEmpty() || !PATTERN_HTTP_TOKEN.matcher(key).matches()) {
+                        throw new SQLException("Invalid query parameter key in pair'" + pair + "'");
+                    }
+                    String value = URLDecoder.decode(p[1], StandardCharsets.UTF_8.name());
+                    if (value == null || value.trim().isEmpty() || "=".equals(value)) {
+                        throw new SQLException("Invalid query parameter value in pair '" + pair + "'");
+                    }
+                    properties.put(key.trim(), value);
+                } catch (UnsupportedEncodingException e) {
+                    throw new SQLException("Internal error'", e);
                 }
-                String key = URLDecoder.decode(p[0], StandardCharsets.UTF_8);
-                if (key == null || key.trim().isEmpty() || !PATTERN_HTTP_TOKEN.matcher(key).matches()) {
-                    throw new SQLException("Invalid query parameter key in pair'" + pair + "'");
-                }
-                String value = URLDecoder.decode(p[1], StandardCharsets.UTF_8);
-                if (value == null || value.trim().isEmpty() || "=".equals(value)) {
-                    throw new SQLException("Invalid query parameter value in pair '" + pair + "'");
-                }
-                properties.put(key.trim(), value);
             }
         }
         return properties;
