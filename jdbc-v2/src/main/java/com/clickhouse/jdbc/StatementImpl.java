@@ -430,22 +430,22 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return false; // false indicates that no more results (or it is an update count)
     }
 
-    @Override
+//    @Override
     public String enquoteLiteral(String val) throws SQLException {
         return SQLUtils.enquoteLiteral(val);
     }
 
-    @Override
+//    @Override
     public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
         return SQLUtils.enquoteIdentifier(identifier, alwaysQuote);
     }
 
-    @Override
+//    @Override
     public boolean isSimpleIdentifier(String identifier) throws SQLException {
         return SQLUtils.isSimpleIdentifier(identifier);
     }
 
-    @Override
+//    @Override
     public String enquoteNCharLiteral(String val) throws SQLException {
         if (val == null) {
             throw new NullPointerException();
