@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.sql.SQLType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -50,7 +51,7 @@ import com.clickhouse.data.value.UnsignedShort;
  * modifiers for the underlying base data types.
  */
 @SuppressWarnings("squid:S115")
-public enum ClickHouseDataType {
+public enum ClickHouseDataType implements SQLType {
     Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false,0x2D, "BOOLEAN"),
     Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false, 0x0F),
     Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false, 0x10),
@@ -263,6 +264,21 @@ public enum ClickHouseDataType {
     public static final byte TUPLE_WITHOUT_NAMES_BIN_TAG = 0x1F;
 
     public static final byte TUPLE_WITH_NAMES_BIN_TAG = 0x20;
+
+    @Override
+    public String getName() {
+        return name();
+    }
+
+    @Override
+    public String getVendor() {
+        return "com.clickhouse";
+    }
+
+    @Override
+    public Integer getVendorTypeNumber() {
+        return (int) binTag;
+    }
 
     public enum IntervalKind {
         Nanosecond(IntervalNanosecond, ChronoUnit.NANOS, 0x00),

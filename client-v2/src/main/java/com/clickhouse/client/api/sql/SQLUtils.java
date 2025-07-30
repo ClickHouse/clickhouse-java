@@ -132,4 +132,8 @@ public class SQLUtils {
             return str;
         }
     }
+
+    public static String escapeSingleQuotes(String x) {
+            return x.replace("\\", "\\\\").replace("'", "\\'");//Escape single quotes
+    }
 }

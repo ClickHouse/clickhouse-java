@@ -1,5 +1,7 @@
 package com.clickhouse.data;
 
+import java.util.Arrays;
+
 public class Tuple {
     private final Object[] values;
     private volatile String output;
@@ -36,5 +38,26 @@ public class Tuple {
             output = buildOutput();
         }
         return output;
+    }
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof Tuple) {
+            Tuple other = (Tuple) obj;
+            return Arrays.equals(values, other.values);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(values);
     }
 }

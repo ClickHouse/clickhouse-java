@@ -413,14 +413,13 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        // TODO: make proper data conversion in setObject methods
-        writer.setValue(parameterIndex, x);
+        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, x);
+        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
@@ -431,13 +430,14 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
-        setObject(parameterIndex, x, targetSqlType, 0);
+        ensureOpen();
+        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, x);
+        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     @Override

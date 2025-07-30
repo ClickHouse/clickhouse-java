@@ -1,21 +1,26 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.std.UUIDDeserializer;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
-import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -38,6 +43,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 
 @Test(groups = { "integration" })
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -168,11 +174,10 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Ignore("Not supported yet")
     @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Int8)")) {
                 stmt.setBytes(1, new byte[] { 1, 2, 3 });
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
@@ -191,6 +196,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-01"));
+                    assertFalse(rs.next());
+                }
+
+                stmt.setDate(1, java.sql.Date.valueOf("2021-01-02"));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-02"));
+                    assertFalse(rs.next());
+                }
+
+                stmt.setObject(1, java.sql.Date.valueOf("2021-01-02"));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1), java.sql.Date.valueOf("2021-01-02"));
                     assertFalse(rs.next());
                 }
             }
@@ -255,6 +274,93 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     Array a3 = rs.getObject(1) instanceof Array ? (Array) rs.getObject(1) : null;
                     assertNotNull(a3);
                     assertEquals(Arrays.deepToString((Object[]) a3.getArray()), "[[a], [b], [c]]");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testTuple() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setObject(1, new Tuple("a", 1));
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(Arrays.asList(rs.getObject(1, Object[].class)).toString(), "[a, 1]");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetAsciiStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setAsciiStream(1, new ByteArrayInputStream(value.getBytes()));
+                stmt.setAsciiStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetUnicodeStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setUnicodeStream(1, new ByteArrayInputStream(value.getBytes()),  value.length());
+                stmt.setUnicodeStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetBinaryStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setBinaryStream(1, new ByteArrayInputStream(value.getBytes()));
+                stmt.setBinaryStream(2, new ByteArrayInputStream(value.getBytes()), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testSetNCharacterStream() throws Exception {
+        final String value = "Some long string with '' to check quote escaping";
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? as v1, ? as v2")) {
+                stmt.setNCharacterStream(1, new InputStreamReader(new ByteArrayInputStream(value.getBytes())));
+                stmt.setNCharacterStream(2, new InputStreamReader(new ByteArrayInputStream(value.getBytes())), 10);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertEquals(rs.getString(2), value.subSequence(0, 10));
                     assertFalse(rs.next());
                 }
             }
@@ -505,7 +611,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @DataProvider(name = "testGetMetadataDataProvider")
     static Object[][] testGetMetadataDataProvider() {
         return new Object[][] {
-                {"INSERT INTO `%s` VALUES (?, ?, ?)", 0, new Object[]{"test", 0.3f, 0.4f}, 0},
+                {"INSERT INTO `%s` VALUES (?, ?, ?)", 3, new Object[]{"test", 0.3f, 0.4f}, 3},
                 {"SELECT * FROM `%s`", 3, null, 3},
                 {"SHOW TABLES", 0, null, 1}
         };
@@ -804,7 +910,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         String table = "test_batch_text";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
-        System.out.println("testBatchInsert seed" + seed);
         try (Connection conn = getJdbcConnection()) {
 
             try (Statement stmt = conn.createStatement()) {
@@ -1025,7 +1130,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             for (int i = 0; i < tableIdentifier.length; i++) {
                 String tableId = tableIdentifier[i];
-                System.out.println(">> " + tableId);
                 final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
                     stmt.setInt(1, i + 10);
@@ -1049,7 +1153,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
                 stmt.setInt(1, 10);
                 // do not set second value
-                assertEquals(stmt.executeUpdate(), 1);
+                expectThrows(SQLException.class, stmt::executeUpdate);
                 stmt.setInt(1, 20);
                 stmt.setObject(2, null);
                 assertEquals(stmt.executeUpdate(), 1);
@@ -1064,7 +1168,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertNull(rs.getObject(2));
                 }
 
-                assertEquals(count, 2);
+                assertEquals(count, 1);
             }
         }
     }
@@ -1156,5 +1260,160 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastsDP")
+    public void testTypeCastsWithoutArgument(Object value, SQLType targetType, ClickHouseDataType expectedType) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+               stmt.setObject(1, value, targetType);
+               stmt.setObject(2, value, targetType);
 
+               try (ResultSet rs = stmt.executeQuery()) {
+                   rs.next();
+                   assertEquals(rs.getString(2), expectedType.getName());
+                   switch (expectedType) {
+                       case IPv4:
+                           assertEquals(rs.getString(1), "/" + value);
+                           break;
+                       case IPv6:
+                           // do not check
+                           break;
+                       default:
+                           assertEquals(rs.getString(1), String.valueOf(value));
+                   }
+               }
+            }
+        }
+    }
+
+    @DataProvider(name = "testTypeCastsDP")
+    public static Object[][] testTypeCastsDP() {
+        return new Object[][] {
+                {100, ClickHouseDataType.Int8, ClickHouseDataType.Int8},
+                {100L, ClickHouseDataType.Int16, ClickHouseDataType.Int16},
+                {100L, ClickHouseDataType.Int32, ClickHouseDataType.Int32},
+                {100L, ClickHouseDataType.Int64, ClickHouseDataType.Int64},
+                 {100L, ClickHouseDataType.UInt8, ClickHouseDataType.UInt8},
+                {100L, ClickHouseDataType.UInt16, ClickHouseDataType.UInt16},
+                {100L, ClickHouseDataType.UInt32, ClickHouseDataType.UInt32},
+                {100L, ClickHouseDataType.UInt64, ClickHouseDataType.UInt64},
+                {"ed0c77a3-2e4b-4954-98ee-22a4fdad9565", ClickHouseDataType.UUID, ClickHouseDataType.UUID},
+                {"::ffff:127.0.0.1", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
+                {"116.253.40.133", ClickHouseDataType.IPv4, ClickHouseDataType.IPv4},
+                {100, JDBCType.TINYINT, ClickHouseDataType.Int8}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJDBCTypeCastDP")
+    public void testJDBCTypeCast(Object value, int targetType, ClickHouseDataType expectedType) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                stmt.setObject(1, value, targetType);
+                stmt.setObject(2, value, targetType);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    assertEquals(rs.getString(2), expectedType.getName());
+                    switch (expectedType) {
+                        case IPv4:
+                            assertEquals(rs.getString(1), "/" + value);
+                            break;
+                        case IPv6:
+                            // do not check
+                            break;
+                        default:
+                            assertEquals(rs.getString(1), String.valueOf(value));
+                    }
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testJDBCTypeCastDP")
+    public static Object[][] testJDBCTypeCastDP() {
+        return new Object[][] {
+                {100, JDBCType.TINYINT.getVendorTypeNumber().intValue(), ClickHouseDataType.Int8}
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testTypesInvalidForCast() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                for (ClickHouseDataType type : JdbcUtils.INVALID_TARGET_TYPES) {
+                    expectThrows(SQLException.class, ()->stmt.setObject(1, "", type));
+                }
+
+                expectThrows(SQLException.class, ()->stmt.setObject(1, "", JDBCType.OTHER.getVendorTypeNumber()));
+                expectThrows(SQLException.class, ()->stmt.setObject(1, "", ClickHouseDataType.DateTime64));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastWithScaleOrLengthDP")
+    public void testTypeCastWithScaleOrLength(Object value, SQLType targetType, Integer scaleOrLength, String expectedValue,
+                                              String expectedType) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
+                stmt.setObject(1, value, targetType, scaleOrLength);
+                stmt.setObject(2, value, targetType, scaleOrLength);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    assertEquals(rs.getString(1), expectedValue);
+                    assertEquals(rs.getString(2), expectedType);
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testTypeCastWithScaleOrLengthDP")
+    public static Object[][] testTypeCastWithScaleOrLengthDP() {
+        return new Object[][] {
+                {0.123456789, ClickHouseDataType.Decimal64, 3, "0.123", "Decimal(18, 3)"},
+                {"hello", ClickHouseDataType.FixedString, 5, "hello", "FixedString(5)"},
+                {"2017-10-02 10:20:30.333333", ClickHouseDataType.DateTime64, 3, "2017-10-02 10:20:30.333", "DateTime64(3)"}
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testCheckOfParametersAreSet() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ? as v1, ? as v2, ? as v3")) {
+                stmt.setString(1, "Test");
+                stmt.setObject(2, null);
+                stmt.setString(3, null);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    Assert.assertEquals(rs.getString(1), "Test");
+                    Assert.assertEquals(rs.getInt(2), 0);
+                    Assert.assertTrue(rs.wasNull());
+                    Assert.assertNull(rs.getString(2));
+                    Assert.assertTrue(rs.wasNull());
+                }
+
+                stmt.clearParameters();
+                stmt.setString(1, "Test");
+                stmt.setObject(2, null);
+                Assert.expectThrows(SQLException.class, stmt::executeQuery);
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO t VALUES (?, ?, ?)")) {
+                stmt.setString(1, "Test");
+
+                Assert.expectThrows(SQLException.class, stmt::executeUpdate);
+            }
+        }
+    }
+
+    @Test
+    public void testParameterCount() throws Exception {
+        try (Connection conn = getJdbcConnection();) {
+            try (PreparedStatement stmt = conn.prepareStatement("select ?, ? as v1, ? as v2")) {
+                Assert.assertEquals(stmt.getMetaData().getColumnCount(), 3);
+            }
+            try (PreparedStatement stmt = conn.prepareStatement("WITH toDateTime(?) AS target_time SELECT * FROM table")) {
+                Assert.assertEquals(stmt.getMetaData().getColumnCount(), 1);
+            }
+        }
+    }
 }
