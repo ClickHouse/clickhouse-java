@@ -1,3 +1,33 @@
+## 0.9.1
+
+### Improvements
+- [client-v2] Improved exceptions and error handling. The `com.clickhouse.client.api.ClickHouseException` became a root for 
+`ServerException` and `ClientException`. `com.clickhouse.client.api.ClickHouseException.isRetryable` is added to determine if 
+exception caused in a retriable state. It means that catching such exception application may repeat operation to fix a 
+problem. (https://github.com/ClickHouse/clickhouse-java/pull/2453)
+- [client-v2] Improved configuration handling. (https://github.com/ClickHouse/clickhouse-java/pull/2470)
+- [client-v2] Custom type hint for the client to make `Reader` and `GenericRecord` return specific types. For example, 
+collection instead of `Array`. (https://github.com/ClickHouse/clickhouse-java/pull/2476) 
+- [client-v2] Added option to set SNI for SSL connections. (https://github.com/ClickHouse/clickhouse-java/pull/2467)
+- [client-v2] Added default port for HTTP and improved endpoint string validation - only one allowed. (https://github.com/ClickHouse/clickhouse-java/pull/2489)
+- [client-v2] Added utility methods to format `Instant` to a DB DateTime format. See `com.clickhouse.client.api.DataTypeUtils.formatInstant(java.time.Instant, com.clickhouse.data.ClickHouseDataType)` (https://github.com/ClickHouse/clickhouse-java/pull/2501, https://github.com/ClickHouse/clickhouse-java/issues/2456)
+- [client-v2, jdbc-v2] Added support for `Time` and `Time64` data types. (https://github.com/ClickHouse/clickhouse-java/pull/2487)
+- [client-v2] Improved handling error response. (https://github.com/ClickHouse/clickhouse-java/pull/2511)
+
+### Bug Fixes
+- [client-v2] Fixed metrics to be parsed as Long to avoid integer overflow. Especially for elapsed time in nanos. (https://github.com/ClickHouse/clickhouse-java/pull/2465)
+- [client-v2] Fixed a bug with passing some server settings from JDBC to the Client. (https://github.com/ClickHouse/clickhouse-java/issues/2359)
+- [jdbc-v2] Fixed `DatabaseMetadata` to return correct column type. (https://github.com/ClickHouse/clickhouse-java/issues/2475)
+- [jdbc-v2] Fixed problem with JDBC URL when Database names that include dash `-` were parsed wrong. (https://github.com/ClickHouse/clickhouse-java/issues/2463)
+- [jdbc-v2] Fixed problem with nested arrays. Previously `ArrayValue` object was returned as element of a nested array. 
+After the fix array values contain primitive types. (https://github.com/ClickHouse/clickhouse-java/issues/2464, https://github.com/ClickHouse/clickhouse-java/issues/2340)
+- [jdbc-v2] Fixed JDBC Connection's `isValid` method returning `true` all the time. (https://github.com/ClickHouse/clickhouse-java/issues/2472) 
+- [client-v2] Fixed problem with not closed response object when exception happens. That fixes connections leaking. (https://github.com/ClickHouse/clickhouse-java/issues/1741)
+- [jdbc-v2] Fixed a set of issue in `StatementImpl`. (https://github.com/ClickHouse/clickhouse-java/issues/2414)
+- [jdbc-v2] Fixed a set of issues in `PreparedStatementImpl`. (https://github.com/ClickHouse/clickhouse-java/issues/2418)
+- [jdbc-v2] Fixed multiple issues linked to parsing statements in JDBC. (https://github.com/ClickHouse/clickhouse-java/issues/2450, https://github.com/ClickHouse/clickhouse-java/issues/2451, https://github.com/ClickHouse/clickhouse-java/issues/2461, https://github.com/ClickHouse/clickhouse-java/issues/2500, https://github.com/ClickHouse/clickhouse-java/issues/2493, https://github.com/ClickHouse/clickhouse-java/issues/2478)
+- [jdbc-v2] Fixed result set returning not a DB compliant date/time format. (https://github.com/ClickHouse/clickhouse-java/issues/2408, https://github.com/ClickHouse/clickhouse-java/issues/2448) 
+
 ## 0.9.0
 
 ### Important Changes
