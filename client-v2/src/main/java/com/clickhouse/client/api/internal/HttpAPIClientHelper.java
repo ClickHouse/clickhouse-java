@@ -332,7 +332,8 @@ public class HttpAPIClientHelper {
         return clientBuilder.build();
     }
 
-    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
+//    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
+    private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
     /**
      * Reads status line and if error tries to parse response body to get server error message.
@@ -342,14 +343,27 @@ public class HttpAPIClientHelper {
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-        try (InputStream body = httpResponse.getEntity().getContent()) {
-
+        InputStream body = null;
+        try {
+            body = httpResponse.getEntity().getContent();
             byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
             byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
             StringBuilder msgBuilder = new StringBuilder();
             boolean found = false;
             while (true) {
-                int rBytes = body.read(buffer);
+                int rBytes = -1;
+                try {
+                    rBytes = body.read(buffer);
+                } catch (ClientException e) {
+                    // Invalid LZ4 Magic
+                    if (body instanceof ClickHouseLZ4InputStream) {
+                        ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                        body = stream.getInputStream();
+                        byte[] headerBuffer = stream.getHeaderBuffer();
+                        System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
+                        rBytes = headerBuffer.length;
+                    }
+                }
                 if (rBytes == -1) {
                     break;
                 }
@@ -388,7 +402,7 @@ public class HttpAPIClientHelper {
             if (msg.trim().isEmpty()) {
                 msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             }
-            return new ServerException(serverCode, msg, httpResponse.getCode());
+            return new ServerException(serverCode, "Code: " + msg, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
             return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
