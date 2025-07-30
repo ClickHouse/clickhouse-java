@@ -184,26 +184,27 @@ public class JdbcConfiguration {
         }
         properties.put(PARSE_URL_CONN_URL_PROP, uri.getScheme() + "://"
             + uri.getRawAuthority()); // will be parsed again later
+
         if (uri.getPath() != null
-            && !uri.getPath().isBlank()
+            && !uri.getPath().trim().isEmpty()
             && !"/".equals(uri.getPath()))
         {
             properties.put(
                 ClientConfigProperties.DATABASE.getKey(),
                 uri.getPath().substring(1));
         }
-        if (uri.getQuery() != null && !uri.getQuery().isBlank()) {
+        if (uri.getQuery() != null && !uri.getQuery().trim().isEmpty()) {
             for (String pair : uri.getRawQuery().split("&")) {
                 String[] p = pair.split("=", 2);
                 if (p.length != 2 || p[0] == null || p[1] == null) {
                     throw new SQLException("Invalid query parameter '" + pair + "'");
                 }
                 String key = URLDecoder.decode(p[0], StandardCharsets.UTF_8);
-                if (key == null || key.isBlank() || !PATTERN_HTTP_TOKEN.matcher(key).matches()) {
+                if (key == null || key.trim().isEmpty() || !PATTERN_HTTP_TOKEN.matcher(key).matches()) {
                     throw new SQLException("Invalid query parameter key in pair'" + pair + "'");
                 }
                 String value = URLDecoder.decode(p[1], StandardCharsets.UTF_8);
-                if (value == null || value.isBlank() || "=".equals(value)) {
+                if (value == null || value.trim().isEmpty() || "=".equals(value)) {
                     throw new SQLException("Invalid query parameter value in pair '" + pair + "'");
                 }
                 properties.put(key.trim(), value);
