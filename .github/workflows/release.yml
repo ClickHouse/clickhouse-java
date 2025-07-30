@@ -55,6 +55,7 @@ jobs:
         with:
           maven_profiles: release
           maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }}
+          server_id: central
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
@@ -65,6 +66,7 @@ jobs:
           directory: clickhouse-r2dbc
           maven_profiles: release
           maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }}
+          server_id: central
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
