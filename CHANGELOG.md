@@ -1,5 +1,11 @@
 ## 0.9.1
 
+### New Features
+- [client-v2] Added option to set SNI for SSL connections. See `com.clickhouse.client.api.Client.Builder.sslSocketSNI` (https://github.com/ClickHouse/clickhouse-java/pull/2467)
+- [client-v2, jdbc-v2] Added support for `Time` and `Time64` data types. (https://github.com/ClickHouse/clickhouse-java/pull/2487)
+- [client-v2] Added utility methods to format `Instant` to a DB DateTime format. See `com.clickhouse.client.api.DataTypeUtils.formatInstant(java.time.Instant, com.clickhouse.data.ClickHouseDataType)` (https://github.com/ClickHouse/clickhouse-java/pull/2501, https://github.com/ClickHouse/clickhouse-java/issues/2456)
+
+
 ### Improvements
 - [client-v2] Improved exceptions and error handling. The `com.clickhouse.client.api.ClickHouseException` became a root for 
 `ServerException` and `ClientException`. `com.clickhouse.client.api.ClickHouseException.isRetryable` is added to determine if 
@@ -8,10 +14,7 @@ problem. (https://github.com/ClickHouse/clickhouse-java/pull/2453)
 - [client-v2] Improved configuration handling. (https://github.com/ClickHouse/clickhouse-java/pull/2470)
 - [client-v2] Custom type hint for the client to make `Reader` and `GenericRecord` return specific types. For example, 
 collection instead of `Array`. (https://github.com/ClickHouse/clickhouse-java/pull/2476) 
-- [client-v2] Added option to set SNI for SSL connections. (https://github.com/ClickHouse/clickhouse-java/pull/2467)
 - [client-v2] Added default port for HTTP and improved endpoint string validation - only one allowed. (https://github.com/ClickHouse/clickhouse-java/pull/2489)
-- [client-v2] Added utility methods to format `Instant` to a DB DateTime format. See `com.clickhouse.client.api.DataTypeUtils.formatInstant(java.time.Instant, com.clickhouse.data.ClickHouseDataType)` (https://github.com/ClickHouse/clickhouse-java/pull/2501, https://github.com/ClickHouse/clickhouse-java/issues/2456)
-- [client-v2, jdbc-v2] Added support for `Time` and `Time64` data types. (https://github.com/ClickHouse/clickhouse-java/pull/2487)
 - [client-v2] Improved handling error response. (https://github.com/ClickHouse/clickhouse-java/pull/2511)
 
 ### Bug Fixes
