@@ -91,6 +91,14 @@ public class ClickHouseLZ4InputStream extends InputStream {
         return true;
     }
 
+    public byte[] getHeaderBuffer() {
+        return headerBuff;
+    }
+
+    public InputStream getInputStream() {
+        return in;
+    }
+
     private int refill() throws IOException {
 
         // read header
