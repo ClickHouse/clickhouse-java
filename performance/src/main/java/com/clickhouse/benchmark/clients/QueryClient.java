@@ -49,7 +49,7 @@ public class QueryClient extends BenchmarkBase {
                 ClickHouseBinaryFormatReader reader = clientV2.newBinaryFormatReader(response);
                 while (reader.next() != null) {//Compiler optimization avoidance
                     for (int i = 1; i <= dataState.dataSet.getSchema().getColumns().size(); i++) {
-                        blackhole.consume(reader.readValue(1));
+                        blackhole.consume(reader.readValue(i));
                     }
                 }
             }
