@@ -1,10 +1,10 @@
-package com.clickhouse.jdbc.internal;
+package com.clickhouse.jdbc;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * JDBC driver specific properties. Should not include any of ClientConfigProperties.
+ * JDBC driver specific properties. Does not include anything from ClientConfigProperties.
  * Processing logic should be the follows
  * 1. If property is among DriverProperties then Driver handles it specially and will not pass to a client
  * 2. If property is not among DriverProperties then it is passed to a client

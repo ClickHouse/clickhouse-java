@@ -6,7 +6,6 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
-import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
@@ -66,27 +65,34 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
-
     private String parseJdbcEscapeSyntax(String sql) {
         LOG.trace("Original SQL: {}", sql);
         if (escapeProcessingEnabled) {
-            // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
-            sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
-
-            // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
-            sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
-
-            // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
-            sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
-
-            // Handle outer escape syntax
-            //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
-
-            // Clean new empty lines in sql
-            sql = sql.replaceAll("(?m)^\\s*$\\n?", "");
-            // Add more replacements as needed for other JDBC escape sequences
+            sql = escapedSQLToNative(sql);
         }
         LOG.trace("Escaped SQL: {}", sql);
+        return sql;
+    }
+
+    public static String escapedSQLToNative(String sql) {
+        if (sql == null) {
+            throw new IllegalArgumentException("SQL may not be null");
+        }
+        // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
+        sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
+
+        // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
+        sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
+
+        // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
+        sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
+
+        // Handle outer escape syntax
+        //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
+
+        // Note: do not remove new lines because they may be used to delimit comments
+        // Add more replacements as needed for other JDBC escape sequences
+
         return sql;
     }
 
@@ -138,17 +144,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
             LOG.trace("SQL Query: {}", lastStatementSql); // this is not secure for create statements because of passwords
             if (queryTimeout == 0) {
-                response = connection.client.query(lastStatementSql, mergedSettings).get();
+                response = connection.getClient().query(lastStatementSql, mergedSettings).get();
             } else {
-                response = connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                response = connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
 
             if (response.getFormat().isText()) {
                 throw new SQLException("Only RowBinaryWithNameAndTypes is supported for output format. Please check your query.",
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            ClickHouseBinaryFormatReader reader = connection.client.newBinaryFormatReader(response);
+            ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
             if (reader.getSchema() == null) {
+                reader.close();
                 throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
             return new ResultSetImpl(this, response, reader);
@@ -191,8 +198,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         lastStatementSql = parseJdbcEscapeSyntax(sql);
         LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
-        try (QueryResponse response = queryTimeout == 0 ? connection.client.query(lastStatementSql, mergedSettings).get()
-                : connection.client.query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
+        try (QueryResponse response = queryTimeout == 0 ? connection.getClient().query(lastStatementSql, mergedSettings).get()
+                : connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
@@ -202,7 +209,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return updateCount;
     }
 
-    protected void postUpdateActions() {
+    protected void postUpdateActions() throws SQLException {
         if (parsedStatement.getUseDatabase() != null) {
             this.localSettings.setDatabase(parsedStatement.getUseDatabase());
         }
@@ -278,7 +285,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
-        try (QueryResponse response = connection.client.query(String.format("KILL QUERY%sWHERE query_id = '%s'",
+        try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
                 connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
                 lastQueryId), connection.getDefaultQuerySettings()).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());

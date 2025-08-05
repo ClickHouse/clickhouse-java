@@ -1,4 +1,4 @@
-package com.clickhouse.jdbc.internal;
+package com.clickhouse.jdbc;
 
 public enum ClientInfoProperties {
 

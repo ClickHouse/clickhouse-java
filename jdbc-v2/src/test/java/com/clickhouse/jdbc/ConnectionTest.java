@@ -7,13 +7,10 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.jdbc.internal.ClientInfoProperties;
-import com.clickhouse.jdbc.internal.DriverProperties;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -32,31 +29,75 @@ import java.util.Base64;
 import java.util.Properties;
 import java.util.UUID;
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
 
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" })
     public void createAndCloseStatementTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Statement statement = localConnection.createStatement();
-        Assert.assertNotNull(statement);
+        Connection conn = getJdbcConnection();
+        Statement stmt = conn.createStatement();
+        PreparedStatement pStmt = conn.prepareStatement("SELECT ? as v");
+        pStmt.setString(1, "test string");
+        conn.close();
+        conn.close(); // check second attempt doesn't throw anything
+        assertThrows(SQLException.class, conn::createStatement);
 
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
+        try {
+            stmt.executeQuery("SELECT 1");
+            fail("Exception expected");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getMessage().contains("closed"));
+        }
+
+        try {
+            pStmt.executeQuery();
+            fail("Exception expected");
+        } catch (SQLException e) {
+           Assert.assertTrue(e.getMessage().contains("closed"));
+
+        }
     }
 
-    @Test(groups = { "integration" }, enabled = false)
-    public void prepareStatementTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        PreparedStatement statement = localConnection.prepareStatement("SELECT 1");
-        Assert.assertNotNull(statement);
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", Statement.RETURN_GENERATED_KEYS));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", new int[] { 1 }));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareStatement("SELECT 1", new String[] { "1" }));
+    @Test(groups = { "integration" })
+    public void testCreateUnsupportedStatements() throws Throwable {
+
+        boolean[] throwUnsupportedException = new boolean[] {false, true};
+
+        for (boolean flag : throwUnsupportedException) {
+            Properties props = new Properties();
+            if (flag) {
+                props.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+            }
+
+            try (Connection conn = this.getJdbcConnection(props)) {
+                Assert.ThrowingRunnable[] createStatements = new Assert.ThrowingRunnable[]{
+                        () -> conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
+                        () -> conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
+                        () -> conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
+                        () -> conn.prepareStatement("SELECT 1", Statement.RETURN_GENERATED_KEYS),
+                        () -> conn.prepareStatement("SELECT 1", new int[]{1}),
+                        () -> conn.prepareStatement("SELECT 1", new String[]{"1"}),
+                        () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
+                        () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
+                        () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
+                        conn::setSavepoint,
+                        () -> conn.setSavepoint("save point"),
+                        () -> conn.createStruct("simple", null),
+                };
+
+                for (Assert.ThrowingRunnable createStatement : createStatements) {
+                    if (!flag) {
+                        Assert.assertThrows(SQLFeatureNotSupportedException.class, createStatement );
+                    } else {
+                        createStatement.run();
+                    }
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
@@ -67,12 +108,16 @@ public class ConnectionTest extends JdbcIntegrationTest {
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" })
     public void nativeSQLTest() throws SQLException {
-        // TODO: implement
-        Connection localConnection = this.getJdbcConnection();
-        String sql = "SELECT 1";
-        Assert.assertEquals(localConnection.nativeSQL(sql), sql);
+        try (Connection conn = this.getJdbcConnection()) {
+            String escapedSQL = "SELECT \n{ts '2024-01-02 02:01:01'} as v1,\n {d '2024-01-02 02:01:01'} as v2,\n {d ?} as v3";
+            String nativeSQL = "SELECT \ntimestamp('2024-01-02 02:01:01') as v1,\n toDate('2024-01-02 02:01:01') as v2,\n {d ?} as v3";
+            Assert.assertEquals(conn.nativeSQL(escapedSQL), nativeSQL);
+
+            Assert.expectThrows(IllegalArgumentException.class, () -> conn.nativeSQL(null));
+            Assert.assertEquals(conn.nativeSQL("SELECT 1 as t"), "SELECT 1 as t");
+        }
     }
 
     @Test(groups = { "integration" })
@@ -97,8 +142,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testCommitRollback() throws SQLException {
         try (Connection localConnection = this.getJdbcConnection()) {
-            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.commit());
-            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback());
+            assertThrows(SQLFeatureNotSupportedException.class, localConnection::commit);
+            assertThrows(SQLFeatureNotSupportedException.class, localConnection::rollback);
             assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback(null));
         }
 
@@ -183,7 +228,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void getTypeMapTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getTypeMap());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getTypeMap);
     }
 
     @Test(groups = { "integration" })
@@ -207,7 +252,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void setSavepointTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setSavepoint());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::setSavepoint);
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setSavepoint("savepoint-name"));
     }
 
@@ -268,7 +313,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");
-                System.out.println(userAgent);
                 if (clientName != null && !clientName.isEmpty()) {
                     Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
                 }
@@ -353,7 +397,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void getNetworkTimeoutTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getNetworkTimeout());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getNetworkTimeout);
     }
 
     @Test(groups = { "integration" })
@@ -606,4 +650,25 @@ public class ConnectionTest extends JdbcIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void testClientInfoProperties() throws Exception {
+        try (Connection conn = this.getJdbcConnection()) {
+
+            Properties properties = conn.getClientInfo();
+            assertEquals(properties.get(ClientInfoProperties.APPLICATION_NAME.getKey()), "");
+
+            properties.put(ClientInfoProperties.APPLICATION_NAME.getKey(), "test");
+            conn.setClientInfo(properties);
+
+            assertEquals(properties.get(ClientInfoProperties.APPLICATION_NAME.getKey()),  "test");
+
+            conn.setClientInfo(new Properties());
+            assertNull(conn.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()));
+
+            conn.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "test 2");
+            assertEquals(conn.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()),  "test 2");
+
+            assertNull(conn.getClientInfo("unknown"));
+        }
+    }
 }

@@ -7,13 +7,11 @@ import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
-import com.clickhouse.jdbc.StatementImpl;
-import com.clickhouse.jdbc.internal.ClientInfoProperties;
-import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.ClientInfoProperties;
+import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.MetadataResultSet;
-import com.clickhouse.jdbc.internal.SqlParser;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 

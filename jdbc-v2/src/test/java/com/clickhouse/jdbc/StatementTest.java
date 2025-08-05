@@ -3,12 +3,11 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
-import com.clickhouse.data.ClickHouseVersion;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -384,50 +383,50 @@ public class StatementTest extends JdbcIntegrationTest {
         info.setProperty("password", userPass);
 
         try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
-            GenericRecord record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 0);
+            GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role1");
             }
 
-            record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 1);
-            assertEquals(record.getList(1).get(0), "role1");
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 1);
+            assertEquals(dataRecord.getList(1).get(0), "role1");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE role2");
             }
 
-            record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 1);
-            assertEquals(record.getList(1).get(0), "role2");
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 1);
+            assertEquals(dataRecord.getList(1).get(0), "role2");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE NONE");
             }
 
-            record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 0);
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE \"role1\",\"role2\"");
             }
 
-            record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 2);
-            assertEquals(record.getList(1).get(0), "role1");
-            assertEquals(record.getList(1).get(1), "role2");
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 2);
+            assertEquals(dataRecord.getList(1).get(0), "role1");
+            assertEquals(dataRecord.getList(1).get(1), "role2");
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
             }
 
-            record = conn.client.queryAll("SELECT currentRoles()").get(0);
-            assertEquals(record.getList(1).size(), 3);
-            assertEquals(record.getList(1).get(0), "role1");
-            assertEquals(record.getList(1).get(1), "role2");
-            assertEquals(record.getList(1).get(2), "role3");
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 3);
+            assertEquals(dataRecord.getList(1).get(0), "role1");
+            assertEquals(dataRecord.getList(1).get(1), "role2");
+            assertEquals(dataRecord.getList(1).get(2), "role3");
         }
     }
 
@@ -1017,6 +1016,34 @@ public class StatementTest extends JdbcIntegrationTest {
             assertFalse(rs.isClosed());
             assertTrue(rs.next());
             assertEquals(rs.getInt(1), 1);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void setConnectionSchema() throws Exception {
+        String db1 = getDatabase() + "_schema1";
+        String db2 = getDatabase() + "_schema2";
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE DATABASE " + db1);
+            stmt.execute("CREATE DATABASE " + db2);
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            conn.setSchema(db1);
+
+            try  (Statement stmt = conn.createStatement()) {
+                assertEquals(getDBName(stmt), db1);
+                conn.setSchema(db2);
+                assertEquals(getDBName(stmt), db1);
+            }
+
+        }
+    }
+
+    private static String getDBName(Statement stmt) throws SQLException {
+        try (ResultSet rs = stmt.executeQuery("SELECT database()")) {
+            rs.next();
+            return rs.getString(1);
         }
     }
 }

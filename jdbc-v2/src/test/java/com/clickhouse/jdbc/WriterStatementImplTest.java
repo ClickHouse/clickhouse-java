@@ -1,6 +1,5 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.jdbc.internal.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
