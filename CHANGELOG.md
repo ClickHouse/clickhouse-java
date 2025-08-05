@@ -59,7 +59,7 @@ After the fix array values contain primitive types. (https://github.com/ClickHou
 ### Improvements
 - [jdbc-v2] Now using Antlr4 to parse SQL statements to get meta information about it. 
 Invalid SQL still possible to execute if logic able to get all required information. (https://github.com/ClickHouse/clickhouse-java/pull/2351)
-- [jdbc-v2] Now possible to use `RowBinaryWriter` if enabled by property `com.clickhouse.jdbc.DriverProperties.BETA_ROW_BINARY_WRITER`.
+- [jdbc-v2] Now possible to use `RowBinaryWriter` if enabled by property `com.clickhouse.jdbc.internal.DriverProperties.BETA_ROW_BINARY_WRITER`.
 This works well for batches. Single statements may get no benefits. (https://github.com/ClickHouse/clickhouse-java/pull/2316)
 
 ### Bug Fixes 
