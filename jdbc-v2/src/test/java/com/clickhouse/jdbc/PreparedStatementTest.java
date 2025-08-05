@@ -3,7 +3,6 @@ package com.clickhouse.jdbc;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
-import com.clickhouse.jdbc.internal.DriverProperties;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;

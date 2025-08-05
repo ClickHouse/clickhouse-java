@@ -86,9 +86,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     protected String getServerVersion() {
         try (ConnectionImpl connection = (ConnectionImpl) getJdbcConnection()) {
-            GenericRecord result = connection.client.queryAll("SELECT version() as server_version").stream()
-                    .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version."));
-            return result.getString("server_version");
+            return connection.getServerVersion();
         } catch (SQLException e) {
             return null;
         }
