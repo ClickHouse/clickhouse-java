@@ -155,6 +155,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
             if (reader.getSchema() == null) {
+                reader.close();
                 throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
             return new ResultSetImpl(this, response, reader);

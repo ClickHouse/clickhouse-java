@@ -44,7 +44,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         pStmt.setString(1, "test string");
         conn.close();
         conn.close(); // check second attempt doesn't throw anything
-        assertThrows(SQLException.class, () ->conn.createStatement());
+        assertThrows(SQLException.class, conn::createStatement);
 
         try {
             stmt.executeQuery("SELECT 1");
@@ -84,20 +84,17 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
-                        () -> conn.setSavepoint(),
+                        conn::setSavepoint,
                         () -> conn.setSavepoint("save point"),
                         () -> conn.createStruct("simple", null),
                 };
 
-                int i = 0;
                 for (Assert.ThrowingRunnable createStatement : createStatements) {
-                    System.out.println("Failed at pos " + (i));
                     if (!flag) {
                         Assert.assertThrows(SQLFeatureNotSupportedException.class, createStatement );
                     } else {
                         createStatement.run();
                     }
-                    i++;
                 }
             }
         }
@@ -145,8 +142,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testCommitRollback() throws SQLException {
         try (Connection localConnection = this.getJdbcConnection()) {
-            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.commit());
-            assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback());
+            assertThrows(SQLFeatureNotSupportedException.class, localConnection::commit);
+            assertThrows(SQLFeatureNotSupportedException.class, localConnection::rollback);
             assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.rollback(null));
         }
 
@@ -231,7 +228,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void getTypeMapTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getTypeMap());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getTypeMap);
     }
 
     @Test(groups = { "integration" })
@@ -255,7 +252,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void setSavepointTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setSavepoint());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::setSavepoint);
         assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setSavepoint("savepoint-name"));
     }
 
@@ -316,7 +313,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");
-                System.out.println(userAgent);
                 if (clientName != null && !clientName.isEmpty()) {
                     Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
                 }
@@ -401,7 +397,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void getNetworkTimeoutTest() throws SQLException {
         Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.getNetworkTimeout());
+        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getNetworkTimeout);
     }
 
     @Test(groups = { "integration" })
