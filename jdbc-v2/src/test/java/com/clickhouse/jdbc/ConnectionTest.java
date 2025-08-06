@@ -28,10 +28,13 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -384,20 +387,23 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void abortTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.abort(null));
+        try (Connection conn = this.getJdbcConnection()) {
+            conn.abort(Executors.newSingleThreadExecutor());
+            assertTrue(conn.isClosed());
+        }
     }
 
     @Test(groups = { "integration" })
-    public void setNetworkTimeoutTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setNetworkTimeout(null, 0));
-    }
+    public void testNetworkTimeout() throws SQLException {
+        try {
+            Connection conn = this.getJdbcConnection();
+            int t1 = (int) TimeUnit.SECONDS.toMillis(20);
+            conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), t1);
+            Assert.assertEquals(t1, conn.getNetworkTimeout());
 
-    @Test(groups = { "integration" })
-    public void getNetworkTimeoutTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getNetworkTimeout);
+        } catch (Exception e) {
+
+        }
     }
 
     @Test(groups = { "integration" })

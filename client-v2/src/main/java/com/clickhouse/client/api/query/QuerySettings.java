@@ -267,6 +267,18 @@ public class QuerySettings {
         return logComment;
     }
 
+    public void setNetworkTimeout(Long networkTimeout) {
+        if (networkTimeout != null) {
+            rawSettings.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), networkTimeout.intValue());
+        } else {
+            rawSettings.remove(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        }
+    }
+
+    public Long getNetworkTimeout() {
+        return (Long) rawSettings.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+    }
+
     public static QuerySettings merge(QuerySettings source, QuerySettings override) {
         QuerySettings merged = new QuerySettings();
         if (source != null) {
