@@ -783,7 +783,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
                 return "'" + ((InetAddress) x).getHostAddress() + "'";
-            } else if (x instanceof Array) {
+            } else if (x instanceof java.sql.Array) {
                 StringBuilder listString = new StringBuilder();
                 listString.append("[");
                 int i = 0;

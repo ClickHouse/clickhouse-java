@@ -14,21 +14,21 @@ public class Array implements java.sql.Array {
     private static final Logger log = LoggerFactory.getLogger(Array.class);
     Object[] array;
     int type; //java.sql.Types
-    String typeName;
+    String elementTypeName;
 
-    public Array(List<Object> list, String itemTypeName, int itemType) throws SQLException {
+    public Array(List<Object> list, String elementTypeName, int itemType) throws SQLException {
         if (list == null) {
             throw ExceptionUtils.toSqlState(new IllegalArgumentException("List cannot be null"));
         }
 
         this.array = list.toArray();
         this.type = itemType;
-        this.typeName = itemTypeName;
+        this.elementTypeName = elementTypeName;
     }
 
     @Override
     public String getBaseTypeName() throws SQLException {
-        return typeName;
+        return elementTypeName;
     }
 
     @Override

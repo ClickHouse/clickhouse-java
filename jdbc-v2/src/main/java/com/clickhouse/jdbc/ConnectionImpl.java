@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
@@ -574,13 +575,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        //TODO: Should this be supported?
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        if (column.getDataType().equals(ClickHouseDataType.Tuple)) {
+            return new com.clickhouse.jdbc.types.Struct(column, attributes);
+        } else {
+            throw new SQLException("Only Tuple datatype is supported for Struct", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
-
-        return null;
     }
+
 
     @Override
     public void setSchema(String schema) throws SQLException {
