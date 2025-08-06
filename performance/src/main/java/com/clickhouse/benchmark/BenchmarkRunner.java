@@ -1,6 +1,15 @@
 package com.clickhouse.benchmark;
 
-import com.clickhouse.benchmark.clients.*;
+import com.clickhouse.benchmark.clients.Compression;
+import com.clickhouse.benchmark.clients.ConcurrentInsertClient;
+import com.clickhouse.benchmark.clients.ConcurrentQueryClient;
+import com.clickhouse.benchmark.clients.Deserializers;
+import com.clickhouse.benchmark.clients.InsertClient;
+import com.clickhouse.benchmark.clients.JDBCInsert;
+import com.clickhouse.benchmark.clients.JDBCQuery;
+import com.clickhouse.benchmark.clients.MixedWorkload;
+import com.clickhouse.benchmark.clients.QueryClient;
+import com.clickhouse.benchmark.clients.Serializers;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.MemPoolProfiler;
@@ -12,7 +21,11 @@ import org.openjdk.jmh.runner.options.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import static com.clickhouse.benchmark.TestEnvironment.isCloud;
