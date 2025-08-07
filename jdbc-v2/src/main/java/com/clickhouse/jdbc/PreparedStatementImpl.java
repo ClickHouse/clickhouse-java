@@ -801,7 +801,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     for (int  i = 0; i < len; i++) {
                         listString.append(encodeObject(java.lang.reflect.Array.get(x, i))).append(',');
                     }
-                    listString.setLength(listString.length() - 1);
+                    if (len > 0) {
+                        listString.setLength(listString.length() - 1);
+                    }
                 } else {
                     appendArrayElements((Object[]) x, listString);
                 }
@@ -811,10 +813,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
                 listString.append('[');
-                for (Object item : (Collection<?>) x) {
+                Collection<?> collection = (Collection<?>) x;
+                for (Object item : collection) {
                     listString.append(encodeObject(item)).append(',');
                 }
-                listString.setLength(listString.length() - 1);
+                if (!collection.isEmpty()) {
+                    listString.setLength(listString.length() - 1);
+                }
                 listString.append(']');
 
                 return listString.toString();
@@ -825,8 +830,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 for (Object key : tmpMap.keySet()) {
                     mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(',');
                 }
-                if (!tmpMap.isEmpty())
-                    mapString.delete(mapString.length() - 2, mapString.length());
+                if (!tmpMap.isEmpty()) {
+                    mapString.setLength(mapString.length() - 1);
+                }
+
                 mapString.append('}');
 
                 return mapString.toString();
@@ -859,7 +866,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         for (Object item : array) {
             sb.append(encodeObject(item)).append(',');
         }
-        sb.setLength(sb.length() - 1);
+        if (array.length > 0) {
+            sb.setLength(sb.length() - 1);
+        }
     }
 
     private String arrayToTuple(Object[] array) throws SQLException {

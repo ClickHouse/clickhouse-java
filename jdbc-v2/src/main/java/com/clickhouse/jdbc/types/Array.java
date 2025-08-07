@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -17,16 +16,11 @@ public class Array implements java.sql.Array {
     int type; //java.sql.Types
     String elementTypeName;
 
+    /**
+     * @deprecated
+     */
     public Array(List<Object> list, String elementTypeName, int itemType) throws SQLException {
-        if (list == null) {
-            throw ExceptionUtils.toSqlState(new IllegalArgumentException("List cannot be null"));
-        }
-        if  (elementTypeName == null) {
-            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array element type name cannot be null"));
-        }
-        this.array = list.toArray();
-        this.type = itemType;
-        this.elementTypeName = elementTypeName;
+        this(elementTypeName, itemType, list.toArray());
     }
 
     public Array(String elementTypeName,  int itemType, Object[] elements) throws SQLException {
