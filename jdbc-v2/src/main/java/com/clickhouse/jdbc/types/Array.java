@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -20,8 +21,22 @@ public class Array implements java.sql.Array {
         if (list == null) {
             throw ExceptionUtils.toSqlState(new IllegalArgumentException("List cannot be null"));
         }
-
+        if  (elementTypeName == null) {
+            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array element type name cannot be null"));
+        }
         this.array = list.toArray();
+        this.type = itemType;
+        this.elementTypeName = elementTypeName;
+    }
+
+    public Array(String elementTypeName,  int itemType, Object[] elements) throws SQLException {
+        if (elements == null) {
+            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array cannot be null"));
+        }
+        if  (elementTypeName == null) {
+            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array element type name cannot be null"));
+        }
+        this.array = elements;
         this.type = itemType;
         this.elementTypeName = elementTypeName;
     }

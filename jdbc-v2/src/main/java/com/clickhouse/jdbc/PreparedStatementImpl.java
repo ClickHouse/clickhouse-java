@@ -39,6 +39,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLXML;
 import java.sql.Statement;
+import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -749,32 +750,34 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                         "executeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
     }
-    private static String encodeObject(Object x) throws SQLException {
+    private String encodeObject(Object x) throws SQLException {
         return encodeObject(x, null);
     }
+    
+    private static final char QUOTE = '\'';
 
-    private static String encodeObject(Object x, Long length) throws SQLException {
+    private String encodeObject(Object x, Long length) throws SQLException {
         LOG.trace("Encoding object: {}", x);
 
         try {
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                return "'" + SQLUtils.escapeSingleQuotes((String) x) + "'";
+                return QUOTE + SQLUtils.escapeSingleQuotes((String) x) + QUOTE;
             } else if (x instanceof Boolean) {
                 return (Boolean) x ? "1" : "0";
             } else if (x instanceof Date) {
-                return "'" + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + "'";
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + QUOTE;
             } else if (x instanceof LocalDate) {
-                return "'" + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + "'";
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE;
             } else if (x instanceof Time) {
-                return "'" + TIME_FORMATTER.format(((Time) x).toLocalTime()) + "'";
+                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
             } else if (x instanceof LocalTime) {
-                return "'" + TIME_FORMATTER.format((LocalTime) x) + "'";
+                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE;
             } else if (x instanceof Timestamp) {
-                return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
+                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE;
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
@@ -782,69 +785,49 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Instant) {
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
-                return "'" + ((InetAddress) x).getHostAddress() + "'";
+                return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
             } else if (x instanceof java.sql.Array) {
                 StringBuilder listString = new StringBuilder();
-                listString.append("[");
-                int i = 0;
-                for (Object item : (Object[]) ((Array) x).getArray()) {
-                    if (i > 0) {
-                        listString.append(", ");
-                    }
-                    listString.append(encodeObject(item));
-                    i++;
-                }
-                listString.append("]");
+                listString.append('[');
+                appendArrayElements((Object[]) ((Array) x).getArray(), listString);
+                listString.append(']');
 
                 return listString.toString();
             } else if (x.getClass().isArray()) {
                 StringBuilder listString = new StringBuilder();
-                listString.append("[");
-
-
+                listString.append('[');
                 if (x.getClass().getComponentType().isPrimitive()) {
                     int len = java.lang.reflect.Array.getLength(x);
                     for (int  i = 0; i < len; i++) {
-                        if (i > 0) {
-                            listString.append(", ");
-                        }
-                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i)));
+                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i))).append(',');
                     }
+                    listString.setLength(listString.length() - 1);
                 } else {
-                    int i = 0;
-                    for (Object item : (Object[]) x) {
-                        if (i > 0) {
-                            listString.append(", ");
-                        }
-                        listString.append(encodeObject(item));
-                        i++;
-                    }
+                    appendArrayElements((Object[]) x, listString);
                 }
-                listString.append("]");
+                listString.append(']');
 
                 return listString.toString();
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
-                listString.append("[");
+                listString.append('[');
                 for (Object item : (Collection<?>) x) {
-                    listString.append(encodeObject(item)).append(", ");
+                    listString.append(encodeObject(item)).append(',');
                 }
-                if (listString.length() > 1) {
-                    listString.delete(listString.length() - 2, listString.length());
-                }
-                listString.append("]");
+                listString.setLength(listString.length() - 1);
+                listString.append(']');
 
                 return listString.toString();
             } else if (x instanceof Map) {
                 Map<?, ?> tmpMap = (Map<?, ?>) x;
                 StringBuilder mapString = new StringBuilder();
-                mapString.append("{");
+                mapString.append('{');
                 for (Object key : tmpMap.keySet()) {
-                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
+                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(',');
                 }
                 if (!tmpMap.isEmpty())
                     mapString.delete(mapString.length() - 2, mapString.length());
-                mapString.append("}");
+                mapString.append('}');
 
                 return mapString.toString();
             } else if (x instanceof Reader) {
@@ -853,35 +836,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return encodeCharacterStream((InputStream) x, length);
             } else if (x instanceof Object[]) {
                 StringBuilder arrayString = new StringBuilder();
-                arrayString.append("[");
-                int i = 0;
-                for (Object item : (Object[]) x) {
-                    if (i > 0) {
-                        arrayString.append(", ");
-                    }
-                    arrayString.append(encodeObject(item));
-                    i++;
-                }
-                arrayString.append("]");
-
+                arrayString.append('[');
+                appendArrayElements((Object[]) x, arrayString);
+                arrayString.append(']');
                 return arrayString.toString();
             } else if (x instanceof Tuple) {
-                StringBuilder tupleString = new StringBuilder();
-                tupleString.append("(");
-                Tuple t = (Tuple) x;
-                Object [] values = t.getValues();
-                int i = 0;
-                for (Object item : values) {
-                    if (i > 0) {
-                        tupleString.append(", ");
-                    }
-                    tupleString.append(encodeObject(item));
-                    i++;
-                }
-                tupleString.append(")");
-                return tupleString.toString();
+                return arrayToTuple(((Tuple)x).getValues());
+            } else if (x instanceof Struct) {
+                return arrayToTuple(((Struct)x).getAttributes());
             } else if (x instanceof UUID) {
-                return "'" + ((UUID) x).toString() + "'";
+                return QUOTE + ((UUID) x).toString() + QUOTE;
             }
 
             return SQLUtils.escapeSingleQuotes(x.toString()); //Escape single quotes
@@ -889,6 +853,21 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             LOG.error("Error encoding object", e);
             throw new SQLException("Error encoding object", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
+    }
+
+    private void appendArrayElements(Object[] array, StringBuilder sb) throws SQLException {
+        for (Object item : array) {
+            sb.append(encodeObject(item)).append(',');
+        }
+        sb.setLength(sb.length() - 1);
+    }
+
+    private String arrayToTuple(Object[] array) throws SQLException {
+        StringBuilder tupleString = new StringBuilder();
+        tupleString.append('(');
+        appendArrayElements(array, tupleString);
+        tupleString.append(')');
+        return tupleString.toString();
     }
 
     private static String encodeCharacterStream(InputStream stream, Long length) throws SQLException {

@@ -61,7 +61,7 @@ public class JdbcConfiguration {
      * @param info - Driver and Client properties.
      */
     public JdbcConfiguration(String url, Properties info) throws SQLException {
-        this.disableFrameworkDetection = Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
+        this.disableFrameworkDetection = info != null && Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
 
