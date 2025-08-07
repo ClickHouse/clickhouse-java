@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -24,8 +25,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
+import java.sql.Struct;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -86,7 +93,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         conn::setSavepoint,
                         () -> conn.setSavepoint("save point"),
-                        () -> conn.createStruct("simple", null),
                 };
 
                 for (Assert.ThrowingRunnable createStatement : createStatements) {
@@ -363,16 +369,72 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void createArrayOfTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Array array = localConnection.createArrayOf("Int8", new Object[] { 1, 2, 3 });
-        Assert.assertNotNull(array);
-        Assert.assertEquals(array.getArray(), new Object[] { 1, 2, 3 });
+        try (Connection conn = getJdbcConnection()) {
+            final String baseType = "Tuple(String, Int8)";
+            final String tableName = "array_create_test";
+            final String arrayType = "Array(Array(" + baseType + "))";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ENGINE MergeTree ORDER BY ()");
+
+
+                Struct tuple1 = conn.createStruct(baseType, new Object[]{"v1", (byte)10});
+                Struct tuple2 = conn.createStruct(baseType, new Object[]{"v2", (byte)20});
+
+                Struct[][] srcArray = new Struct[][] {
+                        new  Struct[] { tuple1},
+                        new  Struct[] { tuple1, tuple2},
+                };
+
+                Array arrayValue = conn.createArrayOf("Tuple(String, Int8)", srcArray );
+                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " + tableName + " (v1) VALUES (?)")) {
+                    pStmt.setArray(1, arrayValue);
+                    pStmt.executeUpdate();
+                    pStmt.setObject(1,  arrayValue);
+                    pStmt.executeUpdate();
+                }
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                    Assert.assertTrue(rs.next());
+                    Array array1 = rs.getArray(1);
+                    Object[] elements = (Object[]) array1.getArray();
+                    Object[] storedTuple1 = (Object[]) ((List)elements[0]).get(0);
+                    Object[] storedTuple2 = (Object[]) ((List)elements[1]).get(1);
+                    Assert.assertEquals(storedTuple1, tuple1.getAttributes());
+                    Assert.assertEquals(storedTuple2, tuple2.getAttributes());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
-    public void createStructTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStruct("type-name", new Object[] { 1, 2, 3 }));
+    public void testCreateStruct() throws SQLException {
+        try (Connection conn = this.getJdbcConnection()) {
+            final String tableName = "test_struct_tuple";
+            final String tupleType = "Tuple(Int8, String, DateTime64)";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ENGINE MergeTree ORDER BY ()");
+
+                final java.sql.Timestamp timePart = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
+                timePart.setNanos(333000000);
+
+                Struct tupleValue = conn.createStruct(tupleType, new Object[] {120, "test tuple value", timePart});
+
+                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " +tableName + " VALUES (?)")) {
+                    pStmt.setObject(1, tupleValue);
+                    pStmt.executeUpdate();
+                }
+
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                    Assert.assertTrue(rs.next());
+                    Object[] tuple = (Object[]) rs.getObject(1);
+                    Assert.assertEquals(tuple[0], (byte)120);
+                    Assert.assertEquals(tuple[1], "test tuple value");
+                    Assert.assertEquals(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER.format((TemporalAccessor) tuple[2]),
+                            timePart.toString());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })

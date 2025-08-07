@@ -721,6 +721,34 @@ public class BinaryStreamReader {
             }
             return (List<T>) list;
         }
+
+        /**
+         * Returns internal array. This method is only useful to work with array of primitives (int[], boolean[]).
+         * Otherwise use {@link #getArrayOfObjects()}
+         *
+         * @return
+         */
+        public Object getArray() {
+            return array;
+        }
+
+        /**
+         * Returns array of objects.
+         * If item type is primitive then all elements will be converted into objects.
+         *
+         * @return
+         */
+        public Object[] getArrayOfObjects() {
+            if (itemType.isPrimitive()) {
+                Object[] result = new Object[length];
+                for (int i = 0; i < length; i++) {
+                    result[i] = Array.get(array, i);
+                }
+                return result;
+            } else {
+                return (Object[]) array;
+            }
+        }
     }
 
     public static class EnumValue extends Number {

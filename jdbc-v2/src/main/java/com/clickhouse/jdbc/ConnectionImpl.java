@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
@@ -22,6 +23,7 @@ import java.sql.CallableStatement;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -563,10 +565,20 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
+        ensureOpen();
+        if (typeName == null) {
+            throw new SQLFeatureNotSupportedException("typeName cannot be null");
+        }
+
+        int parentPos = typeName.indexOf('(');
+        String clickhouseDataTypeName = (typeName.substring(0, parentPos ==  -1 ? typeName.length() : parentPos)).trim();
+        ClickHouseDataType dataType = ClickHouseDataType.valueOf(clickhouseDataTypeName);
+        if (dataType.equals(ClickHouseDataType.Array)) {
+            throw new SQLFeatureNotSupportedException("Array cannot be a base type. In case of nested array provide most deep element type name.");
+        }
         try {
-            List<Object> list =
-                    (elements == null || elements.length == 0) ? Collections.emptyList() : Arrays.stream(elements, 0, elements.length).collect(Collectors.toList());
-            return new com.clickhouse.jdbc.types.Array(list, typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
+            return new com.clickhouse.jdbc.types.Array(clickhouseDataTypeName,
+                    JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(dataType, JDBCType.OTHER).getVendorTypeNumber(), elements);
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -574,13 +586,18 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        //TODO: Should this be supported?
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureOpen();
+        if (typeName == null) {
+            throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
-
-        return null;
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        if (column.getDataType().equals(ClickHouseDataType.Tuple)) {
+            return new com.clickhouse.jdbc.types.Struct(column, attributes);
+        } else {
+            throw new SQLException("Only Tuple datatype is supported for Struct", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
     }
+
 
     @Override
     public void setSchema(String schema) throws SQLException {

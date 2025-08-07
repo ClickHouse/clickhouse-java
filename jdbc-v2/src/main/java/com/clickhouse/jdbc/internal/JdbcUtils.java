@@ -261,15 +261,21 @@ public class JdbcUtils {
             } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
                 return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
             } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
+                BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) value;
                 if (column != null && column.getArrayBaseColumn() != null) {
-                    return new Array(convertList(((BinaryStreamReader.ArrayValue) value).asList(), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                    ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
+                    Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(),
+                            JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType()));
+                    return new Array(baseType.getName(), baseType.getVendorTypeNumber(), convertedValues);
                 }
-                return new Array(((BinaryStreamReader.ArrayValue) value).asList(), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                return new Array("Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber(), arrayValue.getArrayOfObjects());
             } else if (type == java.sql.Array.class && value instanceof List<?>) {
                 if (column != null && column.getArrayBaseColumn() != null) {
-                    return new Array(convertList(((List) value), JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())), "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                    ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
+                    return new Array(baseType.getName(), JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseType, JDBCType.OTHER).getVendorTypeNumber(), convertList((List<?>) value, JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())) );
                 }
-                return new Array((List) value, "Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber());
+                // base type is unknown. all objects should be converted
+                return new Array("Object", JDBCType.JAVA_OBJECT.getVendorTypeNumber(), ((List<?>) value).toArray());
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return Inet4Address.getByName(value.toString());
@@ -286,14 +292,25 @@ public class JdbcUtils {
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
     }
 
-    public static List<Object> convertList(List<Object> values, Class<?> type) throws SQLException {
+    public static Object[] convertList(List<?> values, Class<?> type) throws SQLException {
+        if (values == null) {
+            return null;
+        }
+
+        Object[] convertedValues = new Object[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            convertedValues[i] = convert(values.get(i), type);
+        }
+        return convertedValues;
+    }
+
+    public static Object[] convertArray(Object[] values, Class<?> type) throws SQLException {
         if (values == null || type == null) {
             return values;
         }
-
-        List<Object> convertedValues = new ArrayList<>(values.size());
-        for (Object value : values) {
-            convertedValues.add(convert(value, type));
+        Object[] convertedValues = new Object[values.length];
+        for (int i = 0; i < values.length; i++) {
+            convertedValues[i] = convert(values[i], type);
         }
         return convertedValues;
     }
