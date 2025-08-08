@@ -342,6 +342,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
+            stmt.getResultSet().close(); // finalize request
             stmt.execute("SYSTEM FLUSH LOGS");
 
             final String logQuery ="SELECT http_user_agent " +
