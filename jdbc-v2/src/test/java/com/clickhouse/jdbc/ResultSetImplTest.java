@@ -3,11 +3,27 @@ package com.clickhouse.jdbc;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.math.BigDecimal;
+import java.sql.Array;
+import java.sql.Blob;
 import java.sql.Connection;
+import java.sql.Date;
+import java.sql.JDBCType;
+import java.sql.NClob;
+import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.Properties;
 
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ResultSetImplTest extends JdbcIntegrationTest {
@@ -31,6 +47,153 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                     assertEquals(rs.getInt(1), 2);
                     assertEquals(rs.findColumn("val"), 2);
                     assertEquals(rs.getInt(2), 20);
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnsupportedOperations() throws Throwable {
+
+        boolean[] throwUnsupportedException = new boolean[] {false, true};
+
+        for (boolean flag : throwUnsupportedException) {
+            Properties props = new Properties();
+            if (flag) {
+                props.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+            }
+
+            try (Connection conn = this.getJdbcConnection(props); Statement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                Assert.ThrowingRunnable[] rsUnsupportedMethods = new Assert.ThrowingRunnable[]{
+                        () -> rs.first(),
+                        () -> rs.afterLast(),
+                        () -> rs.beforeFirst(),
+                        () -> rs.absolute(-1),
+                        () -> rs.relative(-1),
+                        () -> rs.moveToCurrentRow(),
+                        () -> rs.moveToInsertRow(),
+                        () -> rs.last(),
+                        () -> rs.previous(),
+                        () -> rs.refreshRow(),
+                        () -> rs.updateBoolean("col1", true),
+                        () -> rs.updateByte("col1", (byte) 1),
+                        () -> rs.updateShort("col1", (short) 1),
+                        () -> rs.updateInt("col1", 1),
+                        () -> rs.updateLong("col1", 1L),
+                        () -> rs.updateFloat("col1", 1.1f),
+                        () -> rs.updateDouble("col1", 1.1),
+                        () -> rs.updateBigDecimal("col1", BigDecimal.valueOf(1.1)),
+                        () -> rs.updateString("col1", "test"),
+                        () -> rs.updateNString("col1", "test"),
+                        () -> rs.updateBytes("col1", new byte[1]),
+                        () -> rs.updateDate("col1", Date.valueOf("2020-01-01")),
+                        () -> rs.updateTime("col1", Time.valueOf("12:34:56")),
+                        () -> rs.updateTimestamp("col1", Timestamp.valueOf("2020-01-01 12:34:56.789123")),
+                        () -> rs.updateBlob("col1", (Blob) null),
+                        () -> rs.updateClob("col1", new StringReader("test")),
+                        () -> rs.updateNClob("col1", new StringReader("test")),                        
+                        
+                        () -> rs.updateBoolean(1, true),
+                        () -> rs.updateByte(1, (byte) 1),
+                        () -> rs.updateShort(1, (short) 1),
+                        () -> rs.updateInt(1, 1),
+                        () -> rs.updateLong(1, 1L),
+                        () -> rs.updateFloat(1, 1.1f),
+                        () -> rs.updateDouble(1, 1.1),
+                        () -> rs.updateBigDecimal(1, BigDecimal.valueOf(1.1)),
+                        () -> rs.updateString(1, "test"),
+                        () -> rs.updateNString(1, "test"),
+                        () -> rs.updateBytes(1, new byte[1]),
+                        () -> rs.updateDate(1, Date.valueOf("2020-01-01")),
+                        () -> rs.updateTime(1, Time.valueOf("12:34:56")),
+                        () -> rs.updateTimestamp(1, Timestamp.valueOf("2020-01-01 12:34:56.789123")),
+                        () -> rs.updateBlob(1, (Blob) null),
+                        () -> rs.updateClob(1, new StringReader("test")),
+                        () -> rs.updateNClob(1, new StringReader("test")),
+                        () -> rs.updateSQLXML(1, null),
+                        () -> rs.updateObject(1, 1),
+                        () -> rs.updateObject("col1", 1),
+                        () -> rs.updateObject(1, "test", Types.INTEGER),
+                        () -> rs.updateObject("col1", "test", Types.INTEGER),
+                        () -> rs.updateObject(1, "test", JDBCType.INTEGER),
+                        () -> rs.updateObject("col1", "test", JDBCType.INTEGER),
+                        () -> rs.updateObject(1, "test", JDBCType.INTEGER, 1),
+                        () -> rs.updateCharacterStream(1, new StringReader("test"), 1),
+                        () -> rs.updateCharacterStream("col1", new StringReader("test")),
+                        () -> rs.updateCharacterStream("col1", new StringReader("test"), 1),
+                        () -> rs.updateCharacterStream(1, new StringReader("test"), 1L),
+                        () -> rs.updateCharacterStream("col1", new StringReader("test"), 1L),
+                        () -> rs.updateCharacterStream(1, new StringReader("test")),
+                        () -> rs.updateCharacterStream("col1", new StringReader("test")),
+                        () -> rs.updateNCharacterStream(1, new StringReader("test"), 1),
+                        () -> rs.updateNCharacterStream("col1", new StringReader("test"), 1),
+                        () -> rs.updateNCharacterStream(1, new StringReader("test"), 1L),
+                        () -> rs.updateNCharacterStream("col1", new StringReader("test"), 1L),
+                        () -> rs.updateNCharacterStream(1, new StringReader("test")),
+                        () -> rs.updateNCharacterStream("col1", new StringReader("test")),
+                        () -> rs.updateBlob(1, (InputStream) null),
+                        () -> rs.updateBlob("col1", (InputStream) null),
+                        () -> rs.updateBlob(1, (InputStream) null, -1),
+                        () -> rs.updateBlob("col1", (InputStream) null, -1),
+                        () -> rs.updateBinaryStream(1, (InputStream) null),
+                        () -> rs.updateBinaryStream("col1", (InputStream) null),
+                        () -> rs.updateBinaryStream(1, (InputStream) null, -1),
+                        () -> rs.updateBinaryStream("col1", (InputStream) null, -1),
+                        () -> rs.updateBinaryStream(1, (InputStream) null, -1L),
+                        () -> rs.updateBinaryStream("col1", (InputStream) null, -1L),
+                        () -> rs.updateAsciiStream(1, (InputStream) null),
+                        () -> rs.updateAsciiStream("col1", (InputStream) null),
+                        () -> rs.updateAsciiStream(1, (InputStream) null, -1),
+                        () -> rs.updateAsciiStream("col1", (InputStream) null, -1),
+                        () -> rs.updateAsciiStream(1, (InputStream) null, -1L),
+                        () -> rs.updateAsciiStream("col1", (InputStream) null, -1L),
+                        () -> rs.updateClob(1, (Reader) null),
+                        () -> rs.updateClob("col1", (Reader) null),
+                        () -> rs.updateClob(1, (Reader) null, -1),
+                        () -> rs.updateClob("col1", (Reader) null, -1),
+                        () -> rs.updateClob(1, (Reader) null, -1L),
+                        () -> rs.updateClob("col1", (Reader) null, -1L),
+                        () -> rs.updateNClob(1, (Reader) null),
+                        () -> rs.updateNClob("col1", (Reader) null),
+                        () -> rs.updateNClob(1, (NClob) null),
+                        () -> rs.updateNClob("col1", (NClob) null),
+                        () -> rs.updateNClob(1, (Reader) null, -1),
+                        () -> rs.updateNClob("col1", (Reader) null, -1),
+                        () -> rs.updateNClob(1, (Reader) null, -1L),
+                        () -> rs.updateNClob("col1", (Reader) null, -1L),
+                        () -> rs.updateRef(1, (Ref) null),
+                        () -> rs.updateRef("col1", (Ref) null),
+                        () -> rs.updateArray(1, (Array) null),
+                        () -> rs.updateArray("col1", (Array) null),
+                        () -> rs.getSQLXML(1),
+                        () -> rs.getSQLXML("col1"),
+                        () -> rs.getBlob(1),
+                        () -> rs.getBlob("col1"),
+                        () -> rs.getClob(1),
+                        () -> rs.getClob("col1"),
+                        () -> rs.getNClob(1),
+                        () -> rs.getNClob("col1"),
+                        () -> rs.getRef(1),
+                        () -> rs.getRef("col1"),
+                        () -> rs.cancelRowUpdates(),
+                        () -> rs.updateNull(1),
+                        () -> rs.updateNull("col1"),
+
+                        () -> rs.updateRow(),
+                        () -> rs.insertRow(),
+                        () -> rs.deleteRow(),
+                        () -> rs.rowDeleted(),
+                        () -> rs.rowInserted(),
+                        () -> rs.rowUpdated(),
+                };
+
+                for (Assert.ThrowingRunnable op : rsUnsupportedMethods) {
+                    if (!flag) {
+                        Assert.assertThrows(SQLFeatureNotSupportedException.class, op );
+                    } else {
+                        op.run();
+                    }
                 }
             }
         }
