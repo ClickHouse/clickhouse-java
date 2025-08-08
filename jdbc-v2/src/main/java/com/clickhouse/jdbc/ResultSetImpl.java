@@ -69,7 +69,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = parentStatement.connection.defaultCalendar;
+        this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
         this.rowPos = BEFORE_FIRST;
         this.fetchSize = parentStatement.getFetchSize();
     }

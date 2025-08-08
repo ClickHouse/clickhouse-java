@@ -131,7 +131,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // release before this one completes.
         if (resultSetAutoClose) {
             closeCurrentResultSet();
-            this.closed = false; // restore state because we are going to create a new result set.
+            // There is a feature `closeOnComplete` that dictate closing statement when all
+            // result sets are closed. Call to `closeCurrentResultSet` will trigger this statement
+            // closure. But it should not happen because this was introduces instead of spec and will be remove in future/
+            // So we need make this statement open again because we going to create a new result set.
+            this.closed = false;
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(settings, new  QuerySettings());
