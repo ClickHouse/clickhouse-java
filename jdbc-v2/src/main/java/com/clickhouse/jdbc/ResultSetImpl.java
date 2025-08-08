@@ -453,6 +453,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public String getCursorName() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("getCursorName");
         return "";
     }
 

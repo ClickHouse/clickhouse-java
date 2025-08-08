@@ -16,8 +16,10 @@ import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -192,6 +194,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                         () -> rs.rowDeleted(),
                         () -> rs.rowInserted(),
                         () -> rs.rowUpdated(),
+                        () -> rs.getCursorName(),
                 };
 
                 for (Assert.ThrowingRunnable op : rsUnsupportedMethods) {
@@ -266,6 +269,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
     public void testConstants() throws SQLException {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             try (ResultSet rs = stmt.executeQuery("select number from system.numbers LIMIT 2")) {
+                Assert.assertSame(rs.getStatement(), stmt);
                 Assert.assertEquals(rs.getType(), ResultSet.TYPE_FORWARD_ONLY);
                 Assert.assertEquals(rs.getConcurrency(), ResultSet.CONCUR_READ_ONLY);
                 Assert.assertEquals(rs.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
@@ -321,6 +325,24 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.wasNull());
                 Assert.assertEquals(rs.getBoolean("v1"), false);
                 Assert.assertTrue(rs.wasNull());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetMetadata() throws SQLException {
+        try  (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("select '1'::Int32 as v1, 'test' as v2 ")) {
+
+                int v1ColumnIndex = rs.findColumn("v1");
+                int v2ColumnIndex = rs.findColumn("v2");
+
+                ResultSetMetaData metaData = rs.getMetaData();
+                Assert.assertEquals(metaData.getColumnCount(), 2);
+                Assert.assertEquals(metaData.getColumnType(1), Types.INTEGER);
+                Assert.assertEquals(metaData.getColumnType(2), Types.VARCHAR);
+                Assert.assertEquals(metaData.getColumnTypeName(1), "Int32");
+                Assert.assertEquals(metaData.getColumnTypeName(2), "String");
             }
         }
     }
