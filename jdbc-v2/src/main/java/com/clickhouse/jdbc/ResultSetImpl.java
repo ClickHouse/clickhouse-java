@@ -51,7 +51,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private static final int AFTER_LAST = -1;
     private static final int BEFORE_FIRST = 0;
+    private static final int FIRST_ROW = 1;
     private int rowPos;
+
+    private int fetchSize;
 
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) throws SQLException {
         this.parentStatement = parentStatement;
@@ -68,6 +71,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.wasNull = false;
         this.defaultCalendar = parentStatement.connection.defaultCalendar;
         this.rowPos = BEFORE_FIRST;
+        this.fetchSize = parentStatement.getFetchSize();
     }
 
     protected ResultSetImpl(ResultSetImpl resultSet) throws SQLException{
@@ -534,13 +538,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean isFirst() throws SQLException {
         checkClosed();
-        return rowPos == 0;
+        return rowPos == FIRST_ROW;
     }
 
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        return reader.hasNext();
+        return !reader.hasNext() && rowPos != AFTER_LAST;
     }
 
     @Override
@@ -574,7 +578,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public int getRow() throws SQLException {
         checkClosed();
-        return rowPos;
+        return rowPos == AFTER_LAST ? 0 : rowPos;
     }
 
     @Override
@@ -610,18 +614,24 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        featureManager.unsupportedFeatureThrow("setFetchDirection");
+        if (direction != ResultSet.FETCH_FORWARD) {
+            throw new SQLException("This result set object is of FORWARD ONLY type. Only ResultSet.FETCH_FORWARD is allowed as fetchDirection.");
+        }
     }
 
     @Override
     public int getFetchSize() throws SQLException {
         checkClosed();
-        return 0;
+        return fetchSize;
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
         checkClosed();
+        if (rows < 0) {
+            throw new SQLException("Number of rows should be a positive integer");
+        }
+        fetchSize = rows;
     }
 
     @Override
@@ -1141,6 +1151,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public RowId getRowId(String columnLabel) throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("getRowId");
         return null;
     }
 
