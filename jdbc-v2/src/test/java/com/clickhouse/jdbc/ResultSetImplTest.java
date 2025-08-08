@@ -1,7 +1,7 @@
 package com.clickhouse.jdbc;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertTrue;
+import org.testng.Assert;
+import org.testng.annotations.Test;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -19,15 +19,14 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Properties;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 public class ResultSetImplTest extends JdbcIntegrationTest {
 
@@ -69,16 +68,16 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             try (Connection conn = this.getJdbcConnection(props); Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery("SELECT 1")) {
                 Assert.ThrowingRunnable[] rsUnsupportedMethods = new Assert.ThrowingRunnable[]{
-                        () -> rs.first(),
-                        () -> rs.afterLast(),
-                        () -> rs.beforeFirst(),
+                        rs::first,
+                        rs::afterLast,
+                        rs::beforeFirst,
                         () -> rs.absolute(-1),
                         () -> rs.relative(-1),
-                        () -> rs.moveToCurrentRow(),
-                        () -> rs.moveToInsertRow(),
-                        () -> rs.last(),
-                        () -> rs.previous(),
-                        () -> rs.refreshRow(),
+                        rs::moveToCurrentRow,
+                        rs::moveToInsertRow,
+                        rs::last,
+                        rs::previous,
+                        rs::refreshRow,
                         () -> rs.updateBoolean("col1", true),
                         () -> rs.updateByte("col1", (byte) 1),
                         () -> rs.updateShort("col1", (short) 1),
@@ -181,20 +180,20 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                         () -> rs.getRef("col1"),
                         () -> rs.getRowId(1),
                         () -> rs.getRowId("col1"),
-                        () -> rs.cancelRowUpdates(),
+                        rs::cancelRowUpdates,
                         () -> rs.updateNull(1),
                         () -> rs.updateNull("col1"),
                         () -> rs.updateRowId(1, null),
                         () -> rs.updateRowId("col1", null),
                         () -> rs.updateClob(1, (Clob) null),
                         () -> rs.updateClob("col1", (Clob) null),
-                        () -> rs.updateRow(),
-                        () -> rs.insertRow(),
-                        () -> rs.deleteRow(),
-                        () -> rs.rowDeleted(),
-                        () -> rs.rowInserted(),
-                        () -> rs.rowUpdated(),
-                        () -> rs.getCursorName(),
+                        rs::updateRow,
+                        rs::insertRow,
+                        rs::deleteRow,
+                        rs::rowDeleted,
+                        rs::rowInserted,
+                        rs::rowUpdated,
+                        rs::getCursorName,
                 };
 
                 for (Assert.ThrowingRunnable op : rsUnsupportedMethods) {
@@ -339,10 +338,10 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
 
                 ResultSetMetaData metaData = rs.getMetaData();
                 Assert.assertEquals(metaData.getColumnCount(), 2);
-                Assert.assertEquals(metaData.getColumnType(1), Types.INTEGER);
-                Assert.assertEquals(metaData.getColumnType(2), Types.VARCHAR);
-                Assert.assertEquals(metaData.getColumnTypeName(1), "Int32");
-                Assert.assertEquals(metaData.getColumnTypeName(2), "String");
+                Assert.assertEquals(metaData.getColumnType(v1ColumnIndex), Types.INTEGER);
+                Assert.assertEquals(metaData.getColumnType(v2ColumnIndex), Types.VARCHAR);
+                Assert.assertEquals(metaData.getColumnTypeName(v1ColumnIndex), "Int32");
+                Assert.assertEquals(metaData.getColumnTypeName(v1ColumnIndex), "String");
             }
         }
     }
