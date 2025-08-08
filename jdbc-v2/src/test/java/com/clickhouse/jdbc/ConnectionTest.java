@@ -307,6 +307,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
             String queryId = ((StatementImpl)stmt).getLastQueryId();
+            stmt.getResultSet().close(); // close result set to finalize request.
             stmt.execute("SYSTEM FLUSH LOGS");
 
 
