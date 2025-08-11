@@ -341,7 +341,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(metaData.getColumnType(v1ColumnIndex), Types.INTEGER);
                 Assert.assertEquals(metaData.getColumnType(v2ColumnIndex), Types.VARCHAR);
                 Assert.assertEquals(metaData.getColumnTypeName(v1ColumnIndex), "Int32");
-                Assert.assertEquals(metaData.getColumnTypeName(v1ColumnIndex), "String");
+                Assert.assertEquals(metaData.getColumnTypeName(v2ColumnIndex), "String");
             }
         }
     }
