@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
@@ -13,16 +14,25 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.query.QueryTests;
+import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import org.testng.util.Strings;
 
 import java.net.ConnectException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -309,6 +319,104 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.size(), 32); // to check everything is set. Increment when new added.
         }
     }
+
+    @DataProvider(name = "sessionRoles")
+    private static Object[][] sessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+                {new String[]{"ROL1", "ROL2"}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "sessionRoles")
+    public void testOperationCustomRoles(String[] roles) throws Exception {
+        if (isVersionMatch("(,24.3]", newClient().build())) {
+            return;
+        }
+
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (Client client = newClient().build()) {
+            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            client.execute("CREATE ROLE " + rolesList).get().close();
+            client.execute("DROP USER IF EXISTS some_user").get().close();
+            client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'").get().close();
+            client.execute("GRANT " + rolesList + " TO some_user").get().close();
+        }
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
+    }
+
+    @DataProvider(name = "clientSessionRoles")
+    private static Object[][] clientSessionRoles() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}},
+                {new String[]{"ROL1", "ROL2,☺"}},
+        };
+    }
+    @Test(groups = {"integration"}, dataProvider = "clientSessionRoles")
+    public void testClientCustomRoles(String[] roles) throws Exception {
+        if (isVersionMatch("(,24.3]", newClient().build())) {
+            return;
+        }
+
+        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        try (Client client = newClient().build()) {
+            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            client.execute("CREATE ROLE " + rolesList).get().close();
+            client.execute("DROP USER IF EXISTS some_user").get().close();
+            client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'").get().close();
+            client.execute("GRANT " + rolesList + " TO some_user").get().close();
+        }
+
+        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+            userClient.setDBRoles(Arrays.asList(roles));
+            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
+            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testLogComment() throws Exception {
+
+        String logComment = "Test log comment";
+        QuerySettings settings = new QuerySettings()
+                .setQueryId(UUID.randomUUID().toString())
+                .logComment(logComment);
+
+        try (Client client = newClient().build()) {
+
+            try (QueryResponse response = client.query("SELECT 1", settings).get()) {
+                Assert.assertNotNull(response.getQueryId());
+                Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
+            }
+
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
+        }
+    }
+
+    public boolean isVersionMatch(String versionExpression, Client client) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
+
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
