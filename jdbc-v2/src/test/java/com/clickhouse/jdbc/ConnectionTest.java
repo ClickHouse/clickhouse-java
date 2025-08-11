@@ -311,7 +311,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             stmt.execute("SYSTEM FLUSH LOGS");
 
 
-            final String logQuery ="SELECT http_user_agent FROM system.query_log WHERE query_id = " +  stmt.enquoteLiteral(queryId);
+            final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");
@@ -346,7 +346,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             stmt.execute("SYSTEM FLUSH LOGS");
 
             final String logQuery ="SELECT http_user_agent " +
-                    " FROM system.query_log WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
+                    " FROM clusterAllReplicas('default', system.query_log) WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");
