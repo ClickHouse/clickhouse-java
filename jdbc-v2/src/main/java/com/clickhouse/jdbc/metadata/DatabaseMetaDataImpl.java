@@ -3,12 +3,12 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.ClientInfoProperties;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
+import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
-import com.clickhouse.jdbc.ClientInfoProperties;
-import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.internal.MetadataResultSet;
@@ -912,7 +912,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS GRANTOR, " +
                     "NULL::Nullable(String) AS GRANTEE, " +
                     "NULL::Nullable(String) AS PRIVILEGE, " +
-                    "NULL::Nullable(String) AS IS_GRANTABLE");
+                    "NULL::Nullable(String) AS IS_GRANTABLE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -929,7 +930,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS GRANTOR, " +
                     "NULL::Nullable(String) AS GRANTEE, " +
                     "NULL::Nullable(String) AS PRIVILEGE, " +
-                    "NULL::Nullable(String) AS IS_GRANTABLE");
+                    "NULL::Nullable(String) AS IS_GRANTABLE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -947,7 +949,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int32) AS COLUMN_SIZE, " +
                     "NULL::Nullable(Int32) AS BUFFER_LENGTH, " +
                     "NULL::Nullable(Int16) AS DECIMAL_DIGITS, " +
-                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN");
+                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -965,7 +968,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int32) AS COLUMN_SIZE, " +
                     "NULL::Nullable(Int32) AS BUFFER_LENGTH, " +
                     "NULL::Nullable(Int16) AS DECIMAL_DIGITS, " +
-                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN");
+                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -995,8 +999,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getImportedKeys is not supported and may return invalid results");
+        // ClickHouse has no notion of foreign key. This method should return empty resultset
         try {
             String sql = "SELECT NULL::Nullable(String) AS PKTABLE_CAT, " +
                     "NULL::Nullable(String) AS PKTABLE_SCHEM, " +
@@ -1011,7 +1014,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY";
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1020,7 +1024,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
+        // ClickHouse has no notion of foreign key. This method should return empty resultset
         log.warn("getExportedKeys is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(String) AS PKTABLE_CAT, " +
@@ -1036,7 +1040,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY");
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1060,7 +1065,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY";
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery("SELECT " + columns);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1150,7 +1156,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "null::Nullable(String) AS ASC_OR_DESC, " +
                 "null::Nullable(Int64) AS CARDINALITY, " +
                 "null::Nullable(Int64) AS PAGES, " +
-                "null::Nullable(String) AS FILTER_CONDITION ";
+                "null::Nullable(String) AS FILTER_CONDITION " +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1229,7 +1236,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS CLASS_NAME, " +
                     "NULL::Nullable(Int32) AS DATA_TYPE, " +
                     "NULL::Nullable(String) AS REMARKS, " +
-                    "NULL::Nullable(Int16) AS BASE_TYPE");
+                    "NULL::Nullable(Int16) AS BASE_TYPE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1274,7 +1282,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     + "NULL::Nullable(String) AS TYPE_NAME, "
                     + "NULL::Nullable(String) AS SUPERTYPE_CAT, "
                     + "NULL::Nullable(String) AS SUPERTYPE_SCHEM, "
-                    + "NULL::Nullable(String) AS SUPERTYPE_NAME");
+                    + "NULL::Nullable(String) AS SUPERTYPE_NAME" +
+                            " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1290,7 +1299,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     + "NULL::Nullable(String) AS TABLE_CAT, "
                     + "NULL::Nullable(String) AS TABLE_SCHEM, "
                     + "NULL::Nullable(String) AS TABLE_NAME, "
-                    + "NULL::Nullable(String) AS SUPERTABLE_NAME");
+                    + "NULL::Nullable(String) AS SUPERTABLE_NAME" +
+                        " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1323,7 +1333,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     + "NULL::Nullable(String) AS SCOPE_CATALOG, "
                     + "NULL::Nullable(String) AS SCOPE_SCHEMA, "
                     + "NULL::Nullable(String) AS SCOPE_TABLE, "
-                    + "NULL::Nullable(Int16) AS SOURCE_DATA_TYPE");
+                    + "NULL::Nullable(Int16) AS SOURCE_DATA_TYPE" +
+                        "  LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
