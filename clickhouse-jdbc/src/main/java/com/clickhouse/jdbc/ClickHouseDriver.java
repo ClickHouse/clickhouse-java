@@ -20,8 +20,7 @@ public class ClickHouseDriver implements java.sql.Driver {
     }
 
     public ClickHouseDriver() {
-//        log.debug("Creating a new instance of the 'proxy' ClickHouseDriver");
-        log.info("ClickHouse JDBC driver version: {}", ClickHouseDriver.class.getPackage().getImplementationVersion());
+        log.debug("ClickHouse JDBC driver version: {}", ClickHouseDriver.class.getPackage().getImplementationVersion());
         urlFlagSent = false;
         this.driver = getDriver(null);
     }
@@ -52,7 +51,7 @@ public class ClickHouseDriver implements java.sql.Driver {
         log.debug("Checking if V1 driver is requested. V2 is the default driver.");
         boolean v1Flag = Boolean.parseBoolean(System.getProperty("clickhouse.jdbc.v1", "false"));
         if (v1Flag) {
-            log.info("V1 driver is requested through system property.");
+            log.debug("V1 driver is requested through system property.");
             return false;
         }
 
@@ -60,13 +59,13 @@ public class ClickHouseDriver implements java.sql.Driver {
             urlFlagSent = true;
 
             if (url.contains("clickhouse.jdbc.v1=true")) {
-                log.info("V1 driver is requested through URL.");
+                log.debug("V1 driver is requested through URL.");
                 return false;
             } if (url.contains("clickhouse.jdbc.v2=false")) {
-                log.info("V1 driver is requested through URL.");
+                log.debug("V1 driver is requested through URL.");
                 return false;
             } else {
-                log.info("V2 driver is requested through URL.");
+                log.debug("V2 driver is requested through URL.");
                 return true;
             }
         }
@@ -81,10 +80,10 @@ public class ClickHouseDriver implements java.sql.Driver {
         }
 
         if (isV2(url)) {
-            log.info("v2 driver");
+            log.debug("v2 driver");
             driver = new com.clickhouse.jdbc.Driver();
         } else {
-            log.info("v1 driver");
+            log.debug("v1 driver");
             driver = new DriverV1();
         }
 
