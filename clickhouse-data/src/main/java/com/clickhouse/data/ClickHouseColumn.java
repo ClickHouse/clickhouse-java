@@ -72,6 +72,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
     private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
+    private static final String KEYWORD_JSON = ClickHouseDataType.JSON.name();
 
     private int columnCount;
     private int columnIndex;
@@ -504,6 +505,21 @@ public final class ClickHouseColumn implements Serializable {
                     }
                 }
             }
+        } else if (args.startsWith(KEYWORD_JSON, i)) {
+            int index = args.indexOf('(', i + KEYWORD_JSON.length());
+            if (index < i) {
+                throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
+            }
+            i = ClickHouseUtils.skipBrackets(args, index, len, '(');
+            String originalTypeName = args.substring(startIndex, i);
+            List<ClickHouseColumn> nestedColumns = parse(args.substring(index + 1, i - 1));
+            if (nestedColumns.isEmpty()) {
+                throw new IllegalArgumentException("Nested should have at least one nested column");
+            }
+            column = new ClickHouseColumn(ClickHouseDataType.JSON, name, originalTypeName, nullable, lowCardinality,
+                    null, nestedColumns);
+            fixedLength = false;
+            estimatedLength++;
         }
 
         if (column == null) {

@@ -7,11 +7,14 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
@@ -872,6 +875,38 @@ public class DataTypeTests extends BaseIntegrationTest {
         for (GenericRecord row : rows) {
             Assert.assertEquals(row.getString("field"), expectedStrValues[row.getInteger("rowId")]);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJSONBinaryFormat_dp")
+    public void testJSONBinaryFormat(String jsonDef) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_binary_format";
+        final String jsonCol = "value " + jsonDef;
+        final String jsonValue = "{\"count\": 1000, \"stat\": {\"float\": 0.999, \"name\": \"temp\" }}";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, jsonCol)).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (" + SQLUtils.enquoteLiteral(jsonValue) + ")").get().close();
+
+        try (QueryResponse  queryResponse = client.query("SELECT * FROM " + table + " LIMIT 1").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
+            Map<String, Object> row = reader.next();
+            Object value = row.get("value");
+            System.out.println(value);
+        }
+    }
+
+    @DataProvider
+    public Object[][] testJSONBinaryFormat_dp() {
+
+        return new Object[][] {
+                {"JSON"},
+//                {"JSON(a Int32, d String)"},
+                {"JSON(stat.name String, count Int32)"},
+        };
     }
 
     public static String tableDefinition(String table, String... columns) {
