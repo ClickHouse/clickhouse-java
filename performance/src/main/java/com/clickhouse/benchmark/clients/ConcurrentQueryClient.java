@@ -1,6 +1,5 @@
 package com.clickhouse.benchmark.clients;
 
-import com.clickhouse.benchmark.BenchmarkRunner;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
@@ -20,7 +19,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.clickhouse.benchmark.TestEnvironment.*;
+import static com.clickhouse.benchmark.TestEnvironment.getServer;
 
 @Threads(3)
 @State(Scope.Benchmark)

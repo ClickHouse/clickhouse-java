@@ -312,10 +312,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
+            String queryId = ((StatementImpl)stmt).getLastQueryId();
+            stmt.getResultSet().close(); // close result set to finalize request.
             stmt.execute("SYSTEM FLUSH LOGS");
 
-            final String logQuery ="SELECT http_user_agent " +
-                    " FROM system.query_log WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
+
+            final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");
@@ -346,10 +348,11 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
+            stmt.getResultSet().close(); // finalize request
             stmt.execute("SYSTEM FLUSH LOGS");
 
             final String logQuery ="SELECT http_user_agent " +
-                    " FROM system.query_log WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
+                    " FROM clusterAllReplicas('default', system.query_log) WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
             try (ResultSet rs = stmt.executeQuery(logQuery)) {
                 Assert.assertTrue(rs.next());
                 String userAgent = rs.getString("http_user_agent");

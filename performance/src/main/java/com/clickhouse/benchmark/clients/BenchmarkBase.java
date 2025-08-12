@@ -22,7 +22,7 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
 import com.clickhouse.jdbc.ClickHouseDriver;
-import com.clickhouse.jdbc.internal.DriverProperties;
+import com.clickhouse.jdbc.DriverProperties;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;

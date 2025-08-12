@@ -806,7 +806,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             client.execute("SYSTEM FLUSH LOGS").get().close();
 
             List<GenericRecord> logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
-                    " forwarded_for  FROM system.query_log WHERE query_id = '" + q1Id + "'");
+                    " forwarded_for  FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + q1Id + "'");
             Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             for (GenericRecord record : logRecords) {
@@ -864,7 +864,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             client.execute("SYSTEM FLUSH LOGS").get().close();
 
             List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(expectedClientNameStartsWith),
@@ -905,7 +905,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             client.execute("SYSTEM FLUSH LOGS").get().close();
 
             List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
+                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(value),
