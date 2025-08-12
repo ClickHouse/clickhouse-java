@@ -37,6 +37,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
@@ -91,8 +92,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
+                        () -> conn.prepareCall("SELECT 1"),
+                        () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY),
+                        () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,  ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         conn::setSavepoint,
                         () -> conn.setSavepoint("save point"),
+                        () -> conn.createSQLXML(),
                 };
 
                 for (Assert.ThrowingRunnable createStatement : createStatements) {
@@ -104,14 +109,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 }
             }
         }
-    }
-
-    @Test(groups = { "integration" })
-    public void prepareCallTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1"));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
     @Test(groups = { "integration" })
@@ -175,23 +172,22 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void getMetaDataTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        DatabaseMetaData metaData = localConnection.getMetaData();
-        Assert.assertNotNull(metaData);
-        Assert.assertEquals(metaData.getConnection(), localConnection);
+        try (Connection localConnection = this.getJdbcConnection()) {
+            DatabaseMetaData metaData = localConnection.getMetaData();
+            Assert.assertNotNull(metaData);
+            Assert.assertEquals(metaData.getConnection(), localConnection);
+        }
     }
 
     @Test(groups = { "integration" })
     public void setReadOnlyTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.setReadOnly(false);
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setReadOnly(true));
-    }
-
-    @Test(groups = { "integration" })
-    public void isReadOnlyTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Assert.assertFalse(localConnection.isReadOnly());
+        try (Connection conn = this.getJdbcConnection()) {
+            assertFalse(conn.isReadOnly());
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly());
+            conn.setReadOnly(false);
+            Assert.assertFalse(conn.isReadOnly());
+        }
     }
 
     @Test(groups = { "integration" })
@@ -245,14 +241,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void setHoldabilityTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);//No-op
-    }
-
-    @Test(groups = { "integration" })
-    public void getHoldabilityTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Assert.assertEquals(localConnection.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        try (Connection conn = this.getJdbcConnection()) {
+            Assert.assertEquals(conn.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+            conn.setHoldability(ResultSet.CLOSE_CURSORS_AT_COMMIT);
+            Assert.assertEquals(conn.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+            assertThrows(SQLException.class, () -> conn.setHoldability(-1));
+        }
     }
 
     @Test(groups = { "integration" })
