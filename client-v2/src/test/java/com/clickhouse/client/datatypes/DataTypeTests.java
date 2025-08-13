@@ -888,7 +888,10 @@ public class DataTypeTests extends BaseIntegrationTest {
         final String jsonValue = "{\"count\": 1000, \"stat\": {\"float\": 0.999, \"name\": \"temp\" }}";
 
         client.execute("DROP TABLE IF EXISTS " + table).get().close();
-        client.execute(tableDefinition(table, jsonCol)).get().close();
+        client.execute(tableDefinition(table, jsonCol),
+                (CommandSettings) new CommandSettings()
+                        .serverSetting("enable_json_type", "1")
+                        .serverSetting("allow_experimental_json_type", "1")).get().close();
         client.execute("INSERT INTO " + table + " VALUES (" + SQLUtils.enquoteLiteral(jsonValue) + ")").get().close();
 
         try (QueryResponse  queryResponse = client.query("SELECT * FROM " + table + " LIMIT 1").get()) {
