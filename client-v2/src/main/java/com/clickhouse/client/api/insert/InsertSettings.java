@@ -5,6 +5,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
 import java.util.Collection;
@@ -263,5 +264,28 @@ public class InsertSettings {
 
     public String getLogComment() {
         return logComment;
+    }
+
+    public static InsertSettings merge(InsertSettings source, InsertSettings override) {
+        InsertSettings merged = new InsertSettings();
+        if (source != null) {
+            merged.rawSettings.putAll(source.rawSettings);
+        }
+        if (override != null && override != source) {// avoid copying the literally same object
+            merged.rawSettings.putAll(override.rawSettings);
+        }
+        return merged;
+    }
+
+    public void setNetworkTimeout(Long networkTimeout) {
+        if (networkTimeout != null) {
+            rawSettings.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), networkTimeout.intValue());
+        } else {
+            rawSettings.remove(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        }
+    }
+
+    public Long getNetworkTimeout() {
+        return (Long) rawSettings.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
     }
 }

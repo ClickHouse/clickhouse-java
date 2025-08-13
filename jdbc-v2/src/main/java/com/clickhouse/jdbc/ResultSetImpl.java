@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
@@ -99,6 +100,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             return reader.next() != null;
         } catch (Exception e) {
+            if (e instanceof SocketTimeoutException) {
+                this.parentStatement.onNetworkTimeout();
+            }
             throw ExceptionUtils.toSqlState(e);
         }
     }

@@ -11,6 +11,7 @@ import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketTimeoutException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -168,6 +169,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 }
             }
             onResultSetClosed(null);
+
+            if (e instanceof SocketTimeoutException) {
+                this.connection.onNetworkTimeout();
+            }
             throw ExceptionUtils.toSqlState(e);
         }
     }
@@ -203,6 +208,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
+            if (e instanceof SocketTimeoutException) {
+                this.connection.onNetworkTimeout();
+            }
             throw ExceptionUtils.toSqlState(e);
         }
 
@@ -609,5 +617,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
      */
     public String getLastQueryId() {
         return lastQueryId;
+    }
+
+    // Proxy method for child objects. Do not call.
+    public void onNetworkTimeout() throws SQLException {
+        this.connection.onNetworkTimeout();
     }
 }

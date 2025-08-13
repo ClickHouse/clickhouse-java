@@ -6,6 +6,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
 
 import java.awt.*;
 import java.math.BigInteger;
@@ -296,5 +297,15 @@ public class JdbcUtils {
             convertedValues.add(convert(value, type));
         }
         return convertedValues;
+    }
+
+    public static void safeClose(AutoCloseable closeable, Logger logger) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Exception ex) {
+                logger.warn("Failed to close closeable after exception", ex);
+            }
+        }
     }
 }

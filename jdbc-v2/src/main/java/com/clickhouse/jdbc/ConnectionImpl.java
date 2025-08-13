@@ -2,11 +2,15 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -16,6 +20,7 @@ import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -43,10 +48,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
-    private static final Logger log = LoggerFactory.getLogger(ConnectionImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ConnectionImpl.class);
 
     protected final String url;
     private final Client client; // this member is private to force using getClient()
@@ -65,9 +71,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     private final SqlParser sqlParser;
 
+    private Executor networkTimeoutExecutor;
+
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
-            log.debug("Creating connection to {}", url);
+            LOG.debug("Creating connection to {}", url);
             this.url = url;//Raw URL
             this.config = new JdbcConfiguration(url, info);
             this.onCluster = false;
@@ -86,10 +94,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             }
 
             if (this.config.isDisableFrameworkDetection()) {
-                log.debug("Framework detection is disabled.");
+                LOG.debug("Framework detection is disabled.");
             } else {
                 String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
-                log.debug("Detected frameworks: {}", detectedFrameworks);
+                LOG.debug("Detected frameworks: {}", detectedFrameworks);
                 if (!detectedFrameworks.trim().isEmpty()) {
                     clientName += " (" + detectedFrameworks + ")";
                 }
@@ -210,9 +218,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         if (isClosed()) {
             return;
         }
-
-        client.close();
-        closed = true;
+        closed = true; // mark as closed to prevent further invocations
+        client.close(); // this will disrupt pending requests.
     }
 
     @Override
@@ -597,27 +604,59 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void abort(Executor executor) throws SQLException {
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("abort not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (executor == null) {
+            throw new SQLException("Executor must be not null");
         }
+        // This method should check permissions with SecurityManager but the one is deprecated.
+        // There is no replacement for SecurityManger and it is marked for removal.
+        this.close();
     }
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-        //TODO: Should this be supported?
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("setNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureOpen();
+
+        // Very good mail thread about this method implementation. https://mail.openjdk.org/pipermail/jdbc-spec-discuss/2017-November/000236.html
+
+        // This method should check permissions with SecurityManager but the one is deprecated.
+        // There is no replacement for SecurityManger and it is marked for removal.
+        if (milliseconds > 0 && executor == null) {
+            // we need executor only for positive timeout values.
+            throw new SQLException("Executor must be not null");
         }
+        if (milliseconds < 0) {
+            throw new SQLException("Timeout must be >= 0");
+        }
+
+        // How it should work:
+        // if timeout is set with this method then any timeout exception should be reported to the connection
+        // when connection get signal about timeout it uses executor to abort itself
+        // Some connection pools set timeout before calling Connection#close() to ensure that this operation will not hang
+        // Socket timeout is propagated with QuerySettings this connection has.
+        networkTimeoutExecutor = executor;
+        defaultQuerySettings.setOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), (long)milliseconds);
+    }
+
+
+    // Should be called by child object to notify about timeout.
+    public void onNetworkTimeout() throws SQLException {
+        if (isClosed() || networkTimeoutExecutor == null) {
+            return; // we closed already so do nothing.
+        }
+
+        networkTimeoutExecutor.execute(() -> {
+            try {
+                this.abort(networkTimeoutExecutor);
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to abort connection", e);
+            }
+        });
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        //TODO: Should this be supported?
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("getNetworkTimeout not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return -1;
+        Long networkTimeout = defaultQuerySettings.getNetworkTimeout();
+        return networkTimeout == null ? 0 : networkTimeout.intValue();
     }
 
     /**
