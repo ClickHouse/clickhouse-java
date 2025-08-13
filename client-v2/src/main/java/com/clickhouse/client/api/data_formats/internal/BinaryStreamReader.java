@@ -35,6 +35,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -226,7 +228,7 @@ public class BinaryStreamReader {
                     if (jsonAsString) {
                         return (T) readString(input);
                     } else {
-                        return (T) readJsonData(input);
+                        return (T) readJsonData(input, actualColumn);
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case Array:
@@ -1192,16 +1194,20 @@ public class BinaryStreamReader {
 
     private static final ClickHouseColumn JSON_PLACEHOLDER_COL = ClickHouseColumn.parse("v Dynamic").get(0);
 
-    private Map<String, Object> readJsonData(InputStream input) throws IOException {
+    private Map<String, Object> readJsonData(InputStream input, ClickHouseColumn column) throws IOException {
         int numOfPaths = readVarInt(input);
         if (numOfPaths == 0) {
             return Collections.emptyMap();
         }
 
         Map<String, Object> obj = new HashMap<>();
+
+        final int predefinedPaths = column.getNestedColumns().size();
+        final List<ClickHouseColumn> predefinedColumns = column.getNestedColumns();
         for (int i = 0; i < numOfPaths; i++) {
             String path = readString(input);
-            Object value = readValue(JSON_PLACEHOLDER_COL);
+            ClickHouseColumn dataColumn = i < predefinedPaths ? predefinedColumns.get(i) : JSON_PLACEHOLDER_COL;
+            Object value = readValue(dataColumn);
             obj.put(path, value);
         }
         return obj;

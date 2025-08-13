@@ -904,8 +904,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         return new Object[][] {
                 {"JSON"},
-//                {"JSON(a Int32, d String)"},
+                {"JSON()"},
                 {"JSON(stat.name String, count Int32)"},
+                {"JSON(stat.name String, `comments` String)"},
+                {"JSON(max_dynamic_paths=3, stat.name String, SKIP alt_count)"},
+                {"JSON(max_dynamic_paths=3, stat.name String, SKIP REGEXP '^-.*')"},
+                {"JSON(max_dynamic_paths=3,SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)"},
         };
     }
 
