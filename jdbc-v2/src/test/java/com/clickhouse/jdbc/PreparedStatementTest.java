@@ -276,6 +276,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setObject(1, new Object[] {1, 2, 3});
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array a1 = rs.getArray(1);
+                    assertNotNull(a1);
+                    assertEquals(Arrays.deepToString((Object[]) a1.getArray()), "[1, 2, 3]");
+                }
+            }
         }
     }
 

@@ -1,13 +1,18 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
 import com.clickhouse.data.ClickHouseColumn;
 import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
+import java.net.Inet6Address;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
 
 public class JdbcUtilsTest {
 
@@ -39,5 +44,40 @@ public class JdbcUtilsTest {
         Object[] arrs = (Object[]) arr;
         assertEquals(arrs[0], 1);
         assertEquals(arrs[1], 2);
+    }
+
+
+    @Test(groups = {"unit"})
+    public void testConvertArray() throws Exception {
+        Object[] src = {1, 2, 3};
+        Object[] dst = JdbcUtils.convertArray(src, int.class);
+        assertEquals(dst.length, src.length);
+        assertEquals(dst[0], src[0]);
+        assertEquals(dst[1], src[1]);
+        assertEquals(dst[2], src[2]);
+
+        assertNull(JdbcUtils.convertArray(null, int.class));
+        assertEquals(JdbcUtils.convertArray(new Integer[] { 1, 2}, null), new Integer[] { 1, 2});
+    }
+
+
+    @Test(groups = {"unit"})
+    public void testConvertList() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("arr", "Array(Int32)");
+        List<Integer> src = Arrays.asList(1, 2, 3);
+        Object[] dst = JdbcUtils.convertList(src, Integer.class);
+        assertEquals(dst.length, src.size());
+        assertEquals(dst[0], src.get(0));
+        assertEquals(dst[1], src.get(1));
+        assertEquals(dst[2], src.get(2));
+
+        assertNull(JdbcUtils.convertList(null, Integer.class));
+    }
+
+
+    @Test(groups = {"unit"})
+    public void testConvertToInetAddress() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("ip", "IPv4");
+        assertEquals(JdbcUtils.convert(java.net.InetAddress.getByName("192.168.0.1"), java.net.Inet6Address.class, column).toString(), "/0:0:0:0:0:ffff:c0a8:1");
     }
 }

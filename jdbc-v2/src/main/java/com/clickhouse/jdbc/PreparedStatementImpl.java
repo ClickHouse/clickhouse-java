@@ -793,6 +793,12 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 listString.append(']');
 
                 return listString.toString();
+            } else if (x instanceof Object[]) {
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.append('[');
+                appendArrayElements((Object[]) x, arrayString);
+                arrayString.append(']');
+                return arrayString.toString();
             } else if (x.getClass().isArray()) {
                 StringBuilder listString = new StringBuilder();
                 listString.append('[');
@@ -841,12 +847,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return encodeCharacterStream((Reader) x, length);
             } else if (x instanceof InputStream) {
                 return encodeCharacterStream((InputStream) x, length);
-            } else if (x instanceof Object[]) {
-                StringBuilder arrayString = new StringBuilder();
-                arrayString.append('[');
-                appendArrayElements((Object[]) x, arrayString);
-                arrayString.append(']');
-                return arrayString.toString();
             } else if (x instanceof Tuple) {
                 return arrayToTuple(((Tuple)x).getValues());
             } else if (x instanceof Struct) {
