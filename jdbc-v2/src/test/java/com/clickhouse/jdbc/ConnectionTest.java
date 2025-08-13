@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -38,6 +39,7 @@ import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.fail;
@@ -365,8 +367,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void createArrayOfTest() throws SQLException {
+    public void testCreateArray() throws SQLException {
         try (Connection conn = getJdbcConnection()) {
+
+            Assert.expectThrows(SQLException.class, () -> conn.createArrayOf("Array()", new Integer[] {1}));
+
+
             final String baseType = "Tuple(String, Int8)";
             final String tableName = "array_create_test";
             final String arrayType = "Array(Array(" + baseType + "))";
@@ -383,21 +389,46 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 };
 
                 Array arrayValue = conn.createArrayOf("Tuple(String, Int8)", srcArray );
+                assertEquals(arrayValue.getBaseTypeName(), baseType);
+                assertEquals(arrayValue.getBaseType(), JDBCType.OTHER.getVendorTypeNumber());
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(null));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(0, 1, null));
+                assertThrows(SQLFeatureNotSupportedException.class, arrayValue::getResultSet);
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(null));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1, null));
+
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(-1, 1));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(0, -1));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(0, 3));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(1, 2));
+
+                Object[] subArray = (Object[]) arrayValue.getArray(1, 1);
+                Assert.assertEquals(subArray.length, 1);
+
                 try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " + tableName + " (v1) VALUES (?)")) {
                     pStmt.setArray(1, arrayValue);
                     pStmt.executeUpdate();
                     pStmt.setObject(1,  arrayValue);
                     pStmt.executeUpdate();
+                } finally {
+                    arrayValue.free();
+                    arrayValue.free(); // just to check that operation idempotent
+                    assertThrows(SQLException.class, () -> arrayValue.getArray(1, 1));
+                    assertThrows(SQLException.class, arrayValue::getArray);
                 }
 
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
                     Assert.assertTrue(rs.next());
                     Array array1 = rs.getArray(1);
                     Object[] elements = (Object[]) array1.getArray();
-                    Object[] storedTuple1 = (Object[]) ((List)elements[0]).get(0);
-                    Object[] storedTuple2 = (Object[]) ((List)elements[1]).get(1);
+                    Object[] storedTuple1 = (Object[]) ((List<?>)elements[0]).get(0);
+                    Object[] storedTuple2 = (Object[]) ((List<?>)elements[1]).get(1);
                     Assert.assertEquals(storedTuple1, tuple1.getAttributes());
                     Assert.assertEquals(storedTuple2, tuple2.getAttributes());
+
+                    Array array2 = (Array) rs.getObject(1);
+                    Assert.assertEquals(array2.getArray(), elements);
                 }
             }
         }
@@ -415,8 +446,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 timePart.setNanos(333000000);
 
                 Struct tupleValue = conn.createStruct(tupleType, new Object[] {120, "test tuple value", timePart});
+                assertEquals(tupleValue.getSQLTypeName(), tupleType);
+                assertThrows(SQLFeatureNotSupportedException.class, () -> tupleValue.getAttributes(null));
+                assertNotNull(((com.clickhouse.jdbc.types.Struct) tupleValue).getColumn());
 
-                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " +tableName + " VALUES (?)")) {
+
+                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?)")) {
                     pStmt.setObject(1, tupleValue);
                     pStmt.executeUpdate();
                 }

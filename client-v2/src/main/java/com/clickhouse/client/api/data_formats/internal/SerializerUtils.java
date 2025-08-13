@@ -1189,4 +1189,20 @@ public class SerializerUtils {
 
         BinaryStreamUtils.writeInt64(output, ts);
     }
+
+    public static final Map<Class<?>, Class<?>> PRIMITIVE_2_WRAPPER_CLASS = getPrimitive2WrapperClassMap();
+
+    private static Map<Class<?>, Class<?>> getPrimitive2WrapperClassMap() {
+        Map<Class<?>, Class<?>> map = new HashMap<>();
+        map.put(boolean.class, Boolean.class);
+        map.put(byte.class, Byte.class);
+        map.put(char.class, Character.class);
+        map.put(short.class, Short.class);
+        map.put(int.class, Integer.class);
+        map.put(long.class, Long.class);
+        map.put(float.class, Float.class);
+        map.put(double.class, Double.class);
+
+        return map;
+    }
 }

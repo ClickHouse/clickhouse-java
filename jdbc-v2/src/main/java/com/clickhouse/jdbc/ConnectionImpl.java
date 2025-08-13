@@ -581,15 +581,17 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
 
+
         int parentPos = typeName.indexOf('(');
-        String clickhouseDataTypeName = (typeName.substring(0, parentPos ==  -1 ? typeName.length() : parentPos)).trim();
+        int endPos = parentPos ==  -1 ? typeName.length() : parentPos;
+        String clickhouseDataTypeName = (typeName.substring(0, endPos)).trim();
         ClickHouseDataType dataType = ClickHouseDataType.valueOf(clickhouseDataTypeName);
         if (dataType.equals(ClickHouseDataType.Array)) {
             throw new SQLFeatureNotSupportedException("Array cannot be a base type. In case of nested array provide most deep element type name.");
         }
         try {
-            return new com.clickhouse.jdbc.types.Array(clickhouseDataTypeName,
-                    JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(dataType, JDBCType.OTHER).getVendorTypeNumber(), elements);
+            return new com.clickhouse.jdbc.types.Array(elements, typeName,
+                    JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(dataType, JDBCType.OTHER).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }

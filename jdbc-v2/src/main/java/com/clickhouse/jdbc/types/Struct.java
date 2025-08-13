@@ -1,8 +1,10 @@
 package com.clickhouse.jdbc.types;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.Map;
 
 public class Struct implements java.sql.Struct {
@@ -28,7 +30,7 @@ public class Struct implements java.sql.Struct {
 
     @Override
     public Object[] getAttributes(Map<String, Class<?>> map) throws SQLException {
-        return attributes;
+        throw new SQLFeatureNotSupportedException("getAttributes(Map<String, Class<?>>) is not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
     public ClickHouseColumn getColumn() {
