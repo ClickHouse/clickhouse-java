@@ -668,7 +668,7 @@ public class BinaryStreamReader {
 
         int nextPos = 0;
 
-        ArrayValue(Class<?> itemType, int length) {
+        public ArrayValue(Class<?> itemType, int length) {
             this.itemType = itemType;
             this.length = length;
 
