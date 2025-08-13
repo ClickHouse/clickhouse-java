@@ -508,7 +508,6 @@ public final class ClickHouseColumn implements Serializable {
             if (index > i) {
                 i = ClickHouseUtils.skipBrackets(args, index, len, '(');
                 String originalTypeName = args.substring(startIndex, i);
-                List<String> params = new ArrayList<>();
                 List<ClickHouseColumn> nestedColumns = new ArrayList<>();
                 List<String> parameters = new ArrayList<>();
                 parseJSONColumn(args.substring(index + 1, i - 1), nestedColumns, parameters);
