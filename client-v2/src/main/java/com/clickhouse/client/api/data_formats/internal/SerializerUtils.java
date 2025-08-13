@@ -1189,5 +1189,4 @@ public class SerializerUtils {
 
         BinaryStreamUtils.writeInt64(output, ts);
     }
-    
 }
