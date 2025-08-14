@@ -1,9 +1,11 @@
 package com.clickhouse.data;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -440,5 +442,27 @@ public class ClickHouseColumnTest {
                 Assert.assertNull(value.asObject());
             }
         }
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "testJSONBinaryFormat_dp")
+    public void testJSONBinaryFormat(String jsonDef, int params, List<String> predefinedPaths) throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", jsonDef);
+        Assert.assertEquals(column.getNestedColumns().size(), predefinedPaths.size(), "predefined paths count mismatch");
+        Assert.assertEquals(column.getParameters().size(), params, "parameters count mismatch");
+    }
+
+    @DataProvider
+    public Object[][] testJSONBinaryFormat_dp() {
+
+        return new Object[][] {
+                {"JSON", 0, Collections.emptyList()},
+                {"JSON()", 0, Collections.emptyList()},
+                {"JSON(stat.name String, count Int32)", 0, Arrays.asList("stat.name", "count")},
+                {"JSON(stat.name String, `comments` String)", 0,  Arrays.asList("stat.name", "comments")},
+                {"JSON(max_dynamic_paths=3, stat.name String, count Int8, SKIP alt_count)", 1,  Arrays.asList("stat.name", "count")},
+                {"JSON(max_dynamic_paths=3, stat.name String, SKIP REGEXP '^-.*')", 1,  Arrays.asList("stat.name")},
+                {"JSON(max_dynamic_paths=3,SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 1, Arrays.asList("flags")},
+                {"JSON(max_dynamic_types=3,max_dynamic_paths=3, SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 2, Arrays.asList("flags")},
+        };
     }
 }
