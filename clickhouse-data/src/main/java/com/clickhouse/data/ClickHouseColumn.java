@@ -688,9 +688,12 @@ public final class ClickHouseColumn implements Serializable {
         String name = null;
         ClickHouseColumn column = null;
         StringBuilder builder = new StringBuilder();
-        for (int i = 0, len = args.length(); i < len; i++) {
+        int i =0;
+        int len = args.length();
+        while (i < len) {
             char ch = args.charAt(i);
             if (Character.isWhitespace(ch)) {
+                i++;
                 continue;
             }
 
@@ -709,12 +712,15 @@ public final class ClickHouseColumn implements Serializable {
             } else if (column == null) { // now type
                 LinkedList<ClickHouseColumn> colList = new LinkedList<>();
                 i = readColumn(args, i, len, name, colList) - 1;
-                nestedColumns.add(column = colList.getFirst());
+                column = colList.getFirst();
+                nestedColumns.add(column);
             } else { // prepare for next column
                 i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
                 name = null;
                 column = null;
             }
+
+            i++;
         }
     }
 
