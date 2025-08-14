@@ -898,7 +898,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
             Map<String, Object> row = reader.next();
             Object value = row.get("value");
-            System.out.println(value);
+            Assert.assertNotNull(value);
         }
     }
 

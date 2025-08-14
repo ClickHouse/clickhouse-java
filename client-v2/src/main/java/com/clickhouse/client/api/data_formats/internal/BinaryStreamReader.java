@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -1207,6 +1208,9 @@ public class BinaryStreamReader {
         for (int i = 0; i < numOfPaths; i++) {
             String path = readString(input);
             ClickHouseColumn dataColumn = i < predefinedPaths ? predefinedColumns.get(i) : JSON_PLACEHOLDER_COL;
+            if (dataColumn != JSON_PLACEHOLDER_COL && !dataColumn.getColumnName().equals(path)) {
+                throw new DataTransferException("Wrong column at position " + i + " where path " + path + " expected");
+            }
             Object value = readValue(dataColumn);
             obj.put(path, value);
         }
