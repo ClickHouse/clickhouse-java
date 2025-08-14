@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
 
 /**
  * This class represents a column defined in database.
@@ -89,6 +90,7 @@ public final class ClickHouseColumn implements Serializable {
     private List<ClickHouseColumn> nested;
     private List<String> parameters;
     private ClickHouseEnum enumConstants;
+    private Map<String, ClickHouseColumn> jsonPredefinedPaths;
 
     private int arrayLevel;
     private ClickHouseColumn arrayBaseColumn;
@@ -509,11 +511,14 @@ public final class ClickHouseColumn implements Serializable {
                 i = ClickHouseUtils.skipBrackets(args, index, len, '(');
                 String originalTypeName = args.substring(startIndex, i);
                 List<ClickHouseColumn> nestedColumns = new ArrayList<>();
+
                 List<String> parameters = new ArrayList<>();
                 parseJSONColumn(args.substring(index + 1, i - 1), nestedColumns, parameters);
                 nestedColumns.sort(Comparator.comparing(o -> o.getDataType().name()));
                 column = new ClickHouseColumn(ClickHouseDataType.JSON, name, originalTypeName, nullable, lowCardinality,
                         parameters, nestedColumns);
+                column.jsonPredefinedPaths = nestedColumns.stream().collect(Collectors.toMap(ClickHouseColumn::getColumnName,
+                        c -> c));
                 fixedLength = false;
                 estimatedLength++;
             }
@@ -1007,6 +1012,10 @@ public final class ClickHouseColumn implements Serializable {
      */
     public ClickHouseAggregateFunction getAggregateFunction() {
         return aggFuncType;
+    }
+
+    public Map<String, ClickHouseColumn> getJsonPredefinedPaths() {
+        return jsonPredefinedPaths;
     }
 
     public ClickHouseArraySequence newArrayValue(ClickHouseDataConfig config) {

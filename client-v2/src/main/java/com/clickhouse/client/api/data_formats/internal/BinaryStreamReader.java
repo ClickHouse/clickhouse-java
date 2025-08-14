@@ -1203,14 +1203,11 @@ public class BinaryStreamReader {
 
         Map<String, Object> obj = new HashMap<>();
 
-        final int predefinedPaths = column.getNestedColumns().size();
-        final List<ClickHouseColumn> predefinedColumns = column.getNestedColumns();
+        final Map<String, ClickHouseColumn> predefinedColumns = column.getJsonPredefinedPaths();
         for (int i = 0; i < numOfPaths; i++) {
             String path = readString(input);
-            ClickHouseColumn dataColumn = i < predefinedPaths ? predefinedColumns.get(i) : JSON_PLACEHOLDER_COL;
-            if (dataColumn != JSON_PLACEHOLDER_COL && !dataColumn.getColumnName().equals(path)) {
-                throw new DataTransferException("Wrong column at position " + i + " where path " + path + " expected");
-            }
+            ClickHouseColumn dataColumn = predefinedColumns == null? JSON_PLACEHOLDER_COL :
+                    predefinedColumns.getOrDefault(path, JSON_PLACEHOLDER_COL);
             Object value = readValue(dataColumn);
             obj.put(path, value);
         }
