@@ -11,7 +11,6 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.MetadataResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -22,6 +21,7 @@ import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
+import java.sql.Types;
 import java.util.Arrays;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
@@ -222,7 +222,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public String getSystemFunctions() throws SQLException {
         // took from below URL(not from system.functions):
         // https://clickhouse.com/docs/en/sql-reference/functions/other-functions/
-        return "bar,basename,blockNumber,blockSerializedSize,blockSize,buildId,byteSize,countDigits,currentDatabase,currentProfiles,currentRoles,currentUser,defaultProfiles,defaultRoles,defaultValueOfArgumentType,defaultValueOfTypeName,dumpColumnStructure,enabledProfiles,enabledRoles,errorCodeToName,filesystemAvailable,filesystemCapacity,filesystemFree,finalizeAggregation,formatReadableQuantity,formatReadableSize,formatReadableTimeDelta,FQDN,getMacro,getServerPort,getSetting,getSizeOfEnumType,greatest,hasColumnInTable,hostName,identity,ifNotFinite,ignore,indexHint,initializeAggregation,initialQueryID,isConstant,isDecimalOverflow,isFinite,isInfinite,isNaN,joinGet,least,MACNumToString,MACStringToNum,MACStringToOUI,materialize,modelEvaluate,neighbor,queryID,randomFixedString,randomPrintableASCII,randomString,randomStringUTF8,replicate,rowNumberInAllBlocks,rowNumberInBlock,runningAccumulate,runningConcurrency,runningDifference,runningDifferenceStartingWithFirstValue,shardCount ,shardNum,sleep,sleepEachRow,tcpPort,throwIf,toColumnTypeName,toTypeName,transform,uptime,version,visibleWidth";
+        return "bar,basename,blockNumber,blockSerializedSize,blockSize,buildId,byteSize,countDigits,currentDatabase,currentProfiles,currentRoles,currentUser,defaultProfiles,defaultRoles,defaultValueOfArgumentType,defaultValueOfTypeName,dumpColumnStructure,enabledProfiles,enabledRoles,errorCodeToName,filesystemAvailable,filesystemCapacity,filesystemFree,finalizeAggregation,formatReadableQuantity,formatReadableSize,formatReadableTimeDelta,FQDN,getMacro,getServerPort,getSetting,getSizeOfEnumType,greatest,hasColumnInTable,hostName,identity,ifNotFinite,ignore,indexHint,initializeAggregation,initialQueryID,isConstant,isDecimalOverflow,isFinite,isInfinite,isNaN,joinGet,least,MACNumToString,MACStringToNum,MACStringToOUI,materialize,modelEvaluate,neighbor,queryID,randomFixedString,randomPrintableASCII,randomString,randomStringUTF8,replicate,rowNumberInAllBlocks,rowNumberInBlock,runningAccumulate,runningConcurrency,runningDifference,runningDifferenceStartingWithFirstValue,shardCount ,shardNum,sleep,sleepEachRow,tcpPort,throwIf,toColumnTypeName,toTypeName,e,uptime,version,visibleWidth";
     }
 
     @Override
@@ -830,18 +830,19 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         }
     }
 
-    private static final ClickHouseColumn DATA_TYPE_COL = ClickHouseColumn.of("DATA_TYPE", ClickHouseDataType.Int32.name()) ;
+    private static final int GET_COLUMNS_TYPE_NAME_COL = 6;
+
+    private static final int GET_COLUMNS_DATA_TYPE_COL = 5;
     @Override
     @SuppressWarnings({"squid:S2095", "squid:S2077"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
-        String sql = "SELECT " +
+        final String sql = "SELECT " +
                 catalogPlaceholder + " AS TABLE_CAT, " +
                 "database AS TABLE_SCHEM, " +
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
-                "system.columns.type AS DATA_TYPE, " +
+                "toInt32(" + Types.OTHER + ") AS DATA_TYPE, " +
                 "type AS TYPE_NAME, " +
                 "toInt32(" + generateSqlTypeSizes("system.columns.type") + ") AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
@@ -867,8 +868,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " AND name LIKE " + SQLUtils.enquoteLiteral(columnNamePattern == null ? "%" : columnNamePattern) +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::columnDataTypeToSqlType);
+            ResultSetImpl rs = (ResultSetImpl) connection.createStatement().executeQuery(sql);
+            rs.setValueFunction(GET_COLUMNS_DATA_TYPE_COL, GET_COLUMNS_DATA_TYPE_FUNC);
+            return rs;
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -887,17 +889,22 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         return sql.toString();
     }
 
-    private static String columnDataTypeToSqlType(String value) {
-        SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(value);
-        if (type == null) {
-            try {
-                type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", value).getDataType());
-            } catch (Exception e) {
-                log.error("Failed to convert column data type to SQL type: {}", value, e);
-                type = JDBCType.OTHER; // In case of error, return SQL type 0
+    private static final ClickHouseColumn.ValueFunction GET_COLUMNS_DATA_TYPE_FUNC = dataTypeValueFunction(GET_COLUMNS_TYPE_NAME_COL);
+
+    private static ClickHouseColumn.ValueFunction dataTypeValueFunction(int srcColIndex) {
+        return row -> {
+            String typeName = (String) row[srcColIndex - 1];
+            SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(typeName);
+            if (type == null) {
+                try {
+                    type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", typeName).getDataType());
+                } catch (Exception e) {
+                    log.error("Failed to convert column data type to SQL type: {}", typeName, e);
+                    type = JDBCType.OTHER; // In case of error, return SQL type 0
+                }
             }
-        }
-        return String.valueOf(type.getVendorTypeNumber());
+            return type.getVendorTypeNumber();
+        };
     }
 
     @Override
@@ -1067,26 +1074,23 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         }
     }
 
-    private static final ClickHouseColumn NULLABLE_COL = ClickHouseColumn.of("NULLABLE", ClickHouseDataType.Int16.name());
+    private static final int TYPE_INFO_DATA_TYPE_COL = 2;
+    private static final int TYPE_INFO_NULLABILITY_COL = 7;
     @Override
     @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
         try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::dataTypeToSqlTypeInt)
-                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaDataImpl::dataTypeNullability);
+            ResultSetImpl rs = (ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL);
+            rs.setValueFunction(TYPE_INFO_DATA_TYPE_COL, TYPE_INFO_DATA_TYPE_VALUE_FUNC);
+            rs.setValueFunction(TYPE_INFO_NULLABILITY_COL, DatabaseMetaDataImpl::dataTypeNullability);
+            return rs;
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
     }
 
-    private static String dataTypeToSqlTypeInt(String type) {
-        SQLType sqlType = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(type);
-        return sqlType == null ? String.valueOf(JDBCType.OTHER.getVendorTypeNumber()) :
-                String.valueOf(sqlType.getVendorTypeNumber());
-    }
-
-    private static String dataTypeNullability(String type) {
+    private static String dataTypeNullability(Object[] row) {
+        String type = (String) row[DATA_TYPE_INFO_SQL_TYPE_NAME_COL - 1];
         if (type.equals(ClickHouseDataType.Nullable.name()) || type.equals(ClickHouseDataType.Dynamic.name())) {
             return String.valueOf(java.sql.DatabaseMetaData.typeNullable);
         }
@@ -1095,21 +1099,23 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
 
+    private static final int DATA_TYPE_INFO_SQL_TYPE_NAME_COL = 13;
+
     private static String getDataTypeInfoSql() {
         StringBuilder sql = new StringBuilder("SELECT " +
                 "name AS TYPE_NAME, " +
-                "if(empty(alias_to), name, alias_to) AS DATA_TYPE, " + // passing type name or alias if exists to map then
+                "0::Int32 AS DATA_TYPE, " + // passing type name or alias if exists to map then
                 "attrs.c2::Nullable(Int32) AS PRECISION, " +
                 "NULL::Nullable(String) AS LITERAL_PREFIX, " +
                 "NULL::Nullable(String) AS LITERAL_SUFFIX, " +
                 "NULL::Nullable(String) AS CREATE_PARAMS, " +
-                "name AS NULLABLE, " + // passing type name to map for nullable
+                "0::Int16 AS NULLABLE, " + // passing type name to map for nullable
                 "not(dt.case_insensitive)::Boolean AS CASE_SENSITIVE, " +
                 java.sql.DatabaseMetaData.typeSearchable + "::Int16 AS SEARCHABLE, " +
                 "not(attrs.c3)::Boolean AS UNSIGNED_ATTRIBUTE, " +
                 "false AS FIXED_PREC_SCALE, " +
                 "false AS AUTO_INCREMENT, " +
-                "name AS LOCAL_TYPE_NAME, " +
+                "if(empty(alias_to), name, alias_to) AS LOCAL_TYPE_NAME, " +
                 "attrs.c4::Nullable(Int16) AS MINIMUM_SCALE, " +
                 "attrs.c5::Nullable(Int16) AS MAXIMUM_SCALE, " +
                 "0::Nullable(Int32) AS SQL_DATA_TYPE, " +
@@ -1133,6 +1139,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 .append(" WHERE alias_to == ''");
         return sql.toString();
     }
+
+    private static final ClickHouseColumn.ValueFunction TYPE_INFO_DATA_TYPE_VALUE_FUNC = dataTypeValueFunction(DATA_TYPE_INFO_SQL_TYPE_NAME_COL);
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {

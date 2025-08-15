@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -545,4 +546,13 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     TemporalAmount getTemporalAmount(int index);
 
     TemporalAmount getTemporalAmount(String colName);
+
+    /**
+     * ! Experimental ! Might change in the future.
+     * Sets a value function of a column. If column has a value function then reader will pass current row
+     * as Object[] to a function. The least is responsible for returning correct value or null.
+     * @param index - column index starting with 1
+     * @param function - function that will be used to calculate column value from current row.
+     */
+    default void setValueFunction(int index, ClickHouseColumn.ValueFunction function) {}
 }

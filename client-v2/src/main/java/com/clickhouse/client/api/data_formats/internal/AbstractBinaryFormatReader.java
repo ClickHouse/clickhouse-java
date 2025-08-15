@@ -131,6 +131,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return true;
     }
 
+    @Override
+    public void setValueFunction(int index, ClickHouseColumn.ValueFunction function) {
+        columns[index - 1].setValueFunction(function);
+    }
+
     /**
      * It is still internal method and should be used with care.
      * Usually this method is called to read next record into internal object and affects hasNext() method.
@@ -148,7 +153,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
 
         boolean firstColumn = true;
+        boolean hasValueFunctionColumn = false;
         for (ClickHouseColumn column : columns) {
+            if (column.hasValueFunction()) {
+                hasValueFunctionColumn = true;
+            }
             try {
                 Object val = binaryStreamReader.readValue(column);
                 if (val != null) {
@@ -165,6 +174,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 throw e;
             }
         }
+
+        if (hasValueFunctionColumn) {
+            // This variant of readRecord is called only for POJO serialization and this logic should be avoided.
+            Object[] row = record.values().toArray();
+            for (ClickHouseColumn column : columns) {
+                if (column.hasValueFunction()) {
+                    record.put(column.getColumnName(), column.getValueFunction().produceValue(row));
+                }
+            }
+        }
         return true;
     }
 
@@ -174,9 +193,14 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
 
         boolean firstColumn = true;
+        boolean hasValueFunctionColumn = false;
         for (int i = 0; i < columns.length; i++) {
             try {
-                Object val = binaryStreamReader.readValue(columns[i]);
+                ClickHouseColumn column = columns[i];
+                if (column.hasValueFunction()) {
+                    hasValueFunctionColumn = true;
+                }
+                Object val = binaryStreamReader.readValue(column);
                 if (val != null) {
                     record[i] = val;
                 } else {
@@ -191,8 +215,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 throw e;
             }
         }
+
+        if (hasValueFunctionColumn) {
+            for  (int i = 0; i < columns.length; i++) {
+                ClickHouseColumn column = columns[i];
+                if (column.hasValueFunction()) {
+                    record[i] = column.getValueFunction().produceValue(record);
+                }
+            }
+        }
         return true;
     }
+
 
     @Override
     public <T> T readValue(int colIndex) {
