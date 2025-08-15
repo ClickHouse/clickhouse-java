@@ -1,12 +1,10 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
 import com.clickhouse.data.ClickHouseColumn;
 import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
-import java.net.Inet6Address;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;

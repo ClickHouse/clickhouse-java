@@ -229,6 +229,8 @@ public class JdbcUtils {
         try {
             if (type.isInstance(value)) {
                 return value;
+            } else if (type != java.sql.Array.class && value instanceof List<?>) {
+                return convertList((List<?>) value, type);
             } else if (type == String.class) {
                 return value.toString();
             } else if (type == Boolean.class || type == boolean.class) {
@@ -268,15 +270,14 @@ public class JdbcUtils {
                 if (column != null && column.getArrayBaseColumn() != null) {
                     ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
                     Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(),
-                            JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType()));
+                            JdbcUtils.convertToJavaClass(baseType));
                     return new Array(convertedValues, baseType.getName(), baseType.getVendorTypeNumber());
                 }
                 return new Array(arrayValue.getArrayOfObjects(), "Unknown", JDBCType.OTHER.getVendorTypeNumber());
             } else if (type == java.sql.Array.class && value instanceof List<?>) {
-
                 if (column != null && column.getArrayBaseColumn() != null) {
                     ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                    return new Array(convertList((List<?>) value, JdbcUtils.convertToJavaClass(column.getArrayBaseColumn().getDataType())),
+                    return new Array(convertList((List<?>) value, JdbcUtils.convertToJavaClass(baseType)),
                             baseType.getName(), JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseType, JDBCType.OTHER).getVendorTypeNumber());
                 }
                 // base type is unknown. all objects should be converted
@@ -300,6 +301,9 @@ public class JdbcUtils {
     public static Object[] convertList(List<?> values, Class<?> type) throws SQLException {
         if (values == null) {
             return null;
+        }
+        if (values.isEmpty()) {
+            return new Object[0];
         }
 
         Object[] convertedValues = new Object[values.size()];

@@ -1001,6 +1001,23 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testNestedArrays() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT [['a', 'b'], ['c', 'd']] as value")) {
+                    assertTrue(rs.next());
+                    Array arrayHolder = (Array) rs.getObject(1);
+                    Object[] array = (Object[]) arrayHolder.getArray();
+                    Object[] subArray1 =  (Object[]) array[0];
+                    assertEquals(subArray1, new Object[]{ "a", "b"} );
+                    Object[] subArray2 =  (Object[]) array[1];
+                    assertEquals(subArray2, new Object[]{ "c", "d"} );
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
