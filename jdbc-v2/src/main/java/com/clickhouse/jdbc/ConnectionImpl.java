@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
@@ -22,6 +23,7 @@ import java.sql.CallableStatement;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -59,6 +61,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private String schema;
     private String appName;
     private QuerySettings defaultQuerySettings;
+    private boolean readOnly;
+    private int holdability;
 
     private final DatabaseMetaDataImpl metadata;
     protected final Calendar defaultCalendar;
@@ -73,6 +77,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.onCluster = false;
             this.cluster = null;
             this.appName = "";
+            this.readOnly = false;
+            this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
             String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
 
             Map<String, String> clientProperties = config.getClientProperties();
@@ -229,15 +235,16 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
         ensureOpen();
-        if (!config.isIgnoreUnsupportedRequests() && readOnly) {
-            throw new SQLFeatureNotSupportedException("read-only=true unsupported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        // This method is just a hint for the driver. Documentation doesn't tell to block update operations.
+        // Currently, we do not use this hint but some connection pools may use this property.
+        // So we just save and return
+        this.readOnly = readOnly;
     }
 
     @Override
     public boolean isReadOnly() throws SQLException {
         ensureOpen();
-        return false;
+        return readOnly;
     }
 
     @Override
@@ -279,13 +286,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
         ensureOpen();
-        return createStatement(resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        return createStatement(resultSetType, resultSetConcurrency, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         ensureOpen();
-        return prepareStatement(sql, resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        return prepareStatement(sql, resultSetType, resultSetConcurrency, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Override
@@ -319,13 +326,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public void setHoldability(int holdability) throws SQLException {
         ensureOpen();
-        //TODO: Should this be supported?
+        if (holdability != ResultSet.HOLD_CURSORS_OVER_COMMIT && holdability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+            throw new SQLException("Only ResultSet.HOLD_CURSORS_OVER_COMMIT and  ResultSet.CLOSE_CURSORS_AT_COMMIT allowed for holdability");
+        }
+        // we do not support transactions and almost always use auto-commit.
+        // holdability regulates is result set is open or closed on commit.
+        // currently we ignore value and always set what we support.
+        this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     @Override
     public int getHoldability() throws SQLException {
         ensureOpen();
-        return ResultSet.HOLD_CURSORS_OVER_COMMIT;//TODO: Check if this is correct
+        return holdability;
     }
 
     @Override
@@ -563,10 +576,22 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
+        ensureOpen();
+        if (typeName == null) {
+            throw new SQLFeatureNotSupportedException("typeName cannot be null");
+        }
+
+
+        int parentPos = typeName.indexOf('(');
+        int endPos = parentPos ==  -1 ? typeName.length() : parentPos;
+        String clickhouseDataTypeName = (typeName.substring(0, endPos)).trim();
+        ClickHouseDataType dataType = ClickHouseDataType.valueOf(clickhouseDataTypeName);
+        if (dataType.equals(ClickHouseDataType.Array)) {
+            throw new SQLFeatureNotSupportedException("Array cannot be a base type. In case of nested array provide most deep element type name.");
+        }
         try {
-            List<Object> list =
-                    (elements == null || elements.length == 0) ? Collections.emptyList() : Arrays.stream(elements, 0, elements.length).collect(Collectors.toList());
-            return new com.clickhouse.jdbc.types.Array(list, typeName, JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName)).getVendorTypeNumber());
+            return new com.clickhouse.jdbc.types.Array(elements, typeName,
+                    JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(dataType, JDBCType.OTHER).getVendorTypeNumber());
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -574,13 +599,18 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        //TODO: Should this be supported?
-        if (!config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("createStruct not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureOpen();
+        if (typeName == null) {
+            throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
-
-        return null;
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        if (column.getDataType().equals(ClickHouseDataType.Tuple)) {
+            return new com.clickhouse.jdbc.types.Struct(column, attributes);
+        } else {
+            throw new SQLException("Only Tuple datatype is supported for Struct", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
     }
+
 
     @Override
     public void setSchema(String schema) throws SQLException {
