@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -40,7 +41,7 @@ import java.util.Map;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
-    private ResultSetMetaData metaData;
+    private ResultSetMetaDataImpl metaData;
     protected ClickHouseBinaryFormatReader reader;
     private QueryResponse response;
     private boolean closed;
@@ -136,6 +137,14 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         if (e != null) {
             throw ExceptionUtils.toSqlState(e);
         }
+    }
+
+    public void setValueFunction(int colIndex, ClickHouseColumn.ValueFunction valueFunction) {
+        reader.setValueFunction(colIndex, valueFunction);
+    }
+
+    public void hideLastNColumns(int n) {
+        metaData.setColumnCount(metaData.getOriginalColumnCount() - n);
     }
 
     @Override
