@@ -1,32 +1,30 @@
 package com.clickhouse.client.api.insert;
 
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.enums.Protocol;
-import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.internal.CommonSettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 public class InsertSettings {
     private static final int DEFAULT_INPUT_STREAM_BATCH_SIZE = 8196;
 
     private int inputStreamCopyBufferSize;
-    private String operationId;
-    Map<String, Object> rawSettings;
+    CommonSettings settings;
 
     public InsertSettings() {
-        rawSettings = new HashMap<>();
+        settings = new CommonSettings();
         setDefaults();
     }
 
     public InsertSettings(Map<String, Object> settings) {
-        rawSettings = new HashMap<>();
+        this.settings = new CommonSettings();
         setDefaults();
-        rawSettings.putAll(settings);
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+            this.settings.setOption(entry.getKey(), entry.getValue());
+        }
     }
 
     private void setDefaults() {// Default settings, for now a very small list
@@ -40,7 +38,7 @@ public class InsertSettings {
      * @return configuration option value
      */
     public Object getOption(String option) {
-        return rawSettings.get(option);
+        return settings.getOption(option);
     }
 
     /**
@@ -51,10 +49,7 @@ public class InsertSettings {
      * @param value  - configuration option value
      */
     public InsertSettings setOption(String option, Object value) {
-        rawSettings.put(option, value);
-        if (option.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
-            rawSettings.put(ClientConfigProperties.CLIENT_NAME.getKey(), value);
-        }
+        settings.setOption(option, value);
         return this;
     }
 
@@ -64,7 +59,7 @@ public class InsertSettings {
      * @return all settings
      */
     public Map<String, Object> getAllSettings() {
-        return rawSettings;
+        return settings.getAllSettings();
     }
 
     /**
@@ -79,14 +74,14 @@ public class InsertSettings {
     }
 
     public String getQueryId() {
-        return (String) rawSettings.get(ClientConfigProperties.QUERY_ID.getKey());
+        return settings.getQueryId();
     }
 
     /**
      * Sets the query id. This id will be sent to the server and can be used to identify the query.
      */
     public InsertSettings setQueryId(String queryId) {
-        rawSettings.put(ClientConfigProperties.QUERY_ID.getKey(), queryId);
+        settings.setQueryId(queryId);
         return this;
     }
 
@@ -108,7 +103,7 @@ public class InsertSettings {
      * Should not be called directly.
      */
     public String getOperationId() {
-        return this.operationId;
+        return settings.getOperationId();
     }
 
     /**
@@ -118,7 +113,7 @@ public class InsertSettings {
      * @param operationId - operation id
      */
     public InsertSettings setOperationId(String operationId) {
-        this.operationId = operationId;
+        settings.setOperationId(operationId);
         return this;
     }
 
@@ -126,13 +121,12 @@ public class InsertSettings {
      * Sets database to be used for a request.
      */
     public InsertSettings setDatabase(String database) {
-        ValidationUtils.checkNonBlank(database, "database");
-        rawSettings.put("database", database);
+        settings.setDatabase(database);
         return this;
     }
 
     public String getDatabase() {
-        return (String) rawSettings.get("database");
+        return settings.getDatabase();
     }
 
     /**
@@ -141,12 +135,12 @@ public class InsertSettings {
      * @param enabled - indicates if client request compression is enabled
      */
     public InsertSettings compressClientRequest(boolean enabled) {
-        this.rawSettings.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), enabled);
+        settings.setOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), enabled);
         return this;
     }
 
     public InsertSettings useHttpCompression(boolean enabled) {
-        this.rawSettings.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), enabled);
+        settings.setOption(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), enabled);
         return this;
     }
 
@@ -156,48 +150,50 @@ public class InsertSettings {
      * @param enabled - if application provides compressed data
      */
     public InsertSettings appCompressedData(boolean enabled, String compressionMethod) {
-        this.rawSettings.put(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), enabled);
+        settings.setOption(ClientConfigProperties.APP_COMPRESSED_DATA.getKey(), enabled);
         useHttpCompression(true);
         httpHeader(HttpHeaders.CONTENT_ENCODING, compressionMethod);
         return this;
     }
 
     public boolean isClientRequestEnabled() {
-        return (Boolean) rawSettings.get("decompress");
+        return (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
     }
 
     /**
      * Defines list of headers that should be sent with current request. The Client will use a header value
      * defined in {@code headers} instead of any other.
      *
-     * @see Client.Builder#httpHeaders(Map)
-     * @param key - header name.
+     * @param key   - header name.
      * @param value - header value.
      * @return same instance of the builder
+     * @see Client.Builder#httpHeaders(Map)
      */
     public InsertSettings httpHeader(String key, String value) {
-        rawSettings.put(ClientConfigProperties.httpHeader(key), value);
+        settings.httpHeader(key, value);
         return this;
     }
 
     /**
      * {@see #httpHeader(String, String)} but for multiple values.
-     * @param key - name of the header
+     *
+     * @param key    - name of the header
      * @param values - collection of values
      * @return same instance of the builder
      */
     public InsertSettings httpHeader(String key, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
+        settings.httpHeader(key, values);
         return this;
     }
 
     /**
      * {@see #httpHeader(String, String)} but for multiple headers.
+     *
      * @param headers - map of headers
      * @return same instance of the builder
      */
     public InsertSettings httpHeaders(Map<String, String> headers) {
-        headers.forEach(this::httpHeader);
+        settings.httpHeaders(headers);
         return this;
     }
 
@@ -206,24 +202,25 @@ public class InsertSettings {
      * defined in {@code settings} instead of any other.
      * Operation settings may override these values.
      *
-     * @see Client.Builder#serverSetting(String, Collection)
-     * @param name - name of the setting
+     * @param name  - name of the setting
      * @param value - value of the setting
      * @return same instance of the builder
+     * @see Client.Builder#serverSetting(String, Collection)
      */
     public InsertSettings serverSetting(String name, String value) {
-        rawSettings.put(ClientConfigProperties.serverSetting(name), value);
+        settings.serverSetting(name, value);
         return this;
     }
 
     /**
      * {@see #serverSetting(String, String)} but for multiple values.
-     * @param name - name of the setting without special prefix
+     *
+     * @param name   - name of the setting without special prefix
      * @param values - collection of values
      * @return same instance of the builder
      */
     public InsertSettings serverSetting(String name, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.serverSetting(name), ClientConfigProperties.commaSeparated(values));
+        settings.serverSetting(name, values);
         return this;
     }
 
@@ -233,7 +230,7 @@ public class InsertSettings {
      * @param dbRoles
      */
     public InsertSettings setDBRoles(Collection<String> dbRoles) {
-        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), dbRoles);
+        settings.setDBRoles(dbRoles);
         return this;
     }
 
@@ -243,25 +240,21 @@ public class InsertSettings {
      * @return list of DB roles
      */
     public Collection<String> getDBRoles() {
-        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES.getKey());
+        return settings.getDBRoles();
     }
 
     /**
      * Sets the comment that will be added to the query log record associated with the query.
+     *
      * @param logComment - comment to be added to the log
      * @return same instance of the builder
      */
     public InsertSettings logComment(String logComment) {
-        this.logComment = logComment;
-        if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT.getKey(), logComment);
-        }
+        settings.logComment(logComment);
         return this;
     }
 
-    private String logComment = null;
-
     public String getLogComment() {
-        return logComment;
+        return settings.getLogComment();
     }
 }
