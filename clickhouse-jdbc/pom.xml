@@ -238,7 +238,7 @@
                                 <path>
                                     <groupId>org.projectlombok</groupId>
                                     <artifactId>lombok</artifactId>
-                                    <version>1.18.32</version>
+                                    <version>1.18.38</version>
                                 </path>
                                 <path>
                                     <groupId>org.openjdk.jmh</groupId>
