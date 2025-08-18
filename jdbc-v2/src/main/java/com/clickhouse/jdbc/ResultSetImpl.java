@@ -545,7 +545,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        return !reader.hasNext() && rowPos != AFTER_LAST;
+        return !reader.hasNext() && rowPos != AFTER_LAST && rowPos != BEFORE_FIRST;
     }
 
     @Override

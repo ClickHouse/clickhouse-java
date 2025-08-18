@@ -131,10 +131,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // release before this one completes.
         if (resultSetAutoClose) {
             closeCurrentResultSet();
-            // There is a feature `closeOnComplete` that dictate closing statement when all
+            // There is a feature `closeOnComplete` that dictates closing the statement when all
             // result sets are closed. Call to `closeCurrentResultSet` will trigger this statement
-            // closure. But it should not happen because this was introduces instead of spec and will be remove in future/
-            // So we need make this statement open again because we going to create a new result set.
+            // closure. But it should not happen because this was introduces instead of spec and will be removed in the future.
+            // So we need to make this statement open again because we're going to create a new result set.
             this.closed = false;
         }
 
@@ -370,7 +370,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     public void setFetchSize(int rows) throws SQLException {
         ensureOpen();
         if (rows < 0) {
-            throw new SQLException("rows should be greater than 0.");
+            throw new SQLException("rows should be greater or equal to 0.");
         }
         this.fetchSize = rows;
     }

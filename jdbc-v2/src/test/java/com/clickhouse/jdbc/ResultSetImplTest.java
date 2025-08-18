@@ -241,7 +241,22 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.isFirst());
                 Assert.assertFalse(rs.isLast());
                 Assert.assertEquals(rs.getRow(), 0);
+            }
 
+            try (ResultSet rs = stmt.executeQuery("select 1 LIMIT 0")) {
+                Assert.assertTrue(rs.isBeforeFirst());
+                Assert.assertFalse(rs.isAfterLast());
+                Assert.assertFalse(rs.isFirst());
+                Assert.assertFalse(rs.isLast());
+                Assert.assertEquals(rs.getRow(), 0);
+
+                Assert.assertFalse(rs.next());
+
+                Assert.assertFalse(rs.isBeforeFirst()); // we stepped over the end
+                Assert.assertTrue(rs.isAfterLast()); // we stepped over the end
+                Assert.assertFalse(rs.isFirst());
+                Assert.assertFalse(rs.isLast());
+                Assert.assertEquals(rs.getRow(), 0);
             }
         }
     }
