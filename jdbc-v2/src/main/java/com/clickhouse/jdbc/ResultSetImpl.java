@@ -5,6 +5,7 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import org.slf4j.Logger;
@@ -26,7 +27,6 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
@@ -35,7 +35,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.Map;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
@@ -48,10 +47,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private boolean wasNull;
     private final Calendar defaultCalendar;
 
-    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) {
+    private final FeatureManager  featureManager;
+
+    private static final int AFTER_LAST = -1;
+    private static final int BEFORE_FIRST = 0;
+    private static final int FIRST_ROW = 1;
+    private int rowPos;
+
+    private int fetchSize;
+
+    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) throws SQLException {
         this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
+        this.featureManager = new FeatureManager(parentStatement.getConnection().getJdbcConfig());
         TableSchema tableMetadata = reader.getSchema();
 
         // Result set contains columns from one database (there is a special table engine 'Merge' to do cross DB queries)
@@ -60,17 +69,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = parentStatement.connection.defaultCalendar;
+        this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
+        this.rowPos = BEFORE_FIRST;
+        this.fetchSize = parentStatement.getFetchSize();
     }
 
-    protected ResultSetImpl(ResultSetImpl resultSet) {
+    protected ResultSetImpl(ResultSetImpl resultSet) throws SQLException{
         this.parentStatement = resultSet.parentStatement;
         this.response = resultSet.response;
         this.reader = resultSet.reader;
         this.metaData = resultSet.metaData;
         this.closed = false;
         this.wasNull = false;
-        this.defaultCalendar = parentStatement.connection.defaultCalendar;
+        this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
+        this.featureManager = new FeatureManager(parentStatement.getConnection().getJdbcConfig());
     }
 
     private void checkClosed() throws SQLException {
@@ -97,7 +109,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         checkClosed();
 
         try {
-            return reader.next() != null;
+            Object readerRow = reader.next();
+            if (readerRow != null) {
+                rowPos++;
+            } else {
+                rowPos = AFTER_LAST;
+            }
+            return readerRow != null;
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -402,10 +420,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
         checkClosed();
-        //TODO: Add this to ClickHouseBinaryFormatReader
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("AsciiStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getAsciiStream");
 
         return null;
     }
@@ -419,10 +434,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
         checkClosed();
-        //TODO: implement
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("BinaryStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getBinaryStream");
 
         return null;
     }
@@ -441,6 +453,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public String getCursorName() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("getCursorName");
         return "";
     }
 
@@ -477,9 +490,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getCharacterStream");
 
         return null;
     }
@@ -487,9 +498,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("CharacterStream is not yet supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getCharacterStream");
 
         return null;
     }
@@ -518,59 +527,43 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean isBeforeFirst() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("isBeforeFirst is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return false;
+        return rowPos == BEFORE_FIRST;
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("isAfterLast is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return false;
+        return rowPos == AFTER_LAST;
     }
 
     @Override
     public boolean isFirst() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("isFirst is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return false;
+        return rowPos == FIRST_ROW;
     }
 
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("isLast is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return false;
+        return !reader.hasNext() && rowPos != AFTER_LAST && rowPos != BEFORE_FIRST;
     }
 
     @Override
     public void beforeFirst() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("beforeFirst");
     }
 
     @Override
     public void afterLast() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("afterLast");
     }
 
     @Override
     public boolean first() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("first is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("first");
 
         return false;
     }
@@ -578,10 +571,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean last() throws SQLException {
         checkClosed();
-
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("last is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("last");
 
         return false;
     }
@@ -589,20 +579,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public int getRow() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("getRow is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
-
-        return 0;
+        return rowPos == AFTER_LAST ? 0 : rowPos;
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
         checkClosed();
-
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("absolute is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("absolute");
 
         return false;
     }
@@ -610,9 +593,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean relative(int rows) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("relative is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("relative");
 
         return false;
     }
@@ -620,9 +601,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean previous() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("previous is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("previous");
 
         return false;
     }
@@ -636,20 +615,24 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("setFetchDirection is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        if (direction != ResultSet.FETCH_FORWARD) {
+            throw new SQLException("This result set object is of FORWARD ONLY type. Only ResultSet.FETCH_FORWARD is allowed as fetchDirection.");
         }
     }
 
     @Override
     public int getFetchSize() throws SQLException {
         checkClosed();
-        return 0;
+        return fetchSize;
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
         checkClosed();
+        if (rows < 0) {
+            throw new SQLException("Number of rows should be a positive integer");
+        }
+        fetchSize = rows;
     }
 
     @Override
@@ -667,9 +650,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean rowUpdated() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("rowUpdated");
 
         return false;
     }
@@ -677,9 +658,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean rowInserted() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("rowInserted");
 
         return false;
     }
@@ -687,9 +666,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean rowDeleted() throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("rowDeleted");
 
         return false;
     }
@@ -792,188 +769,176 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNull(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNull");
+
     }
 
     @Override
     public void updateBoolean(String columnLabel, boolean x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBoolean");
+
     }
 
     @Override
     public void updateByte(String columnLabel, byte x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateByte");
+
     }
 
     @Override
     public void updateShort(String columnLabel, short x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateShort");
+
     }
 
     @Override
     public void updateInt(String columnLabel, int x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateInt");
+
     }
 
     @Override
     public void updateLong(String columnLabel, long x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateLong");
+
     }
 
     @Override
     public void updateFloat(String columnLabel, float x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateFloat");
+
     }
 
     @Override
     public void updateDouble(String columnLabel, double x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateDouble");
+
     }
 
     @Override
     public void updateBigDecimal(String columnLabel, BigDecimal x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBigDecimal");
+
     }
 
     @Override
     public void updateString(String columnLabel, String x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateString");
+
     }
 
     @Override
     public void updateBytes(String columnLabel, byte[] x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBytes");
+
     }
 
     @Override
     public void updateDate(String columnLabel, Date x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateDate");
+
     }
 
     @Override
     public void updateTime(String columnLabel, Time x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateTime");
+
     }
 
     @Override
     public void updateTimestamp(String columnLabel, Timestamp x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateTimestamp");
+
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, int length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateAsciiStream");
+
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, int length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBinaryStream");
+
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, int length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateCharacterStream");
+
     }
 
     @Override
     public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateObject");
+
     }
 
     @Override
     public void updateObject(String columnLabel, Object x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateObject");
+
     }
 
     @Override
     public void insertRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("insertRow");
     }
 
     @Override
     public void updateRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("updateRow");
     }
 
     @Override
     public void deleteRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("deleteRow");
     }
 
     @Override
     public void refreshRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("refreshRow");
     }
 
     @Override
     public void cancelRowUpdates() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("cancelRowUpdates");
     }
 
     @Override
     public void moveToInsertRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("moveToInsertRow");
     }
 
     @Override
     public void moveToCurrentRow() throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("moveToCurrentRow");
     }
 
     @Override
@@ -1017,9 +982,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Ref getRef(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Ref is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getRef");
 
         return null;
     }
@@ -1027,9 +990,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Blob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getBlob");
 
         return null;
     }
@@ -1037,9 +998,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Clob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getClob");
 
         return null;
     }
@@ -1149,9 +1108,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateRef(String columnLabel, Ref x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateRef");
     }
 
     @Override
@@ -1162,9 +1119,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateBlob(String columnLabel, Blob x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBlob");
     }
 
     @Override
@@ -1175,9 +1130,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateClob(String columnLabel, Clob x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateClob");
     }
 
     @Override
@@ -1188,9 +1141,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateArray(String columnLabel, java.sql.Array x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateArray");
     }
 
     @Override
@@ -1201,6 +1152,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public RowId getRowId(String columnLabel) throws SQLException {
         checkClosed();
+        featureManager.unsupportedFeatureThrow("getRowId");
         return null;
     }
 
@@ -1212,9 +1164,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateRowId(String columnLabel, RowId x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateRowId");
     }
 
     @Override
@@ -1236,9 +1186,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNString(String columnLabel, String nString) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNString");
     }
 
     @Override
@@ -1249,9 +1197,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNClob(String columnLabel, NClob nClob) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNClob");
     }
 
     @Override
@@ -1262,9 +1208,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public NClob getNClob(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("NClob is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getNClob");
 
         return null;
     }
@@ -1277,9 +1221,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public SQLXML getSQLXML(String columnLabel) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("SQLXML is not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("getSQLXML");
 
         return null;
     }
@@ -1292,9 +1234,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateSQLXML(String columnLabel, SQLXML xmlObject) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateSQLXML");
     }
 
     @Override
@@ -1335,9 +1275,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNCharacterStream");
     }
 
     @Override
@@ -1358,25 +1296,19 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateAsciiStream");
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBinaryStream");
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateCharacterStream");
     }
 
     @Override
@@ -1387,9 +1319,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBlob");
     }
 
     @Override
@@ -1400,9 +1330,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateClob(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateClob");
     }
 
     @Override
@@ -1413,9 +1341,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNClob(String columnLabel, Reader reader, long length) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNClob");
     }
 
     @Override
@@ -1426,9 +1352,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNCharacterStream");
     }
 
     @Override
@@ -1449,25 +1373,19 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateAsciiStream");
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBinaryStream");
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateCharacterStream");
     }
 
     @Override
@@ -1478,9 +1396,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateBlob");
     }
 
     @Override
@@ -1491,9 +1407,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateClob(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateClob");
     }
 
     @Override
@@ -1504,9 +1418,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateNClob(String columnLabel, Reader reader) throws SQLException {
         checkClosed();
-        if (!parentStatement.connection.config.isIgnoreUnsupportedRequests()) {
-            throw new SQLFeatureNotSupportedException("Writes are not supported.", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-        }
+        featureManager.unsupportedFeatureThrow("updateNClob");
     }
 
     @Override
@@ -1560,7 +1472,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateObject(String columnLabel, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         checkClosed();
-        ResultSet.super.updateObject(columnLabel, x, targetSqlType, scaleOrLength);
+        featureManager.unsupportedFeatureThrow("updateObject");
     }
 
     @Override
@@ -1571,6 +1483,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public void updateObject(String columnLabel, Object x, SQLType targetSqlType) throws SQLException {
         checkClosed();
-        ResultSet.super.updateObject(columnLabel, x, targetSqlType);
+        featureManager.unsupportedFeatureThrow("updateObject");
     }
 }
