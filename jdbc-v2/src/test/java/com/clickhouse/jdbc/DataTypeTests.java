@@ -1005,15 +1005,43 @@ public class DataTypeTests extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testNestedArrays() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT [['a', 'b'], ['c', 'd']] as value")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Array(Int32)) as value")) {
+                Integer[][] srcArray = new Integer[][] {
+                        {1, 2, 3},
+                        {4, 5, 6}
+                };
+                Array array = conn.createArrayOf("Int32", srcArray);
+                stmt.setArray(1, array);
+
+                try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
                     Array arrayHolder = (Array) rs.getObject(1);
-                    Object[] array = (Object[]) arrayHolder.getArray();
-                    Object[] subArray1 =  (Object[]) array[0];
-                    assertEquals(subArray1, new Object[]{ "a", "b"} );
-                    Object[] subArray2 =  (Object[]) array[1];
-                    assertEquals(subArray2, new Object[]{ "c", "d"} );
+                    Object[] dbArray = (Object[]) arrayHolder.getArray();
+                    for (int i = 0; i < dbArray.length; i++) {
+                        Object[] nestedArray = (Object[]) dbArray[i];
+                        for (int j = 0; j < nestedArray.length; j++) {
+                            assertEquals((Integer) nestedArray[j], (Integer)srcArray[i][j]);
+                        }
+                    }
+                }
+
+                Integer[] simpleArray = new Integer[] {1, 2, 3};
+                Array array1 = conn.createArrayOf("Int32", simpleArray);
+                Array array2 = conn.createArrayOf("Int32", simpleArray);
+
+                Array[] multiLevelArray = new Array[] {array1, array2};
+                Array array3 = conn.createArrayOf("Int32", multiLevelArray);
+                stmt.setArray(1, array3);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array arrayHolder = (Array) rs.getObject(1);
+                    Object[] dbArray = (Object[]) arrayHolder.getArray();
+                    for (int i = 0; i < dbArray.length; i++) {
+                        Object[] nestedArray = (Object[]) dbArray[i];
+                        for (int j = 0; j < nestedArray.length; j++) {
+                            assertEquals((Integer) nestedArray[j], (Integer)simpleArray[j]);
+                        }
+                    }
                 }
             }
         }

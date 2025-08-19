@@ -15,11 +15,16 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import wiremock.org.eclipse.jetty.util.log.Log;
 
+import java.math.BigDecimal;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -28,6 +33,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAccessor;
@@ -36,6 +42,10 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -431,6 +441,70 @@ public class ConnectionTest extends JdbcIntegrationTest {
                     Assert.assertEquals(array2.getArray(), elements);
                 }
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCreateArrayDifferentTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+
+            BiConsumer<String, Object[]> verification = (type, arr) -> {
+                Array array;
+                try {
+                    array = conn.createArrayOf(type, arr);
+                    Object[] wrappedArray = (Object[]) array.getArray();
+                    assertEquals(wrappedArray.length, arr.length);
+                    assertEquals(wrappedArray, arr);
+                } catch (SQLException e) {
+                    fail("Failed to create array of type " + type + " with " + Arrays.toString(arr), e);
+                    throw new RuntimeException(e);
+                }
+            };
+
+
+            verification.accept("Int8", new Byte[] {1, 2, 3});
+            verification.accept("Int16", new Short[] {Short.MIN_VALUE, -1, 0, 1, Short.MAX_VALUE});
+            verification.accept("Int32", new Integer[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE});
+            verification.accept("Int64", new Long[] {Long.MIN_VALUE, -1L, 0L, 1L, Long.MAX_VALUE});
+            verification.accept("UInt8", new Byte[] {0, 1, Byte.MAX_VALUE});
+            verification.accept("UInt16", new Short[] {0, 1, Short.MAX_VALUE});
+            verification.accept("UInt32", new Long[] {0L, 1L, (long)Integer.MAX_VALUE});
+            verification.accept("UInt64", new Long[] {0L, 1L, Long.MAX_VALUE});
+            verification.accept("Float32", new Float[] {-1.0F, 0.0F, 1.0F});
+            verification.accept("Float64", new Double[] {-1.0D, 0.0D, 1.0D});
+            verification.accept("Date", new Date[] {
+                    Date.valueOf(LocalDate.now()),
+                    Date.valueOf(LocalDate.of(2022, 1, 1)),
+                    Date.valueOf(LocalDate.of(2021, 12, 31))
+            });
+            verification.accept("DateTime", new Timestamp[] {
+                    Timestamp.valueOf(LocalDateTime.now()),
+                    Timestamp.valueOf(LocalDateTime.of(2022, 1, 1, 0, 0, 0)),
+                    Timestamp.valueOf(LocalDateTime.of(2021, 12, 31, 23, 59, 59))
+            });
+            verification.accept("Decimal(10, 2)", new BigDecimal[] {
+                    new BigDecimal("123.45"),
+                    new BigDecimal("-12345.67"),
+                    new BigDecimal("0.00")
+            });
+            verification.accept("String", new String[] {
+                    "",
+                    "Hello",
+                    "  hello  "
+            });
+            verification.accept("FixedString(5)", new String[] {
+                    "12345",
+                    "abcde",
+                    "  123"
+            });
+            verification.accept("IPv4", new Inet4Address[] {
+                    (Inet4Address) Inet4Address.getByName("127.0.0.1"),
+                    (Inet4Address) Inet4Address.getByName("192.168.0.1"),
+            });
+            verification.accept("IPv6", new Inet6Address[] {
+                    (Inet6Address) Inet6Address.getByName("::1"),
+                    (Inet6Address) Inet6Address.getByName("2001:db8::1"),
+            });
         }
     }
 
