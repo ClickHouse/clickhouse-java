@@ -109,7 +109,7 @@ public class DriverV1 implements Driver {
 
     public static void load() {
         try {
-            log.info("Registering ClickHouse JDBC driver v1 ({})", driverVersion);
+            log.debug("Registering ClickHouse JDBC driver v1 ({})", driverVersion);
             DriverManager.registerDriver(new DriverV1());
         } catch (SQLException e) {
             throw new IllegalStateException(e);
@@ -120,7 +120,7 @@ public class DriverV1 implements Driver {
 
     public static void unload() {
         try {
-            log.info("Unregistering ClickHouse JDBC driver v1 ({})", driverVersion);
+            log.debug("Unregistering ClickHouse JDBC driver v1 ({})", driverVersion);
             DriverManager.deregisterDriver(new DriverV1());
         } catch (SQLException e) {
             throw new IllegalStateException(e);

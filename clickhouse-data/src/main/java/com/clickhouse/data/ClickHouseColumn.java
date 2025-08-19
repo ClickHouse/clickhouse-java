@@ -42,7 +42,6 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
 
 /**
  * This class represents a column defined in database.
@@ -73,6 +73,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
     private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
+    private static final String KEYWORD_JSON = ClickHouseDataType.JSON.name();
 
     private int columnCount;
     private int columnIndex;
@@ -91,6 +92,7 @@ public final class ClickHouseColumn implements Serializable {
     private List<ClickHouseColumn> nested;
     private List<String> parameters;
     private ClickHouseEnum enumConstants;
+    private Map<String, ClickHouseColumn> jsonPredefinedPaths;
     private ValueFunction valueFunction;
 
     private int arrayLevel;
@@ -506,6 +508,23 @@ public final class ClickHouseColumn implements Serializable {
                     }
                 }
             }
+        } else if (args.startsWith(KEYWORD_JSON, i)) {
+            int index = args.indexOf('(', i + KEYWORD_JSON.length());
+            if (index > i) {
+                i = ClickHouseUtils.skipBrackets(args, index, len, '(');
+                String originalTypeName = args.substring(startIndex, i);
+                List<ClickHouseColumn> nestedColumns = new ArrayList<>();
+
+                List<String> parameters = new ArrayList<>();
+                parseJSONColumn(args.substring(index + 1, i - 1), nestedColumns, parameters);
+                nestedColumns.sort(Comparator.comparing(o -> o.getDataType().name()));
+                column = new ClickHouseColumn(ClickHouseDataType.JSON, name, originalTypeName, nullable, lowCardinality,
+                        parameters, nestedColumns);
+                column.jsonPredefinedPaths = nestedColumns.stream().collect(Collectors.toMap(ClickHouseColumn::getColumnName,
+                        c -> c));
+                fixedLength = false;
+                estimatedLength++;
+            }
         }
 
         if (column == null) {
@@ -658,6 +677,54 @@ public final class ClickHouseColumn implements Serializable {
             c.add(cc);
         }
         return Collections.unmodifiableList(c);
+    }
+
+    public static final String JSON_MAX_PATHS_PARAM = "max_dynamic_paths";
+    public static final String JSON_MAX_DYN_TYPES_PARAM = "max_dynamic_types";
+    public static final String JSON_SKIP_MARKER = "SKIP";
+
+    public static void parseJSONColumn(String args, List<ClickHouseColumn> nestedColumns, List<String> parameters) {
+        if (args == null || args.isEmpty()) {
+            return;
+        }
+
+        String name = null;
+        ClickHouseColumn column = null;
+        StringBuilder builder = new StringBuilder();
+        int i =0;
+        int len = args.length();
+        while (i < len) {
+            char ch = args.charAt(i);
+            if (Character.isWhitespace(ch)) {
+                i++;
+                continue;
+            }
+
+            if (name == null) { // column name
+                i = ClickHouseUtils.readNameOrQuotedString(args, i, len, builder) - 1;
+                name = builder.toString();
+                if (name.startsWith(JSON_SKIP_MARKER)) {
+                    name = null; // skip parameters
+                    i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
+                } else if ( name.startsWith(JSON_MAX_PATHS_PARAM) || name.startsWith(JSON_MAX_DYN_TYPES_PARAM)) {
+                    parameters.add(name);
+                    name = null;
+                    i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
+                }
+                builder.setLength(0);
+            } else if (column == null) { // now type
+                LinkedList<ClickHouseColumn> colList = new LinkedList<>();
+                i = readColumn(args, i, len, name, colList) - 1;
+                column = colList.getFirst();
+                nestedColumns.add(column);
+            } else { // prepare for next column
+                i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
+                name = null;
+                column = null;
+            }
+
+            i++;
+        }
     }
 
     public ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
@@ -966,6 +1033,10 @@ public final class ClickHouseColumn implements Serializable {
      */
     public ClickHouseAggregateFunction getAggregateFunction() {
         return aggFuncType;
+    }
+
+    public Map<String, ClickHouseColumn> getJsonPredefinedPaths() {
+        return jsonPredefinedPaths;
     }
 
     public ClickHouseArraySequence newArrayValue(ClickHouseDataConfig config) {

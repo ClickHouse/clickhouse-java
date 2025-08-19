@@ -67,7 +67,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
-            log.debug("Creating connection to {}", url);
             this.url = url;//Raw URL
             this.config = new JdbcConfiguration(url, info);
             this.onCluster = false;
