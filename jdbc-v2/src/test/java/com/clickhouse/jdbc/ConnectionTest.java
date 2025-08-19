@@ -15,7 +15,6 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import wiremock.org.eclipse.jetty.util.log.Log;
 
 import java.math.BigDecimal;
 import java.net.Inet4Address;
@@ -43,9 +42,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -109,7 +105,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,  ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         conn::setSavepoint,
                         () -> conn.setSavepoint("save point"),
-                        () -> conn.createSQLXML(),
+                        conn::createSQLXML,
+                        () -> conn.setAutoCommit(false)
                 };
 
                 for (Assert.ThrowingRunnable createStatement : createStatements) {

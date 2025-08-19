@@ -292,7 +292,7 @@ public class JdbcUtils {
                 return new Tuple(true, value);
             }
         } catch (Exception e) {
-            throw new SQLException("Failed to convert " + value + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
+            throw new SQLException("Failed to convert from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
         }
 
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
