@@ -44,6 +44,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private int maxFieldSize;
     private boolean escapeProcessingEnabled;
 
+    private int fetchSize = 1;
+
     // settings local to a statement
     protected QuerySettings localSettings;
 
@@ -129,6 +131,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // release before this one completes.
         if (resultSetAutoClose) {
             closeCurrentResultSet();
+            // There is a feature `closeOnComplete` that dictates closing the statement when all
+            // result sets are closed. Call to `closeCurrentResultSet` will trigger this statement
+            // closure. But it should not happen because this was introduces instead of spec and will be removed in the future.
+            // So we need to make this statement open again because we're going to create a new result set.
+            this.closed = false;
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(settings, new  QuerySettings());
@@ -362,12 +369,16 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setFetchSize(int rows) throws SQLException {
         ensureOpen();
+        if (rows < 0) {
+            throw new SQLException("rows should be greater or equal to 0.");
+        }
+        this.fetchSize = rows;
     }
 
     @Override
     public int getFetchSize() throws SQLException {
         ensureOpen();
-        return 0;
+        return fetchSize;
     }
 
     @Override

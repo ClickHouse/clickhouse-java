@@ -64,7 +64,7 @@ public class Driver implements java.sql.Driver {
         log.debug("Initializing ClickHouse JDBC driver V2");
 
         driverVersion = ClickHouseClientOption.readVersionFromResource("jdbc-v2-version.properties");
-        log.info("ClickHouse JDBC driver version: {}", driverVersion);
+        log.debug("ClickHouse JDBC driver version: {}", driverVersion);
 
         int tmpMajorVersion;
         int tmpMinorVersion;

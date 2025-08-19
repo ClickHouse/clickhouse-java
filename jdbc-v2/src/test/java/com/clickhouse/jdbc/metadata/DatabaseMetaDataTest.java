@@ -3,9 +3,9 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
-import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.ClientInfoProperties;
 import com.clickhouse.jdbc.DriverProperties;
+import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -467,7 +467,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getFunctionColumns(null, null, "mapContains", null)) {
-
+                assertFalse(rs.next());
                 List<String> expectedColumnNames = Arrays.asList(
                         "FUNCTION_CAT",
                         "FUNCTION_SCHEM",
@@ -577,6 +577,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             );
 
             ResultSet rs = dbmd.getIndexInfo(null, null, null, false, false);
+            assertFalse(rs.next());
             ResultSetMetaData rsmd = rs.getMetaData();
             assertProcedureColumns(rsmd, expectedColumnNames, expectedColumnTypes);
         }
@@ -592,6 +593,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     Types.SMALLINT, Types.SMALLINT, Types.VARCHAR, Types.SMALLINT, Types.VARCHAR);
 
             ResultSet rs = dbmd.getProcedures(null, null, null);
+            assertFalse(rs.next());
             ResultSetMetaData rsmd = rs.getMetaData();
             assertProcedureColumns(rsmd, columnNames, columnTypes);
         }
@@ -645,6 +647,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     Types.VARCHAR,
                     Types.VARCHAR);
             ResultSetMetaData rsmd = dbmd.getProcedureColumns(null, null, null, null).getMetaData();
+
             assertProcedureColumns(rsmd, expectedColumnNames, columnTypes);
         }
     }
@@ -655,7 +658,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getColumnPrivileges(null, null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
                     "TABLE_SCHEM",
                     "TABLE_NAME",
@@ -686,7 +689,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getTablePrivileges(null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
                     "TABLE_SCHEM",
                     "TABLE_NAME",
@@ -714,7 +717,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getVersionColumns(null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("SCOPE",
                     "COLUMN_NAME",
                     "DATA_TYPE",
@@ -771,8 +774,10 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getImportedKeys(null, null, null);
+            assertFalse(rs.next());
 
-            List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
+            List<String> expectedColumnNames = Arrays.asList(
+                    "PKTABLE_CAT",
                     "PKTABLE_SCHEM",
                     "PKTABLE_NAME",
                     "PKCOLUMN_NAME",
@@ -813,7 +818,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getExportedKeys(null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
                     "PKTABLE_SCHEM",
                     "PKTABLE_NAME",
@@ -856,7 +861,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getCrossReference(null, null, null, null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("PKTABLE_CAT",
                     "PKTABLE_SCHEM",
                     "PKTABLE_NAME",
@@ -898,7 +903,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getUDTs(null, null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
                     "TYPE_SCHEM",
                     "TYPE_NAME",
@@ -927,7 +932,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getSuperTypes(null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
                     "TYPE_SCHEM",
                     "TYPE_NAME",
@@ -953,7 +958,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getSuperTables(null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
                     "TABLE_SCHEM",
                     "TABLE_NAME",
@@ -976,7 +981,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getBestRowIdentifier(null, null, null, 0, true);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("SCOPE",
                     "COLUMN_NAME",
                     "DATA_TYPE",
@@ -1007,7 +1012,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getAttributes(null, null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TYPE_CAT",
                     "TYPE_SCHEM",
                     "TYPE_NAME",
@@ -1064,7 +1069,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getPseudoColumns(null, null, null, null);
-
+            assertFalse(rs.next());
             List<String> expectedColumnNames = Arrays.asList("TABLE_CAT",
                     "TABLE_SCHEM",
                     "TABLE_NAME",

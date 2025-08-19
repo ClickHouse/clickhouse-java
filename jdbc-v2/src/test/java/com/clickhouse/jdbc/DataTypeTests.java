@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
@@ -1393,7 +1395,32 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" })
+    public void testReadingJSONBinary() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,24.8]")) {
+            return; // JSON was introduced in 24.10
+        }
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement()) {
+
+            final String json = "{\"count\": 1000, \"event\": { \"name\": \"start\", \"value\": 0.10} }";
+            String sql = String.format("SELECT %1$s::JSON(), %1$s::JSON(count Int16)", SQLUtils.enquoteLiteral(json));
+            try (ResultSet rs = stmt.executeQuery(sql)) {
+                rs.next();
+
+                Map<String, Object> val1 = (Map<String, Object>) rs.getObject(1);
+                assertEquals(val1.get("count"), 1000L);
+                Map<String, Object> val2 = (Map<String, Object>) rs.getObject(2);
+                assertEquals(val2.get("count"), (short)1000);
+            }
+        }
+    }
+
+
+        @Test(groups = { "integration" }, enabled = false)
     public void testGeometricTypesSimpleStatement() throws SQLException {
         // TODO: add LineString and MultiLineString support
         runQuery("CREATE TABLE test_geometric (order Int8, "
