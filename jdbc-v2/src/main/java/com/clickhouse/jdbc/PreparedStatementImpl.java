@@ -756,6 +756,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     
     private static final char QUOTE = '\'';
 
+    private static final char O_BRACKET = '[';
+    private static final char C_BRACKET = ']';
+
     private String encodeObject(Object x, Long length) throws SQLException {
         LOG.trace("Encoding object: {}", x);
 
@@ -788,20 +791,20 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
             } else if (x instanceof java.sql.Array) {
                 StringBuilder listString = new StringBuilder();
-                listString.append('[');
+                listString.append(O_BRACKET);
                 appendArrayElements((Object[]) ((Array) x).getArray(), listString);
-                listString.append(']');
+                listString.append(C_BRACKET);
 
                 return listString.toString();
             } else if (x instanceof Object[]) {
                 StringBuilder arrayString = new StringBuilder();
-                arrayString.append('[');
+                arrayString.append(O_BRACKET);
                 appendArrayElements((Object[]) x, arrayString);
-                arrayString.append(']');
+                arrayString.append(C_BRACKET);
                 return arrayString.toString();
             } else if (x.getClass().isArray()) {
                 StringBuilder listString = new StringBuilder();
-                listString.append('[');
+                listString.append(O_BRACKET);
                 if (x.getClass().getComponentType().isPrimitive()) {
                     int len = java.lang.reflect.Array.getLength(x);
                     for (int  i = 0; i < len; i++) {
@@ -813,12 +816,12 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 } else {
                     appendArrayElements((Object[]) x, listString);
                 }
-                listString.append(']');
+                listString.append(C_BRACKET);
 
                 return listString.toString();
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
-                listString.append('[');
+                listString.append(O_BRACKET);
                 Collection<?> collection = (Collection<?>) x;
                 for (Object item : collection) {
                     listString.append(encodeObject(item)).append(',');
@@ -826,7 +829,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 if (!collection.isEmpty()) {
                     listString.setLength(listString.length() - 1);
                 }
-                listString.append(']');
+                listString.append(C_BRACKET);
 
                 return listString.toString();
             } else if (x instanceof Map) {
