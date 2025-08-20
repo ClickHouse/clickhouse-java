@@ -53,17 +53,6 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
         return columns.size();
     }
 
-    /**
-     * This method used to truncate list of column so it is possible to
-     * "hide" columns from the end of the list.
-     * Note: we use this to implement column replacement. it is needed when DB calculation is too hard compare to a
-     * programmatic approach.
-     * @param columnCount
-     */
-    public void setColumnCount(int columnCount) {
-        this.columnCount = columnCount;
-    }
-
     @Override
     public boolean isAutoIncrement(int column) throws SQLException {
         return false; // no auto-incremental types

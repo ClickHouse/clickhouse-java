@@ -175,7 +175,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 if (decimalDigits != null) {
                     assertEquals(rs.getInt("DECIMAL_DIGITS"), decimalDigits.intValue());
                 } else {
-                    assertEquals(0, rs.getInt("DECIMAL_DIGITS")); // should not throw exception
+                    assertEquals(rs.getInt("DECIMAL_DIGITS"), 0); // should not throw exception
                     assertTrue(rs.wasNull());
                 }
                 Integer precisionRadix = columnRadix.get(colIndex);

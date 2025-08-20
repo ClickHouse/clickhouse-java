@@ -3,7 +3,6 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.FeatureManager;
@@ -50,9 +49,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private final FeatureManager  featureManager;
 
-    private static final int AFTER_LAST = -1;
-    private static final int BEFORE_FIRST = 0;
-    private static final int FIRST_ROW = 1;
+    public static final int AFTER_LAST = -1;
+    public static final int BEFORE_FIRST = 0;
+    public static final int FIRST_ROW = 1;
     private int rowPos;
 
     private int fetchSize;
@@ -155,14 +154,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         if (e != null) {
             throw ExceptionUtils.toSqlState(e);
         }
-    }
-
-    public void setValueFunction(int colIndex, ClickHouseColumn.ValueFunction valueFunction) {
-        reader.setValueFunction(colIndex, valueFunction);
-    }
-
-    public void hideLastNColumns(int n) {
-        metaData.setColumnCount(metaData.getOriginalColumnCount() - n);
     }
 
     @Override

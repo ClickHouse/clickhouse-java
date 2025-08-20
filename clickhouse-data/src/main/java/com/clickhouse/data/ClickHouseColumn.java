@@ -37,8 +37,6 @@ import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.math.BigInteger;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,7 +91,6 @@ public final class ClickHouseColumn implements Serializable {
     private List<String> parameters;
     private ClickHouseEnum enumConstants;
     private Map<String, ClickHouseColumn> jsonPredefinedPaths;
-    private ValueFunction valueFunction;
 
     private int arrayLevel;
     private ClickHouseColumn arrayBaseColumn;
@@ -856,18 +853,6 @@ public final class ClickHouseColumn implements Serializable {
         return dataType.isNested();
     }
 
-    public boolean hasValueFunction() {
-        return valueFunction != null;
-    }
-
-    public void setValueFunction(ValueFunction valueFunction) {
-        this.valueFunction = valueFunction;
-    }
-
-    public ValueFunction getValueFunction() {
-        return valueFunction;
-    }
-
     public int getArrayNestedLevel() {
         return arrayLevel;
     }
@@ -1212,8 +1197,4 @@ public final class ClickHouseColumn implements Serializable {
         return builder.append(' ').append(originalTypeName).toString();
     }
 
-    public interface ValueFunction {
-
-        Object produceValue(Object[] row);
-    }
 }
