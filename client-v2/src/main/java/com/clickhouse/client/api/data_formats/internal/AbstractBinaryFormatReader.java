@@ -176,8 +176,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         boolean firstColumn = true;
         for (int i = 0; i < columns.length; i++) {
             try {
-                ClickHouseColumn column = columns[i];
-                Object val = binaryStreamReader.readValue(column);
+                Object val = binaryStreamReader.readValue(columns[i]);
                 if (val != null) {
                     record[i] = val;
                 } else {
@@ -192,10 +191,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 throw e;
             }
         }
-
         return true;
     }
-
 
     @Override
     public <T> T readValue(int colIndex) {

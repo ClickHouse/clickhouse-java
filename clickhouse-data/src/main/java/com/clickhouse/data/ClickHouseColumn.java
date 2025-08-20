@@ -1196,5 +1196,4 @@ public final class ClickHouseColumn implements Serializable {
         }
         return builder.append(' ').append(originalTypeName).toString();
     }
-
 }

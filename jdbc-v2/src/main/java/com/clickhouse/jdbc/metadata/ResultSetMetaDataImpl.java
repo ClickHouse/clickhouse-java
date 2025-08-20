@@ -6,7 +6,6 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableListIterator;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -24,8 +23,6 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     private final Map<ClickHouseDataType, Class<?>> typeClassMap;
 
-    private int columnCount;
-
     public ResultSetMetaDataImpl(List<ClickHouseColumn> columns, String schema, String catalog, String tableName,
                                  Map<ClickHouseDataType, Class<?>> typeClassMap) {
         this.columns = ImmutableList.copyOf(columns);
@@ -33,7 +30,6 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
         this.catalog = catalog;
         this.tableName = tableName;
         this.typeClassMap = typeClassMap;
-        this.columnCount = columns.size();
     }
 
     private ClickHouseColumn getColumn(int column) throws SQLException {
@@ -46,10 +42,6 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public int getColumnCount() throws SQLException {
-        return columnCount;
-    }
-
-    public int getOriginalColumnCount() {
         return columns.size();
     }
 
