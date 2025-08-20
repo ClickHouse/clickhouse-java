@@ -91,7 +91,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public boolean next() throws SQLException {
-
+        ensureOpen();
         if (iterator.hasNext()) {
             row++;
             record  = iterator.next();
@@ -111,6 +111,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public boolean wasNull() throws SQLException {
+        ensureOpen();
         return wasNull;
     }
 
@@ -196,41 +197,49 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getString(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel,  String.class);
     }
 
 
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
-        return getObject(columnLabel,  Boolean.class);
+        ensureOpen();
+        return (boolean) getObjectImpl(columnLabel,  Boolean.class, Boolean.FALSE);
     }
 
     private Number getNumber(String columnLabel) throws SQLException {
+        ensureOpen();
         return (Number) getObjectImpl(columnLabel, Number.class, BigInteger.ZERO);
     }
 
     @Override
     public byte getByte(String columnLabel) throws SQLException {
+        ensureOpen();
         return getNumber(columnLabel).byteValue();
     }
 
     @Override
     public short getShort(String columnLabel) throws SQLException {
+        ensureOpen();
         return getNumber(columnLabel).shortValue();
     }
 
     @Override
     public int getInt(String columnLabel) throws SQLException {
+        ensureOpen();
         return getNumber(columnLabel).intValue();
     }
 
     @Override
     public long getLong(String columnLabel) throws SQLException {
+        ensureOpen();
         return getNumber(columnLabel).longValue();
     }
 
     @Override
     public float getFloat(String columnLabel) throws SQLException {
+        ensureOpen();
         return getNumber(columnLabel).floatValue();
     }
 
@@ -241,61 +250,72 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, BigDecimal.class);
     }
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, byte[].class);
     }
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, Date.class);
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, Time.class);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, Timestamp.class);
     }
 
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, InputStream.class);
     }
 
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, InputStream.class);
     }
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
+        ensureOpen();
         return getObject(columnLabel, InputStream.class);
     }
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        ensureOpen();
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public String getCursorName() throws SQLException {
+        ensureOpen();
         return "";
     }
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
+        ensureOpen();
         return metaData;
     }
 
@@ -311,6 +331,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public int findColumn(String columnLabel) throws SQLException {
+        ensureOpen();
         Integer index = columnMap.get(columnLabel);
         if (index == null) {
             throw new SQLException("Column not found: " + columnLabel, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
@@ -340,64 +361,77 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public boolean isBeforeFirst() throws SQLException {
+        ensureOpen();
         return row == ResultSetImpl.BEFORE_FIRST;
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
+        ensureOpen();
         return row == ResultSetImpl.AFTER_LAST;
     }
 
     @Override
     public boolean isFirst() throws SQLException {
+        ensureOpen();
         return row == ResultSetImpl.FIRST_ROW;
     }
 
     @Override
     public boolean isLast() throws SQLException {
+        ensureOpen();
         return row == lastRow;
     }
 
     @Override
     public void beforeFirst() throws SQLException {
+        ensureOpen();
     }
 
     @Override
     public void afterLast() throws SQLException {
+        ensureOpen();
     }
 
     @Override
     public boolean first() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public boolean last() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public int getRow() throws SQLException {
-        return row;
+        ensureOpen();
+        return Math.max(row, 0);
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public boolean relative(int rows) throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public boolean previous() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
+        ensureOpen();
         if (direction != ResultSet.FETCH_FORWARD) {
             throw new SQLException("This result set object is of FORWARD ONLY type. Only ResultSet.FETCH_FORWARD is allowed as fetchDirection.");
         }
@@ -405,270 +439,279 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public int getFetchDirection() throws SQLException {
+        ensureOpen();
         return FETCH_FORWARD;
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public int getFetchSize() throws SQLException {
+        ensureOpen();
         return 0;
     }
 
     @Override
     public int getType() throws SQLException {
+        ensureOpen();
         return TYPE_FORWARD_ONLY;
     }
 
     @Override
     public int getConcurrency() throws SQLException {
+        ensureOpen();
         return CONCUR_READ_ONLY;
     }
 
     @Override
     public boolean rowUpdated() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public boolean rowInserted() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public boolean rowDeleted() throws SQLException {
+        ensureOpen();
         return false;
     }
 
     @Override
     public void updateNull(int columnIndex) throws SQLException {
+        ensureOpen();
     }
 
     @Override
     public void updateBoolean(int columnIndex, boolean x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateByte(int columnIndex, byte x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateShort(int columnIndex, short x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateInt(int columnIndex, int x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateLong(int columnIndex, long x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateFloat(int columnIndex, float x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateDouble(int columnIndex, double x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateString(int columnIndex, String x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateDate(int columnIndex, Date x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateTime(int columnIndex, Time x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateObject(int columnIndex, Object x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNull(String columnLabel) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBoolean(String columnLabel, boolean x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateByte(String columnLabel, byte x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateShort(String columnLabel, short x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateInt(String columnLabel, int x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateLong(String columnLabel, long x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateFloat(String columnLabel, float x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateDouble(String columnLabel, double x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBigDecimal(String columnLabel, BigDecimal x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateString(String columnLabel, String x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBytes(String columnLabel, byte[] x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateDate(String columnLabel, Date x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateTime(String columnLabel, Time x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateTimestamp(String columnLabel, Timestamp x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, int length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateObject(String columnLabel, Object x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void insertRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void deleteRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void refreshRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void cancelRowUpdates() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void moveToInsertRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void moveToCurrentRow() throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public Statement getStatement() throws SQLException {
+        ensureOpen();
         return null; // should return null as it is a detached result set
     }
 
@@ -699,6 +742,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
+        ensureOpen();
         if (map == null) {
             throw new SQLException("map must be not null", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
@@ -738,6 +782,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
+        ensureOpen();
         return null;
     }
 
@@ -748,6 +793,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
+        ensureOpen();
         return null;
     }
 
@@ -758,6 +804,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
+        ensureOpen();
         return null;
     }
 
@@ -773,42 +820,42 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRef(int columnIndex, Ref x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateRef(String columnLabel, Ref x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(int columnIndex, Blob x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(String columnLabel, Blob x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(int columnIndex, Clob x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(String columnLabel, Clob x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateArray(int columnIndex, Array x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateArray(String columnLabel, Array x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
@@ -823,16 +870,17 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateRowId(int columnIndex, RowId x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateRowId(String columnLabel, RowId x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public int getHoldability() throws SQLException {
+        ensureOpen();
         return HOLD_CURSORS_OVER_COMMIT; // this result set remains open
     }
 
@@ -843,22 +891,22 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNString(int columnIndex, String nString) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNString(String columnLabel, String nString) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(String columnLabel, NClob nClob) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
@@ -883,12 +931,12 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateSQLXML(String columnLabel, SQLXML xmlObject) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
@@ -913,142 +961,142 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(String columnLabel, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(String columnLabel, Reader reader, long length) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNCharacterStream(String columnLabel, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateAsciiStream(String columnLabel, InputStream x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBinaryStream(String columnLabel, InputStream x) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateCharacterStream(String columnLabel, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateBlob(String columnLabel, InputStream inputStream) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(int columnIndex, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateClob(String columnLabel, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(int columnIndex, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
     public void updateNClob(String columnLabel, Reader reader) throws SQLException {
-
+        ensureOpen();
     }
 
     @Override
@@ -1058,6 +1106,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
+        ensureOpen();
         return (T) getObjectImpl(columnLabel, type, null);
     }
 
@@ -1069,5 +1118,11 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
         }
 
         return JdbcUtils.convert(value, type);
+    }
+
+    private void ensureOpen() throws SQLException {
+        if (closed) {
+            throw new SQLException("ResultSet is closed.", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION);
+        }
     }
 }
