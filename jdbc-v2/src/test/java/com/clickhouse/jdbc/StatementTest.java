@@ -958,7 +958,7 @@ public class StatementTest extends JdbcIntegrationTest {
             stmt.setQueryTimeout(100);
             Assert.assertEquals(stmt.getQueryTimeout(), 100);
             stmt.setFetchSize(100);
-            Assert.assertEquals(stmt.getFetchSize(), 0); // we ignore this hint
+            Assert.assertEquals(stmt.getFetchSize(), 100); // we ignore this hint
             Assert.assertEquals(stmt.getResultSetConcurrency(), ResultSet.CONCUR_READ_ONLY);
             Assert.assertEquals(stmt.getResultSetType(), ResultSet.TYPE_FORWARD_ONLY);
             Assert.assertNotNull(stmt.getConnection());
