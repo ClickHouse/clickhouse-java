@@ -59,6 +59,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -790,12 +791,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof InetAddress) {
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
             } else if (x instanceof java.sql.Array) {
-                StringBuilder listString = new StringBuilder();
-                listString.append(O_BRACKET);
-                appendArrayElements((Object[]) ((Array) x).getArray(), listString);
-                listString.append(C_BRACKET);
-
-                return listString.toString();
+                com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
+                int nestedLevel = Math.max(1, array.getNestedLevel());
+                if (array.getBaseDataType() == ClickHouseDataType.Tuple) {
+                    return encodeTuple((Object[]) array.getArray());
+                } else {
+                    return encodeArray((Object[]) array.getArray(), Math.max(1, array.getNestedLevel()), array.getBaseDataType());
+                }
             } else if (x instanceof Object[]) {
                 StringBuilder arrayString = new StringBuilder();
                 arrayString.append(O_BRACKET);
@@ -851,9 +853,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof InputStream) {
                 return encodeCharacterStream((InputStream) x, length);
             } else if (x instanceof Tuple) {
-                return arrayToTuple(((Tuple)x).getValues());
+                return encodeTuple(((Tuple)x).getValues());
             } else if (x instanceof Struct) {
-                return arrayToTuple(((Struct)x).getAttributes());
+                return encodeTuple(((Struct)x).getAttributes());
             } else if (x instanceof UUID) {
                 return QUOTE + ((UUID) x).toString() + QUOTE;
             }
@@ -866,20 +868,96 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private void appendArrayElements(Object[] array, StringBuilder sb) throws SQLException {
+        appendArrayElements(array, sb, null);
+    }
+
+    private void appendArrayElements(Object[] array, StringBuilder sb, ClickHouseDataType elementType) throws SQLException {
+        if (array == null) {
+            return;
+        }
         for (Object item : array) {
-            sb.append(encodeObject(item)).append(',');
+            if (elementType == ClickHouseDataType.Tuple && item != null && item.getClass().isArray()) {
+                sb.append(encodeTuple((Object[]) item));
+            } else {
+                sb.append(encodeObject(item)).append(',');
+            }
         }
         if (array.length > 0) {
             sb.setLength(sb.length() - 1);
         }
     }
 
-    private String arrayToTuple(Object[] array) throws SQLException {
-        StringBuilder tupleString = new StringBuilder();
-        tupleString.append('(');
-        appendArrayElements(array, tupleString);
-        tupleString.append(')');
-        return tupleString.toString();
+    public String encodeArray(Object[] elements, int levels, ClickHouseDataType elementType) throws SQLException {
+        if (elements == null) {
+            return "[]";
+        }
+
+        StringBuilder arraySb = new StringBuilder();
+        Stack<ArrayProcessingCursor> stack = new Stack<>();
+        ArrayProcessingCursor cursor = new ArrayProcessingCursor(elements, 0, levels);
+
+        arraySb.append(O_BRACKET);
+        while (cursor != null) {
+            if (cursor.pos >= cursor.array.length) {
+                if (cursor.array.length > 0) {
+                    arraySb.setLength(arraySb.length() - 1);
+                }
+                arraySb.append(C_BRACKET);
+                cursor = stack.isEmpty() ? null : stack.pop();
+                if (cursor != null) {
+                    arraySb.append(',');
+                }
+                continue;
+            }
+
+            Object element = cursor.array[cursor.pos];
+            if (element == null) {
+                if (cursor.level == 1) {
+                    arraySb.append("NULL");
+                } else {
+                    arraySb.append("[]");
+                }
+                arraySb.append(',');
+                cursor.pos++;
+            } else if (cursor.isTuples) {
+                arraySb.append(encodeTuple((Object[]) element)).append(',');
+                cursor.pos++;
+            } else if (cursor.level == 1 && element.getClass().isArray() && elementType == ClickHouseDataType.Tuple) {
+                cursor.isTuples = true;
+            } else if (cursor.level == 1) {
+                arraySb.append(encodeObject(element)).append(',');
+                cursor.pos++;
+            } else {
+                cursor.pos++;
+                stack.push(cursor);
+                cursor = new  ArrayProcessingCursor((Object[]) element, 0, cursor.level - 1);
+                arraySb.append(O_BRACKET);
+            }
+        }
+
+        return arraySb.toString();
+    }
+
+    private static final class ArrayProcessingCursor {
+        Object[] array; // current array
+        int pos; // processing position
+        int level;
+        boolean isTuples = false;
+        boolean isElements = false;
+        public  ArrayProcessingCursor(Object[] array, int pos, int level) {
+            this.array = array;
+            this.pos = pos;
+            this.level = level;
+        }
+    }
+
+    private String encodeTuple(Object[] array) throws SQLException {
+        StringBuilder sb = new StringBuilder('(');
+        if (array != null) {
+            appendArrayElements(array, sb);
+        }
+        sb.append(')');
+        return sb.toString();
     }
 
     private static String encodeCharacterStream(InputStream stream, Long length) throws SQLException {

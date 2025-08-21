@@ -530,6 +530,20 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         return clientInfo;
     }
 
+    /**
+     * Creating multilevel arrays may be confusing.
+     * Spec doesn't tell much about it so there may be different variants.
+     * Note: createArrayOf() expect type name be for element of the array and for
+     * Array(Array(Int8)) it should be Int8 according to spec. However element type
+     * of 1st level array is Array(Int8)
+     * @param typeName the SQL name of the type the elements of the array map to. The typeName is a
+     * database-specific name which may be the name of a built-in type, a user-defined type or a standard  SQL type supported by this database. This
+     *  is the value returned by {@code Array.getBaseTypeName}
+     *
+     * @param elements the elements that populate the returned object
+     * @return
+     * @throws SQLException
+     */
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
         ensureOpen();
@@ -537,17 +551,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
 
-
-        int parentPos = typeName.indexOf('(');
-        int endPos = parentPos ==  -1 ? typeName.length() : parentPos;
-        String clickhouseDataTypeName = (typeName.substring(0, endPos)).trim();
-        ClickHouseDataType dataType = ClickHouseDataType.valueOf(clickhouseDataTypeName);
-        if (dataType.equals(ClickHouseDataType.Array)) {
-            throw new SQLException("Array cannot be a base type. In case of nested array provide most deep element type name.");
-        }
+        ClickHouseColumn column = ClickHouseColumn.of("array", typeName);
         try {
-            return new com.clickhouse.jdbc.types.Array(elements, typeName,
-                    JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(dataType, JDBCType.OTHER).getVendorTypeNumber());
+            return new com.clickhouse.jdbc.types.Array(column, elements);
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }

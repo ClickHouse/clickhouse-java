@@ -269,19 +269,18 @@ public class JdbcUtils {
                 BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) value;
                 if (column != null && column.getArrayBaseColumn() != null) {
                     ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                    Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(),
-                            JdbcUtils.convertToJavaClass(baseType));
-                    return new Array(convertedValues, baseType.getName(), baseType.getVendorTypeNumber());
+                    Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(), JdbcUtils.convertToJavaClass(baseType));
+                    return new Array(column, convertedValues);
                 }
-                return new Array(arrayValue.getArrayOfObjects(), "Unknown", JDBCType.OTHER.getVendorTypeNumber());
+                return new Array(column, arrayValue.getArrayOfObjects());
             } else if (type == java.sql.Array.class && value instanceof List<?>) {
                 if (column != null && column.getArrayBaseColumn() != null) {
                     ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                    return new Array(convertList((List<?>) value, JdbcUtils.convertToJavaClass(baseType)),
-                            baseType.getName(), JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseType, JDBCType.OTHER).getVendorTypeNumber());
+                    Object[] convertedValues = convertList((List<?>) value, JdbcUtils.convertToJavaClass(baseType));
+                    return new Array(column, convertedValues);
                 }
                 // base type is unknown. all objects should be converted
-                return new Array(((List<?>) value).toArray(), "Unknown", JDBCType.OTHER.getVendorTypeNumber());
+                return new Array(column, ((List<?>) value).toArray());
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return InetAddressConverter.convertToIpv4((InetAddress) value);

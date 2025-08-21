@@ -38,6 +38,7 @@ import java.time.ZoneId;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
@@ -377,9 +378,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
     public void testCreateArray() throws SQLException {
         try (Connection conn = getJdbcConnection()) {
 
-            Assert.expectThrows(SQLException.class, () -> conn.createArrayOf("Array()", new Integer[] {1}));
-
-
             final String baseType = "Tuple(String, Int8)";
             final String tableName = "array_create_test";
             final String arrayType = "Array(Array(" + baseType + "))";
@@ -458,7 +456,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 }
             };
 
-
             verification.accept("Int8", new Byte[] {1, 2, 3});
             verification.accept("Int16", new Short[] {Short.MIN_VALUE, -1, 0, 1, Short.MAX_VALUE});
             verification.accept("Int32", new Integer[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE});
@@ -502,6 +499,88 @@ public class ConnectionTest extends JdbcIntegrationTest {
                     (Inet6Address) Inet6Address.getByName("::1"),
                     (Inet6Address) Inet6Address.getByName("2001:db8::1"),
             });
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCreateArrayVariants() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+
+            // it is valid
+            {
+                Array array = conn.createArrayOf("Nullable(String)", (Object[]) null);
+                assertNull(array.getArray());
+                assertThrows(SQLException.class, () -> array.getArray(10, 10));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> array.getArray(10, 10, Collections.emptyMap()));
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Nullable(String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Nullable(String))");
+                        assertEquals(rs.getArray(1).getArray(), new String[] {});
+//                        assertEquals(rs.getArray(1).getArray().getClass(), String[].class); // TODO: fix
+                    }
+                }
+            }
+
+            // array of nullables
+            {
+                String[] strings = new String[] {"one", null, "five"};
+                Array array = conn.createArrayOf("Nullable(String)", strings);
+                assertNotNull(array.getArray());
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Nullable(String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Nullable(String))");
+                    }
+                }
+            }
+
+            // multi-level array
+            {
+                Object[][] table = new Object[][] {
+                        {1, 2 ,3, 4, 5},
+                        {10, 20, 30, 40, 50, },
+                };
+                Array array = conn.createArrayOf("Array(Array(Int32))", table);
+
+            }
+
+
+            // array of tuples
+            {
+                Object[][] tuples = new Object[][] {
+                        {"tuple1", 10},
+                        {"tuple2", 20},
+                };
+                Array array = conn.createArrayOf("Tuple(String, Int32)", tuples);
+                assertNotNull(array.getArray());
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Tuple(String, Int32)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Tuple(String, Int32))");
+                    }
+                }
+            }
+
+            {
+                Array tuple1 = conn.createArrayOf("String", new String[] {"one", "two"});
+                Array tuple2 = conn.createArrayOf("String", new String[] {"three", "four"});
+                Array array = conn.createArrayOf("Tuple(String, String)", new  Object[] {tuple1, tuple2});
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Tuple(String, String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Tuple(String, String))");
+                    }
+                }
+            }
         }
     }
 

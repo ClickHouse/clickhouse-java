@@ -1,41 +1,44 @@
 package com.clickhouse.jdbc.types;
 
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.List;
 import java.util.Map;
 
 public class Array implements java.sql.Array {
     private static final Logger log = LoggerFactory.getLogger(Array.class);
 
+    private final ClickHouseColumn column;
     private Object[] array;
     private final int type; //java.sql.Types
     private final String elementTypeName;
     private boolean valid;
+    private final ClickHouseDataType baseDataType;
 
-    /**
-     * @deprecated this constructor should not be used. Elements array should be constructed externally.
-     */
-    public Array(List<Object> list, String elementTypeName, int itemType) throws SQLException {
-        this(list.toArray(), elementTypeName, itemType);
+    public Array(ClickHouseColumn column, Object[] elements) throws SQLException {
+        this.column = column;
+        this.array = elements;
+        ClickHouseColumn baseColumn = (this.column.isArray() ? this.column.getArrayBaseColumn() : this.column);
+        this.baseDataType = baseColumn.getDataType();
+        this.elementTypeName = baseColumn.getOriginalTypeName();
+        this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseDataType, JDBCType.OTHER).getVendorTypeNumber();
+        this.valid = true;
     }
 
-    public Array(Object[] elements, String elementTypeName,  int itemType) throws SQLException {
-        if (elements == null) {
-            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array cannot be null"));
-        }
-        if  (elementTypeName == null) {
-            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array element type name cannot be null"));
-        }
-        this.array = elements;
-        this.type = itemType;
-        this.elementTypeName = elementTypeName;
-        this.valid = true;
+    public ClickHouseDataType getBaseDataType() {
+        return baseDataType;
+    }
+
+    public int getNestedLevel() {
+        return column.getArrayNestedLevel();
     }
 
     @Override
@@ -70,7 +73,7 @@ public class Array implements java.sql.Array {
         if (count < 0) {
             throw new SQLException("Count cannot be negative");
         }
-        if (count > (array.length - index)) {
+        if (array == null || count > (array.length - index)) {
             throw new SQLException("Not enough elements after index " + index);
         }
 
