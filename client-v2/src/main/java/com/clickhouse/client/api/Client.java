@@ -1204,14 +1204,17 @@ public class Client implements AutoCloseable {
             settings = new InsertSettings();
         }
 
+        final InsertSettings requestSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
+
         String operationId = registerOperationMetrics();
-        settings.setOperationId(operationId);
+        requestSettings.setOperationId(operationId);
         globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
 
         boolean hasDefaults = this.tableSchemaHasDefaults.get(tableName);
         ClickHouseFormat format = hasDefaults? ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary;
+        requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         TableSchema tableSchema = tableSchemaCache.get(tableName);
         if (tableSchema == null) {
             throw new IllegalArgumentException("Table schema not found for table: " + tableName + ". Did you forget to register it?");
@@ -1235,8 +1238,7 @@ public class Client implements AutoCloseable {
         Integer retry = (Integer) configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         final int maxRetries = retry == null ? 0 : retry;
 
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
-        final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
+        requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1246,7 +1248,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory,
+                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1278,14 +1280,14 @@ public class Client implements AutoCloseable {
                     OperationMetrics metrics = new OperationMetrics(clientStats);
                     String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                     ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
                     lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
                             (i + 1), (maxRetries + 1), System.nanoTime() - startTime), e);
-                    if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
@@ -1296,7 +1298,7 @@ public class Client implements AutoCloseable {
             throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + (System.nanoTime() - startTime), lastException);
         };
 
-        return runAsyncOperation(supplier, settings.getAllSettings());
+        return runAsyncOperation(supplier, requestSettings.getAllSettings());
 
     }
 
@@ -1415,8 +1417,13 @@ public class Client implements AutoCloseable {
                                      DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
+        if (settings == null) {
+            throw new  IllegalArgumentException("Settings cannot be null");
+        }
+        final InsertSettings requestSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
+        requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
 
-        String operationId = settings.getOperationId();
+        String operationId = requestSettings.getOperationId();
         ClientStatisticsHolder clientStats = null;
         if (operationId != null) {
             clientStats = globalClientStats.remove(operationId);
@@ -1430,16 +1437,13 @@ public class Client implements AutoCloseable {
 
         Supplier<InsertResponse> responseSupplier;
 
-        final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
+        final int writeBufferSize = requestSettings.getInputStreamCopyBufferSize() <= 0 ?
                 (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
-                settings.getInputStreamCopyBufferSize();
+                requestSettings.getInputStreamCopyBufferSize();
 
         if (writeBufferSize <= 0) {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
-
-        settings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
-        final InsertSettings finalSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
 
         StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);
         if (columnNames != null && !columnNames.isEmpty()) {
@@ -1451,7 +1455,7 @@ public class Client implements AutoCloseable {
             sqlStmt.append(")");
         }
         sqlStmt.append(" FORMAT ").append(format.name());
-        finalSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
+        requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1461,7 +1465,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory,
+                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1478,14 +1482,14 @@ public class Client implements AutoCloseable {
                     OperationMetrics metrics = new OperationMetrics(finalClientStats);
                     String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                     ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId(), String::valueOf);
+                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
                     lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
                             (i + 1), (retries + 1), System.nanoTime() - startTime), e);
-                    if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
@@ -1502,10 +1506,10 @@ public class Client implements AutoCloseable {
                 }
             }
             LOG.warn("Insert request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
-            throw lastException;
+            throw (lastException == null ? new ClientException("Failed to complete insert operation") : lastException);
         };
 
-        return runAsyncOperation(responseSupplier, settings.getAllSettings());
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
 
     /**
@@ -1564,8 +1568,10 @@ public class Client implements AutoCloseable {
         if (settings == null) {
             settings = new QuerySettings();
         }
-        if (settings.getFormat() == null) {
-            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
+
+        if (requestSettings.getFormat() == null) {
+            requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
@@ -1573,9 +1579,8 @@ public class Client implements AutoCloseable {
         Supplier<QueryResponse> responseSupplier;
 
             if (queryParams != null) {
-                settings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+                requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
             }
-            final QuerySettings finalSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
             responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1585,7 +1590,7 @@ public class Client implements AutoCloseable {
                     ClassicHttpResponse httpResponse = null;
                     try {
                         httpResponse =
-                                httpClientHelper.executeRequest(selectedEndpoint, finalSettings.getAllSettings(), lz4Factory, output -> {
+                                httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
                                     output.close();
                                 });
@@ -1602,22 +1607,22 @@ public class Client implements AutoCloseable {
                                 .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
                         ProcessParser.parseSummary(summary, metrics);
                         String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), finalSettings.getQueryId());
+                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId());
                         metrics.setQueryId(queryId);
                         metrics.operationComplete();
                         Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
-                        ClickHouseFormat responseFormat = finalSettings.getFormat();
+                        ClickHouseFormat responseFormat = requestSettings.getFormat();
                         if (formatHeader != null) {
                             responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
                         }
 
-                        return new QueryResponse(httpResponse, responseFormat, finalSettings, metrics);
+                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics);
 
                     } catch (Exception e) {
                         httpClientHelper.closeQuietly(httpResponse);
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
                                 (i + 1), (retries + 1), System.nanoTime() - startTime), e);
-                        if (httpClientHelper.shouldRetry(e, finalSettings.getAllSettings())) {
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
                         } else {
@@ -1626,10 +1631,10 @@ public class Client implements AutoCloseable {
                     }
                 }
                 LOG.warn("Query request failed after attempts: " + (retries + 1) + " - Duration: " + (System.nanoTime() - startTime));
-                throw lastException;
+                throw (lastException == null ? new ClientException("Failed to complete query") : lastException);
             };
 
-        return runAsyncOperation(responseSupplier, settings.getAllSettings());
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
         return query(sqlQuery, queryParams, null);
@@ -1674,10 +1679,11 @@ public class Client implements AutoCloseable {
         if (settings == null) {
             settings = new QuerySettings();
         }
-        settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        settings.waitEndOfQuery(true); // we rely on the summery
+        final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
+        requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        requestSettings.waitEndOfQuery(true); // we rely on the summery
 
-        return query(sqlQuery, params, settings).thenApply(response -> {
+        return query(sqlQuery, params, requestSettings).thenApply(response -> {
             try {
 
                 return new Records(response, newBinaryFormatReader(response));
@@ -1708,9 +1714,11 @@ public class Client implements AutoCloseable {
         }
         try {
             int operationTimeout = getOperationTimeout();
-            settings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                    .waitEndOfQuery(true);
-            CompletableFuture<QueryResponse> f = query(sqlQuery, params, settings);
+            final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
+            requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            requestSettings.waitEndOfQuery(true);
+
+            CompletableFuture<QueryResponse> f = query(sqlQuery, params, requestSettings);
             try (QueryResponse response = operationTimeout == 0 ? f.get() : f.get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
                 if (response.getResultRows() > 0) {
