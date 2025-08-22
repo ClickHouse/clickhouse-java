@@ -23,6 +23,11 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -46,6 +51,8 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     private ResultSetMetaData metaData;
 
+    private final Calendar defaultCalendar;
+
     private Map<String, Object> record;
 
     private boolean wasNull;
@@ -58,10 +65,11 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
 
     private Map<String, Integer> columnMap;
 
-    private DetachedResultSet(List<Map<String, Object>> records, ResultSetMetaData metaData) throws SQLException {
+    private DetachedResultSet(List<Map<String, Object>> records, ResultSetMetaData metaData, Calendar defaultCalendar) throws SQLException {
         this.records = records;
         this.iterator = records.listIterator();
         this.metaData = metaData;
+        this.defaultCalendar = defaultCalendar;
         this.wasNull = false;
         this.row = ResultSetImpl.BEFORE_FIRST;
         this.lastRow = records.size();
@@ -73,7 +81,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
         }
     }
 
-    public static DetachedResultSet createFromResultSet(ResultSet resultSet, Collection<Consumer<Map<String, Object>>> mutators) throws SQLException {
+    public static DetachedResultSet createFromResultSet(ResultSet resultSet, Calendar defaultCalendar, Collection<Consumer<Map<String, Object>>> mutators) throws SQLException {
         ResultSetMetaData  metaData = resultSet.getMetaData();
         List<Map<String, Object>> records = new ArrayList<>();
         while (resultSet.next()) {
@@ -86,7 +94,7 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
             }
             records.add(record);
         }
-        return new DetachedResultSet(records, metaData);
+        return new DetachedResultSet(records, metaData, defaultCalendar);
     }
 
     @Override
@@ -263,19 +271,19 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
     @Override
     public Date getDate(String columnLabel) throws SQLException {
         ensureOpen();
-        return getObject(columnLabel, Date.class);
+        return getDate(columnLabel, defaultCalendar);
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
         ensureOpen();
-        return getObject(columnLabel, Time.class);
+        return getTime(columnLabel, defaultCalendar);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
         ensureOpen();
-        return getObject(columnLabel, Timestamp.class);
+        return getTimestamp(columnLabel, defaultCalendar);
     }
 
     @Override
@@ -783,7 +791,19 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         ensureOpen();
-        return null;
+        try {
+            Date date = getObject(columnLabel, Date.class);
+            if (date != null) {
+                Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+                c.clear();
+                LocalDate ld = date.toLocalDate();
+                c.set(ld.getYear(), ld.getMonthValue() - 1, ld.getDayOfMonth(), 0, 0, 0);
+                date = new Date(c.getTimeInMillis());
+            }
+            return date;
+        } catch (Exception e) {
+            throw new SQLException(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), e);
+        }
     }
 
     @Override
@@ -794,7 +814,19 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
         ensureOpen();
-        return null;
+        try {
+            Time time = getObject(columnLabel, Time.class);
+            if (time != null) {
+                Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+                c.clear();
+                LocalTime ld = time.toLocalTime();
+                c.set(1970, Calendar.JANUARY, 1, ld.getHour(), ld.getMinute(), ld.getSecond());
+                time = new Time(c.getTimeInMillis());
+            }
+            return time;
+        } catch (Exception e) {
+            throw new SQLException(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), e);
+        }
     }
 
     @Override
@@ -805,7 +837,22 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         ensureOpen();
-        return null;
+        try {
+            Timestamp timestamp = getObject(columnLabel, Timestamp.class);
+            if (timestamp != null) {
+                Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+                c.clear();
+                LocalDateTime ldt = timestamp.toLocalDateTime();
+                c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(),
+                        ldt.getSecond());
+                timestamp = new Timestamp(c.getTimeInMillis());
+                timestamp.setNanos(ldt.getNano());
+                return timestamp;
+            }
+            return timestamp;
+        } catch (Exception e) {
+            throw new SQLException(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), e);
+        }
     }
 
     @Override

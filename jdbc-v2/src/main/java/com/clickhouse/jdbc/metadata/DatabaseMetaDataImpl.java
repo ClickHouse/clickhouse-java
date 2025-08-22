@@ -872,7 +872,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " AND name LIKE " + SQLUtils.enquoteLiteral(columnNamePattern == null ? "%" : columnNamePattern) +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
-            return DetachedResultSet.createFromResultSet(rs, GET_COLUMNS_RS_MUTATORS);
+            return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_COLUMNS_RS_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1079,7 +1079,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
         try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(DATA_TYPE_INFO_SQL)) {
-            return DetachedResultSet.createFromResultSet(rs, GET_TYPE_INFO_MUTATORS);
+            return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TYPE_INFO_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
