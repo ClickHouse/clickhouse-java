@@ -15,6 +15,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,11 +34,17 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetColumns() throws Exception {
         try (Connection conn = getJdbcConnection()) {
+            final String tableName = "get_columns_metadata_test";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("" +
+                        "CREATE TABLE " + tableName + " (id Int32, name String, v1 Nullable(Int8)) " +
+                        "ENGINE MergeTree ORDER BY ()");
+            }
+
             DatabaseMetaData dbmd = conn.getMetaData();
 
 
-            try (ResultSet rs = dbmd.getColumns(null, ClickHouseServerForTest.getDatabase(), "system.numbers"
-                    , null)) {
+            try (ResultSet rs = dbmd.getColumns(null, getDatabase(), tableName.substring(0, tableName.length() - 3) + "%", null)) {
 
                 List<String> expectedColumnNames = Arrays.asList(
                         "TABLE_CAT",
@@ -94,6 +101,30 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 );
 
                 assertProcedureColumns(rs.getMetaData(), expectedColumnNames, expectedColumnTypes);
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "id");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.INTEGER);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.INTEGER);
+                assertEquals(rs.getString("TYPE_NAME"), "Int32");
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "name");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.VARCHAR);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.VARCHAR);
+                assertEquals(rs.getString("TYPE_NAME"), "String");
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "v1");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.TINYINT);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.TINYINT);
+                assertEquals(rs.getString("TYPE_NAME"), "Nullable(Int8)");
             }
         }
     }
@@ -144,7 +175,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 if (decimalDigits != null) {
                     assertEquals(rs.getInt("DECIMAL_DIGITS"), decimalDigits.intValue());
                 } else {
-                    assertEquals(0, rs.getInt("DECIMAL_DIGITS")); // should not throw exception
+                    assertEquals(rs.getInt("DECIMAL_DIGITS"), 0); // should not throw exception
                     assertTrue(rs.wasNull());
                 }
                 Integer precisionRadix = columnRadix.get(colIndex);
@@ -384,6 +415,8 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                             "Type mismatch for " + dataType.name() + ": expected " +
                                     JdbcUtils.convertToSqlType(dataType).getVendorTypeNumber() +
                                     " but was " + rs.getInt("DATA_TYPE") + " for TYPE_NAME: " + rs.getString("TYPE_NAME"));
+
+                    assertEquals(rs.getInt("DATA_TYPE"), rs.getObject("DATA_TYPE"));
 
                     assertEquals(rs.getInt("PRECISION"), dataType.getMaxPrecision());
                     assertNull(rs.getString("LITERAL_PREFIX"));
