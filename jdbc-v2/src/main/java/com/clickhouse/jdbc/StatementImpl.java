@@ -416,6 +416,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         for (String sql : batch) {
             results.add(executeUpdate(sql));
         }
+        clearBatch();
         return results;
     }
 
