@@ -322,7 +322,10 @@ public class SqlParserTest {
             {"SELECT v FROM t WHERE f in (?)", 1},
             {"SELECT v FROM t WHERE a > 10 AND event NOT IN (?)", 1},
             {"SELECT v FROM t WHERE f in (1, 2, 3)", 0},
-            {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1}
+            {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1},
+            {"WITH 'hello' REGEXP 'h' AS result SELECT 1", 0},
+            {"WITH (select 1) as a, z AS (select 2) SELECT 1", 0},
+            {"SELECT result FROM test_view(myParam = ?)", 1},
         };
     }
 
