@@ -12,32 +12,47 @@ import java.util.Map;
 
 public class Array implements java.sql.Array {
     private static final Logger log = LoggerFactory.getLogger(Array.class);
-    Object[] array;
-    int type; //java.sql.Types
-    String typeName;
 
-    public Array(List<Object> list, String itemTypeName, int itemType) throws SQLException {
-        if (list == null) {
-            throw ExceptionUtils.toSqlState(new IllegalArgumentException("List cannot be null"));
+    private Object[] array;
+    private final int type; //java.sql.Types
+    private final String elementTypeName;
+    private boolean valid;
+
+    /**
+     * @deprecated this constructor should not be used. Elements array should be constructed externally.
+     */
+    public Array(List<Object> list, String elementTypeName, int itemType) throws SQLException {
+        this(list.toArray(), elementTypeName, itemType);
+    }
+
+    public Array(Object[] elements, String elementTypeName,  int itemType) throws SQLException {
+        if (elements == null) {
+            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array cannot be null"));
         }
-
-        this.array = list.toArray();
+        if  (elementTypeName == null) {
+            throw ExceptionUtils.toSqlState(new IllegalArgumentException("Array element type name cannot be null"));
+        }
+        this.array = elements;
         this.type = itemType;
-        this.typeName = itemTypeName;
+        this.elementTypeName = elementTypeName;
+        this.valid = true;
     }
 
     @Override
     public String getBaseTypeName() throws SQLException {
-        return typeName;
+        ensureValid();
+        return elementTypeName;
     }
 
     @Override
     public int getBaseType() throws SQLException {
+        ensureValid();
         return type;
     }
 
     @Override
     public Object getArray() throws SQLException {
+        ensureValid();
         return array;
     }
 
@@ -48,14 +63,20 @@ public class Array implements java.sql.Array {
 
     @Override
     public Object getArray(long index, int count) throws SQLException {
-        try {
-            Object[] smallerArray = new Object[count];
-            System.arraycopy(array, (int) index, smallerArray, 0, count);
-            return smallerArray;
-        } catch (Exception e) {
-            log.error("Failed to get array", e);
-            throw new SQLException(e.getMessage(), ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
+        ensureValid();
+        if (index < 0) {
+            throw new SQLException("Index cannot be negative");
         }
+        if (count < 0) {
+            throw new SQLException("Count cannot be negative");
+        }
+        if (count > (array.length - index)) {
+            throw new SQLException("Not enough elements after index " + index);
+        }
+
+        Object[] smallerArray = new Object[count];
+        System.arraycopy(array, (int) index, smallerArray, 0, count);
+        return smallerArray;
     }
 
     @Override
@@ -85,6 +106,13 @@ public class Array implements java.sql.Array {
 
     @Override
     public void free() throws SQLException {
+        valid = false;
         array = null;
+    }
+
+    private void ensureValid() throws SQLException {
+        if (!valid) {
+            throw ExceptionUtils.toSqlState(new SQLFeatureNotSupportedException("Array is not valid. Possible free() was called."));
+        }
     }
 }
