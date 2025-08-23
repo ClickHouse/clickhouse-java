@@ -156,8 +156,24 @@ public class InsertSettings {
         return this;
     }
 
+    /**
+     *
+     * @return true if client compression is enabled
+     * @deprecated because of typo
+     */
     public boolean isClientRequestEnabled() {
-        return (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        Boolean flag = (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        return flag != null && flag;
+    }
+
+    /**
+     * Returns indication if client request should be compressed (client side compression).
+     *
+     * @return true if client compression is enabled
+     */
+    public boolean isClientCompressionEnabled() {
+        Boolean flag = (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
+        return flag != null && flag;
     }
 
     /**
