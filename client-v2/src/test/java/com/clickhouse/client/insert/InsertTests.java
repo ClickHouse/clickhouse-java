@@ -26,6 +26,7 @@ import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStream;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.mockito.Mockito;
 import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -821,5 +822,29 @@ public class InsertTests extends BaseIntegrationTest {
     private boolean isVersionMatch(String versionExpression) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void testInsertSettingsNotChanged() throws Exception {
+        String tableName = "test_settings_not_changed";
+        String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        String uuid = UUID.randomUUID().toString();
+
+        initTable(tableName, createSQL);
+
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
+        List<Object> simplePOJOs = new ArrayList<>();
+
+        for (int i = 0; i < 1000; i++) {
+            simplePOJOs.add(new SamplePOJO());
+        }
+        InsertSettings settings = Mockito.spy(new InsertSettings());
+        settings.setQueryId(uuid);
+
+        try (InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            Mockito.verify(settings, Mockito.times(1)).getAllSettings();
+            Mockito.verify(settings, Mockito.times(1)).setQueryId(Mockito.eq(uuid));
+            Mockito.verifyNoMoreInteractions(settings);
+        }
     }
 }

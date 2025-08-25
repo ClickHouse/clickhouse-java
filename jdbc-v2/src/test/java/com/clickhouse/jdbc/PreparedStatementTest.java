@@ -1144,7 +1144,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             Assert.assertThrows(SQLException.class, () -> ps.addBatch(sql));
             Assert.assertThrows(SQLException.class, () -> ps.executeQuery(sql));
-            Assert.assertThrows(SQLException.class, () -> ps.executeQueryImpl(sql, null));
             Assert.assertThrows(SQLException.class, () -> ps.execute(sql));
             Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new int[]{0}));
             Assert.assertThrows(SQLException.class, () -> ps.execute(sql, new String[]{""}));
