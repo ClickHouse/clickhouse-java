@@ -41,7 +41,7 @@ query
 
 // CTE statement
 ctes
-    : LPAREN? WITH (cteUnboundCol COMMA)* namedQuery (COMMA namedQuery)* RPAREN?
+    : LPAREN? WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery (COMMA namedQuery)* RPAREN?
     ;
 
 namedQuery
@@ -55,6 +55,8 @@ columnAliases
 cteUnboundCol
     : (literal AS identifier) # CteUnboundColLiteral
     | (QUERY AS identifier) # CteUnboundColParam
+    | LPAREN columnExpr RPAREN AS identifier # CteUnboundColExpr
+    | LPAREN ctes? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
 // ALTER statement
@@ -438,6 +440,11 @@ fromClause
     : FROM joinExpr
     | FROM identifier LPAREN QUERY RPAREN
     | FROM ctes
+    | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
+    ;
+
+viewParam
+    : identifier EQ_SINGLE (literal | QUERY)
     ;
 
 arrayJoinClause
@@ -937,6 +944,7 @@ columnExpr
     | LBRACKET columnExprList? RBRACKET                            # ColumnExprArray
     | columnIdentifier                                             # ColumnExprIdentifier
     | QUERY (CAST_OP identifier)?                                  # ColumnExprParam
+    | columnExpr REGEXP literal                                    # ColumnExprRegexp
     ;
 
 columnArgList

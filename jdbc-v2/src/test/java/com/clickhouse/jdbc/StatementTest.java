@@ -291,6 +291,44 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testExecuteUpdateBatchReuse() throws Exception {
+        String tableClause = getDatabase() + ".batch_reuse";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + tableClause + " (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
+                // add and execute first invalid batch
+                stmt.addBatch("INSERT INTO " + tableClause + " VALUES (0, 'invalid')");
+                assertThrows(SQLException.class, stmt::executeBatch);
+
+                // add and execute second batch, which should fail due to the previous batch data.
+                stmt.addBatch("INSERT INTO " + tableClause + " VALUES (1, 2)");
+                assertThrows(SQLException.class, stmt::executeBatch);
+
+                // add and execute third batch, which should not fail
+                stmt.clearBatch();
+                stmt.addBatch("INSERT INTO " + tableClause + " VALUES (0, 1)");
+                stmt.addBatch("INSERT INTO " + tableClause + " VALUES (1, 2)");
+                assertEquals(stmt.executeBatch(), new int[]{1, 1});
+
+                stmt.addBatch("INSERT INTO " + tableClause + " VALUES (2, 3), (3, 4)");
+                assertEquals(stmt.executeBatch(), new int[]{2});
+
+                try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + tableClause + " ORDER BY id")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getShort(1), 1);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getShort(1), 2);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getShort(1), 3);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getShort(1), 4);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testJdbcEscapeSyntax() throws Exception {
         if (ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
             return; // there is no `timestamp` function TODO: fix in JDBC

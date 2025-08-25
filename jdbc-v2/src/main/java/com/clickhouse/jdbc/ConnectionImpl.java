@@ -130,6 +130,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         this.defaultQuerySettings = settings;
     }
 
+    public Calendar getDefaultCalendar() {
+        return defaultCalendar;
+    }
+
     public String getServerVersion() throws SQLException {
         GenericRecord result = client.queryAll("SELECT version() as server_version").stream()
                 .findFirst().orElseThrow(() -> new SQLException("Failed to retrieve server version.", ExceptionUtils.SQL_STATE_CLIENT_ERROR));

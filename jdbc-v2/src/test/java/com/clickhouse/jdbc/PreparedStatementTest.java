@@ -954,6 +954,114 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    void testBatchInsertNoValuesReuse() throws Exception {
+        String table = "test_pstmt_batch_novalues_reuse";
+        String sql = "INSERT INTO %s (v1, v2) VALUES (?, ?)";
+        long seed = System.currentTimeMillis();
+        Random rnd = new Random(seed);
+        try (Connection conn = getJdbcConnection()) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
+                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            final int nBatches = 10;
+            try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
+                Assert.assertEquals(stmt.getClass(), PreparedStatementImpl.class);
+                // add a batch with invalid values
+                stmt.setString(1, "invalid");
+                stmt.setInt(2, rnd.nextInt());
+                stmt.addBatch();
+                assertThrows(SQLException.class, stmt::executeBatch);
+                // should fail due to the previous batch data.
+                assertThrows(SQLException.class, stmt::executeBatch);
+                // clear previous batch data
+                stmt.clearBatch();
+
+                for (int step = 0; step < 2; step++) {
+                    for (int bI = 0; bI < (nBatches >> 1); bI++) {
+                        stmt.setInt(1, rnd.nextInt());
+                        stmt.setInt(2, rnd.nextInt());
+                        stmt.addBatch();
+                    }
+
+                    // reuse the same statement
+                    int[] result = stmt.executeBatch();
+                    for (int r : result) {
+                        Assert.assertEquals(r, 1);
+                    }
+                }
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
+
+                int count = 0;
+                while (rs.next()) {
+                    assertTrue(rs.getInt(1) != 0);
+                    assertTrue(rs.getInt(2) != 0);
+                    count++;
+                }
+                assertEquals(count, nBatches);
+            }
+        }
+    }
+
+    @Test()
+    void testBatchInsertValuesReuse() throws Exception {
+        String table = "test_pstmt_batch_values_reuse";
+        String sql = "INSERT INTO %s (v1, v2) VALUES (1, ?)";
+        long seed = System.currentTimeMillis();
+        Random rnd = new Random(seed);
+        try (Connection conn = getJdbcConnection()) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
+                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            final int nBatches = 10;
+            try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
+                Assert.assertEquals(stmt.getClass(), PreparedStatementImpl.class);
+                // add a batch with invalid values
+                stmt.setString(1, "invalid");
+                stmt.addBatch();
+                assertThrows(SQLException.class, stmt::executeBatch);
+                // should fail due to the previous batch data.
+                assertThrows(SQLException.class, stmt::executeBatch);
+                // clear previous batch data
+                stmt.clearBatch();
+
+                for (int step = 0; step < 2; step++) {
+                    for (int bI = 0; bI < (nBatches >> 1); bI++) {
+                        stmt.setInt(1, rnd.nextInt());
+                        stmt.addBatch();
+                    }
+
+                    // reuse the same statement
+                    int[] result = stmt.executeBatch();
+                    for (int r : result) {
+                        Assert.assertEquals(r, 1);
+                    }
+                }
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
+
+                int count = 0;
+                while (rs.next()) {
+                    assertTrue(rs.getInt(1) != 0);
+                    assertTrue(rs.getInt(2) != 0);
+                    count++;
+                }
+                assertEquals(count, nBatches);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     void testWriteUUID() throws Exception {
         String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";
         try (Connection conn = getJdbcConnection();
