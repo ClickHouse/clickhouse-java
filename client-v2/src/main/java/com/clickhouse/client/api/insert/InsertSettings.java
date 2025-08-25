@@ -162,8 +162,7 @@ public class InsertSettings {
      * @deprecated because of typo
      */
     public boolean isClientRequestEnabled() {
-        Boolean flag = (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
-        return flag != null && flag;
+        return isClientCompressionEnabled();
     }
 
     /**
@@ -172,8 +171,10 @@ public class InsertSettings {
      * @return true if client compression is enabled
      */
     public boolean isClientCompressionEnabled() {
-        Boolean flag = (Boolean) settings.getOption(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey());
-        return flag != null && flag;
+        return (boolean) settings.getOption(
+                ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(),
+                false
+        );
     }
 
     /**

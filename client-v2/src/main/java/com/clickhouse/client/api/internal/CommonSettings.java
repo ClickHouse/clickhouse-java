@@ -32,6 +32,17 @@ public class CommonSettings {
         return settings.get(option);
     }
 
+    /**
+     * Gets a configuration option. If not set then defaultValue is returned.
+     *
+     * @param option - config option key
+     * @param defaultValue - default option to return when option is not set
+     * @return configuration option value
+     */
+    public Object getOption(String option, Object defaultValue) {
+        return settings.getOrDefault(option, defaultValue);
+    }
+
     public boolean hasOption(String option) {
         return settings.containsKey(option);
     }
