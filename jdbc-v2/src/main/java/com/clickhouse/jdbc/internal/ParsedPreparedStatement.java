@@ -205,6 +205,13 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         }
     }
 
+    @Override
+    public void enterViewParam(ClickHouseParser.ViewParamContext ctx) {
+        if (ctx.QUERY() != null) {
+            appendParameter(ctx.QUERY().getSymbol().getStartIndex());
+        }
+    }
+
     private void appendParameter(int startIndex) {
         argCount++;
         if (argCount > paramPositions.length) {
