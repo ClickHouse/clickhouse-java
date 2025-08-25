@@ -3,15 +3,15 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.ClientInfoProperties;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
+import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
-import com.clickhouse.jdbc.ClientInfoProperties;
-import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.MetadataResultSet;
+import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -22,7 +22,14 @@ import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
+import java.sql.Statement;
+import java.sql.Types;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
@@ -744,7 +751,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
      */
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        log.info("getTables: catalog={}, schemaPattern={}, tableNamePattern={}, types={}", catalog, schemaPattern, tableNamePattern, types);
+        log.debug("getTables: catalog={}, schemaPattern={}, tableNamePattern={}, types={}", catalog, schemaPattern, tableNamePattern, types);
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
 //        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
         // TODO: handle useCatalogs == true and return schema catalog name
@@ -830,18 +837,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         }
     }
 
-    private static final ClickHouseColumn DATA_TYPE_COL = ClickHouseColumn.of("DATA_TYPE", ClickHouseDataType.Int32.name()) ;
     @Override
     @SuppressWarnings({"squid:S2095", "squid:S2077"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        //TODO: Best way to convert type to JDBC data type
         // TODO: handle useCatalogs == true and return schema catalog name
-        String sql = "SELECT " +
+        final String sql = "SELECT " +
                 catalogPlaceholder + " AS TABLE_CAT, " +
                 "database AS TABLE_SCHEM, " +
                 "table AS TABLE_NAME, " +
                 "name AS COLUMN_NAME, " +
-                "system.columns.type AS DATA_TYPE, " +
+                "toInt32(" + Types.OTHER + ") AS DATA_TYPE, " +
                 "type AS TYPE_NAME, " +
                 "toInt32(" + generateSqlTypeSizes("system.columns.type") + ") AS COLUMN_SIZE, " +
                 "toInt32(0) AS BUFFER_LENGTH, " +
@@ -866,9 +871,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " AND table LIKE " + SQLUtils.enquoteLiteral(tableNamePattern == null ? "%" : tableNamePattern) +
                 " AND name LIKE " + SQLUtils.enquoteLiteral(columnNamePattern == null ? "%" : columnNamePattern) +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
-        try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(sql))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::columnDataTypeToSqlType);
+        try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
+            return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_COLUMNS_RS_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -887,23 +891,27 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         return sql.toString();
     }
 
-    private static String columnDataTypeToSqlType(String value) {
-        SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(value);
+
+    private static final Consumer<Map<String, Object>> DATA_TYPE_VALUE_FUNCTION = row -> {
+        String typeName = (String) row.get("TYPE_NAME");
+        SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(typeName);
         if (type == null) {
             try {
-                type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", value).getDataType());
+                type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", typeName).getDataType());
             } catch (Exception e) {
-                log.error("Failed to convert column data type to SQL type: {}", value, e);
+                log.error("Failed to convert column data type to SQL type: {}", typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
             }
         }
-        return String.valueOf(type.getVendorTypeNumber());
-    }
+
+        row.put("DATA_TYPE", type.getVendorTypeNumber());
+    };
+
+    private static final List<Consumer<Map<String, Object>>> GET_COLUMNS_RS_MUTATORS = Collections.singletonList(DATA_TYPE_VALUE_FUNCTION);
 
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getColumnPrivileges is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(String) AS TABLE_CAT, " +
                     "NULL::Nullable(String) AS TABLE_SCHEM, " +
@@ -912,7 +920,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS GRANTOR, " +
                     "NULL::Nullable(String) AS GRANTEE, " +
                     "NULL::Nullable(String) AS PRIVILEGE, " +
-                    "NULL::Nullable(String) AS IS_GRANTABLE");
+                    "NULL::Nullable(String) AS IS_GRANTABLE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -921,7 +930,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getTablePrivileges is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(String) AS TABLE_CAT, " +
                     "NULL::Nullable(String) AS TABLE_SCHEM, " +
@@ -929,7 +937,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS GRANTOR, " +
                     "NULL::Nullable(String) AS GRANTEE, " +
                     "NULL::Nullable(String) AS PRIVILEGE, " +
-                    "NULL::Nullable(String) AS IS_GRANTABLE");
+                    "NULL::Nullable(String) AS IS_GRANTABLE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -938,7 +947,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getBestRowIdentifier is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(Int16) AS SCOPE, " +
                     "NULL::Nullable(String) AS COLUMN_NAME, " +
@@ -947,7 +955,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int32) AS COLUMN_SIZE, " +
                     "NULL::Nullable(Int32) AS BUFFER_LENGTH, " +
                     "NULL::Nullable(Int16) AS DECIMAL_DIGITS, " +
-                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN");
+                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -956,7 +965,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getVersionColumns is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(Int16) AS SCOPE, " +
                     "NULL::Nullable(String) AS COLUMN_NAME, " +
@@ -965,7 +973,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int32) AS COLUMN_SIZE, " +
                     "NULL::Nullable(Int32) AS BUFFER_LENGTH, " +
                     "NULL::Nullable(Int16) AS DECIMAL_DIGITS, " +
-                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN");
+                    "NULL::Nullable(Int16) AS PSEUDO_COLUMN" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -986,7 +995,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
                     "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
                     "ORDER BY COLUMN_NAME";
-            log.debug("getPrimaryKeys: %s", sql);
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -995,8 +1003,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getImportedKeys is not supported and may return invalid results");
+        // ClickHouse has no notion of foreign key. This method should return empty resultset
         try {
             String sql = "SELECT NULL::Nullable(String) AS PKTABLE_CAT, " +
                     "NULL::Nullable(String) AS PKTABLE_SCHEM, " +
@@ -1011,7 +1018,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY";
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1020,8 +1028,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        //Return an empty result set with the required columns
-        log.warn("getExportedKeys is not supported and may return invalid results");
+        // ClickHouse has no notion of foreign key. This method should return empty resultset
         try {
             return connection.createStatement().executeQuery("SELECT NULL::Nullable(String) AS PKTABLE_CAT, " +
                     "NULL::Nullable(String) AS PKTABLE_SCHEM, " +
@@ -1036,7 +1043,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY");
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1045,7 +1053,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getCrossReference is not supported and may return invalid results");
         try {
             String columns = "NULL ::Nullable(String) AS PKTABLE_CAT, " +
                     "NULL::Nullable(String) AS PKTABLE_SCHEM, " +
@@ -1060,56 +1067,55 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(Int16) AS DELETE_RULE, " +
                     "NULL::Nullable(String) AS FK_NAME, " +
                     "NULL::Nullable(String) AS PK_NAME, " +
-                    "NULL::Nullable(Int16) AS DEFERRABILITY";
+                    "NULL::Nullable(Int16) AS DEFERRABILITY" +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery("SELECT " + columns);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
     }
 
-    private static final ClickHouseColumn NULLABLE_COL = ClickHouseColumn.of("NULLABLE", ClickHouseDataType.Int16.name());
     @Override
     @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
-        try {
-            return new MetadataResultSet((ResultSetImpl) connection.createStatement().executeQuery(DATA_TYPE_INFO_SQL))
-                    .transform(DATA_TYPE_COL.getColumnName(), DATA_TYPE_COL, DatabaseMetaDataImpl::dataTypeToSqlTypeInt)
-                    .transform(NULLABLE_COL.getColumnName(), NULLABLE_COL, DatabaseMetaDataImpl::dataTypeNullability);
+        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(DATA_TYPE_INFO_SQL)) {
+            return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TYPE_INFO_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
     }
 
-    private static String dataTypeToSqlTypeInt(String type) {
-        SQLType sqlType = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(type);
-        return sqlType == null ? String.valueOf(JDBCType.OTHER.getVendorTypeNumber()) :
-                String.valueOf(sqlType.getVendorTypeNumber());
-    }
-
-    private static String dataTypeNullability(String type) {
+    private static final Consumer<Map<String,Object>> NULLABILITY_VALUE_FUNCTION = (row) -> {
+        String type = (String) row.get("TYPE_NAME");
+        int nullability= java.sql.DatabaseMetaData.typeNoNulls;
         if (type.equals(ClickHouseDataType.Nullable.name()) || type.equals(ClickHouseDataType.Dynamic.name())) {
-            return String.valueOf(java.sql.DatabaseMetaData.typeNullable);
+            nullability = java.sql.DatabaseMetaData.typeNullable;
         }
-        return String.valueOf(java.sql.DatabaseMetaData.typeNoNulls);
-    }
+        row.put("NULLABLE", nullability);
+    };
+
+    private static final List<Consumer<Map<String, Object>>> GET_TYPE_INFO_MUTATORS = Arrays.asList(
+            DATA_TYPE_VALUE_FUNCTION,
+            NULLABILITY_VALUE_FUNCTION
+    );
 
     private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
 
     private static String getDataTypeInfoSql() {
         StringBuilder sql = new StringBuilder("SELECT " +
                 "name AS TYPE_NAME, " +
-                "if(empty(alias_to), name, alias_to) AS DATA_TYPE, " + // passing type name or alias if exists to map then
+                "0::Int32 AS DATA_TYPE, " + // placeholder for data type int value
                 "attrs.c2::Nullable(Int32) AS PRECISION, " +
                 "NULL::Nullable(String) AS LITERAL_PREFIX, " +
                 "NULL::Nullable(String) AS LITERAL_SUFFIX, " +
                 "NULL::Nullable(String) AS CREATE_PARAMS, " +
-                "name AS NULLABLE, " + // passing type name to map for nullable
+                "0::Int16 AS NULLABLE, " + // placeholder for int value
                 "not(dt.case_insensitive)::Boolean AS CASE_SENSITIVE, " +
                 java.sql.DatabaseMetaData.typeSearchable + "::Int16 AS SEARCHABLE, " +
                 "not(attrs.c3)::Boolean AS UNSIGNED_ATTRIBUTE, " +
                 "false AS FIXED_PREC_SCALE, " +
                 "false AS AUTO_INCREMENT, " +
-                "name AS LOCAL_TYPE_NAME, " +
+                "if(empty(alias_to), name, alias_to) AS LOCAL_TYPE_NAME, " +
                 "attrs.c4::Nullable(Int16) AS MINIMUM_SCALE, " +
                 "attrs.c5::Nullable(Int16) AS MAXIMUM_SCALE, " +
                 "0::Nullable(Int32) AS SQL_DATA_TYPE, " +
@@ -1150,7 +1156,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "null::Nullable(String) AS ASC_OR_DESC, " +
                 "null::Nullable(Int64) AS CARDINALITY, " +
                 "null::Nullable(Int64) AS PAGES, " +
-                "null::Nullable(String) AS FILTER_CONDITION ";
+                "null::Nullable(String) AS FILTER_CONDITION " +
+                    " LIMIT 0";
             return connection.createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1220,7 +1227,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getUDTs is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery("SELECT " +
                     "NULL::Nullable(String) AS TYPE_CAT, " +
@@ -1229,7 +1235,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "NULL::Nullable(String) AS CLASS_NAME, " +
                     "NULL::Nullable(Int32) AS DATA_TYPE, " +
                     "NULL::Nullable(String) AS REMARKS, " +
-                    "NULL::Nullable(Int16) AS BASE_TYPE");
+                    "NULL::Nullable(Int16) AS BASE_TYPE" +
+                    " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1266,7 +1273,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getSuperTypes is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery(
                     "SELECT NULL::Nullable(String) AS TYPE_CAT, "
@@ -1274,7 +1280,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     + "NULL::Nullable(String) AS TYPE_NAME, "
                     + "NULL::Nullable(String) AS SUPERTYPE_CAT, "
                     + "NULL::Nullable(String) AS SUPERTYPE_SCHEM, "
-                    + "NULL::Nullable(String) AS SUPERTYPE_NAME");
+                    + "NULL::Nullable(String) AS SUPERTYPE_NAME" +
+                            " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1283,14 +1290,14 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getSuperTables is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery(
                     "SELECT "
                     + "NULL::Nullable(String) AS TABLE_CAT, "
                     + "NULL::Nullable(String) AS TABLE_SCHEM, "
                     + "NULL::Nullable(String) AS TABLE_NAME, "
-                    + "NULL::Nullable(String) AS SUPERTABLE_NAME");
+                    + "NULL::Nullable(String) AS SUPERTABLE_NAME" +
+                        " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1299,7 +1306,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
-        log.warn("getAttributes is not supported and may return invalid results");
         try {
             return connection.createStatement().executeQuery(
                     "SELECT "
@@ -1323,7 +1329,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     + "NULL::Nullable(String) AS SCOPE_CATALOG, "
                     + "NULL::Nullable(String) AS SCOPE_SCHEMA, "
                     + "NULL::Nullable(String) AS SCOPE_TABLE, "
-                    + "NULL::Nullable(Int16) AS SOURCE_DATA_TYPE");
+                    + "NULL::Nullable(Int16) AS SOURCE_DATA_TYPE" +
+                        " LIMIT 0");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

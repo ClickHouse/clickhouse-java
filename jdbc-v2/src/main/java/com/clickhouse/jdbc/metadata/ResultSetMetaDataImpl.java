@@ -5,6 +5,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.google.common.collect.ImmutableList;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -24,7 +25,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     public ResultSetMetaDataImpl(List<ClickHouseColumn> columns, String schema, String catalog, String tableName,
                                  Map<ClickHouseDataType, Class<?>> typeClassMap) {
-        this.columns = columns;
+        this.columns = ImmutableList.copyOf(columns);
         this.schema = schema;
         this.catalog = catalog;
         this.tableName = tableName;

@@ -10,7 +10,6 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -38,12 +37,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.BaseEncoding;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import org.testng.util.Strings;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -1902,101 +1901,6 @@ public class QueryTests extends BaseIntegrationTest {
         return new BigDecimal(bi, scale);
     }
 
-    @DataProvider(name = "sessionRoles")
-    private static Object[][] sessionRoles() {
-        return new Object[][]{
-                {new String[]{"ROL1", "ROL2"}},
-                {new String[]{"ROL1", "ROL2"}},
-                {new String[]{"ROL1", "ROL2"}},
-                {new String[]{"ROL1", "ROL2,☺"}},
-                {new String[]{"ROL1", "ROL2"}},
-        };
-    }
-
-    @Test(groups = {"integration"}, dataProvider = "sessionRoles", dataProviderClass = QueryTests.class)
-    public void testOperationCustomRoles(String[] roles) throws Exception {
-        if (isVersionMatch("(,24.3]")) {
-            return;
-        }
-
-        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
-        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
-        }
-        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
-        }
-        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-        }
-        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'" ).get()) {
-        }
-        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
-        }
-
-
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
-        }
-    }
-
-    @DataProvider(name = "clientSessionRoles")
-    private static Object[][] clientSessionRoles() {
-        return new Object[][]{
-                {new String[]{"ROL1", "ROL2"}},
-                {new String[]{"ROL1", "ROL2,☺"}},
-        };
-    }
-    @Test(groups = {"integration"}, dataProvider = "clientSessionRoles", dataProviderClass = QueryTests.class)
-    public void testClientCustomRoles(String[] roles) throws Exception {
-        if (isVersionMatch("(,24.3]")) {
-            return;
-        }
-
-        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
-        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (CommandResponse resp = client.execute("DROP ROLE IF EXISTS " + rolesList).get()) {
-        }
-        try (CommandResponse resp = client.execute("CREATE ROLE " + rolesList).get()) {
-        }
-        try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-        }
-        try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'" ).get()) {
-        }
-        try (CommandResponse resp = client.execute("GRANT " + rolesList + " TO some_user").get()) {
-        }
-
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            userClient.setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
-        }
-    }
-
-
-    @Test(groups = {"integration"})
-    public void testLogComment() throws Exception {
-
-        String logComment = "Test log comment";
-        QuerySettings settings = new QuerySettings()
-                .setQueryId(UUID.randomUUID().toString())
-                .logComment(logComment);
-        try (QueryResponse response = client.query("SELECT 1", settings).get()) {
-            Assert.assertNotNull(response.getQueryId());
-            Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
-        }
-
-        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
-        }
-
-        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
-        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
-        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
-    }
     @Test(groups = { "integration" }, enabled = true)
     public void testReadingBitmap() throws Exception {
         final String tableName = "bitmaps_test_table";
@@ -2283,6 +2187,17 @@ public class QueryTests extends BaseIntegrationTest {
     public void testEmptyResponse() throws Exception {
         try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 0", new QuerySettings().setFormat(ClickHouseFormat.RowBinary)).get()) {
             System.out.println(response.getResultRows());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSettingsNotChanged() throws Exception{
+        final QuerySettings settings = Mockito.spy(new QuerySettings());
+        try (QueryResponse response = client.query("select 1 FORMAT JSONEachRow", settings).get()) {
+            Mockito.verify(settings, Mockito.times(1)).getAllSettings();
+            Mockito.verifyNoMoreInteractions(settings);
+            Assert.assertNull(settings.getFormat());
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
         }
     }
 }

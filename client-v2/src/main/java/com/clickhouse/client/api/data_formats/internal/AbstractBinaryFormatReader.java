@@ -135,7 +135,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
      * It is still internal method and should be used with care.
      * Usually this method is called to read next record into internal object and affects hasNext() method.
      * So after calling this one:
-     * - hasNext(), next() should not be called
+     * - hasNext(), next() and get methods cannot be called
      * - stream should be read with readRecord() method fully
      *
      * @param record

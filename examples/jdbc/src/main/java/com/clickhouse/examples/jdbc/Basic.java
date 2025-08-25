@@ -59,11 +59,18 @@ public class Basic {
                 pstmt.setString(3, "Alice");//Set the third parameter to "Alice"
                 pstmt.setObject(4, Collections.singletonMap("key1", "value1"));
                 pstmt.addBatch();//Add the current parameters to the batch
+                pstmt.executeBatch();//Execute the batch
 
                 pstmt.setObject(1, ZonedDateTime.now());
                 pstmt.setInt(2, 2);//Set the second parameter to 2
                 pstmt.setString(3, "Bob");//Set the third parameter to "Bob"
                 pstmt.setObject(4, Collections.singletonMap("key2", "value2"));
+                pstmt.addBatch();//Add the current parameters to the batch
+
+                pstmt.setObject(1, ZonedDateTime.now());
+                pstmt.setInt(2, 2);//Set the second parameter to 2
+                pstmt.setString(3, "Chris");//Set the third parameter to "Chris"
+                pstmt.setObject(4, Collections.singletonMap("key3", "value3"));
                 pstmt.addBatch();//Add the current parameters to the batch
 
                 pstmt.executeBatch();//Execute the batch

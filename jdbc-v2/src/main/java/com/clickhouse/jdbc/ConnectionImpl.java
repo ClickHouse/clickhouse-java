@@ -75,7 +75,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
-            LOG.debug("Creating connection to {}", url);
             this.url = url;//Raw URL
             this.config = new JdbcConfiguration(url, info);
             this.onCluster = false;
@@ -137,6 +136,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public void setDefaultQuerySettings(QuerySettings settings) {
         this.defaultQuerySettings = settings;
+    }
+
+    public Calendar getDefaultCalendar() {
+        return defaultCalendar;
     }
 
     public String getServerVersion() throws SQLException {

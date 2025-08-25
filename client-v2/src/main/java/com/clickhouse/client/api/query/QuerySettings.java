@@ -3,6 +3,7 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.CommonSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseFormat;
@@ -14,19 +15,26 @@ import java.util.TimeZone;
 
 /**
  * <p>Query settings class represents a set of settings that can be used to customize query execution.</p>
- *
  */
 public class QuerySettings {
 
     public static final int MINIMAL_READ_BUFFER_SIZE = 8192;
 
-    private final Map<String, Object> rawSettings;
+    private final CommonSettings settings;
 
-    public QuerySettings(Map<String, Object> rawSettings) {
-        this.rawSettings = rawSettings;
+    public QuerySettings(Map<String, Object> settings) {
+        this.settings = new CommonSettings();
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+            this.settings.setOption(entry.getKey(), entry.getValue());
+        }
     }
+
     public QuerySettings() {
-        this(new HashMap<>());
+        this.settings = new CommonSettings();
+    }
+
+    private QuerySettings(CommonSettings settings) {
+        this.settings = settings;
     }
 
     /**
@@ -34,19 +42,15 @@ public class QuerySettings {
      * There is no specific validation is done on the key or value.
      *
      * @param option - configuration option name
-     * @param value - configuration option value
+     * @param value  - configuration option value
      */
     public QuerySettings setOption(String option, Object value) {
-        rawSettings.put(option, value);
-        if (option.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
-            rawSettings.put(ClientConfigProperties.CLIENT_NAME.getKey(), value);
-        }
-
+        settings.setOption(option, value);
         return this;
     }
 
     public QuerySettings resetOption(String option) {
-        rawSettings.remove(option);
+        settings.resetOption(option);
         return this;
     }
 
@@ -57,7 +61,7 @@ public class QuerySettings {
      * @return configuration option value
      */
     public Object getOption(String option) {
-        return rawSettings.get(option);
+        return settings.getOption(option);
     }
 
     /**
@@ -66,19 +70,19 @@ public class QuerySettings {
      * @return all settings map
      */
     public Map<String, Object> getAllSettings() {
-        return rawSettings;
+        return settings.getAllSettings();
     }
 
     /**
      * Sets the query id. This id will be sent to the server and can be used to identify the query.
      */
     public QuerySettings setQueryId(String queryId) {
-        rawSettings.put("query_id", queryId);
+        settings.setQueryId(queryId);
         return this;
     }
 
     public String getQueryId() {
-        return (String) rawSettings.get("query_id");
+        return settings.getQueryId();
     }
 
     /**
@@ -88,24 +92,24 @@ public class QuerySettings {
     public QuerySettings setReadBufferSize(Integer size) {
         ValidationUtils.checkNotNull(size, "read_buffer_size");
         ValidationUtils.checkRange(size, MINIMAL_READ_BUFFER_SIZE, Integer.MAX_VALUE, "read_buffer_size");
-        rawSettings.put("read_buffer_size", size);
+        settings.setOption("read_buffer_size", size);
         return this;
     }
 
     public Integer getReadBufferSize() {
-        return (Integer) rawSettings.get("read_buffer_size");
+        return (Integer) settings.getOption("read_buffer_size");
     }
 
     /**
      * Sets output format for a server response.
      */
     public QuerySettings setFormat(ClickHouseFormat format) {
-        rawSettings.put("format", format);
+        settings.setOption("format", format);
         return this;
     }
 
     public ClickHouseFormat getFormat() {
-        return (ClickHouseFormat) rawSettings.get("format");
+        return (ClickHouseFormat) settings.getOption("format");
     }
 
     /**
@@ -113,93 +117,94 @@ public class QuerySettings {
      * If query is not finished in this time then server will send an exception.
      */
     public QuerySettings setMaxExecutionTime(Integer maxExecutionTime) {
-        rawSettings.put("max_execution_time", maxExecutionTime);
+        settings.setOption("max_execution_time", maxExecutionTime);
         return this;
     }
 
     public Integer getMaxExecutionTime() {
-        return (Integer) rawSettings.get("max_execution_time");
+        return (Integer) settings.getOption("max_execution_time");
     }
 
     /**
      * Sets database to be used for a request.
      */
     public QuerySettings setDatabase(String database) {
-        ValidationUtils.checkNonBlank(database, "database");
-        rawSettings.put("database", database);
+        settings.setDatabase(database);
         return this;
     }
 
     public String getDatabase() {
-        return (String) rawSettings.get("database");
+        return settings.getDatabase();
     }
 
     /**
      * Requests the server to wait for the and of the query before sending response. Useful for getting accurate summary.
      */
     public QuerySettings waitEndOfQuery(Boolean waitEndOfQuery) {
-        serverSetting(ServerSettings.WAIT_END_OF_QUERY,  waitEndOfQuery ? "1" : "0");
+        serverSetting(ServerSettings.WAIT_END_OF_QUERY, waitEndOfQuery ? "1" : "0");
         return this;
     }
 
     public QuerySettings setUseServerTimeZone(Boolean useServerTimeZone) {
-        if (rawSettings.containsKey(ClientConfigProperties.USE_TIMEZONE.getKey())) {
+        if (settings.hasOption(ClientConfigProperties.USE_TIMEZONE.getKey())) {
             throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(),
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(), useServerTimeZone);
+        settings.setOption(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(), useServerTimeZone);
         return this;
     }
 
     public Boolean getUseServerTimeZone() {
-        return (Boolean) rawSettings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
+        return (Boolean) settings.getOption(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
     }
 
     public QuerySettings setUseTimeZone(String timeZone) {
-        if (rawSettings.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
+        if (settings.hasOption(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
             throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_TIMEZONE.getKey(),
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        rawSettings.put(ClientConfigProperties.USE_TIMEZONE.getKey(), TimeZone.getTimeZone(timeZone));
+        settings.setOption(ClientConfigProperties.USE_TIMEZONE.getKey(), TimeZone.getTimeZone(timeZone));
         return this;
     }
 
     public TimeZone getServerTimeZone() {
-        return (TimeZone) rawSettings.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
+        return (TimeZone) settings.getOption(ClientConfigProperties.SERVER_TIMEZONE.getKey());
     }
 
     /**
      * Defines list of headers that should be sent with current request. The Client will use a header value
      * defined in {@code headers} instead of any other.
      *
-     * @see Client.Builder#httpHeaders(Map)
-     * @param key - header name.
+     * @param key   - header name.
      * @param value - header value.
      * @return same instance of the builder
+     * @see Client.Builder#httpHeaders(Map)
      */
     public QuerySettings httpHeader(String key, String value) {
-        rawSettings.put(ClientConfigProperties.httpHeader(key), value);
+        settings.httpHeader(key, value);
         return this;
     }
 
     /**
      * {@see #httpHeader(String, String)} but for multiple values.
-     * @param key - name of the header
+     *
+     * @param key    - name of the header
      * @param values - collection of values
      * @return same instance of the builder
      */
     public QuerySettings httpHeader(String key, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.httpHeader(key), ClientConfigProperties.commaSeparated(values));
+        settings.httpHeader(key, values);
         return this;
     }
 
     /**
      * {@see #httpHeader(String, String)} but for multiple headers.
+     *
      * @param headers - map of headers
      * @return same instance of the builder
      */
     public QuerySettings httpHeaders(Map<String, String> headers) {
-        headers.forEach(this::httpHeader);
+        settings.httpHeaders(headers);
         return this;
     }
 
@@ -208,34 +213,35 @@ public class QuerySettings {
      * defined in {@code settings} instead of any other.
      * Operation settings may override these values.
      *
-     * @see Client.Builder#serverSetting(String, Collection)
-     * @param name - name of the setting
+     * @param name  - name of the setting
      * @param value - value of the setting
      * @return same instance of the builder
+     * @see Client.Builder#serverSetting(String, Collection)
      */
     public QuerySettings serverSetting(String name, String value) {
-        rawSettings.put(ClientConfigProperties.serverSetting(name), value);
+        settings.serverSetting(name, value);
         return this;
     }
 
     /**
      * {@see #serverSetting(String, String)} but for multiple values.
-     * @param name - name of the setting without special prefix
+     *
+     * @param name   - name of the setting without special prefix
      * @param values - collection of values
      * @return same instance of the builder
      */
     public QuerySettings serverSetting(String name, Collection<String> values) {
-        rawSettings.put(ClientConfigProperties.serverSetting(name), ClientConfigProperties.commaSeparated(values));
+        settings.serverSetting(name, values);
         return this;
     }
 
     /**
      * Sets DB roles for an operation. Roles that were set by {@link Client#setDBRoles(Collection)} will be overridden.
      *
-     * @param dbRoles
+     * @param dbRoles - list of role to use with an operation
      */
     public QuerySettings setDBRoles(Collection<String> dbRoles) {
-        rawSettings.put(ClientConfigProperties.SESSION_DB_ROLES.getKey(), dbRoles);
+        settings.setDBRoles(dbRoles);
         return this;
     }
 
@@ -245,26 +251,22 @@ public class QuerySettings {
      * @return list of DB roles
      */
     public Collection<String> getDBRoles() {
-        return (Collection<String>) rawSettings.get(ClientConfigProperties.SESSION_DB_ROLES.getKey());
+        return settings.getDBRoles();
     }
 
     /**
      * Sets the comment that will be added to the query log record associated with the query.
+     *
      * @param logComment - comment to be added to the log
      * @return same instance of the builder
      */
     public QuerySettings logComment(String logComment) {
-        this.logComment = logComment;
-        if (logComment != null && !logComment.isEmpty()) {
-            rawSettings.put(ClientConfigProperties.SETTING_LOG_COMMENT.getKey(), logComment);
-        }
+        settings.logComment(logComment);
         return this;
     }
 
-    private String logComment = null;
-
     public String getLogComment() {
-        return logComment;
+        return settings.getLogComment();
     }
 
     public void setNetworkTimeout(Long networkTimeout) {
@@ -280,13 +282,7 @@ public class QuerySettings {
     }
 
     public static QuerySettings merge(QuerySettings source, QuerySettings override) {
-        QuerySettings merged = new QuerySettings();
-        if (source != null) {
-            merged.rawSettings.putAll(source.rawSettings);
-        }
-        if (override != null && override != source) {// avoid copying the literally same object
-            merged.rawSettings.putAll(override.rawSettings);
-        }
-        return merged;
+        CommonSettings mergedSettings = source.settings.copyAndMerge(override.settings);
+        return new QuerySettings(mergedSettings);
     }
 }
