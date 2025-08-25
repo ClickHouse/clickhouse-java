@@ -8,8 +8,8 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseFormat;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -269,16 +269,21 @@ public class QuerySettings {
         return settings.getLogComment();
     }
 
-    public void setNetworkTimeout(Long networkTimeout) {
-        if (networkTimeout != null) {
-            rawSettings.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), networkTimeout.intValue());
-        } else {
-            rawSettings.remove(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
-        }
+    /**
+     * Sets a network operation timeout.
+     * @param timeout
+     * @param unit
+     */
+    public void setNetworkTimeout(long timeout, ChronoUnit unit) {
+        settings.setNetworkTimeout(timeout, unit);
     }
 
+    /**
+     * Returns network timeout. Zero value is returned if no timeout is set.
+     * @return timeout in ms.
+     */
     public Long getNetworkTimeout() {
-        return (Long) rawSettings.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        return settings.getNetworkTimeout();
     }
 
     public static QuerySettings merge(QuerySettings source, QuerySettings override) {

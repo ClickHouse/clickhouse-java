@@ -658,8 +658,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        Long networkTimeout = defaultQuerySettings.getNetworkTimeout();
-        return networkTimeout == null ? 0 : networkTimeout.intValue();
+        return defaultQuerySettings.getNetworkTimeout().intValue();
     }
 
     /**

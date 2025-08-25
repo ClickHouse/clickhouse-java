@@ -3,9 +3,9 @@ package com.clickhouse.client.api.insert;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.CommonSettings;
-import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Map;
 
@@ -26,6 +26,11 @@ public class InsertSettings {
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             this.settings.setOption(entry.getKey(), entry.getValue());
         }
+    }
+
+    private InsertSettings(CommonSettings settings) {
+        this.settings = settings;
+        setDefaults();
     }
 
     private void setDefaults() {// Default settings, for now a very small list
@@ -277,25 +282,24 @@ public class InsertSettings {
     }
 
     public static InsertSettings merge(InsertSettings source, InsertSettings override) {
-        InsertSettings merged = new InsertSettings();
-        if (source != null) {
-            merged.rawSettings.putAll(source.rawSettings);
-        }
-        if (override != null && override != source) {// avoid copying the literally same object
-            merged.rawSettings.putAll(override.rawSettings);
-        }
-        return merged;
+        CommonSettings mergedSettings = source.settings.copyAndMerge(override.settings);
+        return new InsertSettings(mergedSettings);
     }
 
-    public void setNetworkTimeout(Long networkTimeout) {
-        if (networkTimeout != null) {
-            rawSettings.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), networkTimeout.intValue());
-        } else {
-            rawSettings.remove(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
-        }
+    /**
+     * Sets a network operation timeout.
+     * @param timeout
+     * @param unit
+     */
+    public void setNetworkTimeout(long timeout, ChronoUnit unit) {
+        settings.setNetworkTimeout(timeout, unit);
     }
 
+    /**
+     * Returns network timeout. Zero value is returned if no timeout is set.
+     * @return timeout in ms.
+     */
     public Long getNetworkTimeout() {
-        return (Long) rawSettings.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        return settings.getNetworkTimeout();
     }
 }

@@ -3,6 +3,8 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -216,6 +218,25 @@ public class CommonSettings {
     public String getLogComment() {
         return logComment;
     }
+
+    /**
+     * Sets a network operation timeout.
+     * @param timeout
+     * @param unit
+     */
+    public void setNetworkTimeout(long timeout, ChronoUnit unit) {
+        settings.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), Duration.of(timeout, unit).toMillis());
+    }
+
+    /**
+     * Returns network timeout. Zero value is returned if no timeout is set.
+     * @return timeout in ms.
+     */
+    public Long getNetworkTimeout() {
+        return (Long) getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
+                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefaultValue());
+    }
+
 
     public CommonSettings copyAndMerge(CommonSettings override) {
         CommonSettings copy = new  CommonSettings();
