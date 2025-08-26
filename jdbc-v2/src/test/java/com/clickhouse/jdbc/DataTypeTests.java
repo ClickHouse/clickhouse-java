@@ -918,7 +918,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
-                stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
+                stmt.setArray(3, conn.createArrayOf("Tuple(Int8, String)", arraytuple));
+                stmt.setArray(3, conn.createArrayOf("Tuple(Int8, String)", arraytuple));
                 stmt.setArray(4, conn.createArrayOf("Date", arraydate));
                 stmt.executeUpdate();
             }

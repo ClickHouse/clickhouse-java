@@ -380,7 +380,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             final String baseType = "Tuple(String, Int8)";
             final String tableName = "array_create_test";
-            final String arrayType = "Array(Array(" + baseType + "))";
+            final String arrayType = "Array(" + baseType + ")";
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ENGINE MergeTree ORDER BY ()");
 
@@ -388,10 +388,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Struct tuple1 = conn.createStruct(baseType, new Object[]{"v1", (byte)10});
                 Struct tuple2 = conn.createStruct(baseType, new Object[]{"v2", (byte)20});
 
-                Struct[][] srcArray = new Struct[][] {
-                        new  Struct[] { tuple1},
-                        new  Struct[] { tuple1, tuple2},
-                };
+                Struct[] srcArray = new Struct[] { tuple1, tuple2};
 
                 Array arrayValue = conn.createArrayOf("Tuple(String, Int8)", srcArray );
                 assertEquals(arrayValue.getBaseTypeName(), baseType);
@@ -427,8 +424,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
                     Assert.assertTrue(rs.next());
                     Array array1 = rs.getArray(1);
                     Object[] elements = (Object[]) array1.getArray();
-                    Object[] storedTuple1 = (Object[]) ((List<?>)elements[0]).get(0);
-                    Object[] storedTuple2 = (Object[]) ((List<?>)elements[1]).get(1);
+                    Object[] storedTuple1 = (Object[]) elements[0];
+                    Object[] storedTuple2 = (Object[]) elements[1];
                     Assert.assertEquals(storedTuple1, tuple1.getAttributes());
                     Assert.assertEquals(storedTuple2, tuple2.getAttributes());
 

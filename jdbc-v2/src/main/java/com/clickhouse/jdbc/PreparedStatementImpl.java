@@ -801,11 +801,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof java.sql.Array) {
                 com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
                 int nestedLevel = Math.max(1, array.getNestedLevel());
-                if (array.getBaseDataType() == ClickHouseDataType.Tuple) {
-                    return encodeTuple((Object[]) array.getArray());
-                } else {
-                    return encodeArray((Object[]) array.getArray(), Math.max(1, array.getNestedLevel()), array.getBaseDataType());
-                }
+                return encodeArray((Object[]) array.getArray(), nestedLevel, array.getBaseDataType());
             } else if (x instanceof Object[]) {
                 StringBuilder arrayString = new StringBuilder();
                 arrayString.append(O_BRACKET);
@@ -927,11 +923,16 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 }
                 arraySb.append(',');
                 cursor.pos++;
-            } else if (cursor.isTuples) {
+            } else if (cursor.arrayObjAsTuple) {
+                arraySb.append(encodeTuple((Object[]) ((Array)element).getArray())).append(',');
+                cursor.pos++;
+            } else if (cursor.arrayAsTuple) {
                 arraySb.append(encodeTuple((Object[]) element)).append(',');
                 cursor.pos++;
-            } else if (cursor.level == 1 && element.getClass().isArray() && elementType == ClickHouseDataType.Tuple) {
-                cursor.isTuples = true;
+            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Array ) {
+               cursor.arrayObjAsTuple = true;
+            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Object[] ) {
+               cursor.arrayAsTuple = true;
             } else if (cursor.level == 1) {
                 arraySb.append(encodeObject(element)).append(',');
                 cursor.pos++;
@@ -950,8 +951,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         Object[] array; // current array
         int pos; // processing position
         int level;
-        boolean isTuples = false;
-        boolean isElements = false;
+        boolean arrayAsTuple = false;
+        boolean arrayObjAsTuple = false;
         public  ArrayProcessingCursor(Object[] array, int pos, int level) {
             this.array = array;
             this.pos = pos;
@@ -960,7 +961,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private String encodeTuple(Object[] array) throws SQLException {
-        StringBuilder sb = new StringBuilder('(');
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
         if (array != null) {
             appendArrayElements(array, sb);
         }
