@@ -334,15 +334,23 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private List<Integer> executeBatchImpl() throws SQLException {
+        List<Integer> results;
         if (insertStmtWithValues) {
-            return executeInsertBatch();
+            results = executeInsertBatch();
         } else {
-            List<Integer> results = new ArrayList<>();
+            results = new ArrayList<>();
             for (String sql : batch) {
                 results.add((int) executeUpdateImpl(sql, localSettings));
             }
-            return results;
         }
+        clearBatch();
+        return results;
+    }
+
+    @Override
+    public void clearBatch() throws SQLException {
+        super.clearBatch(); /// clear super#batch
+        batchValues.clear();
     }
 
     private List<Integer> executeInsertBatch() throws SQLException {

@@ -10,7 +10,6 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
@@ -38,12 +37,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.BaseEncoding;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import org.testng.util.Strings;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -2188,6 +2187,17 @@ public class QueryTests extends BaseIntegrationTest {
     public void testEmptyResponse() throws Exception {
         try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 0", new QuerySettings().setFormat(ClickHouseFormat.RowBinary)).get()) {
             System.out.println(response.getResultRows());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSettingsNotChanged() throws Exception{
+        final QuerySettings settings = Mockito.spy(new QuerySettings());
+        try (QueryResponse response = client.query("select 1 FORMAT JSONEachRow", settings).get()) {
+            Mockito.verify(settings, Mockito.times(1)).getAllSettings();
+            Mockito.verifyNoMoreInteractions(settings);
+            Assert.assertNull(settings.getFormat());
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
         }
     }
 }
