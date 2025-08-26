@@ -175,12 +175,19 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                     LOG.warn("Failed to close response after exception", e);
                 }
             }
+            handleSocketTimeoutException(e);
             onResultSetClosed(null);
-
-            if (e instanceof SocketTimeoutException) {
-                this.connection.onNetworkTimeout();
-            }
             throw ExceptionUtils.toSqlState(e);
+        }
+    }
+
+    protected void handleSocketTimeoutException(Exception e) {
+        if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
+            try {
+                this.connection.onNetworkTimeout();
+            } catch (SQLException e1) {
+                LOG.warn("Failed to handle network timeout exception", e1);
+            }
         }
     }
 
@@ -215,9 +222,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            if (e instanceof SocketTimeoutException) {
-                this.connection.onNetworkTimeout();
-            }
+            handleSocketTimeoutException(e);
             throw ExceptionUtils.toSqlState(e);
         }
 

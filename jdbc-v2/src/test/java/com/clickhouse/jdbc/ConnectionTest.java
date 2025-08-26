@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -396,13 +397,33 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testNetworkTimeout() throws SQLException {
+        try (Connection conn = this.getJdbcConnection()) {
+            Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(null, 1000));
+            Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), -1));
+
+            int timeout = 10;
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            conn.setNetworkTimeout(executorService, timeout);
+            Assert.assertEquals(conn.getNetworkTimeout(), timeout);
+            Statement stmt = conn.createStatement();
+            try {
+                ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2");
+                fail("Exception expected");
+            } catch (Exception e) {
+                Assert.assertTrue(conn.isClosed());
+                Assert.assertFalse(conn.isValid(1000));
+                conn.close();
+            }
+
+            try {
+                stmt.executeQuery("SELECT 1");
+            } catch (SQLException e) {
+                Assert.assertTrue(e.getMessage().contains("closed"));
+            }
+        }
         try {
-            Connection conn = this.getJdbcConnection();
-            int t1 = (int) TimeUnit.SECONDS.toMillis(20);
-            conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), t1);
-            Assert.assertEquals(t1, conn.getNetworkTimeout());
 
         } catch (Exception e) {
 

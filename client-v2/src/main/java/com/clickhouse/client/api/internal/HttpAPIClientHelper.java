@@ -110,8 +110,6 @@ public class HttpAPIClientHelper {
 
     private final CloseableHttpClient httpClient;
 
-    private final RequestConfig baseRequestConfig;
-
     private String proxyAuthHeaderValue;
 
     private final Set<ClientFaultCause> defaultRetryCauses;
@@ -124,11 +122,6 @@ public class HttpAPIClientHelper {
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext) {
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
-
-        RequestConfig.Builder reqConfBuilder = RequestConfig.custom();
-        reqConfBuilder.setConnectionRequestTimeout(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(configuration), TimeUnit.MILLISECONDS);
-
-        this.baseRequestConfig = reqConfBuilder.build();
 
         boolean usingClientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(configuration);
         boolean usingServerCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration);
@@ -438,12 +431,19 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
-        req.setConfig(baseRequestConfig);
+
         // setting entity. wrapping if compression is enabled
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
                 clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig));
 
         HttpClientContext context = HttpClientContext.create();
+        Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
+        Number connectionReqTimeout =  ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
+        RequestConfig reqHttpConf = RequestConfig.custom()
+                .setResponseTimeout(responseTimeout.longValue(),  TimeUnit.MILLISECONDS)
+                .setConnectionRequestTimeout(connectionReqTimeout.longValue(),  TimeUnit.MILLISECONDS)
+                .build();
+        context.setRequestConfig(reqHttpConf);
 
         ClassicHttpResponse httpResponse = null;
         try {

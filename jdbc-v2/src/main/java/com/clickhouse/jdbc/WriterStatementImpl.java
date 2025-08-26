@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
-import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -110,9 +109,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try {
             writer.commitRow();
         } catch (Exception e) {
-            if (e instanceof SocketTimeoutException) {
-                this.connection.onNetworkTimeout();
-            }
+            handleSocketTimeoutException(e);
             throw new SQLException(e);
         }
 
@@ -125,9 +122,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
-            if (e instanceof SocketTimeoutException) {
-                this.connection.onNetworkTimeout();
-            }
+            handleSocketTimeoutException(e);
             throw ExceptionUtils.toSqlState(e);
         } finally {
             try {
@@ -305,9 +300,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try {
             writer.commitRow();
         } catch (Exception e) {
-            if (e instanceof SocketTimeoutException) {
-                this.connection.onNetworkTimeout();
-            }
+            handleSocketTimeoutException(e);
             throw new SQLException(e);
         }
     }
