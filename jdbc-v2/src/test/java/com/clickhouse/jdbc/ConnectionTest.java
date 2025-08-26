@@ -30,6 +30,7 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
@@ -425,10 +426,32 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Assert.assertTrue(e.getMessage().contains("closed"));
             }
         }
-        try {
 
-        } catch (Exception e) {
+        Properties connConfig = new Properties();
+        connConfig.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), "10");
+        try (Connection conn = getJdbcConnection(connConfig)) {
+            Statement stmt = conn.createStatement();
+            try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
+                fail("Exception expected");
+            } catch (Exception e) {
+                Assert.assertFalse(conn.isClosed());
+                Assert.assertTrue(conn.isValid(1000));
+            }
+        }
 
+        try (Connection conn = getJdbcConnection(connConfig)) {
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            conn.setNetworkTimeout(executorService, 10);
+            try (Statement stmt1 = conn.createStatement(); Statement stmt2 = conn.createStatement()) {
+                ScheduledExecutorService stmtExecutor = Executors.newScheduledThreadPool(2);
+                long t1 = System.currentTimeMillis();
+                stmtExecutor.schedule(() -> stmt1.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2"), 100, TimeUnit.MILLISECONDS);
+                long t2 = System.currentTimeMillis() - t1;
+                stmtExecutor.schedule(() -> stmt2.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 1"), 100 - t2, TimeUnit.MILLISECONDS);
+
+                stmtExecutor.shutdown();
+                stmtExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            }
         }
     }
 

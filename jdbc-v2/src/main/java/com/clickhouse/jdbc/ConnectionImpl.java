@@ -2,15 +2,11 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -20,7 +16,6 @@ import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -49,7 +44,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
@@ -643,9 +637,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
 
     // Should be called by child object to notify about timeout.
-    public void onNetworkTimeout() throws SQLException {
-        if (isClosed() || networkTimeoutExecutor == null) {
-            return; // we closed already so do nothing.
+    public synchronized void onNetworkTimeout() {
+        if (this.closed || networkTimeoutExecutor == null) {
+            return; // we closed already or have not set network timeout so do nothing.
         }
 
         networkTimeoutExecutor.execute(() -> {

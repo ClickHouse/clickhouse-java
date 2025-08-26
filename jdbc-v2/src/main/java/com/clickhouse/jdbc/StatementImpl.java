@@ -183,11 +183,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     protected void handleSocketTimeoutException(Exception e) {
         if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
-            try {
-                this.connection.onNetworkTimeout();
-            } catch (SQLException e1) {
-                LOG.warn("Failed to handle network timeout exception", e1);
-            }
+            this.connection.onNetworkTimeout();
         }
     }
 
