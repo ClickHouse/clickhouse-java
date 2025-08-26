@@ -11,6 +11,7 @@ import com.clickhouse.jdbc.internal.ParsedStatement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketTimeoutException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -165,7 +166,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 reader.close();
                 throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            return new ResultSetImpl(this, response, reader);
+            return new ResultSetImpl(this, response, reader, this::handleSocketTimeoutException);
         } catch (Exception e) {
             if (response != null) {
                 try {
@@ -174,8 +175,15 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                     LOG.warn("Failed to close response after exception", e);
                 }
             }
+            handleSocketTimeoutException(e);
             onResultSetClosed(null);
             throw ExceptionUtils.toSqlState(e);
+        }
+    }
+
+    protected void handleSocketTimeoutException(Exception e) {
+        if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
+            this.connection.onNetworkTimeout();
         }
     }
 
@@ -210,6 +218,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
+            handleSocketTimeoutException(e);
             throw ExceptionUtils.toSqlState(e);
         }
 

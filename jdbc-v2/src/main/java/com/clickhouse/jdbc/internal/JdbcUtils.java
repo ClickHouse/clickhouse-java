@@ -8,6 +8,7 @@ import com.clickhouse.data.Tuple;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
 
 import java.awt.*;
 import java.math.BigInteger;

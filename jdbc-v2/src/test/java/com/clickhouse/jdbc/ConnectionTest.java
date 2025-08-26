@@ -42,6 +42,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static org.testng.Assert.assertEquals;
@@ -49,6 +53,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -625,20 +630,67 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void abortTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.abort(null));
+        try (Connection conn = this.getJdbcConnection()) {
+            conn.abort(Executors.newSingleThreadExecutor());
+            assertTrue(conn.isClosed());
+        }
     }
 
-    @Test(groups = { "integration" })
-    public void setNetworkTimeoutTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setNetworkTimeout(null, 0));
-    }
+    @Test(groups = {"integration"})
+    public void testNetworkTimeout() throws Exception {
+        try (Connection conn = this.getJdbcConnection()) {
+            Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(null, 1000));
+            Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), -1));
 
-    @Test(groups = { "integration" })
-    public void getNetworkTimeoutTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getNetworkTimeout);
+            int timeout = 10;
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            conn.setNetworkTimeout(executorService, timeout);
+            Assert.assertEquals(conn.getNetworkTimeout(), timeout);
+            Statement stmt = conn.createStatement();
+            try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
+                fail("Exception expected");
+            } catch (Exception e) {
+                executorService.shutdown();
+                executorService.awaitTermination(20, TimeUnit.SECONDS);
+                Assert.assertTrue(conn.isClosed());
+                Assert.assertFalse(conn.isValid(1000));
+                conn.close();
+
+            }
+
+            try {
+                stmt.executeQuery("SELECT 1");
+            } catch (SQLException e) {
+                Assert.assertTrue(e.getMessage().contains("closed"));
+            }
+        }
+
+        Properties connConfig = new Properties();
+        connConfig.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), "10");
+        try (Connection conn = getJdbcConnection(connConfig)) {
+            Statement stmt = conn.createStatement();
+            try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
+                fail("Exception expected");
+            } catch (Exception e) {
+                Assert.assertFalse(conn.isClosed());
+                Assert.assertTrue(conn.isValid(1000));
+            }
+        }
+
+        try (Connection conn = getJdbcConnection(connConfig)) {
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            conn.setNetworkTimeout(executorService, 10);
+            try (Statement stmt1 = conn.createStatement(); Statement stmt2 = conn.createStatement()) {
+                ScheduledExecutorService stmtExecutor = Executors.newScheduledThreadPool(2);
+                long t1 = System.currentTimeMillis();
+                stmtExecutor.schedule(() -> stmt1.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2"), 100, TimeUnit.MILLISECONDS);
+                long t2 = System.currentTimeMillis() - t1;
+                stmtExecutor.schedule(() -> stmt2.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 1"), 100 - t2, TimeUnit.MILLISECONDS);
+
+                stmtExecutor.shutdown();
+                stmtExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            }
+        }
     }
 
     @Test(groups = { "integration" })

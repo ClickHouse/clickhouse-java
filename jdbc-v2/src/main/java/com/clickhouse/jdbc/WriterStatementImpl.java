@@ -109,6 +109,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try {
             writer.commitRow();
         } catch (Exception e) {
+            handleSocketTimeoutException(e);
             throw new SQLException(e);
         }
 
@@ -121,6 +122,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
+            handleSocketTimeoutException(e);
             throw ExceptionUtils.toSqlState(e);
         } finally {
             try {
@@ -298,6 +300,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         try {
             writer.commitRow();
         } catch (Exception e) {
+            handleSocketTimeoutException(e);
             throw new SQLException(e);
         }
     }

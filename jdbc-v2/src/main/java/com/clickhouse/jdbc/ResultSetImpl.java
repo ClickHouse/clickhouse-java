@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
@@ -36,6 +37,7 @@ import java.sql.Timestamp;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
@@ -56,7 +58,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private int fetchSize;
 
-    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader) throws SQLException {
+    private Consumer<Exception> onDataTransferException;
+
+    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader,
+                         Consumer<Exception> onDataTransferException) throws SQLException {
         this.parentStatement = parentStatement;
         this.response = response;
         this.reader = reader;
@@ -72,17 +77,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
         this.rowPos = BEFORE_FIRST;
         this.fetchSize = parentStatement.getFetchSize();
-    }
-
-    protected ResultSetImpl(ResultSetImpl resultSet) throws SQLException{
-        this.parentStatement = resultSet.parentStatement;
-        this.response = resultSet.response;
-        this.reader = resultSet.reader;
-        this.metaData = resultSet.metaData;
-        this.closed = false;
-        this.wasNull = false;
-        this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
-        this.featureManager = new FeatureManager(parentStatement.getConnection().getJdbcConfig());
+        this.onDataTransferException = onDataTransferException;
     }
 
     private void checkClosed() throws SQLException {
@@ -117,6 +112,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             return readerRow != null;
         } catch (Exception e) {
+            if (onDataTransferException != null) {
+                onDataTransferException.accept(e);
+            }
             throw ExceptionUtils.toSqlState(e);
         }
     }
