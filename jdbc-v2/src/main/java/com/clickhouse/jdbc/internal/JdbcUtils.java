@@ -298,14 +298,4 @@ public class JdbcUtils {
         }
         return convertedValues;
     }
-
-    public static void safeClose(AutoCloseable closeable, Logger logger) {
-        if (closeable != null) {
-            try {
-                closeable.close();
-            } catch (Exception ex) {
-                logger.warn("Failed to close closeable after exception", ex);
-            }
-        }
-    }
 }

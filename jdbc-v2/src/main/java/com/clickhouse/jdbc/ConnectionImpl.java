@@ -39,6 +39,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -637,7 +638,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         // Some connection pools set timeout before calling Connection#close() to ensure that this operation will not hang
         // Socket timeout is propagated with QuerySettings this connection has.
         networkTimeoutExecutor = executor;
-        defaultQuerySettings.setOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), (long)milliseconds);
+        defaultQuerySettings.setNetworkTimeout(milliseconds, ChronoUnit.MILLIS);
     }
 
 

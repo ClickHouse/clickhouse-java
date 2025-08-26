@@ -283,7 +283,9 @@ public class InsertSettings {
 
     public static InsertSettings merge(InsertSettings source, InsertSettings override) {
         CommonSettings mergedSettings = source.settings.copyAndMerge(override.settings);
-        return new InsertSettings(mergedSettings);
+        InsertSettings insertSettings = new InsertSettings(mergedSettings);
+        insertSettings.setInputStreamCopyBufferSize(override.getInputStreamCopyBufferSize());
+        return insertSettings;
     }
 
     /**

@@ -166,7 +166,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 reader.close();
                 throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            return new ResultSetImpl(this, response, reader);
+            return new ResultSetImpl(this, response, reader, this::handleSocketTimeoutException);
         } catch (Exception e) {
             if (response != null) {
                 try {
@@ -634,10 +634,5 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
      */
     public String getLastQueryId() {
         return lastQueryId;
-    }
-
-    // Proxy method for child objects. Do not call.
-    public void onNetworkTimeout() throws SQLException {
-        this.connection.onNetworkTimeout();
     }
 }

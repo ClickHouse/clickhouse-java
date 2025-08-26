@@ -6,9 +6,11 @@ import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Test(groups = {"unit"})
 public class SettingsTests {
@@ -22,15 +24,28 @@ public class SettingsTests {
     }
 
     @Test
-    void testMergeQuerySettings() {
-        QuerySettings settings1 = new QuerySettings().setQueryId("test1").httpHeader("key1",  "value1");
-        QuerySettings settings2 = new QuerySettings().httpHeader("key1",  "value2");
+    void testMergeSettings() {
+        {
+            QuerySettings settings1 = new QuerySettings().setQueryId("test1").httpHeader("key1", "value1");
+            QuerySettings settings2 = new QuerySettings().httpHeader("key1", "value2");
 
-        QuerySettings merged = QuerySettings.merge(settings1, settings2);
-        Assert.assertNotSame(merged, settings1);
-        Assert.assertNotSame(merged, settings2);
+            QuerySettings merged = QuerySettings.merge(settings1, settings2);
+            Assert.assertNotSame(merged, settings1);
+            Assert.assertNotSame(merged, settings2);
 
-        Assert.assertEquals(merged.getAllSettings().get(ClientConfigProperties.httpHeader("key1")), "value2");
+            Assert.assertEquals(merged.getAllSettings().get(ClientConfigProperties.httpHeader("key1")), "value2");
+        }
+        {
+            InsertSettings settings1 = new InsertSettings().setQueryId("test1").httpHeader("key1", "value1");
+            InsertSettings settings2 = new InsertSettings().httpHeader("key1", "value2").setInputStreamCopyBufferSize(200000);
+
+            InsertSettings merged = InsertSettings.merge(settings1, settings2);
+            Assert.assertNotSame(merged, settings1);
+            Assert.assertNotSame(merged, settings2);
+
+            Assert.assertEquals(merged.getInputStreamCopyBufferSize(), settings2.getInputStreamCopyBufferSize());
+            Assert.assertEquals(merged.getAllSettings().get(ClientConfigProperties.httpHeader("key1")), "value2");
+        }
     }
 
     @Test
@@ -87,6 +102,12 @@ public class SettingsTests {
             settings.logComment(null);
             Assert.assertNull(settings.getLogComment());
         }
+
+        {
+            final QuerySettings settings = new QuerySettings();
+            settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
+            Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
+        }
     }
 
     @Test
@@ -139,6 +160,12 @@ public class SettingsTests {
             Assert.assertEquals(settings.getLogComment(), "comment2");
             settings.logComment(null);
             Assert.assertNull(settings.getLogComment());
+        }
+
+        {
+            final InsertSettings settings = new InsertSettings();
+            settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
+            Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
         }
     }
 }
