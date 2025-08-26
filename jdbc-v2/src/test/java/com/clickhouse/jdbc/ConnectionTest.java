@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -15,25 +16,41 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.math.BigDecimal;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
+import java.sql.Struct;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
@@ -89,9 +106,13 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
+                        () -> conn.prepareCall("SELECT 1"),
+                        () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY),
+                        () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,  ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         conn::setSavepoint,
                         () -> conn.setSavepoint("save point"),
-                        () -> conn.createStruct("simple", null),
+                        conn::createSQLXML,
+                        () -> conn.setAutoCommit(false)
                 };
 
                 for (Assert.ThrowingRunnable createStatement : createStatements) {
@@ -103,14 +124,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 }
             }
         }
-    }
-
-    @Test(groups = { "integration" })
-    public void prepareCallTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1"));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY));
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
     @Test(groups = { "integration" })
@@ -174,23 +187,22 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void getMetaDataTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        DatabaseMetaData metaData = localConnection.getMetaData();
-        Assert.assertNotNull(metaData);
-        Assert.assertEquals(metaData.getConnection(), localConnection);
+        try (Connection localConnection = this.getJdbcConnection()) {
+            DatabaseMetaData metaData = localConnection.getMetaData();
+            Assert.assertNotNull(metaData);
+            Assert.assertEquals(metaData.getConnection(), localConnection);
+        }
     }
 
     @Test(groups = { "integration" })
     public void setReadOnlyTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.setReadOnly(false);
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setReadOnly(true));
-    }
-
-    @Test(groups = { "integration" })
-    public void isReadOnlyTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Assert.assertFalse(localConnection.isReadOnly());
+        try (Connection conn = this.getJdbcConnection()) {
+            assertFalse(conn.isReadOnly());
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly());
+            conn.setReadOnly(false);
+            Assert.assertFalse(conn.isReadOnly());
+        }
     }
 
     @Test(groups = { "integration" })
@@ -244,14 +256,12 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void setHoldabilityTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        localConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);//No-op
-    }
-
-    @Test(groups = { "integration" })
-    public void getHoldabilityTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Assert.assertEquals(localConnection.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        try (Connection conn = this.getJdbcConnection()) {
+            Assert.assertEquals(conn.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+            conn.setHoldability(ResultSet.CLOSE_CURSORS_AT_COMMIT);
+            Assert.assertEquals(conn.getHoldability(), ResultSet.HOLD_CURSORS_OVER_COMMIT);
+            assertThrows(SQLException.class, () -> conn.setHoldability(-1));
+        }
     }
 
     @Test(groups = { "integration" })
@@ -370,17 +380,245 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void createArrayOfTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        Array array = localConnection.createArrayOf("Int8", new Object[] { 1, 2, 3 });
-        Assert.assertNotNull(array);
-        Assert.assertEquals(array.getArray(), new Object[] { 1, 2, 3 });
+    public void testCreateArray() throws SQLException {
+        try (Connection conn = getJdbcConnection()) {
+
+            final String baseType = "Tuple(String, Int8)";
+            final String tableName = "array_create_test";
+            final String arrayType = "Array(" + baseType + ")";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ENGINE MergeTree ORDER BY ()");
+
+
+                Struct tuple1 = conn.createStruct(baseType, new Object[]{"v1", (byte)10});
+                Struct tuple2 = conn.createStruct(baseType, new Object[]{"v2", (byte)20});
+
+                Struct[] srcArray = new Struct[] { tuple1, tuple2};
+
+                Array arrayValue = conn.createArrayOf("Tuple(String, Int8)", srcArray );
+                assertEquals(arrayValue.getBaseTypeName(), baseType);
+                assertEquals(arrayValue.getBaseType(), JDBCType.OTHER.getVendorTypeNumber());
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(null));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(0, 1, null));
+                assertThrows(SQLFeatureNotSupportedException.class, arrayValue::getResultSet);
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(null));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1, null));
+
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(-1, 1));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(0, -1));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(0, 3));
+                Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(1, 2));
+
+                Object[] subArray = (Object[]) arrayValue.getArray(1, 1);
+                Assert.assertEquals(subArray.length, 1);
+
+                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " + tableName + " (v1) VALUES (?)")) {
+                    pStmt.setArray(1, arrayValue);
+                    pStmt.executeUpdate();
+                    pStmt.setObject(1,  arrayValue);
+                    pStmt.executeUpdate();
+                } finally {
+                    arrayValue.free();
+                    arrayValue.free(); // just to check that operation idempotent
+                    assertThrows(SQLException.class, () -> arrayValue.getArray(1, 1));
+                    assertThrows(SQLException.class, arrayValue::getArray);
+                }
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                    Assert.assertTrue(rs.next());
+                    Array array1 = rs.getArray(1);
+                    Object[] elements = (Object[]) array1.getArray();
+                    Object[] storedTuple1 = (Object[]) elements[0];
+                    Object[] storedTuple2 = (Object[]) elements[1];
+                    Assert.assertEquals(storedTuple1, tuple1.getAttributes());
+                    Assert.assertEquals(storedTuple2, tuple2.getAttributes());
+
+                    Array array2 = (Array) rs.getObject(1);
+                    Assert.assertEquals(array2.getArray(), elements);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCreateArrayDifferentTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+
+            BiConsumer<String, Object[]> verification = (type, arr) -> {
+                Array array;
+                try {
+                    array = conn.createArrayOf(type, arr);
+                    Object[] wrappedArray = (Object[]) array.getArray();
+                    assertEquals(wrappedArray.length, arr.length);
+                    assertEquals(wrappedArray, arr);
+                } catch (SQLException e) {
+                    fail("Failed to create array of type " + type + " with " + Arrays.toString(arr), e);
+                    throw new RuntimeException(e);
+                }
+            };
+
+            verification.accept("Int8", new Byte[] {1, 2, 3});
+            verification.accept("Int16", new Short[] {Short.MIN_VALUE, -1, 0, 1, Short.MAX_VALUE});
+            verification.accept("Int32", new Integer[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE});
+            verification.accept("Int64", new Long[] {Long.MIN_VALUE, -1L, 0L, 1L, Long.MAX_VALUE});
+            verification.accept("UInt8", new Byte[] {0, 1, Byte.MAX_VALUE});
+            verification.accept("UInt16", new Short[] {0, 1, Short.MAX_VALUE});
+            verification.accept("UInt32", new Long[] {0L, 1L, (long)Integer.MAX_VALUE});
+            verification.accept("UInt64", new Long[] {0L, 1L, Long.MAX_VALUE});
+            verification.accept("Float32", new Float[] {-1.0F, 0.0F, 1.0F});
+            verification.accept("Float64", new Double[] {-1.0D, 0.0D, 1.0D});
+            verification.accept("Date", new Date[] {
+                    Date.valueOf(LocalDate.now()),
+                    Date.valueOf(LocalDate.of(2022, 1, 1)),
+                    Date.valueOf(LocalDate.of(2021, 12, 31))
+            });
+            verification.accept("DateTime", new Timestamp[] {
+                    Timestamp.valueOf(LocalDateTime.now()),
+                    Timestamp.valueOf(LocalDateTime.of(2022, 1, 1, 0, 0, 0)),
+                    Timestamp.valueOf(LocalDateTime.of(2021, 12, 31, 23, 59, 59))
+            });
+            verification.accept("Decimal(10, 2)", new BigDecimal[] {
+                    new BigDecimal("123.45"),
+                    new BigDecimal("-12345.67"),
+                    new BigDecimal("0.00")
+            });
+            verification.accept("String", new String[] {
+                    "",
+                    "Hello",
+                    "  hello  "
+            });
+            verification.accept("FixedString(5)", new String[] {
+                    "12345",
+                    "abcde",
+                    "  123"
+            });
+            verification.accept("IPv4", new Inet4Address[] {
+                    (Inet4Address) Inet4Address.getByName("127.0.0.1"),
+                    (Inet4Address) Inet4Address.getByName("192.168.0.1"),
+            });
+            verification.accept("IPv6", new Inet6Address[] {
+                    (Inet6Address) Inet6Address.getByName("::1"),
+                    (Inet6Address) Inet6Address.getByName("2001:db8::1"),
+            });
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCreateArrayVariants() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+
+            // it is valid
+            {
+                Array array = conn.createArrayOf("Nullable(String)", (Object[]) null);
+                assertNull(array.getArray());
+                assertThrows(SQLException.class, () -> array.getArray(10, 10));
+                assertThrows(SQLFeatureNotSupportedException.class, () -> array.getArray(10, 10, Collections.emptyMap()));
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Nullable(String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Nullable(String))");
+                        assertEquals(rs.getArray(1).getArray(), new String[] {});
+//                        assertEquals(rs.getArray(1).getArray().getClass(), String[].class); // TODO: fix
+                    }
+                }
+            }
+
+            // array of nullables
+            {
+                String[] strings = new String[] {"one", null, "five"};
+                Array array = conn.createArrayOf("Nullable(String)", strings);
+                assertNotNull(array.getArray());
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Nullable(String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Nullable(String))");
+                    }
+                }
+            }
+
+            // multi-level array
+            {
+                Object[][] table = new Object[][] {
+                        {1, 2 ,3, 4, 5},
+                        {10, 20, 30, 40, 50, },
+                };
+                Array array = conn.createArrayOf("Array(Array(Int32))", table);
+
+            }
+
+
+            // array of tuples
+            {
+                Object[][] tuples = new Object[][] {
+                        {"tuple1", 10},
+                        {"tuple2", 20},
+                };
+                Array array = conn.createArrayOf("Tuple(String, Int32)", tuples);
+                assertNotNull(array.getArray());
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Tuple(String, Int32)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Tuple(String, Int32))");
+                    }
+                }
+            }
+
+            {
+                Array tuple1 = conn.createArrayOf("String", new String[] {"one", "two"});
+                Array tuple2 = conn.createArrayOf("String", new String[] {"three", "four"});
+                Array array = conn.createArrayOf("Tuple(String, String)", new  Object[] {tuple1, tuple2});
+
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Tuple(String, String)) as value")) {
+                    stmt.setArray(1, array);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        rs.next();
+                        assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(Tuple(String, String))");
+                    }
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })
-    public void createStructTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.createStruct("type-name", new Object[] { 1, 2, 3 }));
+    public void testCreateStruct() throws SQLException {
+        try (Connection conn = this.getJdbcConnection()) {
+            final String tableName = "test_struct_tuple";
+            final String tupleType = "Tuple(Int8, String, DateTime64)";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ENGINE MergeTree ORDER BY ()");
+
+                final java.sql.Timestamp timePart = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
+                timePart.setNanos(333000000);
+
+                Struct tupleValue = conn.createStruct(tupleType, new Object[] {120, "test tuple value", timePart});
+                assertEquals(tupleValue.getSQLTypeName(), tupleType);
+                assertThrows(SQLFeatureNotSupportedException.class, () -> tupleValue.getAttributes(null));
+                assertNotNull(((com.clickhouse.jdbc.types.Struct) tupleValue).getColumn());
+
+
+                try (PreparedStatement pStmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?)")) {
+                    pStmt.setObject(1, tupleValue);
+                    pStmt.executeUpdate();
+                }
+
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                    Assert.assertTrue(rs.next());
+                    Object[] tuple = (Object[]) rs.getObject(1);
+                    Assert.assertEquals(tuple[0], (byte)120);
+                    Assert.assertEquals(tuple[1], "test tuple value");
+                    Assert.assertEquals(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER.format((TemporalAccessor) tuple[2]),
+                            timePart.toString());
+                }
+            }
+        }
     }
 
     @Test(groups = { "integration" })

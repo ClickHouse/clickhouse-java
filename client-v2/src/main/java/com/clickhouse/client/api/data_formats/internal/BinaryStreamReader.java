@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -667,7 +668,7 @@ public class BinaryStreamReader {
 
         int nextPos = 0;
 
-        ArrayValue(Class<?> itemType, int length) {
+        public ArrayValue(Class<?> itemType, int length) {
             this.itemType = itemType;
             this.length = length;
 
@@ -720,6 +721,34 @@ public class BinaryStreamReader {
                 this.list = list;
             }
             return (List<T>) list;
+        }
+
+        /**
+         * Returns internal array. This method is only useful to work with array of primitives (int[], boolean[]).
+         * Otherwise use {@link #getArrayOfObjects()}
+         *
+         * @return
+         */
+        public Object getArray() {
+            return array;
+        }
+
+        /**
+         * Returns array of objects.
+         * If item type is primitive then all elements will be converted into objects.
+         *
+         * @return
+         */
+        public Object[] getArrayOfObjects() {
+            if (itemType.isPrimitive()) {
+                Object[] result = new Object[length];
+                for (int i = 0; i < length; i++) {
+                    result[i] = Array.get(array, i);
+                }
+                return result;
+            } else {
+                return (Object[]) array;
+            }
         }
     }
 

@@ -2,12 +2,14 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -726,7 +728,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         long seed = System.currentTimeMillis();
         Random rand = new Random(seed);
 
-        InetAddress ipv4AddressByIp = Inet4Address.getByName(rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256) + "." + rand.nextInt(256));
+        InetAddress ipv4AddressByIp = Inet4Address.getByName("90.176.75.97");
         InetAddress ipv4AddressByName = Inet4Address.getByName("www.example.com");
         InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
         InetAddress ipv4AsIpv6 = Inet4Address.getByName("90.176.75.97");
@@ -747,11 +749,13 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_ips ORDER BY order")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getObject("ipv4_ip"), ipv4AddressByIp);
+                    assertEquals(rs.getObject("ipv4_ip", Inet6Address.class).toString(), "/0:0:0:0:0:ffff:5ab0:4b61");
                     assertEquals(rs.getString("ipv4_ip"), ipv4AddressByIp.toString());
                     assertEquals(rs.getObject("ipv4_name"), ipv4AddressByName);
                     assertEquals(rs.getObject("ipv6"), ipv6Address);
                     assertEquals(rs.getString("ipv6"), ipv6Address.toString());
                     assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
+                    assertEquals(rs.getObject("ipv4_as_ipv6", Inet4Address.class), ipv4AsIpv6);
                     assertFalse(rs.next());
                 }
             }
@@ -914,7 +918,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_arrays VALUES ( 1, ?, ?, ?, ?)")) {
                 stmt.setArray(1, conn.createArrayOf("Int8", array));
                 stmt.setArray(2, conn.createArrayOf("String", arraystr));
-                stmt.setArray(3, conn.createArrayOf("Tuple", arraytuple));
+                stmt.setArray(3, conn.createArrayOf("Tuple(Int8, String)", arraytuple));
+                stmt.setArray(3, conn.createArrayOf("Tuple(Int8, String)", arraytuple));
                 stmt.setArray(4, conn.createArrayOf("Date", arraydate));
                 stmt.executeUpdate();
             }
@@ -993,6 +998,51 @@ public class DataTypeTests extends JdbcIntegrationTest {
                         }
                     }
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testNestedArrays() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Array(Int32)) as value")) {
+                Integer[][] srcArray = new Integer[][] {
+                        {1, 2, 3},
+                        {4, 5, 6}
+                };
+                Array array = conn.createArrayOf("Int32", srcArray);
+                stmt.setArray(1, array);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array arrayHolder = (Array) rs.getObject(1);
+                    Object[] dbArray = (Object[]) arrayHolder.getArray();
+                    for (int i = 0; i < dbArray.length; i++) {
+                        Object[] nestedArray = (Object[]) dbArray[i];
+                        for (int j = 0; j < nestedArray.length; j++) {
+                            assertEquals((Integer) nestedArray[j], (Integer)srcArray[i][j]);
+                        }
+                    }
+                }
+
+                Integer[] simpleArray = new Integer[] {1, 2, 3};
+                Array array1 = conn.createArrayOf("Int32", simpleArray);
+                Array array2 = conn.createArrayOf("Int32", simpleArray);
+
+                Array[] multiLevelArray = new Array[] {array1, array2};
+                Array array3 = conn.createArrayOf("Int32", multiLevelArray);
+                stmt.setArray(1, array3);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array arrayHolder = (Array) rs.getObject(1);
+                    Object[] dbArray = (Object[]) arrayHolder.getArray();
+                    for (int i = 0; i < dbArray.length; i++) {
+                        Object[] nestedArray = (Object[]) dbArray[i];
+                        for (int j = 0; j < nestedArray.length; j++) {
+                            assertEquals((Integer) nestedArray[j], (Integer)simpleArray[j]);
+                        }
+                    }
                 }
             }
         }

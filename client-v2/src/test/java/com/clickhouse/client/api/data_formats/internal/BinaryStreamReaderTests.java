@@ -3,9 +3,11 @@ package com.clickhouse.client.api.data_formats.internal;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.TimeZone;
 
 import org.testng.Assert;
@@ -176,4 +178,16 @@ public class BinaryStreamReaderTests {
         };
     }
 
+    @Test
+    public void testArrayValue() throws Exception {
+        BinaryStreamReader.ArrayValue array = new BinaryStreamReader.ArrayValue(int.class, 10);
+
+        for (int i = 0; i < array.length(); i++) {
+            array.set(i, i);
+        }
+
+        int[] array1 = (int[]) array.getArray();
+        Object[] array2 = array.getArrayOfObjects();
+        Assert.assertEquals(array1.length, array2.length);
+    }
 }

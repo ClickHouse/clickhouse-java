@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
@@ -274,6 +275,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertNotNull(a3);
                     assertEquals(Arrays.deepToString((Object[]) a3.getArray()), "[[a], [b], [c]]");
                     assertFalse(rs.next());
+                }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setObject(1, new Object[] {1, 2, 3});
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    Array a1 = rs.getArray(1);
+                    assertNotNull(a1);
+                    assertEquals(Arrays.deepToString((Object[]) a1.getArray()), "[1, 2, 3]");
                 }
             }
         }
@@ -1519,6 +1530,73 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
             try (PreparedStatement stmt = conn.prepareStatement("WITH toDateTime(?) AS target_time SELECT * FROM table")) {
                 Assert.assertEquals(stmt.getMetaData().getColumnCount(), 1);
+            }
+        }
+    }
+
+    @Test
+    public void testEncodingArray() throws Exception {
+        try (Connection conn = getJdbcConnection();) {
+            try (PreparedStatementImpl stmt = (PreparedStatementImpl) conn.prepareStatement("SELECT ?")) {
+
+                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Int8)");
+                    assertEquals(stmt.encodeArray(array1, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[1,2,3]");
+                }                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    Object[] array2 = new Object[]{4, 5, 6};
+                    Object[] array3 = new Object[]{array1, array2};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Array(Int8))");
+                    assertEquals(stmt.encodeArray(array3, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[[1,2,3],[4,5,6]]");
+                }
+                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    Object[] array2 = new Object[]{4, null, 6};
+                    Object[] array3 = new Object[]{null, array1, array2};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Array(Int8))");
+                    assertEquals(stmt.encodeArray(array3, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[[],[1,2,3],[4,NULL,6]]");
+                }
+                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    Object[] array2 = new Object[]{4, null, 6};
+                    Object[] array3 = new Object[]{null, array1, array2};
+                    Object[] array4 = new Object[]{7, null, 9};
+                    Object[] array5 = new Object[]{10, null, 12};
+                    Object[] array6 = new Object[]{null, array4, array5};
+
+                    Object[] array7 = new Object[]{null, array3, array6};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Array(Array(Int8)))");
+                    assertEquals(stmt.encodeArray(array7, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[[],[[],[1,2,3],[4,NULL,6]],[[],[7,NULL,9],[10,NULL,12]]]");
+                }
+
+
+                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    Object[] array2 = new Object[]{4, 5, 6};
+                    Object[] array3 = new Object[]{array1, array2};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Tuple(Int8, Int8, Int8))");
+                    assertEquals(stmt.encodeArray(array3, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[(1,2,3),(4,5,6)]");
+                }
+
+                {
+                    Object[] array1 = new Object[]{1, 2, 3};
+                    Object[] array2 = new Object[]{4, 5, 6};
+                    Object[] array3 = new Object[]{null, array1, array2, new Object[0]};
+                    Object[] array4 = new Object[]{7, 8, 9};
+                    Object[] array5 = new Object[]{10, 11, 12};
+                    Object[] array6 = new Object[]{null, array4, array5};
+
+                    Object[] array7 = new Object[]{null, array3, array6, new Object[0]};
+                    ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Array(Tuple(Int8, Int8, Int8)))");
+                    assertEquals(stmt.encodeArray(array7, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
+                            "[[],[NULL,(1,2,3),(4,5,6),()],[NULL,(7,8,9),(10,11,12)],[]]");
+                }
             }
         }
     }

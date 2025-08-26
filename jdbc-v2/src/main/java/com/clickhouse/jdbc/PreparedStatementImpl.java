@@ -39,6 +39,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.SQLXML;
 import java.sql.Statement;
+import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -58,6 +59,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -757,32 +759,37 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                         "executeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
     }
-    private static String encodeObject(Object x) throws SQLException {
+    private String encodeObject(Object x) throws SQLException {
         return encodeObject(x, null);
     }
+    
+    private static final char QUOTE = '\'';
 
-    private static String encodeObject(Object x, Long length) throws SQLException {
+    private static final char O_BRACKET = '[';
+    private static final char C_BRACKET = ']';
+
+    private String encodeObject(Object x, Long length) throws SQLException {
         LOG.trace("Encoding object: {}", x);
 
         try {
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                return "'" + SQLUtils.escapeSingleQuotes((String) x) + "'";
+                return QUOTE + SQLUtils.escapeSingleQuotes((String) x) + QUOTE;
             } else if (x instanceof Boolean) {
                 return (Boolean) x ? "1" : "0";
             } else if (x instanceof Date) {
-                return "'" + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + "'";
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + QUOTE;
             } else if (x instanceof LocalDate) {
-                return "'" + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + "'";
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE;
             } else if (x instanceof Time) {
-                return "'" + TIME_FORMATTER.format(((Time) x).toLocalTime()) + "'";
+                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
             } else if (x instanceof LocalTime) {
-                return "'" + TIME_FORMATTER.format((LocalTime) x) + "'";
+                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE;
             } else if (x instanceof Timestamp) {
-                return "'" + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + "'";
+                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return "'" + DATETIME_FORMATTER.format((LocalDateTime) x) + "'";
+                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE;
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
@@ -790,106 +797,71 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Instant) {
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
-                return "'" + ((InetAddress) x).getHostAddress() + "'";
-            } else if (x instanceof Array) {
-                StringBuilder listString = new StringBuilder();
-                listString.append("[");
-                int i = 0;
-                for (Object item : (Object[]) ((Array) x).getArray()) {
-                    if (i > 0) {
-                        listString.append(", ");
-                    }
-                    listString.append(encodeObject(item));
-                    i++;
-                }
-                listString.append("]");
-
-                return listString.toString();
+                return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
+            } else if (x instanceof java.sql.Array) {
+                com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
+                int nestedLevel = Math.max(1, array.getNestedLevel());
+                return encodeArray((Object[]) array.getArray(), nestedLevel, array.getBaseDataType());
+            } else if (x instanceof Object[]) {
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.append(O_BRACKET);
+                appendArrayElements((Object[]) x, arrayString);
+                arrayString.append(C_BRACKET);
+                return arrayString.toString();
             } else if (x.getClass().isArray()) {
                 StringBuilder listString = new StringBuilder();
-                listString.append("[");
-
-
+                listString.append(O_BRACKET);
                 if (x.getClass().getComponentType().isPrimitive()) {
                     int len = java.lang.reflect.Array.getLength(x);
                     for (int  i = 0; i < len; i++) {
-                        if (i > 0) {
-                            listString.append(", ");
-                        }
-                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i)));
+                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i))).append(',');
+                    }
+                    if (len > 0) {
+                        listString.setLength(listString.length() - 1);
                     }
                 } else {
-                    int i = 0;
-                    for (Object item : (Object[]) x) {
-                        if (i > 0) {
-                            listString.append(", ");
-                        }
-                        listString.append(encodeObject(item));
-                        i++;
-                    }
+                    appendArrayElements((Object[]) x, listString);
                 }
-                listString.append("]");
+                listString.append(C_BRACKET);
 
                 return listString.toString();
             } else if (x instanceof Collection) {
                 StringBuilder listString = new StringBuilder();
-                listString.append("[");
-                for (Object item : (Collection<?>) x) {
-                    listString.append(encodeObject(item)).append(", ");
+                listString.append(O_BRACKET);
+                Collection<?> collection = (Collection<?>) x;
+                for (Object item : collection) {
+                    listString.append(encodeObject(item)).append(',');
                 }
-                if (listString.length() > 1) {
-                    listString.delete(listString.length() - 2, listString.length());
+                if (!collection.isEmpty()) {
+                    listString.setLength(listString.length() - 1);
                 }
-                listString.append("]");
+                listString.append(C_BRACKET);
 
                 return listString.toString();
             } else if (x instanceof Map) {
                 Map<?, ?> tmpMap = (Map<?, ?>) x;
                 StringBuilder mapString = new StringBuilder();
-                mapString.append("{");
+                mapString.append('{');
                 for (Object key : tmpMap.keySet()) {
-                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(", ");
+                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(',');
                 }
-                if (!tmpMap.isEmpty())
-                    mapString.delete(mapString.length() - 2, mapString.length());
-                mapString.append("}");
+                if (!tmpMap.isEmpty()) {
+                    mapString.setLength(mapString.length() - 1);
+                }
+
+                mapString.append('}');
 
                 return mapString.toString();
             } else if (x instanceof Reader) {
                 return encodeCharacterStream((Reader) x, length);
             } else if (x instanceof InputStream) {
                 return encodeCharacterStream((InputStream) x, length);
-            } else if (x instanceof Object[]) {
-                StringBuilder arrayString = new StringBuilder();
-                arrayString.append("[");
-                int i = 0;
-                for (Object item : (Object[]) x) {
-                    if (i > 0) {
-                        arrayString.append(", ");
-                    }
-                    arrayString.append(encodeObject(item));
-                    i++;
-                }
-                arrayString.append("]");
-
-                return arrayString.toString();
             } else if (x instanceof Tuple) {
-                StringBuilder tupleString = new StringBuilder();
-                tupleString.append("(");
-                Tuple t = (Tuple) x;
-                Object [] values = t.getValues();
-                int i = 0;
-                for (Object item : values) {
-                    if (i > 0) {
-                        tupleString.append(", ");
-                    }
-                    tupleString.append(encodeObject(item));
-                    i++;
-                }
-                tupleString.append(")");
-                return tupleString.toString();
+                return encodeTuple(((Tuple)x).getValues());
+            } else if (x instanceof Struct) {
+                return encodeTuple(((Struct)x).getAttributes());
             } else if (x instanceof UUID) {
-                return "'" + ((UUID) x).toString() + "'";
+                return QUOTE + ((UUID) x).toString() + QUOTE;
             }
 
             return SQLUtils.escapeSingleQuotes(x.toString()); //Escape single quotes
@@ -897,6 +869,105 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             LOG.error("Error encoding object", e);
             throw new SQLException("Error encoding object", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
+    }
+
+    private void appendArrayElements(Object[] array, StringBuilder sb) throws SQLException {
+        appendArrayElements(array, sb, null);
+    }
+
+    private void appendArrayElements(Object[] array, StringBuilder sb, ClickHouseDataType elementType) throws SQLException {
+        if (array == null) {
+            return;
+        }
+        for (Object item : array) {
+            if (elementType == ClickHouseDataType.Tuple && item != null && item.getClass().isArray()) {
+                sb.append(encodeTuple((Object[]) item));
+            } else {
+                sb.append(encodeObject(item)).append(',');
+            }
+        }
+        if (array.length > 0) {
+            sb.setLength(sb.length() - 1);
+        }
+    }
+
+    public String encodeArray(Object[] elements, int levels, ClickHouseDataType elementType) throws SQLException {
+        if (elements == null) {
+            return "[]";
+        }
+
+        StringBuilder arraySb = new StringBuilder();
+        Stack<ArrayProcessingCursor> stack = new Stack<>();
+        ArrayProcessingCursor cursor = new ArrayProcessingCursor(elements, 0, levels);
+
+        arraySb.append(O_BRACKET);
+        while (cursor != null) {
+            if (cursor.pos >= cursor.array.length) {
+                if (cursor.array.length > 0) {
+                    arraySb.setLength(arraySb.length() - 1);
+                }
+                arraySb.append(C_BRACKET);
+                cursor = stack.isEmpty() ? null : stack.pop();
+                if (cursor != null) {
+                    arraySb.append(',');
+                }
+                continue;
+            }
+
+            Object element = cursor.array[cursor.pos];
+            if (element == null) {
+                if (cursor.level == 1) {
+                    arraySb.append("NULL");
+                } else {
+                    arraySb.append("[]");
+                }
+                arraySb.append(',');
+                cursor.pos++;
+            } else if (cursor.arrayObjAsTuple) {
+                arraySb.append(encodeTuple((Object[]) ((Array)element).getArray())).append(',');
+                cursor.pos++;
+            } else if (cursor.arrayAsTuple) {
+                arraySb.append(encodeTuple((Object[]) element)).append(',');
+                cursor.pos++;
+            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Array ) {
+               cursor.arrayObjAsTuple = true;
+            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Object[] ) {
+               cursor.arrayAsTuple = true;
+            } else if (cursor.level == 1) {
+                arraySb.append(encodeObject(element)).append(',');
+                cursor.pos++;
+            } else {
+                cursor.pos++;
+                stack.push(cursor);
+                cursor = new  ArrayProcessingCursor((Object[]) element, 0, cursor.level - 1);
+                arraySb.append(O_BRACKET);
+            }
+        }
+
+        return arraySb.toString();
+    }
+
+    private static final class ArrayProcessingCursor {
+        Object[] array; // current array
+        int pos; // processing position
+        int level;
+        boolean arrayAsTuple = false;
+        boolean arrayObjAsTuple = false;
+        public  ArrayProcessingCursor(Object[] array, int pos, int level) {
+            this.array = array;
+            this.pos = pos;
+            this.level = level;
+        }
+    }
+
+    private String encodeTuple(Object[] array) throws SQLException {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        if (array != null) {
+            appendArrayElements(array, sb);
+        }
+        sb.append(')');
+        return sb.toString();
     }
 
     private static String encodeCharacterStream(InputStream stream, Long length) throws SQLException {
