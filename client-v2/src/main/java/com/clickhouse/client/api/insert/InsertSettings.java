@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.CommonSettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Map;
 
@@ -25,6 +26,11 @@ public class InsertSettings {
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             this.settings.setOption(entry.getKey(), entry.getValue());
         }
+    }
+
+    private InsertSettings(CommonSettings settings) {
+        this.settings = settings;
+        setDefaults();
     }
 
     private void setDefaults() {// Default settings, for now a very small list
@@ -273,5 +279,29 @@ public class InsertSettings {
 
     public String getLogComment() {
         return settings.getLogComment();
+    }
+
+    public static InsertSettings merge(InsertSettings source, InsertSettings override) {
+        CommonSettings mergedSettings = source.settings.copyAndMerge(override.settings);
+        InsertSettings insertSettings = new InsertSettings(mergedSettings);
+        insertSettings.setInputStreamCopyBufferSize(override.getInputStreamCopyBufferSize());
+        return insertSettings;
+    }
+
+    /**
+     * Sets a network operation timeout.
+     * @param timeout
+     * @param unit
+     */
+    public void setNetworkTimeout(long timeout, ChronoUnit unit) {
+        settings.setNetworkTimeout(timeout, unit);
+    }
+
+    /**
+     * Returns network timeout. Zero value is returned if no timeout is set.
+     * @return timeout in ms.
+     */
+    public Long getNetworkTimeout() {
+        return settings.getNetworkTimeout();
     }
 }
