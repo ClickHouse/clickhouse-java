@@ -398,7 +398,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testNetworkTimeout() throws SQLException {
+    public void testNetworkTimeout() throws Exception {
         try (Connection conn = this.getJdbcConnection()) {
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(null, 1000));
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), -1));
@@ -408,13 +408,15 @@ public class ConnectionTest extends JdbcIntegrationTest {
             conn.setNetworkTimeout(executorService, timeout);
             Assert.assertEquals(conn.getNetworkTimeout(), timeout);
             Statement stmt = conn.createStatement();
-            try {
-                ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2");
+            try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
                 fail("Exception expected");
             } catch (Exception e) {
+                executorService.shutdown();
+                executorService.awaitTermination(20, TimeUnit.SECONDS);
                 Assert.assertTrue(conn.isClosed());
                 Assert.assertFalse(conn.isValid(1000));
                 conn.close();
+
             }
 
             try {
