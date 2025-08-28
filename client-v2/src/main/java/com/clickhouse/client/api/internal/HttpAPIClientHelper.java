@@ -13,6 +13,7 @@ import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.ssl.factory.SslContextStrategyFactory;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
@@ -106,7 +107,7 @@ public class HttpAPIClientHelper {
     private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
     private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
-        "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
+            "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
 
     private final CloseableHttpClient httpClient;
 
@@ -137,54 +138,13 @@ public class HttpAPIClientHelper {
         this.defaultUserAgent = buildDefaultUserAgent();
     }
 
-    /**
-     * Creates or returns default SSL context.
-     *
-     * @return SSLContext
-     */
-    public SSLContext createSSLContext(Map<String, Object> configuration) {
-        SSLContext sslContext;
-        try {
-            sslContext = SSLContext.getDefault();
-        } catch (NoSuchAlgorithmException e) {
-            throw new ClientException("Failed to create default SSL context", e);
-        }
-        ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
-        String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
-        if (trustStorePath != null) {
-            try {
-                sslContext = sslContextProvider.getSslContextFromKeyStore(
-                        trustStorePath,
-                        (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
-                        (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey())
-                );
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
-            }
-        } else if (configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey()) != null ||
-                configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()) != null ||
-                configuration.get(ClientConfigProperties.SSL_KEY.getKey()) != null) {
-
-            try {
-                sslContext = sslContextProvider.getSslContextFromCerts(
-                        (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()),
-                        (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey()),
-                        (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey())
-                );
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
-            }
-        }
-        return sslContext;
-    }
-
     private static final long CONNECTION_INACTIVITY_CHECK = 5000L;
 
     private ConnectionConfig createConnectionConfig(Map<String, Object> configuration) {
         ConnectionConfig.Builder connConfig = ConnectionConfig.custom();
 
-        ClientConfigProperties.CONNECTION_TTL.<Long>applyIfSet(configuration, (t) -> connConfig.setTimeToLive(t,  TimeUnit.MILLISECONDS));
-        ClientConfigProperties.CONNECTION_TIMEOUT.<Long>applyIfSet(configuration, (t) -> connConfig.setConnectTimeout(t,  TimeUnit.MILLISECONDS));
+        ClientConfigProperties.CONNECTION_TTL.<Long>applyIfSet(configuration, (t) -> connConfig.setTimeToLive(t, TimeUnit.MILLISECONDS));
+        ClientConfigProperties.CONNECTION_TIMEOUT.<Long>applyIfSet(configuration, (t) -> connConfig.setConnectTimeout(t, TimeUnit.MILLISECONDS));
         connConfig.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK, TimeUnit.MILLISECONDS); // non-configurable for now
 
         return connConfig.build();
@@ -255,10 +215,10 @@ public class HttpAPIClientHelper {
     public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
+        SSLContext sslContext = initSslContext ? new SslContextStrategyFactory(configuration).getSslContextStrategy().createSSLContext() : null;
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {
-            String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+            String socketSNI = (String) configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
             if (socketSNI != null && !socketSNI.trim().isEmpty()) {
                 sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
             } else {
@@ -305,7 +265,7 @@ public class HttpAPIClientHelper {
             soCfgBuilder.setSocksProxyAddress(new InetSocketAddress(proxyHost, proxyPort));
         }
 
-        boolean disableCookies = !((Boolean)ClientConfigProperties.HTTP_SAVE_COOKIES.getOrDefault(configuration));
+        boolean disableCookies = !((Boolean) ClientConfigProperties.HTTP_SAVE_COOKIES.getOrDefault(configuration));
         if (disableCookies) {
             clientBuilder.disableCookieManagement();
         }
@@ -325,7 +285,7 @@ public class HttpAPIClientHelper {
         return clientBuilder.build();
     }
 
-//    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
+    //    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
     /**
@@ -438,10 +398,10 @@ public class HttpAPIClientHelper {
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
-        Number connectionReqTimeout =  ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
+        Number connectionReqTimeout = ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
         RequestConfig reqHttpConf = RequestConfig.custom()
-                .setResponseTimeout(responseTimeout.longValue(),  TimeUnit.MILLISECONDS)
-                .setConnectionRequestTimeout(connectionReqTimeout.longValue(),  TimeUnit.MILLISECONDS)
+                .setResponseTimeout(responseTimeout.longValue(), TimeUnit.MILLISECONDS)
+                .setConnectionRequestTimeout(connectionReqTimeout.longValue(), TimeUnit.MILLISECONDS)
                 .build();
         context.setRequestConfig(reqHttpConf);
 
@@ -492,52 +452,52 @@ public class HttpAPIClientHelper {
         addHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_FORMAT,
+                    req,
+                    ClickHouseHttpProto.HEADER_FORMAT,
                     ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
         }
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_QUERY_ID,
+                    req,
+                    ClickHouseHttpProto.HEADER_QUERY_ID,
                     (String) requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()));
         }
         addHeader(
-            req,
-            ClickHouseHttpProto.HEADER_DATABASE,
-            ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
+                req,
+                ClickHouseHttpProto.HEADER_DATABASE,
+                ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
 
         if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_DB_USER,
-                ClientConfigProperties.USER.getOrDefault(requestConfig));
+                    req,
+                    ClickHouseHttpProto.HEADER_DB_USER,
+                    ClientConfigProperties.USER.getOrDefault(requestConfig));
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_SSL_CERT_AUTH,
-                "on");
+                    req,
+                    ClickHouseHttpProto.HEADER_SSL_CERT_AUTH,
+                    "on");
         } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
             String user = ClientConfigProperties.USER.getOrDefault(requestConfig);
             String password = ClientConfigProperties.PASSWORD.getOrDefault(requestConfig);
             // Use as-is, no encoding allowed
             req.addHeader(
-                HttpHeaders.AUTHORIZATION,
-                "Basic " + Base64.getEncoder().encodeToString(
-                    (user + ":" + password).getBytes(StandardCharsets.UTF_8)));
+                    HttpHeaders.AUTHORIZATION,
+                    "Basic " + Base64.getEncoder().encodeToString(
+                            (user + ":" + password).getBytes(StandardCharsets.UTF_8)));
         } else {
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_DB_USER,
-                ClientConfigProperties.USER.getOrDefault(requestConfig));
+                    req,
+                    ClickHouseHttpProto.HEADER_DB_USER,
+                    ClientConfigProperties.USER.getOrDefault(requestConfig));
             addHeader(
-                req,
-                ClickHouseHttpProto.HEADER_DB_PASSWORD,
-                ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
+                    req,
+                    ClickHouseHttpProto.HEADER_DB_PASSWORD,
+                    ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
         }
         if (proxyAuthHeaderValue != null) {
             req.addHeader(
-                HttpHeaders.PROXY_AUTHORIZATION,
-                proxyAuthHeaderValue);
+                    HttpHeaders.PROXY_AUTHORIZATION,
+                    proxyAuthHeaderValue);
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -559,18 +519,17 @@ public class HttpAPIClientHelper {
                 Object val = requestConfig.get(key);
                 if (val != null) {
                     addHeader(
-                        req,
-                        key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()),
-                        String.valueOf(val));
+                            req,
+                            key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()),
+                            String.valueOf(val));
                 }
             }
         }
 
         // Special cases
         if (req.containsHeader(HttpHeaders.AUTHORIZATION)
-            && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
-                req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD)))
-        {
+                && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
+                req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD))) {
             // user has set auth header for purpose, lets remove ours
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_USER);
             req.removeHeaders(ClickHouseHttpProto.HEADER_DB_PASSWORD);
@@ -800,8 +759,7 @@ public class HttpAPIClientHelper {
     }
 
     private static <T> void addHeader(HttpRequest req, String headerName,
-        String value)
-    {
+                                      String value) {
         if (value == null) {
             return;
         }
@@ -817,7 +775,7 @@ public class HttpAPIClientHelper {
                         headerName + "*",
                         "UTF-8''" + URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
             } catch (UnsupportedEncodingException e) {
-                throw new ClientException("Failed to convert string to UTF8" , e);
+                throw new ClientException("Failed to convert string to UTF8", e);
             }
         }
     }

@@ -992,6 +992,16 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Disable cert check.
+         *
+         * @return same instance of the builder
+         */
+        public Builder setSslTrustAllStrategy() {
+            this.configuration.put(ClientConfigProperties.SSL_TRUST_ALL_STRATEGY.getKey(), "true");
+            return this;
+        }
+
+        /**
          * Registers http client metrics with MeterRegistry.
          *
          * @param registry - metrics registry
