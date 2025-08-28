@@ -101,6 +101,17 @@ public enum ClientConfigProperties {
 
     MAX_EXECUTION_TIME("max_execution_time", Integer.class,"0"),
 
+    /**
+     * More information {@link org.apache.hc.client5.http.ssl.TrustAllStrategy}.
+     */
+    SSL_TRUST_ALL_STRATEGY("trust_all", Boolean.class, "false"),
+
+    SSL_CERTIFICATE_TYPE("sslcerttype", String.class, "X.509"),
+
+    SSL_PROTOCOL("sslprotocol", String.class, "TLS"),
+
+    SSL_KEY_ALGORITHM("sslkeyalg", String.class, "RSA"),
+
     SSL_TRUST_STORE("trust_store", String.class),
 
     SSL_KEYSTORE_TYPE("key_store_type", String.class),
