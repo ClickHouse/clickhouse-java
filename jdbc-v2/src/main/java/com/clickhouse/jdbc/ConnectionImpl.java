@@ -369,10 +369,6 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 throw new SQLFeatureNotSupportedException("Cannot create statement with result set concurrency other then ResultSet.CONCUR_READ_ONLY",
                         ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
             }
-            if (resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
-                throw new SQLFeatureNotSupportedException("Cannot create statement with result set holdability other then ResultSet.CLOSE_CURSORS_AT_COMMIT",
-                        ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
-            }
         }
     }
 

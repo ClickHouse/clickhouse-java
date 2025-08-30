@@ -99,13 +99,11 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Assert.ThrowingRunnable[] createStatements = new Assert.ThrowingRunnable[]{
                         () -> conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
                         () -> conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
-                        () -> conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         () -> conn.prepareStatement("SELECT 1", Statement.RETURN_GENERATED_KEYS),
                         () -> conn.prepareStatement("SELECT 1", new int[]{1}),
                         () -> conn.prepareStatement("SELECT 1", new String[]{"1"}),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE),
                         () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY),
-                        () -> conn.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT),
                         () -> conn.prepareCall("SELECT 1"),
                         () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY),
                         () -> conn.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,  ResultSet.HOLD_CURSORS_OVER_COMMIT),

@@ -419,7 +419,7 @@
                                 <relocation>
                                     <!-- lz4 compression -->
                                     <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                                    <shadedPattern>${shade.base}.net.jpountz</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.roaringbitmap</pattern>
@@ -435,12 +435,17 @@
 
                                 <relocation>
                                     <pattern>com.google</pattern>
-                                    <shadedPattern>${shade.base}.google</shadedPattern>
+                                    <shadedPattern>${shade.base}.com.google</shadedPattern>
                                 </relocation>
 
                                 <relocation>
                                     <pattern>org.apache</pattern>
-                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                    <shadedPattern>${shade.base}.org.apache</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.antlr</pattern>
+                                    <shadedPattern>${shade.base}.org.antlr</shadedPattern>
                                 </relocation>
                             </relocations>
                             <transformers>

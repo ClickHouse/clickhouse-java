@@ -1404,7 +1404,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         double key1 =  rand.nextDouble();
         int key2 =  rand.nextInt();
         final String json = "{\"key1\": \"" + key1 + "\", \"key2\": " + key2 + ", \"key3\": [1000, \"value3\", 400000]}";
-        final String serverJson = "{\"key1\":\"" + key1 + "\",\"key2\":" + key2 + ",\"key3\":[\"1000\",\"value3\",\"400000\"]}";
+        final String serverJson = "{\"key1\":\"" + key1 + "\",\"key2\":\"" + key2 + "\",\"key3\":[\"1000\",\"value3\",\"400000\"]}";
         insertData(String.format("INSERT INTO test_json VALUES ( 1, '%s' )", json));
 
         // Check the results
@@ -1412,7 +1412,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         props.setProperty(
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING),
                 "1");
-        props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
+        props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "1");
         try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_json ORDER BY order")) {

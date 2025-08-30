@@ -75,7 +75,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <apache.httpclient.version>5.3.1</apache.httpclient.version>
+        <apache.httpclient.version>5.4.4</apache.httpclient.version>
         <arrow.version>12.0.1</arrow.version>
         <asm.version>9.7</asm.version>
         <avro.version>1.11.4</avro.version>
