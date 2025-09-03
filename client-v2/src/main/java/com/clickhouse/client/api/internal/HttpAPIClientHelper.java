@@ -20,6 +20,7 @@ import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
@@ -66,9 +67,13 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
@@ -96,6 +101,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class HttpAPIClientHelper {
 
@@ -415,26 +421,54 @@ public class HttpAPIClientHelper {
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
+        boolean useMultipartFormData = ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig);
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-            addQueryParams(uriBuilder, requestConfig);
-            uri = uriBuilder.normalizeSyntax().build();
+            if (!useMultipartFormData) {
+                addQueryParams(uriBuilder, requestConfig);
+            }
+            uri = uriBuilder.optimize().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         HttpPost req = new HttpPost(uri);
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
-        addHeaders(req, requestConfig);
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
+        HttpEntity httpEntity;
+        if (useMultipartFormData) {
+            final PipedOutputStream out = new PipedOutputStream();
+            PipedInputStream in = new PipedInputStream(out);
+            writeCallback.execute(out);
 
-        // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig));
+            String query = new BufferedReader(
+                    new InputStreamReader(in, StandardCharsets.UTF_8))
+                    .lines()
+                    .collect(Collectors.joining("\n"));
+
+            MultipartEntityBuilder builder = MultipartEntityBuilder.create()
+                    .setCharset(StandardCharsets.UTF_8)
+                    .addTextBody("query", query);
+
+            addQueryParams(builder, requestConfig);
+
+            httpEntity = builder.build();
+        } else {
+            httpEntity = new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback);
+        }
+
+        // wrapping if compression is enabled
+        httpEntity = wrapRequestEntity(httpEntity,
+                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig);
+
+        addHeaders(req, requestConfig, httpEntity);
+
+        // setting entity
+        req.setEntity(httpEntity);
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -488,8 +522,9 @@ public class HttpAPIClientHelper {
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
-    private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
-        addHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+    private void addHeaders(HttpPost req, Map<String, Object> requestConfig, HttpEntity httpEntity) {
+        addHeader(req, HttpHeaders.CONTENT_TYPE, httpEntity.getContentType());
+
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             addHeader(
                 req,
@@ -578,6 +613,48 @@ public class HttpAPIClientHelper {
 
         // -- keep last
         correctUserAgentHeader(req, requestConfig);
+    }
+
+    private void addQueryParams(MultipartEntityBuilder builder, Map<String, Object> requestConfig) {
+        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
+            builder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
+        }
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> builder.addTextBody("param_" + k, String.valueOf(v)));
+        }
+
+        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
+        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
+
+        if (useHttpCompression) {
+            // enable_http_compression make server react on http header
+            // for client side compression Content-Encoding should be set
+            // for server side compression Accept-Encoding should be set
+            builder.addTextBody("enable_http_compression", "1");
+        } else {
+            if (serverCompression) {
+                builder.addTextBody("compress", "1");
+            }
+            if (clientCompression) {
+                builder.addTextBody("decompress", "1");
+            }
+        }
+
+        Collection<String> sessionRoles = ClientConfigProperties.SESSION_DB_ROLES.getOrDefault(requestConfig);
+        if (!(sessionRoles == null || sessionRoles.isEmpty())) {
+            sessionRoles.forEach(r -> builder.addTextBody(ClickHouseHttpProto.QPARAM_ROLE, r));
+        }
+
+        for (String key : requestConfig.keySet()) {
+            if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                Object val = requestConfig.get(key);
+                if (val != null) {
+                    builder.addTextBody(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
+                }
+            }
+        }
     }
 
     private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
