@@ -22,9 +22,9 @@ import java.util.Map;
 
 public final class DefaultCertificateKeyStoreManager implements CertificateKeyStoreManager {
 
-    private static final String PEM_HEADER_PREFIX = "---BEGIN ";
-    private static final String PEM_HEADER_SUFFIX = " PRIVATE KEY---";
-    private static final String PEM_FOOTER_PREFIX = "---END ";
+    private static final String PEM_HEADER_PREFIX = "-----BEGIN ";
+    private static final String PEM_HEADER_SUFFIX = " PRIVATE KEY-----";
+    private static final String PEM_FOOTER_PREFIX = "-----END ";
 
     private final Map<String, Object> config;
 

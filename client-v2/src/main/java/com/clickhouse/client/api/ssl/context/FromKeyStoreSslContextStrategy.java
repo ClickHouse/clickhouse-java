@@ -37,7 +37,7 @@ public final class FromKeyStoreSslContextStrategy implements SslContextStrategy 
         try (InputStream in = ClickHouseUtils.getFileInputStream(trustStorePath)) {
             SSLContext ctx = SSLContext.getInstance((String) config.get(ClientConfigProperties.SSL_PROTOCOL.getKey()));
             KeyStore myTrustStore = KeyStore.getInstance(keyStoreType);
-            myTrustStore.load(in, truststorePassword.toCharArray());
+            myTrustStore.load(in, truststorePassword != null ? truststorePassword.toCharArray() : null);
             TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             factory.init(myTrustStore);
             ctx.init(null, factory.getTrustManagers(), new SecureRandom());
