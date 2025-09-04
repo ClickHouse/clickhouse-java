@@ -440,18 +440,13 @@ public class HttpAPIClientHelper {
 
         HttpEntity httpEntity;
         if (useMultipartFormData) {
-            final PipedOutputStream out = new PipedOutputStream();
+            PipedOutputStream out = new PipedOutputStream();
             PipedInputStream in = new PipedInputStream(out);
-            writeCallback.execute(out);
-
-            String query = new BufferedReader(
-                    new InputStreamReader(in, StandardCharsets.UTF_8))
-                    .lines()
-                    .collect(Collectors.joining("\n"));
 
             MultipartEntityBuilder builder = MultipartEntityBuilder.create()
                     .setCharset(StandardCharsets.UTF_8)
-                    .addTextBody("query", query);
+                    .addBinaryBody("query", in);
+            writeCallback.execute(out);
 
             addStatementParams(builder::addTextBody, requestConfig);
 
