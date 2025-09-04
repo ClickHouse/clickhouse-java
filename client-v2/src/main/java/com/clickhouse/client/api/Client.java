@@ -1279,7 +1279,7 @@ public class Client implements AutoCloseable {
                                         }
                                     }
                                     out.close();
-                                })) {
+                                }, false)) {
 
 
                     // Check response
@@ -1482,7 +1482,7 @@ public class Client implements AutoCloseable {
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
-                                     })) {
+                                     }, false)) {
 
 
                     // Check response
@@ -1606,7 +1606,7 @@ public class Client implements AutoCloseable {
                                 httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
                                     output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
                                     output.close();
-                                });
+                                }, true);
 
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
