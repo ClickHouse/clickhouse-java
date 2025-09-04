@@ -99,6 +99,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -452,7 +453,7 @@ public class HttpAPIClientHelper {
                     .setCharset(StandardCharsets.UTF_8)
                     .addTextBody("query", query);
 
-            addQueryParams(builder, requestConfig);
+            addStatementParams(builder::addTextBody, requestConfig);
 
             httpEntity = builder.build();
         } else {
@@ -613,21 +614,13 @@ public class HttpAPIClientHelper {
         correctUserAgentHeader(req, requestConfig);
     }
 
-    private void addQueryParams(MultipartEntityBuilder builder, Map<String, Object> requestConfig) {
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> builder.addTextBody("param_" + k, String.valueOf(v)));
-        }
-    }
-
     private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
         boolean useMultipartFormData = ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig);
-        if (!useMultipartFormData && requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
+        if (!useMultipartFormData) {
+            addStatementParams(req::addParameter, requestConfig);
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -660,6 +653,13 @@ public class HttpAPIClientHelper {
                     req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
                 }
             }
+        }
+    }
+
+    private void addStatementParams(BiConsumer<String, String> keyValueConsumer, Map<String, Object> requestConfig) {
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> keyValueConsumer.accept("param_" + k, String.valueOf(v)));
         }
     }
 
