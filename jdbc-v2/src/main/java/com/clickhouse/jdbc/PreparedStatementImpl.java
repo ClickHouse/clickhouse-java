@@ -159,61 +159,61 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Bool, null);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Int8, null);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Int16, null);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Int32, null);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Int64, null);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Float32, null);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Float64, null);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Decimal, 9L);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
@@ -240,7 +240,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x, (long) length);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, (long) length);
     }
 
     @Override
@@ -270,7 +270,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
         // targetSQLType is only of JDBCType
-        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), scaleOrLength);
+        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), (long) scaleOrLength);
     }
 
     @Override
@@ -282,13 +282,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), scaleOrLength);
+        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), (long) scaleOrLength);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, null, null);
     }
 
     @Override
@@ -387,19 +387,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
@@ -469,7 +469,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Date, null);
     }
 
     protected Instant sqlDateToInstant(Date x, Calendar cal) {
@@ -483,7 +483,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.Time, null);
     }
 
     protected Instant sqlTimeToInstant(Time x, Calendar cal) {
@@ -497,7 +497,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
+        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal), ClickHouseDataType.DateTime64, 9L);
     }
 
     protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
@@ -511,13 +511,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(null);
+        values[parameterIndex - 1] = encodeObject(null, sqlType2ClickHouseDataType(JDBCType.valueOf(sqlType)), null);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     /**
@@ -544,103 +544,103 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setNString(int parameterIndex, String x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x, length);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x, length);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x, length);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x, length);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, length);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(x);
+        values[parameterIndex - 1] = encodeObject(x, ClickHouseDataType.String, null);
     }
 
     @Override
@@ -759,8 +759,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                         "executeUpdate(String, String[]) cannot be called in PreparedStatement or CallableStatement!",
                 ExceptionUtils.SQL_STATE_WRONG_OBJECT_TYPE);
     }
-    private String encodeObject(Object x) throws SQLException {
-        return encodeObject(x, null);
+    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType) throws SQLException {
+        return encodeObject(x, clickHouseDataType, (Long)null);
     }
     
     private static final char QUOTE = '\'';
@@ -768,36 +768,49 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     private static final char O_BRACKET = '[';
     private static final char C_BRACKET = ']';
 
-    private String encodeObject(Object x, Long length) throws SQLException {
+
+    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Long scaleOrLength) throws SQLException {
         LOG.trace("Encoding object: {}", x);
+        String typeCast = clickHouseDataType == null || clickHouseDataType == ClickHouseDataType.String ? "" : "::" + clickHouseDataType.getName();
+        if (clickHouseDataType != null && clickHouseDataType.hasParameter()) {
+                if (scaleOrLength == null && (!clickHouseDataType.isNested())) {
+                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
+                }
+                typeCast += "(" + scaleOrLength + ")";
+        }
 
         try {
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                return QUOTE + SQLUtils.escapeSingleQuotes((String) x) + QUOTE;
+                return QUOTE + SQLUtils.escapeSingleQuotes((String) x) + QUOTE + typeCast;
+            } else if (x instanceof BigDecimal) {
+                return x.toString();
+            } else if (x instanceof Number) {
+                return x.toString() + typeCast;
             } else if (x instanceof Boolean) {
-                return (Boolean) x ? "1" : "0";
+                return (Boolean) x ? "1" : "0" + typeCast;
             } else if (x instanceof Date) {
-                return QUOTE + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + QUOTE;
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format(((Date) x).toLocalDate()) + QUOTE + "::Date32";
             } else if (x instanceof LocalDate) {
-                return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE;
+                return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE + "::Date32";
             } else if (x instanceof Time) {
-                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
+                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE + "::Time";
             } else if (x instanceof LocalTime) {
-                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE;
+                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE + "::Time";
             } else if (x instanceof Timestamp) {
-                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
+                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE + "::DateTime64(9)";
             } else if (x instanceof LocalDateTime) {
-                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE;
+                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE + "::DateTime64(9)";
             } else if (x instanceof OffsetDateTime) {
-                return encodeObject(((OffsetDateTime) x).toInstant());
+                return encodeObject(((OffsetDateTime) x).toInstant(), ClickHouseDataType.DateTime64,  9L) + "::DateTime64";
             } else if (x instanceof ZonedDateTime) {
-                return encodeObject(((ZonedDateTime) x).toInstant());
+                ZonedDateTime zdt = (ZonedDateTime) x;
+                return QUOTE + DATETIME_FORMATTER.format(zdt) + QUOTE + "::DateTime64(9, " + zdt.getZone().getId() + ")";
             } else if (x instanceof Instant) {
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
-                return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
+                return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE + typeCast;
             } else if (x instanceof java.sql.Array) {
                 com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
                 int nestedLevel = Math.max(1, array.getNestedLevel());
@@ -814,7 +827,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 if (x.getClass().getComponentType().isPrimitive()) {
                     int len = java.lang.reflect.Array.getLength(x);
                     for (int  i = 0; i < len; i++) {
-                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i))).append(',');
+                        listString.append(encodeObject(java.lang.reflect.Array.get(x, i), null, null)).append(',');
                     }
                     if (len > 0) {
                         listString.setLength(listString.length() - 1);
@@ -830,7 +843,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 listString.append(O_BRACKET);
                 Collection<?> collection = (Collection<?>) x;
                 for (Object item : collection) {
-                    listString.append(encodeObject(item)).append(',');
+                    listString.append(encodeObject(item, null, null)).append(',');
                 }
                 if (!collection.isEmpty()) {
                     listString.setLength(listString.length() - 1);
@@ -843,7 +856,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 StringBuilder mapString = new StringBuilder();
                 mapString.append('{');
                 for (Object key : tmpMap.keySet()) {
-                    mapString.append(encodeObject(key)).append(": ").append(encodeObject(tmpMap.get(key))).append(',');
+                    mapString.append(encodeObject(key, null, null)).
+                            append(": ").append(encodeObject(tmpMap.get(key), null, null)).append(',');
                 }
                 if (!tmpMap.isEmpty()) {
                     mapString.setLength(mapString.length() - 1);
@@ -853,9 +867,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
                 return mapString.toString();
             } else if (x instanceof Reader) {
-                return encodeCharacterStream((Reader) x, length);
+                return encodeCharacterStream((Reader) x, scaleOrLength);
             } else if (x instanceof InputStream) {
-                return encodeCharacterStream((InputStream) x, length);
+                return encodeCharacterStream((InputStream) x, scaleOrLength);
             } else if (x instanceof Tuple) {
                 return encodeTuple(((Tuple)x).getValues());
             } else if (x instanceof Struct) {
@@ -883,7 +897,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (elementType == ClickHouseDataType.Tuple && item != null && item.getClass().isArray()) {
                 sb.append(encodeTuple((Object[]) item));
             } else {
-                sb.append(encodeObject(item)).append(',');
+                sb.append(encodeObject(item, null, null)).append(',');
             }
         }
         if (array.length > 0) {
@@ -934,7 +948,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Object[] ) {
                cursor.arrayAsTuple = true;
             } else if (cursor.level == 1) {
-                arraySb.append(encodeObject(element)).append(',');
+                arraySb.append(encodeObject(element, null, null)).append(',');
                 cursor.pos++;
             } else {
                 cursor.pos++;
@@ -1027,17 +1041,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         return clickHouseDataType;
     }
 
-    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
-        String encodedObject = encodeObject(x);
-        if (clickHouseDataType != null) {
-            encodedObject += "::" + clickHouseDataType.name();
-            if (clickHouseDataType.hasParameter()) {
-                if (scaleOrLength == null) {
-                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
-                }
-                encodedObject += "(" + scaleOrLength + ")";
-            }
-        }
-        return encodedObject;
-    }
+//    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
+//        String encodedObject = encodeObject(x);
+//        if (clickHouseDataType != null) {
+//            encodedObject += "::" + clickHouseDataType.name();
+//            if (clickHouseDataType.hasParameter()) {
+//                if (scaleOrLength == null) {
+//                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
+//                }
+//                encodedObject += "(" + scaleOrLength + ")";
+//            }
+//        }
+//        return encodedObject;
+//    }
 }

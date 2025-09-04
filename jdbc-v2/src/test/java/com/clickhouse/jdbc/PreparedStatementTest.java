@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
@@ -218,7 +219,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSetTime() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        try (Connection conn = getJdbcConnection(props)) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime(?)")) {
                 stmt.setTime(1, java.sql.Time.valueOf("12:34:56"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {

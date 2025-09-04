@@ -1656,23 +1656,23 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testDateWithExpressions() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT parseDateTimeBestEffort(?) as d1, " +
-                    " parseDateTimeBestEffort(?) as d2, toYear(?) as d3, parseDateTimeBestEffort(?) as d4, parseDateTimeBestEffort(?) as d5")) {
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        try (Connection conn = getJdbcConnection(props)) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toMonth(?) as d1, toYear(?) as d2, toTime64(?, 3) as t1, toTime64(?, 3) as t2")) {
                 Date date = Date.valueOf("2024-12-01");
-                Time time = Time.valueOf("12:00:00");
+                Time time = Time.valueOf("16:30:00");
                 stmt.setDate(1, date);
                 stmt.setObject(2, date);
-                stmt.setObject(3, date, Types.DATE);
-                stmt.setTime(4, time);
-                stmt.setObject(5, time);
+                stmt.setTime(3, time);
+                stmt.setObject(4, time);
 
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getString(1), "2024-12-01 00:00:00");
-                    assertEquals(rs.getString(2), "2024-12-01 00:00:00");
-                    assertEquals(rs.getString(3), "2024");
-                    assertEquals(rs.getDate(1), date);
+                    assertEquals(rs.getString(1), "12");
+                    assertEquals(rs.getString(2), "2024");
+                    assertEquals(rs.getTime(3), "16");
+                    assertEquals(rs.getTime(4), "30");
                 }
             }
 
