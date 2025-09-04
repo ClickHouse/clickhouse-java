@@ -469,7 +469,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     protected Instant sqlDateToInstant(Date x, Calendar cal) {
@@ -483,7 +483,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
+        values[parameterIndex - 1] = encodeObject(x);
     }
 
     protected Instant sqlTimeToInstant(Time x, Calendar cal) {

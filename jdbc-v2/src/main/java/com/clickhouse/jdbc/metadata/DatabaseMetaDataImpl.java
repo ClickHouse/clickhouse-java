@@ -781,7 +781,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " JOIN system.databases d ON system.tables.database = system.databases.name" +
                 " WHERE t.database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
                 " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                " AND TABLE_TYPE IN ('" + String.join("','", types) + "')";
+                " AND TABLE_TYPE IN ('" + String.join("','", types) + "') " +
+                " ORDER BY TABLE_SCHEM, TABLE_TYPE, TABLE_NAME";
 
         try {
             return connection.createStatement().executeQuery(sql);
