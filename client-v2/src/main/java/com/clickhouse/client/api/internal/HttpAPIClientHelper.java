@@ -425,9 +425,9 @@ public class HttpAPIClientHelper {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-            if (!useMultipartFormData) {
+//            if (!useMultipartFormData) {
                 addQueryParams(uriBuilder, requestConfig);
-            }
+//            }
             uri = uriBuilder.optimize().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -616,14 +616,14 @@ public class HttpAPIClientHelper {
     }
 
     private void addQueryParams(MultipartEntityBuilder builder, Map<String, Object> requestConfig) {
-        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-            builder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
-        }
+//        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
+//            builder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
+//        }
         if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
             Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
             params.forEach((k, v) -> builder.addTextBody("param_" + k, String.valueOf(v)));
         }
-
+/*
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
@@ -655,13 +655,15 @@ public class HttpAPIClientHelper {
                 }
             }
         }
+ */
     }
 
     private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+        boolean useMultipartFormData = ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig);
+        if (!useMultipartFormData && requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
             Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
             params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
         }
