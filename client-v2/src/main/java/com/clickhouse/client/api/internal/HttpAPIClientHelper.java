@@ -425,9 +425,7 @@ public class HttpAPIClientHelper {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-//            if (!useMultipartFormData) {
-                addQueryParams(uriBuilder, requestConfig);
-//            }
+            addQueryParams(uriBuilder, requestConfig);
             uri = uriBuilder.optimize().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -616,46 +614,10 @@ public class HttpAPIClientHelper {
     }
 
     private void addQueryParams(MultipartEntityBuilder builder, Map<String, Object> requestConfig) {
-//        if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-//            builder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
-//        }
         if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
             Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
             params.forEach((k, v) -> builder.addTextBody("param_" + k, String.valueOf(v)));
         }
-/*
-        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
-        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
-        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
-
-        if (useHttpCompression) {
-            // enable_http_compression make server react on http header
-            // for client side compression Content-Encoding should be set
-            // for server side compression Accept-Encoding should be set
-            builder.addTextBody("enable_http_compression", "1");
-        } else {
-            if (serverCompression) {
-                builder.addTextBody("compress", "1");
-            }
-            if (clientCompression) {
-                builder.addTextBody("decompress", "1");
-            }
-        }
-
-        Collection<String> sessionRoles = ClientConfigProperties.SESSION_DB_ROLES.getOrDefault(requestConfig);
-        if (!(sessionRoles == null || sessionRoles.isEmpty())) {
-            sessionRoles.forEach(r -> builder.addTextBody(ClickHouseHttpProto.QPARAM_ROLE, r));
-        }
-
-        for (String key : requestConfig.keySet()) {
-            if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
-                Object val = requestConfig.get(key);
-                if (val != null) {
-                    builder.addTextBody(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
-                }
-            }
-        }
- */
     }
 
     private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
