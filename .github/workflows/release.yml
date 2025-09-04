@@ -84,6 +84,7 @@ jobs:
             clickhouse-data/target/clickhouse*.jar
             clickhouse-http-client/target/clickhouse*.jar
             clickhouse-jdbc/target/clickhouse*.jar
+            clickhouse-jdbc/target/bundle/clickhouse*.jar
             clickhouse-r2dbc/target/clickhouse*.jar
             client-v2/target/client-v2*.jar
             jdbc-v2/target/jdbc-v2*.jar
