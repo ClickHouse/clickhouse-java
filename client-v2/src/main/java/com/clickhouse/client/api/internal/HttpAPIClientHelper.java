@@ -410,7 +410,7 @@ public class HttpAPIClientHelper {
     private final AtomicLong timeToPoolVent = new AtomicLong(0);
 
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
-                                              IOCallback<OutputStream> writeCallback, boolean query) throws Exception {
+                                              IOCallback<OutputStream> writeCallback) throws Exception {
         if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
@@ -419,7 +419,11 @@ public class HttpAPIClientHelper {
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
-        boolean useMultipartFormData = query && (boolean)ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig);
+
+        // only use multipart when enabled, and there are statement parameters
+        boolean useMultipartFormData = (boolean)ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig)
+                && requestConfig.containsKey(KEY_STATEMENT_PARAMS);
+
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
