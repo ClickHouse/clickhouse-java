@@ -36,9 +36,16 @@
 
     <repositories>
         <repository>
+            <!-- This repository will be used for snapshots. If you want to use a local build of clickhouse-java, you need to comment out this repository -->
             <id>ossrh</id>
             <name>Sonatype OSSRH</name>
             <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
         </repository>
     </repositories>
 
