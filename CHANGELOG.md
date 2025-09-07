@@ -1,6 +1,9 @@
 ## 0.9.2 
 
 ### Improvements 
+- [jdbc-v2] `ResultSetImpl.getObject()` handles `java.time.Instant`
+
+### Improvements 
 - [jdbc-v2] Classes `com.clickhouse.jdbc.ClientInfoProperties` and `com.clickhouse.jdbc.DriverProperties` moved to public 
 API. (https://github.com/ClickHouse/clickhouse-java/pull/2521)
 - [jdbc-v2] Implemented `isBeforeFirst`, `isAfterLast`, `isFirst`, `isLast` methods for `ResultSet` and `ResultSetMetaData`.
