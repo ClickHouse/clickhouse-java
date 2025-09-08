@@ -2,10 +2,12 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
-import org.testng.annotations.Test;
+import org.testng.annotations.*;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
@@ -77,5 +79,20 @@ public class JdbcUtilsTest {
     public void testConvertToInetAddress() throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("ip", "IPv4");
         assertEquals(JdbcUtils.convert(java.net.InetAddress.getByName("192.168.0.1"), java.net.Inet6Address.class, column).toString(), "/0:0:0:0:0:ffff:c0a8:1");
+    }
+
+    @DataProvider(name = "timeZones")
+    public Object[][] timeZones() {
+        return new Object[][] {
+                { ZoneId.of("UTC") },
+                { ZoneId.of("Europe/Paris") },
+        };
+    }
+
+    @Test(groups = {"unit"})
+    public void testConvertToJavaTimeInstant() throws Exception {
+        Instant timestamp = Instant.parse("2016-06-07T21:30:00Z");
+        assertEquals(JdbcUtils.convert(timestamp.atZone(ZoneId.of("UTC")), Instant.class), timestamp);
+        assertEquals(JdbcUtils.convert(timestamp.atZone(ZoneId.of("UTC+7")), Instant.class), timestamp);
     }
 }

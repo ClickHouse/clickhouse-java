@@ -20,11 +20,8 @@ import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
 import java.sql.Types;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.chrono.ChronoZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -260,6 +257,8 @@ public class JdbcUtils {
                 return OffsetDateTime.from((TemporalAccessor) value);
             } else if (type == ZonedDateTime.class && value instanceof TemporalAccessor) {
                 return ZonedDateTime.from((TemporalAccessor) value);
+            } else if (type == Instant.class && value instanceof TemporalAccessor) {
+                return Instant.from((TemporalAccessor) value);
             } else if (type == Date.class && value instanceof TemporalAccessor) {
                 return Date.valueOf(LocalDate.from((TemporalAccessor) value));
             } else if (type == java.sql.Timestamp.class && value instanceof TemporalAccessor) {
