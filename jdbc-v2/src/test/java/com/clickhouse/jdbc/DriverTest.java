@@ -2,11 +2,17 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.testng.AssertJUnit.assertTrue;
+import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 
 public class DriverTest extends JdbcIntegrationTest {
@@ -46,10 +52,11 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test (enabled = false) //Disabled for now because it's not implemented
+    @Test(groups = {"integration"})
     public void testGetPropertyInfo() {
         try {
             Driver driver = new Driver();
+            driver.getPropertyInfo(getEndpointString(), new Properties());
             Assert.assertEquals(driver.getPropertyInfo(getEndpointString(), new Properties()).length, 7);
             Properties sample = new Properties();
             sample.setProperty("testing", "true");
@@ -59,16 +66,32 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
-    public void testGetMajorVersion() {
+    @Test(groups = {"integration"})
+    public void testGetDriverVersion() {
         Driver driver = new Driver();
-        Assert.assertEquals(driver.getMajorVersion(), 0);
+        assertTrue(driver.getMajorVersion() > 0);
+        assertTrue(driver.getMinorVersion() > -1);
     }
 
-    @Test(groups = { "integration" })
-    public void testGetMinorVersion() {
-        Driver driver = new Driver();
-        Assert.assertEquals(driver.getMinorVersion(), 9);
+    @Test(groups = {"integration"}, dataProvider = "testParsingDriverVersionDP")
+    public void testParsingDriverVersion(String version, int expectedMajor, int expectedMinor) {
+        int[] versions = Driver.parseVersion(version);
+        Assert.assertEquals(versions, new int[] { expectedMajor, expectedMinor });
+    }
+
+    @DataProvider(name = "testParsingDriverVersionDP")
+    public static Object[][] testParsingDriverVersionDP() {
+        return new Object[][]{
+                {"", 0, 0},
+                {null, 0, 0},
+                {"0.9.1", 0x09, 0x01},
+                {"1.0.0", 0x010000, 0},
+                {"1.0.1", 0x010000, 1},
+                {"1.1.1", 0x010001, 1},
+                {"1.2.1", 0x010002, 1},
+                {"5000.20.1", 0x13880014, 1},
+                {"2.1.1", 0x020001, 1},
+        };
     }
 
     @Test(groups = { "integration" })

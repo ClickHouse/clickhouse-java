@@ -303,7 +303,7 @@ public class JdbcConfiguration {
     public static String getDefaultClientName() {
         StringBuilder jdbcName = new StringBuilder();
         jdbcName.append(Driver.DRIVER_CLIENT_NAME)
-                        .append(Driver.driverVersion);
+                        .append(Driver.getLibraryVersion());
 
         return jdbcName.toString();
     }
