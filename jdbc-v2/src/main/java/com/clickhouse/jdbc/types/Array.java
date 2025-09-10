@@ -118,4 +118,16 @@ public class Array implements java.sql.Array {
             throw ExceptionUtils.toSqlState(new SQLFeatureNotSupportedException("Array is not valid. Possible free() was called."));
         }
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        Array other = (Array) obj;
+        return type == other.type && java.util.Arrays.equals(array, other.array);
+    }
 }
