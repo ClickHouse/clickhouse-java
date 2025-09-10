@@ -1,17 +1,21 @@
 package com.clickhouse.client.api;
 
-import java.time.Instant;
-import java.time.ZoneId;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.data.ClickHouseDataType;
 
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.time.temporal.Temporal;
+import java.util.Date;
 import java.util.Objects;
-
-import com.clickhouse.data.ClickHouseDataType;
 
 import static com.clickhouse.client.api.data_formats.internal.BinaryStreamReader.BASES;
 
@@ -38,6 +42,19 @@ public class DataTypeUtils {
         .appendValue(ChronoField.INSTANT_SECONDS)
         .appendFraction(ChronoField.NANO_OF_SECOND, 9, 9, true)
         .toFormatter();
+
+    public static DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder()
+            .appendFraction(ChronoField.HOUR_OF_DAY, 1, 4, false)
+            .appendFraction(ChronoField.MINUTE_OF_HOUR, 1, 3, false)
+            .appendFraction(ChronoField.SECOND_OF_MINUTE, 1, 3, false)
+            .toFormatter();
+
+    public static DateTimeFormatter TIME_WITH_NANOS_FORMATTER = new DateTimeFormatterBuilder()
+            .appendFraction(ChronoField.HOUR_OF_DAY, 1, 4, false)
+            .appendFraction(ChronoField.MINUTE_OF_HOUR, 1, 3, false)
+            .appendFraction(ChronoField.SECOND_OF_MINUTE, 1, 3, false)
+            .appendFraction(ChronoField.NANO_OF_SECOND, 9, 9, true)
+            .toFormatter();
 
     /**
      * Formats an {@link Instant} object for use in SQL statements or as query
@@ -137,5 +154,61 @@ public class DataTypeUtils {
         }
 
         return Instant.ofEpochSecond(value, nanoSeconds);
+    }
+
+    /**
+     * Converts a Java object to a temporal accessor suitable for date only operations.
+     *  It accepts Time and Date and converts to LocalDateTime
+     * @param date
+     * @return
+     */
+    public static Temporal toLocalDateTemporal(Object date) {
+        if (date instanceof Temporal) {
+            return (Temporal) date;
+        } else if (date instanceof java.sql.Date) {
+            return ((java.sql.Date) date).toLocalDate();
+        } else if (date instanceof Timestamp) {
+            return ((java.sql.Timestamp) date).toLocalDateTime().toLocalDate();
+        } else if (date instanceof java.util.Date) {
+            return ((java.util.Date) date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        }
+
+        throw new IllegalArgumentException("Object of type '" + date.getClass() + "' cannot be converted to local date because has no date part");
+    }
+
+    /**
+     * Converts a Java object to a temporal accessor suitable for date and time operations.
+     * @param date
+     * @return
+     */
+    public static Temporal toLocalDateTimeTemporal(Object date) {
+        if (date instanceof Temporal) {
+            return  (Temporal) date;
+        } else if (date instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) date).toLocalDateTime();
+        } else if (date instanceof java.util.Date) {
+            return ((java.util.Date) date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+
+        throw new IllegalArgumentException("Object of type '" + date.getClass() + "' cannot be converted to local date because has no date or time part");
+    }
+
+    /**
+     * Converts a Java object to a temporal accessor suitable for time only operations.
+     * @param date
+     * @return
+     */
+    public static Temporal toLocalTimeTemporal(Object date) {
+        if (date instanceof Temporal) {
+            return  (Temporal) date;
+        } else if (date instanceof Timestamp) {
+            return ((Timestamp) date).toLocalDateTime();
+        } else if (date instanceof Time) {
+            return ((Time) date).toLocalTime();
+        } else  if (date instanceof java.util.Date) {
+            return ((java.util.Date) date).toInstant().atZone(ZoneId.systemDefault()).toLocalTime();
+        }
+
+        throw new IllegalArgumentException("Object of type '" + date.getClass() + "' cannot be converted to local time because has no time part");
     }
 }
