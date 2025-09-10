@@ -1388,11 +1388,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                    rs.next();
                    assertEquals(rs.getString(2), expectedType.getName());
                    switch (expectedType) {
-                       case IPv4:
-                           assertEquals(rs.getString(1), "/" + value);
-                           break;
                        case IPv6:
-                           // do not check
+                           // do not check because auto-converted to IPv4
                            break;
                        default:
                            assertEquals(rs.getString(1), String.valueOf(value));
@@ -1414,7 +1411,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {100L, ClickHouseDataType.UInt32, ClickHouseDataType.UInt32},
                 {100L, ClickHouseDataType.UInt64, ClickHouseDataType.UInt64},
                 {"ed0c77a3-2e4b-4954-98ee-22a4fdad9565", ClickHouseDataType.UUID, ClickHouseDataType.UUID},
-                {"::ffff:127.0.0.1", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
+                {"0:0:0:0:0:ffff:5ab0:4b61", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
                 {"116.253.40.133", ClickHouseDataType.IPv4, ClickHouseDataType.IPv4},
                 {100, JDBCType.TINYINT, ClickHouseDataType.Int8}
         };
