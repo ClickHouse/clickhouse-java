@@ -916,6 +916,33 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testDataTypesAsStringDP")
+    public void testDataTypesAsString(String sql, String[] expectedStrValues) throws Exception {
+
+        try (QueryResponse resp = client.query(sql).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+            reader.next();
+            for (int i = 0; i < expectedStrValues.length; i++) {
+                Assert.assertEquals(reader.getString(i + 1), expectedStrValues[i]);
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testDataTypesAsStringDP() {
+        return new Object[][] {
+                {"SELECT '192.168.1.1'::IPv4, '2001:db8::1'::IPv6, '192.168.1.1'::IPv6",
+                    new String[] {"192.168.1.1", "2001:db8:0:0:0:0:0:1", "192.168.1.1"}},
+                {"SELECT '2024-10-04'::Date32, '2024-10-04 12:34:56'::DateTime32, '2024-10-04 12:34:56.789'::DateTime64(3), " +
+                        " '2024-10-04 12:34:56.789012'::DateTime64(6), '2024-10-04 12:34:56.789012345'::DateTime64(9)",
+                    new String[] {"2024-10-04", "2024-10-04 12:34:56", "2024-10-04 12:34:56.789", "2024-10-04 12:34:56.789012",
+                            "2024-10-04 12:34:56.789012345"}},
+                {"SELECT 1::Enum16('one' = 1, 'two' = 2)", "one"},
+                {"SELECT 2::Enum8('one' = 1, 'two' = 2)", "two"},
+                {"SELECT 3::Enum('one' = 1, 'two' = 2, 'three' = 3)", "three"},
+        };
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE " + table + " ( ");

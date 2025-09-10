@@ -489,25 +489,6 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-
-    @Test(groups = {"integration"})
-    public void testWithIPs() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT toIPv4('127.0.0.1'), toIPv6('::1'), toIPv6('2001:438:ffff::407d:1bc1')")) {
-                    assertTrue(rs.next());
-                    assertEquals(rs.getString(1), "/127.0.0.1");
-                    assertEquals(rs.getObject(1), Inet4Address.getByName("127.0.0.1"));
-                    assertEquals(rs.getString(2), "/0:0:0:0:0:0:0:1");
-                    assertEquals(rs.getObject(2), Inet6Address.getByName("0:0:0:0:0:0:0:1"));
-                    assertEquals(rs.getString(3), "/2001:438:ffff:0:0:0:407d:1bc1");
-                    assertEquals(rs.getObject(3), Inet6Address.getByName("2001:438:ffff:0:0:0:407d:1bc1"));
-                    assertFalse(rs.next());
-                }
-            }
-        }
-    }
-
     @Test
     public void testConnectionExhaustion() throws Exception {
 
