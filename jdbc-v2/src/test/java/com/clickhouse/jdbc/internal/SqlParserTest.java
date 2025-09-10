@@ -237,6 +237,7 @@ public class SqlParserTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors());
         Assert.assertEquals(stmt.getArgCount(), args);
+        Assert.assertTrue(stmt.isHasResultSet());
     }
 
     @DataProvider
@@ -248,7 +249,10 @@ public class SqlParserTest {
                 {"with a as (select 1) select * from a; ", 0},
                 {"(with ? as a select a);", 1},
                 {"select * from ( with x as ( select 9 ) select * from x );", 0},
-                {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1}
+                {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1},
+                {"WITH toDateTime('2025-08-20 12:34:56') AS target_time SELECT * FROM table", 0},
+                {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
+                {"WITH toDate(?) as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 1}
         };
     }
 
@@ -326,6 +330,8 @@ public class SqlParserTest {
             {"WITH 'hello' REGEXP 'h' AS result SELECT 1", 0},
             {"WITH (select 1) as a, z AS (select 2) SELECT 1", 0},
             {"SELECT result FROM test_view(myParam = ?)", 1},
+            {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
+            {"select 1 table where 1 = ?", 1}
         };
     }
 
