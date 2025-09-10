@@ -29,6 +29,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1648,6 +1649,55 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
                     assertFalse(rs.next());
                 }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSpatialData() throws Exception {
+        final Double[][] spatialArrayData = new Double[][] {
+                {4.837388, 52.38795},
+                {4.951513, 52.354582},
+                {4.961987, 52.371763},
+                {4.870017, 52.334932},
+                {4.89813, 52.357238},
+                {4.852437, 52.370315},
+                {4.901712, 52.369567},
+                {4.874112, 52.339823},
+                {4.856942, 52.339122},
+                {4.870253, 52.360353},
+        };
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT \n");
+        sql.append("\tcast(arrayJoin([");
+        for (int i = 0; i < spatialArrayData.length; i++) {
+            sql.append("(" + spatialArrayData[i][0] + ", " + spatialArrayData[i][1] + ")").append(',');
+        }
+        sql.setLength(sql.length() - 1);
+        sql.append("])");
+        sql.append("as Point) as Point");
+
+
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery(sql.toString())) {
+
+                ResultSetMetaData metaData = rs.getMetaData();
+                assertEquals(metaData.getColumnCount(), 1);
+                assertEquals(metaData.getColumnTypeName(1), "Point");
+                assertEquals(metaData.getColumnType(1), Types.ARRAY);
+
+                int rowCount = 0;
+                while (rs.next()) {
+                    Object asObject = rs.getObject(1);
+                    assertTrue(asObject instanceof double[]);
+                    Array asArray = rs.getArray(1);
+                    assertEquals(asArray.getArray(), spatialArrayData[rowCount]);
+                    assertEquals(asObject, asArray.getArray());
+                    rowCount++;
+                }
+                assertTrue(rowCount > 0);
             }
         }
     }
