@@ -18,6 +18,7 @@
 
     <properties>
         <shade.base>${project.groupId}.shaded</shade.base>
+        <lombok.version>1.18.36</lombok.version>
     </properties>
 
     <dependencies>
@@ -125,7 +126,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.36</version>
+            <version>${lombok.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
