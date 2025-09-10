@@ -55,7 +55,7 @@ columnAliases
 cteUnboundCol
     : (literal AS identifier) # CteUnboundColLiteral
     | (QUERY AS identifier) # CteUnboundColParam
-    | LPAREN columnExpr RPAREN AS identifier # CteUnboundColExpr
+    | LPAREN? columnExpr RPAREN? AS identifier # CteUnboundColExpr
     | LPAREN ctes? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
@@ -1237,6 +1237,7 @@ keywordForAlias
     | CURRENT
     | INDEX
     | TABLES
+    | TABLE
     | TEST
     | VIEW
     | PRIMARY
