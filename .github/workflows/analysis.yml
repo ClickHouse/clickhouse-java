@@ -28,7 +28,7 @@ on:
         required: false
 
 env:
-  PREFERRED_LTS_VERSION: "24.3"
+  PREFERRED_LTS_VERSION: "25.3"
   PR_NUMBER: ${{ github.event.pull_request.number || '' }}
 
 jobs:
