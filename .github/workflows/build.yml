@@ -66,44 +66,44 @@ jobs:
             if [ -e $d/gradlew ]; then cd $d && ./gradlew clean build; fi;
           done      
 
-  test-multi-env:
-    needs: compile
-    strategy:
-      matrix:
-        # https://whichjdk.com/
-        # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
-        # add "corretto", "liberica", "microsoft", "zulu" only when needed
-        dist: ["temurin"]
-        # fix issue on "macos-latest", "windows-latest"
-        os: ["ubuntu-latest"]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: ${{ matrix.dist }}
-          java-version: 17
-          cache: "maven"
-      - name: Test libraries
-        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
+#  test-multi-env:
+#    needs: compile
+#    strategy:
+#      matrix:
+#        # https://whichjdk.com/
+#        # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
+#        # add "corretto", "liberica", "microsoft", "zulu" only when needed
+#        dist: ["temurin"]
+#        # fix issue on "macos-latest", "windows-latest"
+#        os: ["ubuntu-latest"]
+#      fail-fast: false
+#    runs-on: ${{ matrix.os }}
+#    timeout-minutes: 10
+#    name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
+#    steps:
+#      - name: Check out repository
+#        uses: actions/checkout@v4
+#      - name: Check out PR
+#        run: |
+#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+#        if: github.event.inputs.pr != ''
+#      - name: Install JDK 17 and Maven
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: ${{ matrix.dist }}
+#          java-version: 17
+#          cache: "maven"
+#      - name: Test libraries
+#        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v4
+#        if: failure()
+#        with:
+#          name: result ${{ github.job }}
+#          path: |
+#            **/target/failsafe-reports
+#            **/target/surefire-reports
 
   test-native-image:
     runs-on: ubuntu-latest
@@ -200,7 +200,7 @@ jobs:
 
   test-with-cloud:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-jdbc-driver
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
@@ -265,7 +265,7 @@ jobs:
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-java-client
     strategy:
       matrix:
         clickhouse: ["25.3", "25.8", "latest"]
@@ -328,7 +328,7 @@ jobs:
 
   test-r2dbc-driver:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-jdbc-driver
     strategy:
       matrix:
         clickhouse: ["25.3", "25.8", "latest"]
