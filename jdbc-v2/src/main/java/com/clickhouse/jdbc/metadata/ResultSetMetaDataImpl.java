@@ -32,6 +32,12 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
         this.typeClassMap = typeClassMap;
     }
 
+    private void checkColumnIndex(int column) throws SQLException {
+        if (column < 1 || column > columns.size()) {
+            throw new SQLException("Column index out of range: " + column, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+    }
+
     private ClickHouseColumn getColumn(int column) throws SQLException {
         try {
             return columns.get(column - 1);
@@ -47,68 +53,52 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public boolean isAutoIncrement(int column) throws SQLException {
+        checkColumnIndex(column);
         return false; // no auto-incremental types
     }
 
     @Override
     public boolean isCaseSensitive(int column) throws SQLException {
-        try {
-            // TODO: should be in sync with DatabaseMetadata
-            return getColumn(column).getDataType().isCaseSensitive();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        // TODO: should be in sync with DatabaseMetadata
+        return getColumn(column).getDataType().isCaseSensitive();
     }
 
     @Override
     public boolean isSearchable(int column) throws SQLException {
+        checkColumnIndex(column);
         return true; // all columns are considered as searchable
     }
 
     @Override
     public boolean isCurrency(int column) throws SQLException {
+        checkColumnIndex(column);
         return false;
     }
 
     @Override
     public int isNullable(int column) throws SQLException {
-        try {
-            return getColumn(column).isNullable() ? columnNullable : columnNoNulls;
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).isNullable() ? columnNullable : columnNoNulls;
     }
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        try {
-            return getColumn(column).getDataType().isSigned();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getDataType().isSigned();
     }
 
     @Override
     public int getColumnDisplaySize(int column) throws SQLException {
+        checkColumnIndex(column);
         return 80;
     }
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        try {
-            return getColumn(column).getColumnName();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getColumnName();
     }
 
     @Override
     public String getColumnName(int column) throws SQLException {
-        try {
-            return getColumn(column).getColumnName();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getColumnName();
     }
 
     @Override
@@ -118,62 +108,51 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        try {
-            return getColumn(column).getPrecision();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getPrecision();
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        try {
-            return getColumn(column).getScale();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getScale();
     }
 
     @Override
     public String getTableName(int column) throws SQLException {
+        checkColumnIndex(column);
         return tableName;
     }
 
     @Override
     public String getCatalogName(int column) throws SQLException {
+        checkColumnIndex(column);
         return catalog;
     }
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        try {
-            return JdbcUtils.convertToSqlType(getColumn(column).getDataType()).getVendorTypeNumber();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return JdbcUtils.convertToSqlType(getColumn(column).getDataType()).getVendorTypeNumber();
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        try {
-            return getColumn(column).getOriginalTypeName();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return getColumn(column).getOriginalTypeName();
     }
 
     @Override
     public boolean isReadOnly(int column) throws SQLException {
+        checkColumnIndex(column);
         return true;
     }
 
     @Override
     public boolean isWritable(int column) throws SQLException {
+        checkColumnIndex(column);
         return false;
     }
 
     @Override
     public boolean isDefinitelyWritable(int column) throws SQLException {
+        checkColumnIndex(column);
         return false;
     }
 
