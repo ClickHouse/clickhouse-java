@@ -19,8 +19,11 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -449,6 +452,24 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 }
 
                 assertTrue(count > 10, "At least 10 types should be returned but was " + count);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testFindNestedTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getTypeInfo()) {
+                Set<String> nestedTypes = Arrays.stream(ClickHouseDataType.values())
+                        .filter(dt -> dt.isNested()).map(dt -> dt.name()).collect(Collectors.toSet());
+
+                while (rs.next()) {
+                    String typeName = rs.getString("TYPE_NAME");
+                    nestedTypes.remove(typeName);
+                }
+
+                assertTrue(nestedTypes.isEmpty(), "Nested types " + nestedTypes + " not found");
             }
         }
     }
