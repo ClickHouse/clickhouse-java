@@ -232,7 +232,8 @@ public class JdbcUtils {
             } else if (type == String.class) {
                 return value.toString();
             } else if (type == Boolean.class || type == boolean.class) {
-                return Boolean.parseBoolean(value.toString());
+                String str = value.toString();
+                return !("false".equalsIgnoreCase(str) || "0".equalsIgnoreCase(str));
             } else if (type == Byte.class || type == byte.class) {
                 return Byte.parseByte(value.toString());
             } else if (type == Short.class || type == short.class) {

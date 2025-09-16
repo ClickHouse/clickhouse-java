@@ -37,7 +37,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             final String tableName = "get_columns_metadata_test";
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("" +
-                        "CREATE TABLE " + tableName + " (id Int32, name String, v1 Nullable(Int8)) " +
+                        "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8)) " +
                         "ENGINE MergeTree ORDER BY ()");
             }
 
@@ -109,6 +109,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.INTEGER);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.INTEGER);
                 assertEquals(rs.getString("TYPE_NAME"), "Int32");
+                assertFalse(rs.getBoolean("NULLABLE"));
 
                 assertTrue(rs.next());
                 assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
@@ -117,6 +118,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.VARCHAR);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.VARCHAR);
                 assertEquals(rs.getString("TYPE_NAME"), "String");
+                assertFalse(rs.getBoolean("NULLABLE"));
 
                 assertTrue(rs.next());
                 assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
@@ -125,6 +127,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.TINYINT);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.TINYINT);
                 assertEquals(rs.getString("TYPE_NAME"), "Nullable(Int8)");
+                assertTrue(rs.getBoolean("NULLABLE"));
             }
         }
     }
