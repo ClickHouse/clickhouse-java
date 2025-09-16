@@ -5,7 +5,9 @@ import org.testng.annotations.Test;
 import java.sql.SQLException;
 import java.sql.Types;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertThrows;
 
 
 public class ParameterMetaDataImplTest {
@@ -80,5 +82,18 @@ public class ParameterMetaDataImplTest {
 
         assertThrows(() -> metaData.getParameterMode(0));
         assertThrows(() -> metaData.getParameterMode(2));
+    }
+
+    @Test(groups = {"integration"})
+    public void testColumnOutOfIndex() throws SQLException {
+        ParameterMetaDataImpl metaData = new ParameterMetaDataImpl(1);
+        int indexAfterLastColumn = 2;
+        assertThrows(SQLException.class, () -> metaData.getParameterMode(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.getParameterType(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.getScale(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.getPrecision(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.getParameterClassName(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.isNullable(indexAfterLastColumn));
+        assertThrows(SQLException.class, () -> metaData.isSigned(indexAfterLastColumn));
     }
 }
