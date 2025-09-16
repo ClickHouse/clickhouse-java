@@ -57,6 +57,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private int rowPos;
 
     private int fetchSize;
+    private int fetchDirection;
+    final private int maxFieldSize;
+    final private int maxRows;
 
     private Consumer<Exception> onDataTransferException;
 
@@ -77,6 +80,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
         this.rowPos = BEFORE_FIRST;
         this.fetchSize = parentStatement.getFetchSize();
+        this.fetchDirection = parentStatement.getFetchDirection();
+        this.maxFieldSize = parentStatement.getMaxFieldSize();
+        this.maxRows = parentStatement.getMaxRows();
         this.onDataTransferException = onDataTransferException;
     }
 
@@ -102,6 +108,15 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean next() throws SQLException {
         checkClosed();
+
+        if (rowPos == AFTER_LAST) {
+            return false;
+        }
+
+        if (maxRows > 0 && rowPos == maxRows) {
+            rowPos = AFTER_LAST;
+            return false;
+        }
 
         try {
             Object readerRow = reader.next();
@@ -543,7 +558,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public boolean isLast() throws SQLException {
         checkClosed();
-        return !reader.hasNext() && rowPos != AFTER_LAST && rowPos != BEFORE_FIRST;
+        return (!reader.hasNext() || rowPos == maxRows) && rowPos != AFTER_LAST && rowPos != BEFORE_FIRST;
     }
 
     @Override
@@ -607,15 +622,16 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public int getFetchDirection() throws SQLException {
         checkClosed();
-        return FETCH_FORWARD;
+        return fetchDirection;
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkClosed();
-        if (direction != ResultSet.FETCH_FORWARD) {
+        if (getType() == TYPE_FORWARD_ONLY && direction != ResultSet.FETCH_FORWARD) {
             throw new SQLException("This result set object is of FORWARD ONLY type. Only ResultSet.FETCH_FORWARD is allowed as fetchDirection.");
         }
+        fetchDirection = direction;
     }
 
     @Override

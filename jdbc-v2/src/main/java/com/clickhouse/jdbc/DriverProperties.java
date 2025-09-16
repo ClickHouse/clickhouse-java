@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.internal.ServerSettings;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -35,6 +37,16 @@ public enum DriverProperties {
      *  Enables closing result set before
      */
     RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", "true"),
+
+    /**
+     * Enables using server property `max_result_rows` ({@link ServerSettings#MAX_RESULT_ROWS} to limit number of rows returned by query.
+     * Enabling this property will override user set overflow mode. It may cause error if server doesn't allow changing properties.
+     * When this property is not enabled then result set will stop reading data once limit is reached. As server may have
+     * more in a result set then it will require time to read all data to make HTTP connection usable again. In most cases
+     * this is fine. It is recommended to set limit in SQL query.
+     *
+     */
+    USE_MAX_RESULT_ROWS("jdbc_use_max_result_rows", "false"),
     ;
 
 
