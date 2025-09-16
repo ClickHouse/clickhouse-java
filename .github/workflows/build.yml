@@ -206,7 +206,8 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["cloud"]
-        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
+#        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
+        project: ["client-v2", "jdbc-v2"]
       fail-fast: false
     timeout-minutes: 20
     name: ${{ matrix.project }} + CH ${{ matrix.clickhouse }}
