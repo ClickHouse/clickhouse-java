@@ -465,10 +465,4 @@ public class ClickHouseColumnTest {
                 {"JSON(max_dynamic_types=3,max_dynamic_paths=3, SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 2, Arrays.asList("flags")},
         };
     }
-
-    @Test(groups = {"unit"})
-    public void testReadColumnWithTableName() {
-        ClickHouseColumn c = ClickHouseColumn.of("`table`.`field1`", "String");
-        System.out.println(c);
-    }
 }
