@@ -57,11 +57,9 @@ jobs:
           cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
-      - name: List local repo
+      - name: Create Archive with JDBC Artifact
         run: |
-          ls -l  $HOME/.m2/;
-          ls -l  $HOME/.m2/repository/;
-          ls -l  $HOME/.m2/repository/com/clickhouse/;
+          tar cvfz clickhouse-jdbc.tar.gz -C $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/ .
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
@@ -74,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clickhouse-jdbc-archive
-          path: $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/**
+          path: clickhouse-jdbc.tar.gz
           retention-days: 5 
 
 #  test-multi-env:
