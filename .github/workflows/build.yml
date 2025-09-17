@@ -188,6 +188,13 @@ jobs:
       - name: Test Java client
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dmaven.javadoc.skip=true verify
+      - name: Save clickhouse-jdbc-all for tests 
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: clickhouse-jdbc-archive
+          path: $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/
+          retention-days: 5
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -196,6 +203,7 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
+          retention-days: 5
 
   test-with-cloud:
     runs-on: ubuntu-latest
