@@ -28,7 +28,9 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1647,6 +1649,77 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.getObject("v") instanceof Number);
 
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testDateWithExpressions() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        try (Connection conn = getJdbcConnection(props)) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toMonth(?) as d1, toYear(?) as d2, toTime64(?, 3) as t1, toTime64(?, 3) as t2")) {
+                Date date = Date.valueOf("2024-12-01");
+                Time time = Time.valueOf("16:30:00");
+                stmt.setDate(1, date);
+                stmt.setObject(2, date);
+                stmt.setTime(3, time);
+                stmt.setObject(4, time);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "12");
+                    assertEquals(rs.getString(2), "2024");
+                    assertEquals(rs.getTime(3), "16");
+                    assertEquals(rs.getTime(4), "30");
+                }
+            }
+
+            final String testTable = "test_date_expressions";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + testTable);
+                stmt.execute("CREATE TABLE " + testTable + " (d Date, event String) ENGINE = MergeTree() ORDER BY ()");
+                stmt.execute("INSERT INTO " + testTable + " VALUES ('2024-12-01', 'event1'), ('2024-12-02', 'event2'), ('2024-12-03', 'event3')");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT d, event FROM " + testTable + " WHERE d IN(?) ORDER BY event")){
+                Date[] dates = new Date[] { Date.valueOf("2024-12-01"), Date.valueOf("2024-12-03") };
+                stmt.setArray(1, conn.createArrayOf("Date", dates));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    String[] events = new String[] { "event1", "event3" };
+                    String[] datesStr = new String[] { "2024-12-01", "2024-12-03" };
+
+                    for (int i = 0; i < events.length; i++) {
+                        assertTrue(rs.next());
+                        assertEquals(rs.getString("event"), events[i]);
+                        assertEquals(rs.getString("d"), datesStr[i]);
+                    }
+                }
+            }
+
+            final String dateTimeTable = "test_date_time_expressions";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + dateTimeTable);
+                stmt.execute("CREATE TABLE " + dateTimeTable + " (t DateTime32, event String) ENGINE = MergeTree() ORDER BY ()");
+                stmt.execute("INSERT INTO " + dateTimeTable + " VALUES ('2024-12-01 00:10:00', 'event1'), ('2024-12-02 00:20:00', 'event2'), " +
+                        "('2024-12-03 00:30:00', 'event3')");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT t, event FROM " + dateTimeTable + " WHERE t IN(?) ORDER BY event")){
+                Timestamp[] timestamps = new Timestamp[] {
+                    Timestamp.valueOf("2024-12-01 00:10:00"),
+                    Timestamp.valueOf("2024-12-03 00:30:00")
+                };
+                stmt.setArray(1, conn.createArrayOf("DateTime32", timestamps));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    String[] events = new String[] { "event1", "event3" };
+                    String[] timestampsStr = new String[] { "2024-12-01 00:10:00", "2024-12-03 00:30:00" };
+
+                    for (int i = 0; i < events.length; i++) {
+                        assertTrue(rs.next());
+                        assertEquals(rs.getString("event"), events[i]);
+                        assertEquals(rs.getString("t"), timestampsStr[i]);
+                    }
                 }
             }
         }
