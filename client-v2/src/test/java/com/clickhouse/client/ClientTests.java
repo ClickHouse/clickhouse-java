@@ -7,7 +7,9 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -15,6 +17,8 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.query.QueryTests;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
@@ -24,6 +28,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.util.Strings;
 
+import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -409,6 +414,32 @@ public class ClientTests extends BaseIntegrationTest {
             List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerSettings() throws Exception {
+        try (Client client = newClient().build()) {
+            client.execute("DROP TABLE IF EXISTS server_settings_test_table");
+            client.execute("CREATE TABLE server_settings_test_table (v Float) Engine MergeTree ORDER BY ()");
+
+            final String queryId = UUID.randomUUID().toString();
+            InsertSettings insertSettings = new InsertSettings()
+                    .setQueryId(queryId)
+                    .serverSetting(ServerSettings.ASYNC_INSERT, "1")
+                    .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1");
+
+            String csvData = "0.33\n0.44\n0.55\n";
+            client.insert("server_settings_test_table", new ByteArrayInputStream(csvData.getBytes()), ClickHouseFormat.CSV, insertSettings).get().close();
+
+            client.execute("SYSTEM FLUSH LOGS").get().close();
+
+            List<GenericRecord> logRecords = client.queryAll("SELECT * FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+
+            GenericRecord record = logRecords.get(0);
+            String settings = record.getString(record.getSchema().nameToColumnIndex("Settings"));
+            Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1"));
+//            Assert.assertTrue(settings.contains(ServerSettings.WAIT_ASYNC_INSERT + "=1")); // uncomment after server fix 
         }
     }
 
