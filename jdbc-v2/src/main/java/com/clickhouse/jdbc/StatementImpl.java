@@ -43,7 +43,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected volatile String lastQueryId;
     private long maxRows;
     private boolean closeOnCompletion;
-    private boolean resultSetAutoClose;
+    private final boolean resultSetAutoClose;
     private int maxFieldSize;
     private boolean escapeProcessingEnabled;
 

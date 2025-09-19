@@ -46,7 +46,7 @@ public enum DriverProperties {
     /**
      *  Enables closing result set before
      */
-    RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", String.valueOf(Boolean.FALSE)),
+    RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", String.valueOf(Boolean.TRUE)),
 
     /**
      * Enables using server property `max_result_rows` ({@link ServerSettings#MAX_RESULT_ROWS} to limit number of rows returned by query.
