@@ -1109,7 +1109,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void setConnectionSchema() throws Exception {
+    public void testSetConnectionSchema() throws Exception {
         String db1 = getDatabase() + "_schema1";
         String db2 = getDatabase() + "_schema2";
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
@@ -1126,6 +1126,70 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(getDBName(stmt), db1);
             }
 
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testUnsupportedOperationsDP")
+    public void testUnsupportedOperations(Properties props, boolean shouldThrow) throws Exception {
+        try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement()) {
+            List<Assert.ThrowingRunnable> unsupportedOperations = Arrays.asList(
+                    () -> stmt.execute("SELECT 1", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.execute("SELECT 1", new int[] {1}),
+                    () -> stmt.execute("SELECT 1", new String[] {"1"}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.setCursorName("CURSOR_NAME_IGNORED")
+            );
+
+            stmt.execute("SELECT 1", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+
+            assertNull(stmt.getGeneratedKeys());
+
+
+            for (Assert.ThrowingRunnable op : unsupportedOperations) {
+                if (shouldThrow) {
+                    assertThrows(SQLException.class, op);
+                } else {
+                    try {
+                        op.run();
+                    } catch (Throwable e) {
+                        fail(e.getMessage(), e);
+                    }
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testUnsupportedOperationsDP")
+    public static Object[][] testUnsupportedOperationsDP() {
+        Properties props1 = new Properties();
+        Properties props2 = new Properties();
+        props2.put(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+        Properties props3 = new Properties();
+        props3.put(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false");
+        return new Object[][] {
+                {props1, true},
+                {props2, false},
+                {props3, true}
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetFetchSize() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setFetchSize(10000);
+                Assert.assertEquals(stmt.getFetchSize(), 10000);
+                stmt.setFetchSize(0);
+                Assert.assertEquals(stmt.getFetchSize(), 0);
+                Assert.assertThrows(SQLException.class, () -> stmt.setFetchSize(-1));
+            }
         }
     }
 

@@ -13,8 +13,18 @@ import java.util.List;
  */
 public enum DriverProperties {
 
-    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", ""),
-    SCHEMA_TERM("jdbc_schema_term", ""),
+    /**
+     * Indicates if driver should ignore unsupported values and methods.
+     * JDBC allows throwing SQLException for unsupported values and methods.
+     * But driver can ignore them and continue execution. Driver will do no operation in such case.
+     */
+    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", "false"),
+
+    /**
+     * Schema term to be used in the connection URL. Only `schema` is supported right now.
+     */
+    SCHEMA_TERM("jdbc_schema_term", "schema"),
+
     /**
      * Indicates if driver should create a secure connection over SSL/TLS
      */
