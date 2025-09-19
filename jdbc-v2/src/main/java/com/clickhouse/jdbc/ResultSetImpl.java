@@ -16,7 +16,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
@@ -58,8 +57,9 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private int fetchSize;
     private int fetchDirection;
-    final private int maxFieldSize;
-    final private int maxRows;
+    @SuppressWarnings("unused")
+    private final int maxFieldSize;
+    private final int maxRows;
 
     private Consumer<Exception> onDataTransferException;
 
@@ -114,6 +114,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         }
 
         if (maxRows > 0 && rowPos == maxRows) {
+            // rowPos is at current position. if we reached here it means we stepped over maxRows
             rowPos = AFTER_LAST;
             return false;
         }

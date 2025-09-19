@@ -18,7 +18,7 @@ public enum DriverProperties {
      * JDBC allows throwing SQLException for unsupported values and methods.
      * But driver can ignore them and continue execution. Driver will do no operation in such case.
      */
-    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", "false"),
+    IGNORE_UNSUPPORTED_VALUES("jdbc_ignore_unsupported_values", String.valueOf(Boolean.FALSE)),
 
     /**
      * Schema term to be used in the connection URL. Only `schema` is supported right now.
@@ -28,7 +28,7 @@ public enum DriverProperties {
     /**
      * Indicates if driver should create a secure connection over SSL/TLS
      */
-    SECURE_CONNECTION("ssl", "false"),
+    SECURE_CONNECTION("ssl", String.valueOf(Boolean.FALSE)),
 
     /**
      * Query settings to be passed along with query operation.
@@ -41,12 +41,12 @@ public enum DriverProperties {
      * PreparedStatement is used. Has limitation and can be used with a simple form of insert like;
      * {@code INSERT INTO t VALUES (?, ?, ?...)}
      */
-    BETA_ROW_BINARY_WRITER("beta.row_binary_for_simple_insert", "false"),
+    BETA_ROW_BINARY_WRITER("beta.row_binary_for_simple_insert", String.valueOf(Boolean.FALSE)),
 
     /**
      *  Enables closing result set before
      */
-    RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", "true"),
+    RESULTSET_AUTO_CLOSE("jdbc_resultset_auto_close", String.valueOf(Boolean.FALSE)),
 
     /**
      * Enables using server property `max_result_rows` ({@link ServerSettings#MAX_RESULT_ROWS} to limit number of rows returned by query.
@@ -56,7 +56,7 @@ public enum DriverProperties {
      * this is fine. It is recommended to set limit in SQL query.
      *
      */
-    USE_MAX_RESULT_ROWS("jdbc_use_max_result_rows", "false"),
+    USE_MAX_RESULT_ROWS("jdbc_use_max_result_rows", String.valueOf(Boolean.FALSE)),
     ;
 
 
