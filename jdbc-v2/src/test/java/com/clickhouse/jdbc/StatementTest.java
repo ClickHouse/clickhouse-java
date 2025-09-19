@@ -21,7 +21,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
@@ -508,9 +511,8 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testConnectionExhaustion() throws Exception {
-
         int maxNumConnections = 3;
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "" + maxNumConnections);
@@ -520,6 +522,20 @@ public class StatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 for (int i = 0; i < maxNumConnections * 2; i++) {
                     stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
+                }
+            }
+        }
+
+        properties.put(DriverProperties.RESULTSET_AUTO_CLOSE.getKey(), "false");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try {
+                    for (int i = 0; i < maxNumConnections * 2; i++) {
+                        stmt.executeQuery("SELECT number FROM system.numbers LIMIT 100");
+                    }
+                    fail("Exception expected");
+                } catch (SQLException e) {
+                    // ignore
                 }
             }
         }
@@ -744,59 +760,111 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testExecuteWithMaxRows() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+    @Test(groups = {"integration"}, dataProvider = "testMaxRowsDP")
+    public void testMaxRows(Map<String, String> props, Long maxRows, boolean exactMatch) throws Exception {
+        Properties p = new Properties();
+        p.putAll(props);
+        try (Connection conn = getJdbcConnection(p)) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.setMaxRows(10);
-                assertEquals(stmt.getMaxRows(), 10);
-                assertEquals(stmt.getLargeMaxRows(), 10);
+                if (maxRows != null) {
+                    stmt.setMaxRows(maxRows.intValue());
+                    assertEquals(stmt.getMaxRows(), maxRows.intValue());
+                    assertEquals(stmt.getLargeMaxRows(), maxRows);
+                }
 
-                stmt.setMaxRows(1);
-                int count = 0;
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
-                    while (rs.next()) {
-                        count++;
+                for (int i = 0; i < 3; i++) { // to check that subsequent queries are not affected
+                    int count = 0;
+                    try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
+                        int lastRow = 0;
+                        while (rs.next()) {
+                            count++;
+                            if (rs.isLast()) {
+                                lastRow = rs.getRow();
+                            }
+                        }
+
+                        int expectedRows = maxRows == null || maxRows == 0L ? 100001 : maxRows.intValue();
+
+                        if (exactMatch) {
+                            assertEquals(lastRow, expectedRows);
+                            assertEquals(count, expectedRows);
+                        } else {
+                            // MaxRows limits the number of row with rounding to the size of the block
+                            // https://clickhouse.com/docs/en/operations/settings/query-complexity#setting-max_result_rows
+                            // https://clickhouse.com/docs/en/operations/settings/query-complexity#result-overflow-mode
+                            assertTrue(count > 0 && count < 100001);
+                        }
                     }
                 }
-                // MaxRows limits the number of row with rounding to the size of the block
-                // https://clickhouse.com/docs/en/operations/settings/query-complexity#setting-max_result_rows
-                // https://clickhouse.com/docs/en/operations/settings/query-complexity#result-overflow-mode
-                assertTrue(count > 0 && count < 100000);
+
+                // check that settings can be reset
+                {
+                    int expectedRows = 100001;
+                    stmt.setMaxRows(0);
+                    try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
+                        int lastRow = 0;
+                        int count = 0;
+                        while (rs.next()) {
+                            count++;
+                            if (rs.isLast()) {
+                                lastRow = rs.getRow();
+                            }
+                        }
+
+                        if (props.containsKey(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS))) {
+                            assertTrue(count > 0 && count < expectedRows);
+                        } else {
+                            assertEquals(lastRow, expectedRows);
+                            assertEquals(count, expectedRows);
+                        }
+                    }
+                }
             }
         }
+    }
 
+    @DataProvider(name = "testMaxRowsDP")
+    static Object[][] testMaxRowsDP() {
+        Map<String, String> userDefinedMaxResultRows = new HashMap<>();
+        userDefinedMaxResultRows.put(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), "1000");
+        userDefinedMaxResultRows.put(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), ServerSettings.RESULT_OVERFLOW_MODE_BREAK);
+
+
+        return new Object[][] {
+                {Collections.emptyMap(), null, true},
+                {Collections.emptyMap(), 0L, true},
+                {Collections.emptyMap(), 100L, true},
+                {userDefinedMaxResultRows, 2000L, false },
+                {userDefinedMaxResultRows, 500L, true },
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testMaxRowsWithOverflowMode() throws Exception {
         Properties props = new Properties();
-        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE),
-                ServerSettings.RESULT_OVERFLOW_MODE_THROW);
-        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), "100");
-        try (Connection conn = getJdbcConnection(props);
-             Statement stmt = conn.createStatement()) {
+        props.put(ClientConfigProperties.serverSetting(ServerSettings.MAX_RESULT_ROWS), "1000");
+        props.put(ClientConfigProperties.serverSetting(ServerSettings.RESULT_OVERFLOW_MODE), ServerSettings.RESULT_OVERFLOW_MODE_THROW);
+        props.put(DriverProperties.USE_MAX_RESULT_ROWS.getKey(), "true");
+        try (Connection conn = getJdbcConnection(props)) {
+            assertThrows(() -> conn.createStatement().executeQuery("SELECT * FROM generate_series(0, 100000)"));
 
-            Assert.assertThrows(SQLException.class, () -> stmt.execute("SELECT * FROM generate_series(0, 100000)"));
-
-            {
-                stmt.setMaxRows(10);
-
-                int count = 0;
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setMaxRows(1000);
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 100000)")) {
+                    int count = 0;
                     while (rs.next()) {
                         count++;
                     }
+                    assertEquals(count, 1000);
                 }
-                assertTrue(count > 0 && count < 100000);
-            }
-
-            {
                 stmt.setMaxRows(0);
-
-                int count = 0;
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 99999)")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 1000)")) {
+                    int count = 0;
                     while (rs.next()) {
                         count++;
                     }
+                    assertEquals(count, 1001);
                 }
-                assertEquals(count, 100000);
             }
         }
     }
@@ -1058,7 +1126,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void setConnectionSchema() throws Exception {
+    public void testSetConnectionSchema() throws Exception {
         String db1 = getDatabase() + "_schema1";
         String db2 = getDatabase() + "_schema2";
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
@@ -1075,6 +1143,70 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(getDBName(stmt), db1);
             }
 
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testUnsupportedOperationsDP")
+    public void testUnsupportedOperations(Properties props, boolean shouldThrow) throws Exception {
+        try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement()) {
+            List<Assert.ThrowingRunnable> unsupportedOperations = Arrays.asList(
+                    () -> stmt.execute("SELECT 1", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.execute("SELECT 1", new int[] {1}),
+                    () -> stmt.execute("SELECT 1", new String[] {"1"}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.setCursorName("CURSOR_NAME_IGNORED")
+            );
+
+            stmt.execute("SELECT 1", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+
+            assertNull(stmt.getGeneratedKeys());
+
+
+            for (Assert.ThrowingRunnable op : unsupportedOperations) {
+                if (shouldThrow) {
+                    assertThrows(SQLException.class, op);
+                } else {
+                    try {
+                        op.run();
+                    } catch (Throwable e) {
+                        fail(e.getMessage(), e);
+                    }
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "testUnsupportedOperationsDP")
+    public static Object[][] testUnsupportedOperationsDP() {
+        Properties props1 = new Properties();
+        Properties props2 = new Properties();
+        props2.put(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "true");
+        Properties props3 = new Properties();
+        props3.put(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false");
+        return new Object[][] {
+                {props1, true},
+                {props2, false},
+                {props3, true}
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetFetchSize() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setFetchSize(10000);
+                Assert.assertEquals(stmt.getFetchSize(), 10000);
+                stmt.setFetchSize(0);
+                Assert.assertEquals(stmt.getFetchSize(), 0);
+                Assert.assertThrows(SQLException.class, () -> stmt.setFetchSize(-1));
+            }
         }
     }
 
