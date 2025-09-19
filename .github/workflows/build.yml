@@ -57,6 +57,10 @@ jobs:
           cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
+      - name: Copy Artifacts to Build dir
+        run: |
+          mkdir clickhouse-jdbc-artifacts
+          cp -rf $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/* ./clickhouse-jdbc-artifacts/
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
@@ -64,7 +68,13 @@ jobs:
           for d in $(ls -d `pwd`/examples/*/); do \
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
             if [ -e $d/gradlew ]; then cd $d && ./gradlew clean build; fi;
-          done      
+          done
+      - name: Save clickhouse-jdbc-all for tests 
+        uses: actions/upload-artifact@v4
+        with:
+          name: clickhouse-jdbc-archive
+          path: clickhouse-jdbc-artifacts/
+          retention-days: 5 
 
 #  test-multi-env:
 #    needs: compile
@@ -196,6 +206,7 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
+          retention-days: 5
 
   test-with-cloud:
     runs-on: ubuntu-latest
