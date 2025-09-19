@@ -20,6 +20,8 @@ import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.mime.AbstractContentBody;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
@@ -94,6 +96,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -415,26 +419,70 @@ public class HttpAPIClientHelper {
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
+
+        // only use multipart when enabled, and there are statement parameters
+        boolean useMultipartFormData = (boolean)ClientConfigProperties.USE_MULTIPART_FORM_DATA.getOrDefault(requestConfig)
+                && requestConfig.containsKey(KEY_STATEMENT_PARAMS);
+
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-            addQueryParams(uriBuilder, requestConfig);
-            uri = uriBuilder.normalizeSyntax().build();
+            addQueryParams(uriBuilder, requestConfig, useMultipartFormData);
+            uri = uriBuilder.optimize().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         HttpPost req = new HttpPost(uri);
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
-        addHeaders(req, requestConfig);
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
+        HttpEntity httpEntity;
+        if (useMultipartFormData) {
+            MultipartEntityBuilder builder = MultipartEntityBuilder.create()
+                    .setCharset(StandardCharsets.UTF_8);
 
-        // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig));
+            builder.addPart("query", new CallbackContentBody(o -> {
+                try {
+                    writeCallback.execute(new OutputStream() {
+                        @Override
+                        public void write(int b) throws IOException {
+                            o.write(b);
+                        }
+
+                        @Override
+                        public void close() {
+                            // don't close the stream, it will be closed by http client
+                        }
+                    });
+                } catch (IOException e) {
+                    throw new ClientException("Failed to write query", e);
+                }
+            }));
+
+            addStatementParams((k, v) -> builder.addPart(k, new CallbackContentBody((o) -> {
+                try {
+                    o.write(v.getBytes(StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    throw new ClientException("Failed to write statement params", e);
+                }
+            })), requestConfig);
+
+            httpEntity = builder.build();
+        } else {
+            httpEntity = new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback);
+        }
+
+        // wrapping if compression is enabled
+        httpEntity = wrapRequestEntity(httpEntity,
+                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig);
+
+        addHeaders(req, requestConfig, httpEntity);
+
+        // setting entity
+        req.setEntity(httpEntity);
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -488,8 +536,9 @@ public class HttpAPIClientHelper {
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
-    private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
-        addHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+    private void addHeaders(HttpPost req, Map<String, Object> requestConfig, HttpEntity httpEntity) {
+        addHeader(req, HttpHeaders.CONTENT_TYPE, httpEntity.getContentType());
+
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             addHeader(
                 req,
@@ -580,13 +629,12 @@ public class HttpAPIClientHelper {
         correctUserAgentHeader(req, requestConfig);
     }
 
-    private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
+    private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig, boolean useMultipartFormData) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
+        if (!useMultipartFormData) {
+            addStatementParams(req::addParameter, requestConfig);
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -619,6 +667,13 @@ public class HttpAPIClientHelper {
                     req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
                 }
             }
+        }
+    }
+
+    private void addStatementParams(BiConsumer<String, String> keyValueConsumer, Map<String, Object> requestConfig) {
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> keyValueConsumer.accept("param_" + k, String.valueOf(v)));
         }
     }
 
@@ -819,6 +874,32 @@ public class HttpAPIClientHelper {
             } catch (UnsupportedEncodingException e) {
                 throw new ClientException("Failed to convert string to UTF8" , e);
             }
+        }
+    }
+
+    protected static class CallbackContentBody extends AbstractContentBody {
+        private final Consumer<OutputStream> writer;
+
+        public CallbackContentBody(Consumer<OutputStream> writer) {
+            super(ContentType.APPLICATION_OCTET_STREAM);
+            this.writer = writer;
+        }
+
+        @Override
+        public String getFilename() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {
+            // Delegate to external callback
+            writer.accept(out);
+            out.flush();
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1; // unknown length → chunked transfer
         }
     }
 

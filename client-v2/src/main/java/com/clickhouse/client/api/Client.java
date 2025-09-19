@@ -602,6 +602,19 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Configures the client to use Content-Type: multipart/form-data for passing query parameters via POST body
+         * as opposed to using the default application/x-www-form-urlencoded approach. This can help avoid problems
+         * when the url becomes too long.
+         *
+         * @param enabled - indicates if multipart form data is enabled
+         * @return
+         */
+        public Builder useMultipartFormData(boolean enabled) {
+            this.configuration.put(ClientConfigProperties.USE_MULTIPART_FORM_DATA.getKey(), String.valueOf(enabled));
+            return this;
+        }
+
+        /**
          * Tell client that compression will be handled by application.
          * @param enabled - indicates that feature is enabled.
          * @return
