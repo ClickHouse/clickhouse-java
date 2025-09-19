@@ -845,11 +845,16 @@ public class StatementTest extends JdbcIntegrationTest {
                     }
                     assertEquals(count, 1000);
                 }
+                stmt.setMaxRows(0);
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM generate_series(0, 1000)")) {
+                    int count = 0;
+                    while (rs.next()) {
+                        count++;
+                    }
+                    assertEquals(count, 1001);
+                }
             }
-
         }
-
-
     }
 
     @Test(groups = {"integration"})
