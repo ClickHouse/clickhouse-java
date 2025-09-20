@@ -830,9 +830,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),createTableSettings).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -858,10 +861,13 @@ public class DataTypeTests extends BaseIntegrationTest {
         actualFields[0] = "rowId Int32";
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, actualFields),
-                (CommandSettings) new CommandSettings()
-                        .serverSetting("allow_experimental_variant_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, actualFields),createTableSettings).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 

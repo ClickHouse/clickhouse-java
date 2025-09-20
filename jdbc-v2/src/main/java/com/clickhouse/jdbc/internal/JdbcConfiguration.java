@@ -309,6 +309,10 @@ public class JdbcConfiguration {
     }
 
     public boolean isBetaFeatureEnabled(DriverProperties prop) {
+        return isFlagSet(prop);
+    }
+
+    public boolean isFlagSet(DriverProperties prop) {
         String value = driverProperties.getOrDefault(prop.getKey(), prop.getDefaultValue());
         return Boolean.parseBoolean(value);
     }
@@ -317,5 +321,9 @@ public class JdbcConfiguration {
         Map<ClickHouseDataType, Class<?>> mapping = new HashMap<>();
         mapping.put(ClickHouseDataType.Array, List.class);
         return mapping;
+    }
+
+    public boolean useMaxResultRows() {
+        return isFlagSet(DriverProperties.USE_MAX_RESULT_ROWS);
     }
 }
