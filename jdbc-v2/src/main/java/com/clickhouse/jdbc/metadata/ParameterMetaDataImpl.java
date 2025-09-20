@@ -127,6 +127,8 @@ public class ParameterMetaDataImpl implements ParameterMetaData, JdbcV2Wrapper {
     @Override
     public int getParameterMode(int param) throws SQLException {
         checkParamIndex(param);
+        // only in parameter mode IN is supported by prepared statement
+        // other modes are designed for callable statements
         return parameterModeIn;
     }
 }

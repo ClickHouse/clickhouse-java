@@ -1,23 +1,76 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.jdbc.JdbcIntegrationTest;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import java.math.BigInteger;
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 @Test(groups = { "integration" })
 public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
+
+    @Test(groups = { "integration" })
+    public void testConstants() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT 1 AS a, 2 AS b, 3 AS c");
+                ResultSetMetaData rsmd = rs.getMetaData();
+                for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                    assertFalse(rsmd.isAutoIncrement(i));
+                    assertFalse(rsmd.isWritable(i));
+                    assertTrue(rsmd.isReadOnly(i));
+                    assertFalse(rsmd.isDefinitelyWritable(i));
+                    assertFalse(rsmd.isCurrency(i));
+                    assertTrue(rsmd.isSearchable(i));
+                    assertEquals(rsmd.getTableName(i), "");
+                    assertEquals(rsmd.getCatalogName(i), "");
+                    assertEquals(rsmd.getSchemaName(i),  getDatabase());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testColumnIndexOutOfBoundCheck() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT 1 AS a, 2 AS b, 3 AS c");
+                ResultSetMetaData rsmd = rs.getMetaData();
+                int lastColumnIndex = rsmd.getColumnCount() + 1;
+                for (int i = 0; i <= lastColumnIndex; i += lastColumnIndex ) {
+                    final int outOfBoundIndex = i;
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnClassName(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnType(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnTypeName(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnLabel(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnName(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getColumnDisplaySize(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getScale(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getPrecision(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isCaseSensitive(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isSigned(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isSearchable(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isCurrency(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isNullable(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isReadOnly(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isWritable(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isDefinitelyWritable(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.getTableName(outOfBoundIndex));
+                    Assert.assertThrows(SQLException.class, () -> rsmd.isAutoIncrement(outOfBoundIndex));
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGetColumnCount() throws Exception {
         try (Connection conn = getJdbcConnection()) {

@@ -1143,7 +1143,7 @@ public class SerializerUtils {
             Instant dt = (Instant) value;
             ts = dt.getEpochSecond();
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+            throw new IllegalArgumentException("Cannot convert " + value + " to DateTime");
         }
 
         BinaryStreamUtils.writeUnsignedInt32(output, ts);
@@ -1179,7 +1179,7 @@ public class SerializerUtils {
             ts = dt.getEpochSecond();
             nano = dt.getNano();
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+            throw new IllegalArgumentException("Cannot convert " + value + " to DateTime");
         }
 
         ts *= BinaryStreamReader.BASES[scale];
