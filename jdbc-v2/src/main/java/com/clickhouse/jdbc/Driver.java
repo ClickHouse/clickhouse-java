@@ -26,9 +26,10 @@ import java.util.regex.Pattern;
  */
 public class Driver implements java.sql.Driver {
     private static final Logger log = LoggerFactory.getLogger(Driver.class);
-    public static final String driverVersion;
-    public static final int majorVersion;
-    public static final int minorVersion;
+
+    private static final String driverVersion;
+    private static final int majorVersion;
+    private static final int minorVersion;
     private final DataSourceImpl dataSource;
 
     public static String frameworksDetected = null;
@@ -66,25 +67,10 @@ public class Driver implements java.sql.Driver {
         driverVersion = ClickHouseClientOption.readVersionFromResource("jdbc-v2-version.properties");
         log.debug("ClickHouse JDBC driver version: {}", driverVersion);
 
-        int tmpMajorVersion;
-        int tmpMinorVersion;
+        int[] versions = parseVersion(driverVersion);
 
-        try {
-            Matcher m = Pattern.compile("(\\d+)(\\.\\d+)(\\.\\d+)").matcher(driverVersion);
-            if (m.find()) {
-                tmpMajorVersion = Integer.parseInt(m.group(1));
-                tmpMinorVersion = Integer.parseInt(m.group(2).substring(1));
-            } else {
-                tmpMajorVersion = 0;
-                tmpMinorVersion = 0;
-            }
-        } catch (Exception e) {
-            tmpMajorVersion = 0;
-            tmpMinorVersion = 0;
-        }
-
-        majorVersion = tmpMajorVersion;
-        minorVersion = tmpMinorVersion;
+        majorVersion = versions[0];
+        minorVersion = versions[1];
 
         //Load the driver
         //load(); //Commented out to avoid loading the driver multiple times, because we're referenced in V1
@@ -153,6 +139,7 @@ public class Driver implements java.sql.Driver {
 
     @Override
     public boolean jdbcCompliant() {
+        // Mainly because of not supported Transactions.
         return false;
     }
 
@@ -165,5 +152,25 @@ public class Driver implements java.sql.Driver {
         throw new SQLFeatureNotSupportedException("Method not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
     }
 
+    public static String getLibraryVersion() {
+        return driverVersion;
+    }
+
     private static final Driver INSTANCE = new Driver();
+
+    public static int[] parseVersion(String version) {
+        if (version != null) {
+            final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
+
+            Matcher matcher = pattern.matcher(version);
+            if (matcher.find()) {
+                int major = Integer.parseInt(matcher.group(1));
+                int minor = Integer.parseInt(matcher.group(2));
+                int patch = Integer.parseInt(matcher.group(3));
+                int majorVersion = (major << 16) | minor;
+                return new int[]{majorVersion, patch};
+            }
+        }
+        return new int[] { 0, 0 };
+    }
 }

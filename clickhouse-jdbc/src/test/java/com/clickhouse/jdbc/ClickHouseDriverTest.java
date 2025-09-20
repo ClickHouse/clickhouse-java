@@ -1,15 +1,12 @@
 package com.clickhouse.jdbc;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-
 import com.clickhouse.client.ClickHouseProtocol;
-
 import com.clickhouse.client.ClickHouseServerForTest;
-import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.sql.Connection;
+import java.sql.SQLException;
 
 public class ClickHouseDriverTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
@@ -24,13 +21,21 @@ public class ClickHouseDriverTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testConnect() throws SQLException {
-        if (isCloud()) return; //TODO: testConnect - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
+        if (isCloud())  {
+            return; //
+        }
+
         System.setProperty("clickhouse.jdbc.v1","true");
         String address = getServerAddress(ClickHouseProtocol.HTTP, true);
         ClickHouseDriver driver = new ClickHouseDriver();
         Connection conn = driver.connect("jdbc:clickhouse://default:" + ClickHouseServerForTest.getPassword() + "@" + address, null);
         conn.close();
+        System.setProperty("clickhouse.jdbc.v1","false");
+        ClickHouseDriver driver2 = new ClickHouseDriver();
+        Connection conn2 = driver2.connect("jdbc:clickhouse://default:" + ClickHouseServerForTest.getPassword() + "@" + address, null);
+        conn2.close();
     }
+
     @Test(groups = "integration")
     public void testV2Driver() {
         System.setProperty("clickhouse.jdbc.v1","false");
