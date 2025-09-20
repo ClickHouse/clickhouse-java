@@ -122,6 +122,7 @@ public class DriverTest extends JdbcIntegrationTest {
                 {"1.2.1", 0x010002, 1},
                 {"5000.20.1", 0x13880014, 1},
                 {"2.1.1", 0x020001, 1},
+                {"2.1.1.0", 0x020001, 1},
         };
     }
 
