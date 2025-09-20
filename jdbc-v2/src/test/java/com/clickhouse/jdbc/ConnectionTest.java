@@ -39,7 +39,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -961,5 +960,15 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             assertNull(conn.getClientInfo("unknown"));
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUseUserTimeZone() throws Exception {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "America/New_York");
+        try (Connection conn = getJdbcConnection(props)) {
+            //
+        }
+
     }
 }
