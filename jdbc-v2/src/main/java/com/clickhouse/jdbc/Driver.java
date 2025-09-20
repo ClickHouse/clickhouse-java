@@ -164,8 +164,8 @@ public class Driver implements java.sql.Driver {
 
             Matcher matcher = pattern.matcher(version);
             if (matcher.find()) {
-                short major = Short.parseShort(matcher.group(1));
-                short minor = Short.parseShort(matcher.group(2));
+                int major = Integer.parseInt(matcher.group(1));
+                int minor = Integer.parseInt(matcher.group(2));
                 int patch = Integer.parseInt(matcher.group(3));
                 int majorVersion = (major << 16) | minor;
                 return new int[]{majorVersion, patch};

@@ -6,13 +6,13 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.testng.AssertJUnit.assertTrue;
-import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 
 
 public class DriverTest extends JdbcIntegrationTest {
@@ -52,18 +52,49 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testGetPropertyInfo() {
+    @Test(groups = {"integration"}, dataProvider = "testGetPropertyInfoDP")
+    public void testGetPropertyInfo(String url, Properties props, Map<String, String> checkProperties) {
+        final Map<String, String> checkPropertiesCopy = new HashMap<>(checkProperties);
         try {
             Driver driver = new Driver();
-            driver.getPropertyInfo(getEndpointString(), new Properties());
-            Assert.assertEquals(driver.getPropertyInfo(getEndpointString(), new Properties()).length, 7);
-            Properties sample = new Properties();
-            sample.setProperty("testing", "true");
-            Assert.assertEquals(driver.getPropertyInfo(getEndpointString(), sample).length, 7);
+            DriverPropertyInfo[] properties = driver.getPropertyInfo(url, props);
+
+            for (DriverPropertyInfo property : properties) {
+                Object expectedValue = checkPropertiesCopy.remove(property.name);
+                if (expectedValue != null) {
+                    Assert.assertEquals(property.value, expectedValue);
+                } else {
+                    for (DriverProperties driverProp : DriverProperties.values()) {
+                        if (driverProp.getKey().equalsIgnoreCase(property.name)) {
+                            Assert.assertEquals(property.value, driverProp.getDefaultValue());
+                        }
+                    }
+                    for (ClientConfigProperties clientProp : ClientConfigProperties.values()) {
+                        if (clientProp.getKey().equalsIgnoreCase(property.name)) {
+                            Assert.assertEquals(property.value, clientProp.getDefaultValue());
+                        }
+                    }
+                }
+            }
+
+            Assert.assertTrue(checkPropertiesCopy.isEmpty(), "Not checked properties: " + checkProperties);
         } catch (SQLException e) {
             Assert.fail("Failed to get property info", e);
         }
+    }
+
+    @DataProvider(name = "testGetPropertyInfoDP")
+    public Object[][] testGetPropertyInfoDP() {
+        return new Object[][]{
+                {"jdbc:ch://localhost:8123/?async=true", null, Map.of(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true")},
+                {"jdbc:ch://localhost:8123/?connection_ttl=10000&max_threads_per_client=100", null, Map.of(ClientConfigProperties.CONNECTION_TTL.getKey(), "10000",
+                        ClientConfigProperties.MAX_THREADS_PER_CLIENT.getKey(), "100")},
+                {"jdbc:ch://localhost:8123/?client_retry_on_failures=NoHttpResponse,SocketTimeout", null, Map.of(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), "NoHttpResponse,SocketTimeout")},
+                {"jdbc:ch://localhost:8123/?connection_ttl=10000&client_retry_on_failures=NoHttpResponse,SocketTimeout&max_threads_per_client=100",
+                        null, Map.of(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), "NoHttpResponse,SocketTimeout",
+                        ClientConfigProperties.CONNECTION_TTL.getKey(), "10000",
+                        ClientConfigProperties.MAX_THREADS_PER_CLIENT.getKey(), "100")}
+        };
     }
 
     @Test(groups = {"integration"})

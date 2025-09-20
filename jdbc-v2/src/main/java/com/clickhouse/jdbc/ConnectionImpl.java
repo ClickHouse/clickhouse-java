@@ -36,7 +36,6 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;

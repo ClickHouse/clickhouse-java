@@ -7,6 +7,8 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class JdbcConfiguration {
+    public static final Logger LOG = LoggerFactory.getLogger(JdbcConfiguration.class);
 
     private static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
     private static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
@@ -61,19 +64,20 @@ public class JdbcConfiguration {
      * @param info - Driver and Client properties.
      */
     public JdbcConfiguration(String url, Properties info) throws SQLException {
-        this.disableFrameworkDetection = info != null && Boolean.parseBoolean(info.getProperty("disable_frameworks_detection", "false"));
+        final Properties props = info == null ? new Properties() : info;
+        this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
 
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
-        initProperties(urlProperties, info);
+        initProperties(urlProperties, props);
 
         // after initializing all properties - set final connection URL
-        boolean useSSLInfo = Boolean.parseBoolean(info.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
         boolean useSSLUrlProperties = Boolean.parseBoolean(urlProperties.getOrDefault(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
         boolean useSSL = useSSLInfo || useSSLUrlProperties;
-        String bearerToken = info.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
+        String bearerToken = props.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
         if (bearerToken != null) {
             clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
         }
@@ -232,6 +236,12 @@ public class JdbcConfiguration {
         }
 
         props.putAll(urlProperties);
+
+        if (props.containsKey(ClientConfigProperties.USE_TIMEZONE.getKey())) {
+            if (!props.containsKey(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey())) {
+                props.put(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(), String.valueOf(Boolean.FALSE));
+            }
+        }
 
         // Process all properties
         Map<String, DriverPropertyInfo> propertyInfos = new HashMap<>();
