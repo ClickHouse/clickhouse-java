@@ -1464,6 +1464,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                         case Point:
                         case Ring:
                         case LineString:
+                        case Polygon:
                         case MultiPolygon:
                         case MultiLineString:
                             break; // read as is
