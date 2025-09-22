@@ -1750,7 +1750,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
             stmt.executeUpdate("CREATE TABLE " + table + " (geom Ring) ENGINE = MergeTree ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
-                pstmt.setObject(1, conn.createArrayOf("Ring", row));
+                pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
                 pstmt.executeUpdate();
             }
 
@@ -1787,7 +1787,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
             stmt.executeUpdate("CREATE TABLE " + table +" (geom LineString) ENGINE = MergeTree ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
-                pstmt.setObject(1, conn.createArrayOf("LineString", row));
+                pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
                 pstmt.executeUpdate();
             }
 
