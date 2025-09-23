@@ -8,7 +8,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 
-public abstract class BaseCollectionConverter<TAcc, TList> {
+public abstract class BaseCollectionConverter<ACC, LIST> {
     public static final String ARRAY_START = "[";
     public static final String ARRAY_END = "]";
 
@@ -18,36 +18,36 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         this.itemDelimiter = itemDelimiter;
     }
 
-    protected abstract void setAccumulator(TAcc acc);
+    protected abstract void setAccumulator(ACC acc);
 
     protected abstract void append(String str);
 
     protected abstract String buildString();
 
-    protected abstract void onStart(ListConversionState<TList> state);
+    protected abstract void onStart(ListConversionState<LIST> state);
 
-    protected abstract void onEnd(ListConversionState<TList> state);
+    protected abstract void onEnd(ListConversionState<LIST> state);
 
-    protected abstract void onItem(Object item, ListConversionState<TList> state);
+    protected abstract void onItem(Object item, ListConversionState<LIST> state);
 
     protected abstract String onEmptyCollection();
 
-    protected abstract boolean isEmpty(TList list);
+    protected abstract boolean isEmpty(LIST list);
 
     protected abstract boolean isSubList(Object list);
 
-    protected abstract int listSize(TList list);
+    protected abstract int listSize(LIST list);
 
-    protected abstract Object getNext(ListConversionState<TList> state);
+    protected abstract Object getNext(ListConversionState<LIST> state);
 
-    public final String convert(TList value, TAcc acc) {
+    public final String convert(LIST value, ACC acc) {
         if (isEmpty(value)) {
             return onEmptyCollection();
         }
         setAccumulator(acc);
 
-        Deque<ListConversionState<TList>> stack = new ArrayDeque<>();
-        ListConversionState<TList> state = new ListConversionState<>(value, listSize(value));
+        Deque<ListConversionState<LIST>> stack = new ArrayDeque<>();
+        ListConversionState<LIST> state = new ListConversionState<>(value, listSize(value));
         while (state != null) {
             if (state.isFirst()) {
                 onStart(state);
@@ -57,7 +57,7 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
                 state.incPos();
                 if (isSubList(item)) {
                     stack.push(state);
-                    TList list = (TList) item;
+                    LIST list = (LIST) item;
                     state = new ListConversionState<>(list, listSize(list));
                 } else {
                     onItem(item, state);
@@ -77,19 +77,19 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         return buildString();
     }
 
-    public static final class ListConversionState<TList> {
+    public static final class ListConversionState<LIST> {
 
-        final TList list;
+        final LIST list;
         int position;
         int size;
 
-        public ListConversionState(TList list, int size) {
+        private ListConversionState(LIST list, int size) {
             this.list = list;
             this.position = 0;
             this.size = size;
         }
 
-        public TList getList() {
+        public LIST getList() {
             return list;
         }
 
@@ -110,7 +110,7 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         }
     }
 
-    public static abstract class BaseArrayWriter extends BaseCollectionWriter<Object> {
+    public abstract static class BaseArrayWriter extends BaseCollectionWriter<Object> {
 
         protected BaseArrayWriter() {
             super(", ");
@@ -137,9 +137,9 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         }
     }
 
-    public static abstract class BaseListWriter
+    public abstract static class BaseListWriter
             extends BaseCollectionWriter<List<?>> {
-        public BaseListWriter() {
+        protected BaseListWriter() {
             super(", ");
         }
 
@@ -164,7 +164,7 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         }
     }
 
-    public static abstract class BaseCollectionWriter<T> extends
+    public abstract static class BaseCollectionWriter<T> extends
             BaseCollectionConverter<Appendable, T> {
 
         protected Appendable appendable;
