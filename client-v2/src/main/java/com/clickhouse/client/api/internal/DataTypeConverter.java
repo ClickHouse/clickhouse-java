@@ -6,6 +6,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -202,6 +203,11 @@ public class DataTypeConverter {
         return value.toString();
     }
 
+    public String arrayToString(Object value, String columnDef) {
+        ClickHouseColumn column = ClickHouseColumn.of("v", columnDef);
+        return arrayToString(value, column);
+    }
+
     /**
      *
      * @param value not null object value to convert
@@ -213,6 +219,18 @@ public class DataTypeConverter {
             return arrayToString(value, column);
         }
         return value.toString();
+    }
+
+    private static void appendEnquotedArrayElement(String value, ClickHouseColumn elementColumn, Appendable appendable) {
+        try {
+            if (elementColumn != null && elementColumn.getDataType() == ClickHouseDataType.String) {
+                appendable.append(QUOTE).append(value).append(QUOTE);
+            } else {
+                appendable.append(value);
+            }
+        } catch (IOException e) {
+            throw new ClickHouseException(e.getMessage(), e);
+        }
     }
 
     private final class ArrayAsStringWriter extends BaseCollectionConverter.BaseArrayWriter {
@@ -233,16 +251,9 @@ public class DataTypeConverter {
                 append(NULL);
                 return;
             }
-            String str = DataTypeConverter.this.convertToString(item, column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn());
-            try {
-                if (column.getArrayBaseColumn().getDataType() == ClickHouseDataType.String) {
-                    appendable.append(QUOTE).append(str).append(QUOTE);
-                } else {
-                    appendable.append(str);
-                }
-            } catch (Exception ex) {
-                throw new ClickHouseException(ex.getMessage(), ex);
-            }
+            ClickHouseColumn elementColumn = column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn();
+            String str = DataTypeConverter.this.convertToString(item, elementColumn);
+            appendEnquotedArrayElement(str, elementColumn, appendable);
         }
 
         public String convertAndReset(Object list, Appendable acc, ClickHouseColumn column) {
@@ -270,7 +281,10 @@ public class DataTypeConverter {
                 append(NULL);
                 return;
             }
-            append(DataTypeConverter.this.convertToString(item, column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn()));
+            ClickHouseColumn elementColumn = column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn();
+            String str = DataTypeConverter.this.convertToString(item, elementColumn);
+            appendEnquotedArrayElement(str, elementColumn, appendable);
+
         }
 
         public String convertAndReset(List<?> list, Appendable acc, ClickHouseColumn column) {
