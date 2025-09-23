@@ -4,8 +4,9 @@ import com.clickhouse.client.api.ClickHouseException;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
-import java.util.Stack;
 
 public abstract class BaseCollectionConverter<TAcc, TList> {
     public static final String ARRAY_START = "[";
@@ -45,7 +46,7 @@ public abstract class BaseCollectionConverter<TAcc, TList> {
         }
         setAccumulator(acc);
 
-        Stack<ListConversionState<TList>> stack = new Stack<>();
+        Deque<ListConversionState<TList>> stack = new ArrayDeque<>();
         ListConversionState<TList> state = new ListConversionState<>(value, listSize(value));
         while (state != null) {
             if (state.isFirst()) {

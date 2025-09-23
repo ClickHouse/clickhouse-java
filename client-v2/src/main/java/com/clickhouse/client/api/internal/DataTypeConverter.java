@@ -7,9 +7,11 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
@@ -76,7 +78,7 @@ public class DataTypeConverter {
         if (bytesOrString instanceof CharSequence) {
             sb.append(((CharSequence) bytesOrString));
         } else if (bytesOrString instanceof byte[]) {
-            sb.append(bytesOrString);
+            sb.append(new String((byte[]) bytesOrString));
         } else {
             sb.append(bytesOrString);
         }
@@ -86,6 +88,11 @@ public class DataTypeConverter {
         return sb.toString();
     }
 
+    public static ZoneId UTC_ZONE_ID = ZoneId.of("UTC");
+
+    public static final ZonedDateTime EPOCH_START_OF_THE_DAY =
+            ZonedDateTime.ofInstant(Instant.EPOCH, UTC_ZONE_ID);
+
     public String dateToString(Object value, ClickHouseColumn column) {
         DateTimeFormatter formatter = DataTypeUtils.DATE_FORMATTER;
 
@@ -94,11 +101,18 @@ public class DataTypeConverter {
             return formatter.format(dateTime);
         } else if (value instanceof LocalDate) {
             return formatter.format(((LocalDate)value));
+        } else if (value instanceof java.sql.Date) {
+            java.sql.Date date = (java.sql.Date) value;
+            return formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), UTC_ZONE_ID));
+        } else if (value instanceof  java.sql.Time) {
+            return formatter.format(EPOCH_START_OF_THE_DAY);
         } else if (value instanceof Date) {
-            return DataTypeUtils.OLD_DATE_FORMATTER.format(((Date)value));
+            return formatter.format(((Date)value).toInstant().atZone(UTC_ZONE_ID));
         }
         return value.toString();
     }
+
+
 
     public String timeToString(Object value, ClickHouseColumn column) {
         DateTimeFormatter formatter;
@@ -115,8 +129,13 @@ public class DataTypeConverter {
             return formatter.format(dateTime);
         } else if (value instanceof LocalTime) {
             return formatter.format(((LocalTime)value));
+        } else if (value instanceof java.sql.Date) {
+            return formatter.format(EPOCH_START_OF_THE_DAY);
+        } else if (value instanceof java.sql.Time) {
+            java.sql.Time date = (java.sql.Time) value;
+            return formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), UTC_ZONE_ID));
         } else if (value instanceof Date) {
-            return DataTypeUtils.OLD_TIME_FORMATTER.format(((Date)value));
+            return formatter.format(((Date)value).toInstant().atZone(UTC_ZONE_ID));
         }
         return value.toString();
     }
@@ -137,9 +156,15 @@ public class DataTypeConverter {
         } else if (value instanceof LocalDate) {
             return formatter.format(((LocalDate)value).atStartOfDay());
         } else if (value instanceof LocalTime) {
-            return formatter.format(((LocalTime)value).atDate(LocalDate.now()));
+            return formatter.format(((LocalTime) value).atDate(LocalDate.now()));
+        } else if (value instanceof java.sql.Date) {
+            return formatter.format(EPOCH_START_OF_THE_DAY);
+
+        } else if (value instanceof java.sql.Time) {
+            java.sql.Time date = (java.sql.Time) value;
+            return formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), UTC_ZONE_ID));
         } else if (value instanceof Date) {
-            return DataTypeUtils.OLD_DATE_TIME_FORMATTER.format(((Date)value));
+            return formatter.format(((Date)value).toInstant().atZone(UTC_ZONE_ID));
         }
         return value.toString();
     }
@@ -150,14 +175,6 @@ public class DataTypeConverter {
         } else if (value instanceof Number ) {
             int num = ((Number) value).intValue();
             switch (column.getDataType()) {
-                case Variant:
-                    for (ClickHouseColumn c : column.getNestedColumns()) {
-                        // TODO: will work only if single enum listed as variant
-                        if (c.getDataType() == ClickHouseDataType.Enum8 || c.getDataType() == ClickHouseDataType.Enum16) {
-                            return c.getEnumConstants().name(num);
-                        }
-                    }
-                    return String.valueOf(num); // fail-safe
                 case Enum8:
                 case Enum16:
                 case Enum:

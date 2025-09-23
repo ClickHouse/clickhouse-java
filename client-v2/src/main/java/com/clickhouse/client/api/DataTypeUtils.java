@@ -1,9 +1,7 @@
 package com.clickhouse.client.api;
 
-import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.ZoneId;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.data.ClickHouseDataType;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -11,8 +9,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
-
-import com.clickhouse.data.ClickHouseDataType;
 
 import static com.clickhouse.client.api.data_formats.internal.BinaryStreamReader.BASES;
 
@@ -43,14 +39,6 @@ public class DataTypeUtils {
     public static final DateTimeFormatter TIME_WITH_NANOS_FORMATTER = INSTANT_FORMATTER;
 
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
-
-    public static final SimpleDateFormat OLD_DATE_TIME_FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-
-    public static final SimpleDateFormat OLD_DATE_FORMATTER = new SimpleDateFormat("yyyy-MM-dd");
-
-    public static final SimpleDateFormat OLD_TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss");
-
-    public static final  SimpleDateFormat OLD_TIME_WITH_NANOS_FORMATTER = new SimpleDateFormat("HH:mm:ss.SSSSSSSSS");
 
     /**
      * Formats an {@link Instant} object for use in SQL statements or as query

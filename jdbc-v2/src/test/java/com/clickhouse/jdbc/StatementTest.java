@@ -11,8 +11,6 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.net.Inet4Address;
-import java.net.Inet6Address;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
