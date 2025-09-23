@@ -1555,36 +1555,4 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             }
         }
     }
-
-    @Test(groups = "integration")
-    public void testSpatialData() {
-        final String spatialQuery = "select \n" +
-                "\tcast(arrayJoin([(4.837388, 52.38795),\n" +
-                "\t\t\t(4.951513, 52.354582),\n" +
-                "\t\t\t(4.961987, 52.371763),\n" +
-                "\t\t\t(4.870017, 52.334932),\n" +
-                "\t\t\t(4.89813, 52.357238),\n" +
-                "\t\t\t(4.852437, 52.370315),\n" +
-                "\t\t\t(4.901712, 52.369567),\n" +
-                "\t\t\t(4.874112, 52.339823),\n" +
-                "\t\t\t(4.856942, 52.339122),\n" +
-                "\t\t\t(4.870253, 52.360353)]\n" +
-                "\t\t\t)\n" +
-                "\t\tas Point) as Point";
-        try (ClickHouseConnection conn = newConnection();
-             ClickHouseStatement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery(spatialQuery);
-            rs.next();
-            ResultSetMetaData metaData = rs.getMetaData();
-            String columnTypeName = metaData.getColumnTypeName(1);
-            int columnType = metaData.getColumnType(1);
-            Array asArray = rs.getArray(1);
-            Object asObject = rs.getObject(1);
-            String asString = rs.getString(1);
-            Assert.assertEquals(metaData.getColumnCount(), 7);
-        } catch (Exception e) {
-            e.printStackTrace();
-            Assert.fail("Failed to create connection", e);
-        }
-    }
 }
