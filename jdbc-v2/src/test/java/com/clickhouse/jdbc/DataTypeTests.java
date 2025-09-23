@@ -1723,14 +1723,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Point.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Point.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
@@ -1760,14 +1760,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Ring.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Ring.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
@@ -1797,14 +1797,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.LineString.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.LineString.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
@@ -1842,14 +1842,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.MultiLineString.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiLineString.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
@@ -1887,14 +1887,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Polygon.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Polygon.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
@@ -1948,14 +1948,14 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.MultiPolygon.name());
                 assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
 
-                while (rs.next()) {
-                    if (rs.isLast()) {
-                        assertEquals(rs.getRow(), 1);
-                    }
-
-                    Object asObject = rs.getObject(geomColumn);
-                    Array asArray = rs.getArray(geomColumn);
-                }
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiPolygon.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
             }
         }
     }
