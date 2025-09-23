@@ -78,8 +78,8 @@ public class DataTypeConverterTest {
         assertEquals(converter.convertToString(sqlDate, column), "00:00:00");
         Date date = Date.from(ZonedDateTime.of(2022, 1, 4, 12, 34, 56, 0, ZoneId.of("Asia/Shanghai")).toInstant());
         assertEquals(converter.convertToString(date, column), "04:34:56");
-        java.sql.Time sqlTime = java.sql.Time.valueOf("12:34:56");
-        assertEquals(converter.convertToString(sqlTime, column), "20:34:56");
+        java.sql.Time sqlTime = java.sql.Time.valueOf("12:34:56");// 12:34:56 in ms
+        assertEquals(converter.convertToString(sqlTime, column), "12:34:56");
     }
 
 
@@ -95,7 +95,7 @@ public class DataTypeConverterTest {
         Date sqlDate = java.sql.Date.valueOf("2022-01-04");
         assertEquals(converter.convertToString(sqlDate, column), "1970-01-01 00:00:00");
         java.sql.Time sqlTime = java.sql.Time.valueOf("12:34:56");
-        assertEquals(converter.convertToString(sqlTime, column), "1970-01-01 20:34:56");
+        assertEquals(converter.convertToString(sqlTime, column), "1970-01-01 12:34:56");
     }
 
     @Test

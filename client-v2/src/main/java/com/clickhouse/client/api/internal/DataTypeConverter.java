@@ -94,6 +94,8 @@ public class DataTypeConverter {
     public static final ZonedDateTime EPOCH_START_OF_THE_DAY =
             ZonedDateTime.ofInstant(Instant.EPOCH, UTC_ZONE_ID);
 
+    public static final LocalDate EPOCH_DATE = LocalDate.of(1970, 1, 1);
+
     public String dateToString(Object value, ClickHouseColumn column) {
         DateTimeFormatter formatter = DataTypeUtils.DATE_FORMATTER;
 
@@ -133,8 +135,9 @@ public class DataTypeConverter {
         } else if (value instanceof java.sql.Date) {
             return formatter.format(EPOCH_START_OF_THE_DAY);
         } else if (value instanceof java.sql.Time) {
-            java.sql.Time date = (java.sql.Time) value;
-            return formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), UTC_ZONE_ID));
+            java.sql.Time time = (java.sql.Time) value;
+            LocalTime lt = time.toLocalTime();
+            return formatter.format(lt);
         } else if (value instanceof Date) {
             return formatter.format(((Date)value).toInstant().atZone(UTC_ZONE_ID));
         }
@@ -162,8 +165,9 @@ public class DataTypeConverter {
             return formatter.format(EPOCH_START_OF_THE_DAY);
 
         } else if (value instanceof java.sql.Time) {
-            java.sql.Time date = (java.sql.Time) value;
-            return formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.getTime()), UTC_ZONE_ID));
+            java.sql.Time time = (java.sql.Time) value;
+            LocalTime lt = time.toLocalTime();
+            return formatter.format(lt.atDate(EPOCH_DATE));
         } else if (value instanceof Date) {
             return formatter.format(((Date)value).toInstant().atZone(UTC_ZONE_ID));
         }
