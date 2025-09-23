@@ -1,7 +1,7 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -13,12 +13,25 @@ import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
+/**
+ * Class designed to convert different data types to Java objects.
+ * First use-case is to convert ClickHouse data types to String representation.
+ * Note: class is not thread-safe to avoid extra object creation.
+ */
 public class DataTypeConverter {
 
+    private static final char QUOTE = '\'';
+
+    private static final String NULL = "NULL";
+
     public static final DataTypeConverter INSTANCE = new DataTypeConverter();
+
+    private final ListAsStringWriter listAsStringWriter = new ListAsStringWriter();
+
+    private final ArrayAsStringWriter arrayAsStringWriter = new ArrayAsStringWriter();
 
     public String convertToString(Object value, ClickHouseColumn column) {
         if (value == null) {
@@ -56,7 +69,21 @@ public class DataTypeConverter {
     }
 
     public String stringToString(Object bytesOrString, ClickHouseColumn column) {
-        return bytesOrString instanceof byte[] ? new String((byte[]) bytesOrString) : (String) bytesOrString;
+        StringBuilder sb = new StringBuilder();
+        if (column.isArray()) {
+            sb.append(QUOTE);
+        }
+        if (bytesOrString instanceof CharSequence) {
+            sb.append(((CharSequence) bytesOrString));
+        } else if (bytesOrString instanceof byte[]) {
+            sb.append(bytesOrString);
+        } else {
+            sb.append(bytesOrString);
+        }
+        if (column.isArray()) {
+            sb.append(QUOTE);
+        }
+        return sb.toString();
     }
 
     public String dateToString(Object value, ClickHouseColumn column) {
@@ -149,33 +176,94 @@ public class DataTypeConverter {
 
     public String arrayToString(Object value, ClickHouseColumn column) {
         if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).asList().toString();
-        } else if (value instanceof byte[]) {
-            return Arrays.toString((byte[]) value);
-        } else if (value instanceof short[]) {
-            return Arrays.toString((short[]) value);
-        } else if (value instanceof int[]) {
-            return Arrays.toString((int[]) value);
-        } else if (value instanceof long[]) {
-            return Arrays.toString((long[]) value);
-        } else if (value instanceof float[]) {
-            return Arrays.toString((float[]) value);
-        } else if (value instanceof double[]) {
-            return Arrays.toString((double[]) value);
-        } else if (value instanceof boolean[]) {
-            return Arrays.toString((boolean[]) value);
-        } else if (value instanceof char[]) {
-            return Arrays.toString((char[]) value);
-        } else if (value instanceof Object[]) {
-            return Arrays.deepToString((Object[]) value);
+            return listAsStringWriter.convertAndReset(((BinaryStreamReader.ArrayValue) value).asList(), new StringBuilder(), column);
+        } else if (value.getClass().isArray()) {
+            return arrayAsStringWriter.convertAndReset(value, new StringBuilder(), column);
+        } else if (value instanceof List<?>) {
+            return listAsStringWriter.convertAndReset((List<?>) value, new StringBuilder(), column);
         }
         return value.toString();
     }
 
+    /**
+     *
+     * @param value not null object value to convert
+     * @param column column describing the DB value
+     * @return String representing the value
+     */
     public String variantOrDynamicToString(Object value, ClickHouseColumn column) {
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return arrayToString(value, column);
         }
         return value.toString();
+    }
+
+    private final class ArrayAsStringWriter extends BaseCollectionConverter.BaseArrayWriter {
+        private ClickHouseColumn column;
+
+        ArrayAsStringWriter() {
+            super();
+        }
+
+        public void setColumn(ClickHouseColumn column) {
+            this.column = column;
+        }
+
+
+        @Override
+        protected void onItem(Object item, ListConversionState<Object> state) {
+            if (item == null) {
+                append(NULL);
+                return;
+            }
+            String str = DataTypeConverter.this.convertToString(item, column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn());
+            try {
+                if (column.getArrayBaseColumn().getDataType() == ClickHouseDataType.String) {
+                    appendable.append(QUOTE).append(str).append(QUOTE);
+                } else {
+                    appendable.append(str);
+                }
+            } catch (Exception ex) {
+                throw new ClickHouseException(ex.getMessage(), ex);
+            }
+        }
+
+        public String convertAndReset(Object list, Appendable acc, ClickHouseColumn column) {
+            try {
+                setColumn(column);
+                return super.convert(list, acc);
+            } finally {
+                this.column = null;
+                setAccumulator(null);
+            }
+        }
+    }
+
+    private final class ListAsStringWriter extends BaseCollectionConverter.BaseListWriter {
+
+        private ClickHouseColumn column;
+
+        public void setColumn(ClickHouseColumn column) {
+            this.column = column;
+        }
+
+        @Override
+        protected void onItem(Object item, ListConversionState<List<?>> state) {
+            if (item == null) {
+                append(NULL);
+                return;
+            }
+            append(DataTypeConverter.this.convertToString(item, column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn()));
+        }
+
+        public String convertAndReset(List<?> list, Appendable acc, ClickHouseColumn column) {
+            try {
+                setColumn(column);
+                return super.convert(list, acc);
+            } finally {
+                this.column = null;
+                setAccumulator(null);
+            }
+        }
     }
 }

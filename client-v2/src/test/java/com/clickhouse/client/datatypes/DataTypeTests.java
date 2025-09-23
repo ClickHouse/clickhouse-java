@@ -579,9 +579,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                 },
                 new String[]{
                         "a,b",
-                        "[a, null, b]",
+                        "[a, NULL, b]",
                         "[c, d]",
-                        "[1, null, 2, null, 3]"
+                        "[1, NULL, 2, NULL, 3]"
                 });
         testDynamicWith("arrays",
                 new Object[]{
