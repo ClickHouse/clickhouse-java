@@ -236,7 +236,6 @@ public class InsertTests extends BaseIntegrationTest {
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");
         } catch (ClickHouseException e) {
-            e.printStackTrace();
             assertTrue(e.getCause() instanceof  IllegalArgumentException);
         }
     }
@@ -291,7 +290,7 @@ public class InsertTests extends BaseIntegrationTest {
                 assertTrue(Thread.currentThread().getName()
                         .startsWith(async ? "pool-" : "main"), "Threads starts with " + Thread.currentThread().getName());
         })
-                .join(); // wait operation complete. only for tests
+        .join().close(); // wait operation complete. only for tests
     }
 
     @DataProvider
@@ -662,14 +661,10 @@ public class InsertTests extends BaseIntegrationTest {
                 out.write(row.getBytes());
             }
         }, ClickHouseFormat.JSONEachRow, new InsertSettings()).get()) {
-            System.out.println("Rows written: " + response.getWrittenRows());
         }
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
-
-        for (GenericRecord record : records) {
-            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
-        }
+        assertEquals(records.size(), 4);
     }
 
 //    static {
