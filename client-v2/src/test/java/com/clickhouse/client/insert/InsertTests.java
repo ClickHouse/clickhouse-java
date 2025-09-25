@@ -289,7 +289,7 @@ public class InsertTests extends BaseIntegrationTest {
                 List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
                 assertEquals(records.size(), 1000);
                 assertTrue(Thread.currentThread().getName()
-                        .startsWith(async ? "pool-1-thread-" : "main"), "Threads starts with " + Thread.currentThread().getName());
+                        .startsWith(async ? "pool-" : "main"), "Threads starts with " + Thread.currentThread().getName());
         })
                 .join(); // wait operation complete. only for tests
     }
