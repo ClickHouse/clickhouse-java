@@ -2,14 +2,13 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -29,6 +28,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -50,7 +50,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
@@ -1651,4 +1650,314 @@ public class DataTypeTests extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testGeoPoint1() throws Exception {
+        final Double[][] spatialArrayData = new Double[][] {
+                {4.837388, 52.38795},
+                {4.951513, 52.354582},
+                {4.961987, 52.371763},
+                {4.870017, 52.334932},
+                {4.89813, 52.357238},
+                {4.852437, 52.370315},
+                {4.901712, 52.369567},
+                {4.874112, 52.339823},
+                {4.856942, 52.339122},
+                {4.870253, 52.360353},
+        };
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT \n");
+        sql.append("\tcast(arrayJoin([");
+        for (int i = 0; i < spatialArrayData.length; i++) {
+            sql.append("(" + spatialArrayData[i][0] + ", " + spatialArrayData[i][1] + ")").append(',');
+        }
+        sql.setLength(sql.length() - 1);
+        sql.append("])");
+        sql.append("as Point) as Point");
+
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery(sql.toString())) {
+
+                ResultSetMetaData metaData = rs.getMetaData();
+                assertEquals(metaData.getColumnCount(), 1);
+                assertEquals(metaData.getColumnTypeName(1), ClickHouseDataType.Point.name());
+                assertEquals(metaData.getColumnType(1), Types.ARRAY);
+
+                int rowCount = 0;
+                while (rs.next()) {
+                    Object asObject = rs.getObject(1);
+                    assertTrue(asObject instanceof double[]);
+                    Array asArray = rs.getArray(1);
+                    assertEquals(asArray.getArray(), spatialArrayData[rowCount]);
+                    assertEquals(asObject, asArray.getArray());
+                    rowCount++;
+                }
+                assertTrue(rowCount > 0);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoPoint() throws Exception {
+        final double[] row = new double[] {
+            10.123456789,
+            11.123456789
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            String table = "test_geo_point";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (geom Point) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                Double[] rowObj = Arrays.stream(row).boxed().toArray(Double[]::new);
+                pstmt.setObject(1, conn.createStruct("Tuple(Float64, Float64)", rowObj));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Point.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Point.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoRing() throws Exception {
+        final Double[][] row = new Double[][] {
+                {10.123456789, 11.123456789},
+                {12.123456789, 13.123456789},
+                {14.123456789, 15.123456789},
+                {10.123456789, 11.123456789},
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_ring";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (geom Ring) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Ring.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Ring.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoLineString() throws Exception {
+        final Double[][] row = new Double[][] {
+                {10.123456789, 11.123456789},
+                {12.123456789, 13.123456789},
+                {14.123456789, 15.123456789},
+                {10.123456789, 11.123456789},
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_line_string";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom LineString) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.LineString.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.LineString.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoMultiLineString() throws Exception {
+        final Double[][][] row = new Double[][][] {
+                { // LineString 1
+                        {10.123456789, 11.123456789},
+                        {12.123456789, 13.123456789},
+                        {14.123456789, 15.123456789},
+                        {10.123456789, 11.123456789},
+                },
+                {
+                        {16.123456789, 17.123456789},
+                        {18.123456789, 19.123456789},
+                        {20.123456789, 21.123456789},
+                        {16.123456789, 17.123456789},
+                }
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_multi_line_string";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiLineString) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                pstmt.setObject(1, conn.createArrayOf("Array(Array(Point))", row));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.MultiLineString.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiLineString.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoPolygon() throws Exception {
+        final Double[][][] row = new Double[][][] {
+                { // Ring 1
+                        {10.123456789, 11.123456789},
+                        {12.123456789, 13.123456789},
+                        {14.123456789, 15.123456789},
+                        {10.123456789, 11.123456789},
+                },
+                { // Ring 2
+                        {16.123456789, 17.123456789},
+                        {18.123456789, 19.123456789},
+                        {20.123456789, 21.123456789},
+                        {16.123456789, 17.123456789},
+                }
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_polygon";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom Polygon) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                pstmt.setObject(1, conn.createArrayOf("Array(Array(Point))", row));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Polygon.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Polygon.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoMultiPolygon() throws Exception {
+        final Double[][][][] row = new Double[][][][] {
+                { // Polygon 1
+                    { // Ring 1
+                            {10.123456789, 11.123456789},
+                            {12.123456789, 13.123456789},
+                            {14.123456789, 15.123456789},
+                            {10.123456789, 11.123456789},
+                    },
+                    { // Ring 2
+                            {16.123456789, 17.123456789},
+                            {18.123456789, 19.123456789},
+                            {20.123456789, 21.123456789},
+                            {16.123456789, 17.123456789},
+                    }
+                },
+                { // Polygon 2
+                        { // Ring 1
+                                {-10.123456789, -11.123456789},
+                                {-12.123456789, -13.123456789},
+                                {-14.123456789, -15.123456789},
+                                {-10.123456789, -11.123456789},
+                        },
+                        { // Ring 2
+                                {-16.123456789, -17.123456789},
+                                {-18.123456789, -19.123456789},
+                                {-20.123456789, -21.123456789},
+                                {-16.123456789, -17.123456789},
+                        }
+                }
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_muti_polygon";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiPolygon) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                pstmt.setObject(1, conn.createArrayOf("Array(Array(Array(Point)))", row));
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                int geomColumn = 1;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.MultiPolygon.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                rs.next();
+                assertTrue(rs.isLast());
+                Object asObject = rs.getObject(geomColumn);
+                assertTrue(asObject instanceof double[][][][]);
+                Array asArray = rs.getArray(geomColumn);
+                assertEquals(asArray.getArray(),  row);
+                assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiPolygon.name());
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
 }
