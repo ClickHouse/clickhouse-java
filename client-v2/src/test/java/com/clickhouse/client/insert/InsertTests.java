@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
 
@@ -104,7 +105,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .setSharedOperationExecutor(Executors.newCachedThreadPool());
     }
 
     @AfterMethod(groups = { "integration" })
@@ -287,7 +289,7 @@ public class InsertTests extends BaseIntegrationTest {
                 List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
                 assertEquals(records.size(), 1000);
                 assertTrue(Thread.currentThread().getName()
-                        .startsWith(async ? "ForkJoinPool.commonPool" : "main"), "Threads starts with " + Thread.currentThread().getName());
+                        .startsWith(async ? "pool-1-thread-" : "main"), "Threads starts with " + Thread.currentThread().getName());
         })
                 .join(); // wait operation complete. only for tests
     }
