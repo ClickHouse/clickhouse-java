@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
@@ -38,10 +39,13 @@ public class MapBackedRecord implements GenericRecord {
 
     private Map[] columnConverters;
 
+    private DataTypeConverter dataTypeConverter;
+
     public MapBackedRecord(Map<String, Object> record, Map[] columnConverters, TableSchema schema) {
         this.record = new HashMap<>(record);
         this.schema = schema;
         this.columnConverters = columnConverters;
+        this.dataTypeConverter = DataTypeConverter.INSTANCE;
     }
 
     public <T> T readValue(int colIndex) {
@@ -58,7 +62,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public String getString(String colName) {
-        return AbstractBinaryFormatReader.readAsString(readValue(colName), schema.getColumnByName(colName));
+        return dataTypeConverter.convertToString(readValue(colName), schema.getColumnByName(colName));
     }
 
     @Override

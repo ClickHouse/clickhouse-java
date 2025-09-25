@@ -579,9 +579,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                 },
                 new String[]{
                         "a,b",
-                        "[a, null, b]",
+                        "[a, NULL, b]",
                         "[c, d]",
-                        "[1, null, 2, null, 3]"
+                        "[1, NULL, 2, NULL, 3]"
                 });
         testDynamicWith("arrays",
                 new Object[]{
@@ -830,9 +830,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),createTableSettings).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -858,10 +861,13 @@ public class DataTypeTests extends BaseIntegrationTest {
         actualFields[0] = "rowId Int32";
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, actualFields),
-                (CommandSettings) new CommandSettings()
-                        .serverSetting("allow_experimental_variant_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, actualFields),createTableSettings).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
@@ -913,6 +919,33 @@ public class DataTypeTests extends BaseIntegrationTest {
                 {"JSON(max_dynamic_paths=3, stat.name String, SKIP alt_count)"},
                 {"JSON(max_dynamic_paths=3, stat.name String, SKIP REGEXP '^-.*')"},
                 {"JSON(max_dynamic_paths=3,SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testDataTypesAsStringDP")
+    public void testDataTypesAsString(String sql, String[] expectedStrValues) throws Exception {
+
+        try (QueryResponse resp = client.query(sql).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+            reader.next();
+            for (int i = 0; i < expectedStrValues.length; i++) {
+                Assert.assertEquals(reader.getString(i + 1), expectedStrValues[i]);
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testDataTypesAsStringDP() {
+        return new Object[][] {
+                {"SELECT '192.168.1.1'::IPv4, '2001:db8::1'::IPv6, '192.168.1.1'::IPv6",
+                    new String[] {"192.168.1.1", "2001:db8:0:0:0:0:0:1", "192.168.1.1"}},
+                {"SELECT '2024-10-04'::Date32, '2024-10-04 12:34:56'::DateTime32, '2024-10-04 12:34:56.789'::DateTime64(3), " +
+                        " '2024-10-04 12:34:56.789012'::DateTime64(6), '2024-10-04 12:34:56.789012345'::DateTime64(9)",
+                    new String[] {"2024-10-04", "2024-10-04 12:34:56", "2024-10-04 12:34:56.789", "2024-10-04 12:34:56.789012",
+                            "2024-10-04 12:34:56.789012345"}},
+                {"SELECT 1::Enum16('one' = 1, 'two' = 2)", "one"},
+                {"SELECT 2::Enum8('one' = 1, 'two' = 2)", "two"},
+                {"SELECT 3::Enum('one' = 1, 'two' = 2, 'three' = 3)", "three"},
         };
     }
 

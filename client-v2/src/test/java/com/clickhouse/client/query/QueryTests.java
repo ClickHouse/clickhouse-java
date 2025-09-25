@@ -16,6 +16,7 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.StopWatch;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -1632,6 +1633,20 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertTrue((Integer) record.getInteger("col1") >= 2);
         }
         Assert.assertEquals(allRecords.size(), 2);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryParamsWithArrays() {
+        final Map<String, Object> params = new HashMap<>();
+        params.put("database_name", "system");
+        params.put("table_names",
+                DataTypeConverter.INSTANCE.arrayToString(Arrays.asList("COLLATIONS", "ENGINES"), "Array(String)"));
+        // This query should not throw an exception
+        List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                params);
+
+        Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+        Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
     }
 
     @Test(groups = {"integration"})

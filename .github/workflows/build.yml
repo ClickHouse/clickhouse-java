@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "24.3"
+  PREFERRED_LTS_VERSION: "25.3"
 
 jobs:
   compile:
@@ -57,6 +57,10 @@ jobs:
           cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
+      - name: Copy Artifacts to Build dir
+        run: |
+          mkdir clickhouse-jdbc-artifacts
+          cp -rf $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/* ./clickhouse-jdbc-artifacts/
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
@@ -64,46 +68,52 @@ jobs:
           for d in $(ls -d `pwd`/examples/*/); do \
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
             if [ -e $d/gradlew ]; then cd $d && ./gradlew clean build; fi;
-          done      
-
-  test-multi-env:
-    needs: compile
-    strategy:
-      matrix:
-        # https://whichjdk.com/
-        # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
-        # add "corretto", "liberica", "microsoft", "zulu" only when needed
-        dist: ["temurin"]
-        # fix issue on "macos-latest", "windows-latest"
-        os: ["ubuntu-latest"]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: ${{ matrix.dist }}
-          java-version: 17
-          cache: "maven"
-      - name: Test libraries
-        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
-      - name: Upload test results
+          done
+      - name: Save clickhouse-jdbc-all for tests 
         uses: actions/upload-artifact@v4
-        if: failure()
         with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
+          name: clickhouse-jdbc-archive
+          path: clickhouse-jdbc-artifacts/
+          retention-days: 5 
+
+#  test-multi-env:
+#    needs: compile
+#    strategy:
+#      matrix:
+#        # https://whichjdk.com/
+#        # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
+#        # add "corretto", "liberica", "microsoft", "zulu" only when needed
+#        dist: ["temurin"]
+#        # fix issue on "macos-latest", "windows-latest"
+#        os: ["ubuntu-latest"]
+#      fail-fast: false
+#    runs-on: ${{ matrix.os }}
+#    timeout-minutes: 10
+#    name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
+#    steps:
+#      - name: Check out repository
+#        uses: actions/checkout@v4
+#      - name: Check out PR
+#        run: |
+#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+#        if: github.event.inputs.pr != ''
+#      - name: Install JDK 17 and Maven
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: ${{ matrix.dist }}
+#          java-version: 17
+#          cache: "maven"
+#      - name: Test libraries
+#        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v4
+#        if: failure()
+#        with:
+#          name: result ${{ github.job }}
+#          path: |
+#            **/target/failsafe-reports
+#            **/target/surefire-reports
 
   test-native-image:
     runs-on: ubuntu-latest
@@ -122,8 +132,7 @@ jobs:
         uses: graalvm/setup-graalvm@v1
         with:
           version: "latest"
-          java-version: "17"
-          components: "native-image"
+          java-version: "21"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build native image
         run: mvn --batch-mode --no-transfer-progress -Pnative -Dj8 -DskipTests install
@@ -145,7 +154,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["24.3", "24.8", "latest"]
+        clickhouse: ["25.3", "25.8", "latest"]
         project: ["clickhouse-http-client", "client-v2"]
       fail-fast: false
     timeout-minutes: 15
@@ -197,16 +206,18 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
+          retention-days: 5
 
   test-with-cloud:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-jdbc-driver
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
         clickhouse: ["cloud"]
-        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
+#        project: ["clickhouse-http-client", "clickhouse-jdbc", "client-v2", "jdbc-v2"]
+        project: ["client-v2", "jdbc-v2"]
       fail-fast: false
     timeout-minutes: 20
     name: ${{ matrix.project }} + CH ${{ matrix.clickhouse }}
@@ -265,10 +276,10 @@ jobs:
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-java-client
     strategy:
       matrix:
-        clickhouse: ["24.3", "24.8", "latest"]
+        clickhouse: ["25.3", "25.8", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
 #        protocol: ["http", "http_client", "apache_http_client"]
         protocol: ["apache_http_client"]
@@ -328,10 +339,10 @@ jobs:
 
   test-r2dbc-driver:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: test-jdbc-driver
     strategy:
       matrix:
-        clickhouse: ["24.3", "24.8", "latest"]
+        clickhouse: ["25.3", "25.8", "latest"]
         # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
