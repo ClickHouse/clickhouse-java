@@ -85,6 +85,8 @@ public enum ClientConfigProperties {
 
     USE_HTTP_COMPRESSION("client.use_http_compression", Boolean.class, "false"),
 
+    USE_MULTIPART_FORM_DATA("client.use_multipart_form_data", Boolean.class, "false"),
+
     COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size", Integer.class, String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE)),
 
     DISABLE_NATIVE_COMPRESSION("disable_native_compression", Boolean.class, "false"),
