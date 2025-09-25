@@ -136,6 +136,7 @@ public class Client implements AutoCloseable {
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
 
     // Server context
+    private String dbUser;
     private String serverVersion;
     private Object metricsRegistry;
     private int retries;
@@ -196,7 +197,7 @@ public class Client implements AutoCloseable {
         }
 
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
-
+        this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
     }
 
@@ -208,7 +209,10 @@ public class Client implements AutoCloseable {
         try (QueryResponse response = this.query("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1").get()) {
             try (ClickHouseBinaryFormatReader reader = this.newBinaryFormatReader(response)) {
                 if (reader.next() != null) {
-                    this.configuration.put(ClientConfigProperties.USER.getKey(), reader.getString("user"));
+                    String tmpDbUser = reader.getString("user");
+                    if (tmpDbUser != null && !tmpDbUser.isEmpty()) {
+                        this.dbUser = tmpDbUser;
+                    }
                     this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
                     serverVersion = reader.getString("version");
                 }
@@ -2041,7 +2045,7 @@ public class Client implements AutoCloseable {
     }
 
     public String getUser() {
-        return (String) this.configuration.get(ClientConfigProperties.USER.getKey());
+        return dbUser;
     }
 
     public String getServerVersion() {
