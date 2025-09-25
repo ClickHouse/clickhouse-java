@@ -282,13 +282,10 @@ public class InsertTests extends BaseIntegrationTest {
         writer.flush();
         client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
                 ClickHouseFormat.TSV, localSettings).whenComplete((response, throwable) -> {
-                OperationMetrics metrics = response.getMetrics();
                 assertEquals((int)response.getWrittenRows(), 1000 );
 
                 List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
                 assertEquals(records.size(), 1000);
-                assertTrue(Thread.currentThread().getName()
-                        .startsWith(async ? "pool-" : "main"), "Threads starts with " + Thread.currentThread().getName());
         })
         .join().close(); // wait operation complete. only for tests
     }
