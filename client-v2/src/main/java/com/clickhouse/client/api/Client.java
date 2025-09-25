@@ -766,6 +766,8 @@ public class Client implements AutoCloseable {
          */
         public Builder useTimeZone(String timeZone) {
             this.configuration.put(ClientConfigProperties.USE_TIMEZONE.getKey(), timeZone);
+            // switch using server timezone to false
+            this.configuration.put(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey(), String.valueOf(Boolean.FALSE));
             return this;
         }
 

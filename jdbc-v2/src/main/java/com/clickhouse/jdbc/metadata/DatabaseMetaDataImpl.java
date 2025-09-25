@@ -8,10 +8,9 @@ import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
-import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -29,7 +28,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
@@ -132,7 +130,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return Driver.driverVersion;
+        return Driver.getLibraryVersion();
     }
 
     @Override
