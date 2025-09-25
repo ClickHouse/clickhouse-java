@@ -40,7 +40,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             final String tableName = "get_columns_metadata_test";
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("" +
-                        "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8)) " +
+                        "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
                         "ENGINE MergeTree ORDER BY ()");
             }
 
@@ -131,6 +131,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getObject("DATA_TYPE"), Types.TINYINT);
                 assertEquals(rs.getString("TYPE_NAME"), "Nullable(Int8)");
                 assertTrue(rs.getBoolean("NULLABLE"));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "v2");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.ARRAY);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.ARRAY);
+                assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
+                assertFalse(rs.getBoolean("NULLABLE"));
             }
         }
     }

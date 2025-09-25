@@ -233,8 +233,10 @@ public class CommonSettings {
      * @return timeout in ms.
      */
     public Long getNetworkTimeout() {
-        return (Long) getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
-                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefaultValue());
+        // Socket operation timeout must be integer because of OS interface
+        // Network timeout may be something else in the future. So we need to cast it to Long.
+        return ((Number) getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
+                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefObjVal())).longValue();
     }
 
 
