@@ -36,7 +36,6 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
@@ -80,7 +79,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-            String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
+            String clientName = "ClickHouse JDBC Driver V2/" + Driver.getLibraryVersion();
 
             Map<String, String> clientProperties = config.getClientProperties();
             if (clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()) != null) {

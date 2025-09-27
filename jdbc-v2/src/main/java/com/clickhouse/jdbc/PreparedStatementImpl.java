@@ -929,9 +929,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (cursor.arrayAsTuple) {
                 arraySb.append(encodeTuple((Object[]) element)).append(',');
                 cursor.pos++;
-            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Array ) {
+            } else if (cursor.level == 1 && isTupleType(elementType) && element instanceof Array ) {
                cursor.arrayObjAsTuple = true;
-            } else if (cursor.level == 1 && elementType == ClickHouseDataType.Tuple && element instanceof Object[] ) {
+            } else if (cursor.level == 1 && isTupleType(elementType) && element instanceof Object[] ) {
                cursor.arrayAsTuple = true;
             } else if (cursor.level == 1) {
                 arraySb.append(encodeObject(element)).append(',');
@@ -945,6 +945,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
 
         return arraySb.toString();
+    }
+
+    private static boolean isTupleType(ClickHouseDataType type ) {
+        return type == ClickHouseDataType.Tuple || type == ClickHouseDataType.Point;
     }
 
     private static final class ArrayProcessingCursor {
