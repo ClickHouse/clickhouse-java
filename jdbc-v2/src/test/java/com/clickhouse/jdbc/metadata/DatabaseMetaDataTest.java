@@ -19,8 +19,11 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -37,7 +40,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             final String tableName = "get_columns_metadata_test";
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("" +
-                        "CREATE TABLE " + tableName + " (id Int32, name String, v1 Nullable(Int8)) " +
+                        "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
                         "ENGINE MergeTree ORDER BY ()");
             }
 
@@ -109,6 +112,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.INTEGER);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.INTEGER);
                 assertEquals(rs.getString("TYPE_NAME"), "Int32");
+                assertFalse(rs.getBoolean("NULLABLE"));
 
                 assertTrue(rs.next());
                 assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
@@ -117,6 +121,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.VARCHAR);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.VARCHAR);
                 assertEquals(rs.getString("TYPE_NAME"), "String");
+                assertFalse(rs.getBoolean("NULLABLE"));
 
                 assertTrue(rs.next());
                 assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
@@ -125,6 +130,16 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt("DATA_TYPE"), Types.TINYINT);
                 assertEquals(rs.getObject("DATA_TYPE"), Types.TINYINT);
                 assertEquals(rs.getString("TYPE_NAME"), "Nullable(Int8)");
+                assertTrue(rs.getBoolean("NULLABLE"));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "v2");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.ARRAY);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.ARRAY);
+                assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
+                assertFalse(rs.getBoolean("NULLABLE"));
             }
         }
     }
@@ -446,6 +461,24 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 }
 
                 assertTrue(count > 10, "At least 10 types should be returned but was " + count);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testFindNestedTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getTypeInfo()) {
+                Set<String> nestedTypes = Arrays.stream(ClickHouseDataType.values())
+                        .filter(dt -> dt.isNested()).map(dt -> dt.name()).collect(Collectors.toSet());
+
+                while (rs.next()) {
+                    String typeName = rs.getString("TYPE_NAME");
+                    nestedTypes.remove(typeName);
+                }
+
+                assertTrue(nestedTypes.isEmpty(), "Nested types " + nestedTypes + " not found");
             }
         }
     }
