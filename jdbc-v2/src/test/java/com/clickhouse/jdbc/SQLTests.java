@@ -16,6 +16,7 @@ import org.testng.annotations.Test;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.testng.Assert.fail;
 
 @Test(groups = {"integration"})
 public class SQLTests extends JdbcIntegrationTest {
@@ -76,9 +79,12 @@ public class SQLTests extends JdbcIntegrationTest {
                     testCase.setChecks(DEFAULT_CHECKS);
                 }
                 Map<String, TestDataset> testDatasetMap = new HashMap<>();
-                for (Map.Entry<String, TestDataset> entry : datasetMap.entrySet()) {
-                    String table = testCase.getDatasets().get(entry.getKey());
-                    testDatasetMap.put(table, entry.getValue());
+                for (Map.Entry<String, String> entry : testCase.getTables().entrySet()) {
+                    TestDataset testDataset = datasetMap.get(entry.getValue());
+                    if (testDataset == null) {
+                        fail("Dataset " + entry.getValue() + " not found");
+                    }
+                    testDatasetMap.put(entry.getKey(), testDataset);
                 }
                 testData[i] = new Object[]{testDatasetMap, testCase};
             }
@@ -298,7 +304,7 @@ public class SQLTests extends JdbcIntegrationTest {
         if (property instanceof Number) {
             return ((Number) property).intValue();
         } else if (property instanceof String) {
-            return Integer.parseInt(property.toString());
+            return Integer.parseInt((String) property);
         }
         throw new IllegalArgumentException("Property " + property + " is not a number");
     }
@@ -309,9 +315,7 @@ public class SQLTests extends JdbcIntegrationTest {
             return null;
 
         }
-        if (property instanceof String) {
-            return property.toString().split("\\.");
-        } else if (property instanceof List<?>) {
+        if (property instanceof List<?>) {
             return ((List<?>) property).toArray();
         } else if (property.getClass().isArray()) {
             return property;
@@ -331,10 +335,11 @@ public class SQLTests extends JdbcIntegrationTest {
     public static final class CheckResultSetColumnNames implements ResultSetCheck {
         @Override
         public void check(ResultSet rs, TestResultCheckModel check, Map<String, TestDataset> tables) throws Exception {
+            ResultSetMetaData metaData = rs.getMetaData();
             Object[] expected = (Object[]) getArrayProperty(check.getExpected(), tables);
-            Object[] actual = new String[expected.length];
-            for (int i = 0; i < expected.length; i++) {
-                actual[i] = rs.getMetaData().getColumnName(i + 1);
+            Object[] actual = new String[metaData.getColumnCount()];
+            for (int i = 0; i < metaData.getColumnCount(); i++) {
+                actual[i] = metaData.getColumnName(i + 1);
             }
             Assert.assertEquals(actual, expected, "Column names do not match");
         }
