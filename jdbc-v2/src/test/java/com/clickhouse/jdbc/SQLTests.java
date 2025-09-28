@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.tuple.Pair;
@@ -16,6 +17,7 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -41,8 +43,17 @@ public class SQLTests extends JdbcIntegrationTest {
                 checkCount += rsMetadataChecks(resultSet, testCase, tables);
                 checkCount += dataCheck(resultSet, testCase, tables);
                 Assert.assertEquals(checkCount, testCase.checks.size(), "Check count does not match");
+                Assert.assertTrue(checkCount > 0, "Test without checks");
             }
         }
+    }
+
+    public static final ArrayList<TestResultCheckModel> DEFAULT_CHECKS = new ArrayList<>();
+    static {
+        DEFAULT_CHECKS.add(new TestResultCheckModel("row_count", "${events.rowCount}"));
+        DEFAULT_CHECKS.add(new TestResultCheckModel("column_count", "${events.columnsCount}"));
+        DEFAULT_CHECKS.add(new TestResultCheckModel("column_names", "${events.columnNames}"));
+        DEFAULT_CHECKS.add(new TestResultCheckModel("column_types", "${events.columnTypes}"));
     }
 
     @DataProvider(name = "testSQLQueryWithResultSetDP")
@@ -61,6 +72,9 @@ public class SQLTests extends JdbcIntegrationTest {
             Object[][] testData = new Object[testCases.length][];
             for (int i = 0; i < testCases.length; i++) {
                 SQLTestCase testCase = testCases[i];
+                if (testCase.getChecks() == null || testCase.getChecks().isEmpty()) {
+                    testCase.setChecks(DEFAULT_CHECKS);
+                }
                 Map<String, TestDataset> testDatasetMap = new HashMap<>();
                 for (Map.Entry<String, TestDataset> entry : datasetMap.entrySet()) {
                     String table = testCase.getDatasets().get(entry.getKey());
@@ -203,6 +217,7 @@ public class SQLTests extends JdbcIntegrationTest {
 
     @Data
     @NoArgsConstructor
+    @AllArgsConstructor
     public static final class TestResultCheckModel {
         private String name;
         private Object expected;

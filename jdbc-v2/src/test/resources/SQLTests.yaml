@@ -3,15 +3,15 @@
   query: SELECT * FROM events
   tables:
     events: datasets/events
-  checks:
-    - name: row_count
-      expected: ${events.rowCount}
-    - name: column_count
-      expected: ${events.columnsCount}
-    - name: column_names
-      expected: ${events.columnNames}
-    - name: column_types
-      expected: ${events.columnTypes}
+#  checks:
+#    - name: row_count
+#      expected: ${events.rowCount}
+#    - name: column_count
+#      expected: ${events.columnsCount}
+#    - name: column_names
+#      expected: ${events.columnNames}
+#    - name: column_types
+#      expected: ${events.columnTypes}
 - name: cte_select_events_with_date
   query: |
     WITH
