@@ -32,11 +32,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -1163,7 +1161,32 @@ public class BinaryStreamReader {
 
         ClickHouseDataType type = ClickHouseDataType.binTag2Type.get(tag);
         if (type == null) {
-            throw new ClientException("Unsupported data type with tag " + tag);
+            if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) {
+                // without timezone
+                byte scale = readByte();
+                return ClickHouseColumn.of("v", "DateTime64(" + scale + ")");
+            } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
+                String typeName = readString(input);
+                return ClickHouseColumn.of("v", typeName);
+            } else if (tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG || tag == ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG) {
+                int size = readVarInt(input);
+                StringBuilder typeNameBuilder = new StringBuilder();
+                typeNameBuilder.append("Tuple(");
+                final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
+                for (int i = 0; i < size; i++) {
+                    if (readName) {
+                        String name = readString(input);
+                        typeNameBuilder.append(name).append(' ');
+                    }
+                    ClickHouseColumn column = readDynamicData();
+                    typeNameBuilder.append(column.getOriginalTypeName()).append(',');
+                }
+                typeNameBuilder.setLength(typeNameBuilder.length() - 1);
+                typeNameBuilder.append(")");
+                return ClickHouseColumn.of("v", typeNameBuilder.toString());
+            } else {
+                throw new ClientException("Unsupported data type with tag " + tag);
+            }
         }
         switch (type) {
             case Array: {
@@ -1240,7 +1263,7 @@ public class BinaryStreamReader {
                 StringBuilder typeDef = new StringBuilder();
                 typeDef.append("JSON(max_dynamic_paths=").append(maxDynamicPaths).append(",max_dynamic_types=").append(maxDynamicTypes).append(",");
                 for (int i = 0; i < numberOfTypedPaths; i++) {
-                    typeDef.append(readString(input)); // path
+                    typeDef.append(readString(input)).append(' '); // path
                     ClickHouseColumn column = readDynamicData();
                     typeDef.append(column.getOriginalTypeName()).append(',');
                 }
@@ -1302,30 +1325,6 @@ public class BinaryStreamReader {
             case BFloat16:
                 throw new ClientException("BFloat16 is not supported yet");
             default:
-                if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) {
-                    // without timezone
-                    byte scale = readByte();
-                    return ClickHouseColumn.of("v", "DateTime64(" + scale + ")");
-                } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
-                    String typeName = readString(input);
-                    return ClickHouseColumn.of("v", typeName);
-                } else if (tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG || tag == ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG) {
-                    int size = readVarInt(input);
-                    StringBuilder typeNameBuilder = new StringBuilder();
-                    typeNameBuilder.append("Tuple(");
-                    final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
-                    for (int i = 0; i < size; i++) {
-                        if (readName) {
-                            String name = readString(input);
-                            typeNameBuilder.append(name).append(' ');
-                        }
-                        ClickHouseColumn column = readDynamicData();
-                        typeNameBuilder.append(column.getOriginalTypeName()).append(',');
-                    }
-                    typeNameBuilder.setLength(typeNameBuilder.length() - 1);
-                    typeNameBuilder.append(")");
-                    return ClickHouseColumn.of("v", typeNameBuilder.toString());
-                }
                 return ClickHouseColumn.of("v", type, false, 0, 0);
         }
     }

@@ -8,12 +8,14 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
@@ -674,6 +676,107 @@ public class DataTypeTests extends BaseIntegrationTest {
                 new String[]{
                         String.valueOf(maxTime64Value)
                 });
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithNestedTypes() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT (1, 'row1', 0.1)::Tuple(rowId Int32, name String, value Float64)::Dynamic AS row, 10::Int32 AS num");
+
+        Object[] tuple = (Object[]) records.get(0).getObject("row");
+        Assert.assertEquals(tuple[0], 1);
+        Assert.assertEquals(tuple[1], "row1");
+        Assert.assertEquals(tuple[2], 0.1);
+        Assert.assertEquals(records.get(0).getInteger("num"), 10);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithFixedString() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll("SELECT 'row1'::FixedString(4)::Dynamic AS str, 10::Int32 AS num");
+        Assert.assertEquals("row1", records.get(0).getString("str"));
+        Assert.assertEquals(records.get(0).getInteger("num"), 10); // added to check if reading further is not affected
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testDynamicWithJSON_dp")
+    public void testDynamicWithJSON(String type, String json, Object expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll("SELECT '" + json + "'::" + type + "::Dynamic AS val");
+        GenericRecord row = records.get(0);
+        Object val = row.getObject("val");
+        Assert.assertEquals(val, expected);
+    }
+
+    @DataProvider
+    public Object[][] testDynamicWithJSON_dp() {
+        Map<String, Object> map1 = new HashMap<>();
+        map1.put("name", "row1");
+        map1.put("value", 0.1);
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put("name", "row1");
+        map2.put("value", 0.1f);
+        Map<String, Object> map3 = new HashMap<>();
+        map3.put("a.b", "c");
+        map3.put("a.d", "e");
+        Map<String, Object> map4 = new HashMap<>();
+        map4.put("a.d", "e");
+
+        return new Object[][] {
+                { "JSON(max_dynamic_paths=100, max_dynamic_types=100)", "{\"name\": \"row1\", \"value\": 0.1}", map1},
+                { "JSON(value Float32)", "{\"name\": \"row1\", \"value\": 0.1}", map2},
+                { "JSON", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map3},
+                { "JSON(SKIP a.b)", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
+                { "JSON(SKIP REGEXP \'a\\.b\')", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
+
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithJSONWithArrays() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String json = "{ \"array\": [ {\"a\": 100 }, {\"b\": \"name\"}]}";
+        String type = "JSON(max_dynamic_paths=100, max_dynamic_types=100)";
+        List<GenericRecord> records = client.queryAll("SELECT '" + json + "'::" + type + "::Dynamic AS val");
+        GenericRecord row = records.get(0);
+        HashMap<String, Object> val = (HashMap<String, Object>) row.getObject("val");
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) val.get("array");
+        List<HashMap<String, Object>> items = array.asList();
+
+        Assert.assertEquals(items.size(), 2);
+        Assert.assertEquals(items.get(0).get("a"), 100L);
+        Assert.assertEquals(items.get(1).get("b"), "name");
+
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("select arrayJoin([1, 'a', 3]::Array(Variant(String, Int32)))::Dynamic as val");
+
+        GenericRecord row = records.get(0);
+        Object val = row.getObject("val");
+        Assert.assertEquals(val, 1);
+
+        row = records.get(1);
+        val = row.getObject("val");
+        Assert.assertEquals(val, "a");
+
+        row = records.get(2);
+        val = row.getObject("val");
+        Assert.assertEquals(val, 3);
     }
 
     @Data
