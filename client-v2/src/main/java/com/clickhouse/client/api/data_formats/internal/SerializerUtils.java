@@ -659,7 +659,7 @@ public class SerializerUtils {
         } else if (value instanceof Long) {
             BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
         } else if (value instanceof Instant) {
-            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond()).shiftLeft(32)
+            BinaryStreamUtils.writeUnsignedInt64(stream,BigInteger.valueOf(((Instant) value).getEpochSecond() * 1_000_000_000L)
                     .add(BigInteger.valueOf(((Instant) value).getNano())));
         } else {
             throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to Time64");

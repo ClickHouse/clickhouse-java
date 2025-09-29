@@ -372,11 +372,11 @@ public enum ClickHouseDataType implements SQLType {
         allAliases = Collections.unmodifiableSet(set);
         name2type = Collections.unmodifiableMap(map);
 
-        Map<Byte, ClickHouseDataType> tmpbinTag2Type = new HashMap<>();
+        Map<Byte, ClickHouseDataType> tmpBinTag2Type = new HashMap<>();
         for (ClickHouseDataType type : ClickHouseDataType.values()) {
-            tmpbinTag2Type.put((byte) type.getBinTag(), type);
+            tmpBinTag2Type.put(type.getBinTag(), type);
         }
-        binTag2Type = Collections.unmodifiableMap(tmpbinTag2Type);
+        binTag2Type = Collections.unmodifiableMap(tmpBinTag2Type);
 
         Map<Byte, ClickHouseDataType> tmpIntervalKind2Type = new HashMap<>();
         Map<ClickHouseDataType, ClickHouseDataType.IntervalKind > tmpIntervalType2Kind = new HashMap<>();

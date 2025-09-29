@@ -36,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -1160,62 +1161,172 @@ public class BinaryStreamReader {
     private ClickHouseColumn readDynamicData() throws IOException {
         byte tag = readByte();
 
-        ClickHouseDataType type;
-        if (tag == ClickHouseDataType.INTERVAL_BIN_TAG) {
-            byte intervalKind = readByte();
-            type = ClickHouseDataType.intervalKind2Type.get(intervalKind);
-            if (type == null) {
-                throw new ClientException("Unsupported interval kind: " + intervalKind);
+        ClickHouseDataType type = ClickHouseDataType.binTag2Type.get(tag);
+        if (type == null) {
+            throw new ClientException("Unsupported data type with tag " + tag);
+        }
+        switch (type) {
+            case Array: {
+                ClickHouseColumn elementColumn = readDynamicData();
+                return ClickHouseColumn.of("v", "Array(" + elementColumn.getOriginalTypeName() + ")");
             }
-            return ClickHouseColumn.of("v", type, false, 0, 0);
-        } else if (tag == ClickHouseDataType.DateTime32.getBinTag()) {
-            byte scale = readByte();
-            return ClickHouseColumn.of("v", "DateTime32(" + scale + ")");
-        }  else if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) { // without timezone
-            byte scale = readByte();
-            return ClickHouseColumn.of("v", "DateTime64(" + scale  +")");
-        }  else if (tag == ClickHouseDataType.DateTime64.getBinTag()) {
-            byte scale = readByte();
-            String timezone = readString(input);
-            return ClickHouseColumn.of("v", "DateTime64(" + scale + (timezone.isEmpty() ? "" : ", " + timezone) +")");
-        } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
-            String typeName = readString(input);
-            return ClickHouseColumn.of("v", typeName);
-        } else if (DECIMAL_TAGS.contains(tag)) {
-            int precision = readByte();
-            int scale = readByte();
-            return ClickHouseColumn.of("v", ClickHouseDataType.binTag2Type.get(tag), false, precision, scale);
-        } else if (tag == ClickHouseDataType.Array.getBinTag()) {
-            ClickHouseColumn elementColumn = readDynamicData();
-            return ClickHouseColumn.of("v", "Array(" + elementColumn.getOriginalTypeName() + ")");
-        } else if (tag == ClickHouseDataType.Map.getBinTag()) {
-            ClickHouseColumn keyInfo = readDynamicData();
-            ClickHouseColumn valueInfo = readDynamicData();
-            return ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + "," + valueInfo.getOriginalTypeName() + ")");
-        } else if (tag == ClickHouseDataType.Enum8.getBinTag() || tag == ClickHouseDataType.Enum16.getBinTag()) {
-            int constants = readVarInt(input);
-            int[] values = new int[constants];
-            String[] names = new String[constants];
-            ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
-            for (int i = 0; i < constants; i++) {
-                names[i] = readString(input);
-                if (enumType == ClickHouseDataType.Enum8) {
-                    values[i] = readUnsignedByte();
-                } else {
-                    values[i] = readUnsignedShortLE();
+            case DateTime32: {
+                String timezone = readString(input);
+                return ClickHouseColumn.of("v", "DateTime32(" + timezone + ")");
+            }
+            case DateTime64: {
+                byte scale = readByte();
+                String timezone = readString(input);
+                return ClickHouseColumn.of("v", "DateTime64(" + scale + (timezone.isEmpty() ? "" : ", " + timezone) +")");
+            }
+            case Decimal:
+            case Decimal32:
+            case Decimal64:
+            case Decimal128:
+            case Decimal256: {
+                int precision = readByte();
+                int scale = readByte();
+                return ClickHouseColumn.of("v", ClickHouseDataType.binTag2Type.get(tag), false, precision, scale);
+            }
+            case Dynamic: {
+                int maxTypes = readVarInt(input);
+                return ClickHouseColumn.of("v", "Dynamic(" + maxTypes + ")");
+            }
+            case Enum:
+            case Enum8:
+            case Enum16: {
+                int constants = readVarInt(input);
+                int[] values = new int[constants];
+                String[] names = new String[constants];
+                ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+                for (int i = 0; i < constants; i++) {
+                    names[i] = readString(input);
+                    if (enumType == ClickHouseDataType.Enum8) {
+                        values[i] = readUnsignedByte();
+                    } else {
+                        values[i] = readUnsignedShortLE();
+                    }
                 }
+                return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(), Collections.emptyList(),
+                        new ClickHouseEnum(names, values));
             }
-            return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(), Collections.emptyList(),
-                    new ClickHouseEnum(names, values));
-        } else if (tag == ClickHouseDataType.NULLABLE_BIN_TAG) {
-            ClickHouseColumn column = readDynamicData();
-            return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
-        } else {
-            type = ClickHouseDataType.binTag2Type.get(tag);
-            if (type == null) {
-                throw new ClientException("Unsupported data type with tag " + tag);
+            case FixedString: {
+                int length = readVarInt(input);
+                return ClickHouseColumn.of("v", "FixedString(" + length + ")");
             }
-            return ClickHouseColumn.of("v", type, false, 0, 0);
+            case IntervalHour:
+            case IntervalMinute:
+            case IntervalSecond:
+            case IntervalDay:
+            case IntervalMonth:
+            case IntervalMicrosecond:
+            case IntervalMillisecond:
+            case IntervalNanosecond:
+            case IntervalQuarter:
+            case IntervalYear:
+            case IntervalWeek: {
+                byte intervalKind = readByte();
+                type = ClickHouseDataType.intervalKind2Type.get(intervalKind);
+                if (type == null) {
+                    throw new ClientException("Unsupported interval kind: " + intervalKind);
+                }
+                return ClickHouseColumn.of("v", type, false, 0, 0);
+            }
+            case JSON: {
+                byte serializationVersion = readByte();
+                int maxDynamicPaths = readVarInt(input);
+                byte maxDynamicTypes = readByte();
+                int numberOfTypedPaths = readVarInt(input);
+                StringBuilder typeDef = new StringBuilder();
+                typeDef.append("JSON(max_dynamic_paths=").append(maxDynamicPaths).append(",max_dynamic_types=").append(maxDynamicTypes).append(",");
+                for (int i = 0; i < numberOfTypedPaths; i++) {
+                    typeDef.append(readString(input)); // path
+                    ClickHouseColumn column = readDynamicData();
+                    typeDef.append(column.getOriginalTypeName()).append(',');
+                }
+                int numberOfSkipPaths = readVarInt(input);
+                for (int i = 0; i < numberOfSkipPaths; i++) {
+                    typeDef.append(readString(input)).append(',');
+                }
+                int numberOfPathRegexp = readVarInt(input);
+                for (int i = 0; i < numberOfPathRegexp; i++) {
+                    typeDef.append(readString(input)).append(',');
+                }
+                typeDef.setLength(typeDef.length() - 1);
+                typeDef.append(')');
+                return ClickHouseColumn.of("v", typeDef.toString());
+            }
+            case LowCardinality: {
+                ClickHouseColumn column = readDynamicData();
+                return ClickHouseColumn.of("v", "LowCardinality(" + column.getOriginalTypeName() + ")");
+            }
+            case Map: {
+                ClickHouseColumn keyInfo = readDynamicData();
+                ClickHouseColumn valueInfo = readDynamicData();
+                return ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + "," + valueInfo.getOriginalTypeName() + ")");
+            }
+            case Nested: {
+                int size = readVarInt(input);
+                StringBuilder nested = new StringBuilder();
+                nested.append("Nested(");
+                for (int i = 0; i < size; i++) {
+                    String name = readString(input);
+                    nested.append(name).append(',');
+                }
+                nested.setLength(nested.length() - 1);
+                nested.append(')');
+                return ClickHouseColumn.of("v", nested.toString());
+            }
+            case Nullable:  {
+                ClickHouseColumn column = readDynamicData();
+                return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
+            }
+            case Time64: {
+                byte precision = readByte();
+                return ClickHouseColumn.of("v", "Time64(" + precision + ")");
+            }
+            case Variant: {
+                int variants = readVarInt(input);
+                StringBuilder variant = new StringBuilder();
+                variant.append("Variant(");
+                for (int i = 0; i < variants; i++) {
+                    ClickHouseColumn column = readDynamicData();
+                    variant.append(column.getOriginalTypeName() + ",");
+                }
+                variant.setLength(variant.length() - 1);
+                variant.append(")");
+                return  ClickHouseColumn.of("v", "Variant(" + variant + ")");
+            }
+            case AggregateFunction:
+                throw new ClientException("Aggregate functions are not supported yet");
+            case BFloat16:
+                throw new ClientException("BFloat16 is not supported yet");
+            default:
+                if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) {
+                    // without timezone
+                    byte scale = readByte();
+                    return ClickHouseColumn.of("v", "DateTime64(" + scale + ")");
+                } else if (tag == ClickHouseDataType.CUSTOM_TYPE_BIN_TAG) {
+                    String typeName = readString(input);
+                    return ClickHouseColumn.of("v", typeName);
+                } else if (tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG || tag == ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG) {
+                    int size = readVarInt(input);
+                    StringBuilder typeNameBuilder = new StringBuilder();
+                    typeNameBuilder.append("Tuple(");
+                    final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
+                    for (int i = 0; i < size; i++) {
+                        if (readName) {
+                            String name = readString(input);
+                            typeNameBuilder.append(name).append(' ');
+                        }
+                        ClickHouseColumn column = readDynamicData();
+                        typeNameBuilder.append(column.getOriginalTypeName()).append(',');
+                    }
+                    typeNameBuilder.setLength(typeNameBuilder.length() - 1);
+                    typeNameBuilder.append(")");
+                    return ClickHouseColumn.of("v", typeNameBuilder.toString());
+                }
+                return ClickHouseColumn.of("v", type, false, 0, 0);
         }
     }
 

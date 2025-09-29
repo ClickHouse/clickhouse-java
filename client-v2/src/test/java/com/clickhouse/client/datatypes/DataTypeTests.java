@@ -652,15 +652,27 @@ public class DataTypeTests extends BaseIntegrationTest {
                         String.valueOf(_999_hours),
                 });
 
-        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
-                999999999);
+        Instant time64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
+        long time64Value = time64.getEpochSecond() * 1_000_000_000 + time64.getNano();
+        System.out.println(time64Value);
+        testDynamicWith("Time64",
+                new Object[]{
+                        time64Value
+                },
+                new String[]{
+                        String.valueOf(time64Value)
+                }
+        );
 
+        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
+                123456789);
+        long maxTime64Value = maxTime64.getEpochSecond() * 1_000_000_000 + maxTime64.getNano();
         testDynamicWith("Time64",
                 new Object[]{
                         maxTime64,
                 },
                 new String[]{
-                        "3958241016481971977"
+                        String.valueOf(maxTime64Value)
                 });
     }
 
