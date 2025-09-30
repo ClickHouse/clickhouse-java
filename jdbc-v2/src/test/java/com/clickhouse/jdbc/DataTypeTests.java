@@ -2015,7 +2015,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("nested.numbers",new ArrayList<Long>() {{ add(1L); add(2L); add(3L); }});
         Map<String, Object> map3 = new HashMap<>();
-        map3.put("nested.strings", new ArrayList<>() {{ add("one"); add("two"); add("three"); }});
+        map3.put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
         Map<String, Object> map4 = new HashMap<>();
         map4.put("array", new ArrayList<HashMap<String,Object>>() {{
             add(new HashMap<>() {{
