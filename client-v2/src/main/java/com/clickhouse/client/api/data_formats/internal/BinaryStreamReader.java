@@ -54,6 +54,8 @@ public class BinaryStreamReader {
 
     private final Class<?> arrayDefaultTypeHint;
 
+    private static final int SB_INIT_SIZE = 100;
+
     /**
      * Createa a BinaryStreamReader instance that will use the provided buffer allocator.
      *
@@ -1159,7 +1161,7 @@ public class BinaryStreamReader {
                 return ClickHouseColumn.of("v", typeName);
             } else if (tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG || tag == ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG) {
                 int size = readVarInt(input);
-                StringBuilder typeNameBuilder = new StringBuilder();
+                StringBuilder typeNameBuilder = new StringBuilder(SB_INIT_SIZE);
                 typeNameBuilder.append("Tuple(");
                 final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
                 for (int i = 0; i < size; i++) {
@@ -1249,7 +1251,7 @@ public class BinaryStreamReader {
                 int maxDynamicPaths = readVarInt(input);
                 byte maxDynamicTypes = readByte();
                 int numberOfTypedPaths = readVarInt(input);
-                StringBuilder typeDef = new StringBuilder();
+                StringBuilder typeDef = new StringBuilder(SB_INIT_SIZE);
                 typeDef.append("JSON(max_dynamic_paths=").append(maxDynamicPaths).append(",max_dynamic_types=").append(maxDynamicTypes).append(",");
                 for (int i = 0; i < numberOfTypedPaths; i++) {
                     typeDef.append(readString(input)).append(' '); // path
@@ -1279,7 +1281,7 @@ public class BinaryStreamReader {
             }
             case Nested: {
                 int size = readVarInt(input);
-                StringBuilder nested = new StringBuilder();
+                StringBuilder nested = new StringBuilder(SB_INIT_SIZE);
                 nested.append("Nested(");
                 for (int i = 0; i < size; i++) {
                     String name = readString(input);
@@ -1299,7 +1301,7 @@ public class BinaryStreamReader {
             }
             case Variant: {
                 int variants = readVarInt(input);
-                StringBuilder variant = new StringBuilder();
+                StringBuilder variant = new StringBuilder(SB_INIT_SIZE);
                 variant.append("Variant(");
                 for (int i = 0; i < variants; i++) {
                     ClickHouseColumn column = readDynamicData();
