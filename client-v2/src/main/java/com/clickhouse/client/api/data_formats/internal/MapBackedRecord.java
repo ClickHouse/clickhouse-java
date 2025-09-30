@@ -263,6 +263,16 @@ public class MapBackedRecord implements GenericRecord {
     }
 
     @Override
+    public short[] getShortArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
+    public String[] getStringArray(String colName) {
+        return getPrimitiveArray(colName);
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return hasValue(schema.columnIndexToName(colIndex));
     }
@@ -404,6 +414,16 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public boolean[] getBooleanArray(int index) {
+        return getPrimitiveArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public short[] getShortArray(int index) {
+        return getPrimitiveArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public String[] getStringArray(int index) {
         return getPrimitiveArray(schema.columnIndexToName(index));
     }
 
