@@ -618,7 +618,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Properties createProperties = new Properties();
         createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
         runQuery("CREATE TABLE test_time64 (order Int8, "
-                + "time Time('UTC'), time64 Time64(9) "
+                + "time Time, time64 Time64(9) "
                 + ") ENGINE = MergeTree ORDER BY ()",
                 createProperties);
 
