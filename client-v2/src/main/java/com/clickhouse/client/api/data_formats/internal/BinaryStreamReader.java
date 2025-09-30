@@ -25,14 +25,11 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 
@@ -1148,14 +1145,6 @@ public class BinaryStreamReader {
         }
     }
 
-    private static final Set<Byte> DECIMAL_TAGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            ClickHouseDataType.Decimal.getBinTag(),
-            ClickHouseDataType.Decimal32.getBinTag(),
-            ClickHouseDataType.Decimal64.getBinTag(),
-            ClickHouseDataType.Decimal128.getBinTag(),
-            ClickHouseDataType.Decimal256.getBinTag()
-    )));
-
     private ClickHouseColumn readDynamicData() throws IOException {
         byte tag = readByte();
 
@@ -1314,7 +1303,7 @@ public class BinaryStreamReader {
                 variant.append("Variant(");
                 for (int i = 0; i < variants; i++) {
                     ClickHouseColumn column = readDynamicData();
-                    variant.append(column.getOriginalTypeName() + ",");
+                    variant.append(column.getOriginalTypeName()).append(',');
                 }
                 variant.setLength(variant.length() - 1);
                 variant.append(")");

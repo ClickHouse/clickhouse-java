@@ -656,7 +656,6 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         Instant time64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
         long time64Value = time64.getEpochSecond() * 1_000_000_000 + time64.getNano();
-        System.out.println(time64Value);
         testDynamicWith("Time64",
                 new Object[]{
                         time64Value
