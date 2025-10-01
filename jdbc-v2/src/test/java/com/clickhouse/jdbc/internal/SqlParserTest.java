@@ -418,4 +418,67 @@ public class SqlParserTest {
             "WHERE\n" +
             "    EventDate = toDate(?) AND\n" +
             "    EventTime <= ts_upper_bound;";
+
+
+    @Test(dataProvider = "testStatementWithoutResultSetDP")
+    public void testStatementWithoutResultSet(String sql, int args, boolean hasResultSet) {
+        SqlParser parser = new SqlParser();
+        {
+            ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+            Assert.assertEquals(stmt.getArgCount(), args);
+            assertEquals(stmt.isHasResultSet(), hasResultSet, "Statement result set expectation does not match");
+            Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
+        }
+
+        {
+            ParsedStatement stmt = parser.parsedStatement(sql);
+            assertEquals(stmt.isHasResultSet(), hasResultSet, "Statement result set expectation does not match");
+            Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testStatementWithoutResultSetDP() {
+        return  new Object[][]{
+                {"INSERT INTO test_table VALUES (1, ?)", 1, false},
+                {"SELECT * FROM test_table", 0, true},
+                {"CREATE DATABASE `test_db`", 0, false},
+                {"CREATE DATABASE `test_db` COMMENT 'for tests'", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db`", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db` ON CLUSTER `cluster`", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db` ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db')", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64)", 0, false},
+                {"CREATE TABLE IF NOT EXISTS `test_table` (id UInt64)", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster`", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db')", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db') COMMENT 'for tests'", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE OR REPLACE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE OR REPLACE VIEW `test_db`.`source_table` source ON CLUSTER `cluster` AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView()", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView() COMMENT 'for tests'", 0, false},
+                {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 EXPRESSION(k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000)", 0, false},
+                {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE OR REPLACE DICTIONARY IF NOT EXISTS `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE OR REPLACE DICTIONARY IF NOT EXISTS `dict1` (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE FUNCTION test_func AS () -> 10", 0, false},
+                {"CREATE FUNCTION test_func AS (x) -> 10 * x", 0, false},
+                {"CREATE FUNCTION test_func AS (x, y) -> y * x", 0, false},
+                {"CREATE FUNCTION test_func ON CLUSTER `cluster` AS (x, y) -> y * x", 0, false},
+                {"CREATE USER IF NOT EXISTS `user`", 0, false},
+                {"CREATE USER IF NOT EXISTS `user` ON CLUSTER `cluster`", 0, false},
+                {"CREATE ROLE IF NOT EXISTS `role1` ON CLUSTER", 0, false},
+                {"CREATE ROW POLICY pol1 ON mydb.table1 USING b=1 TO mira, peter", 0, false},
+                {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 TO peter, antonio", 0, false},
+                {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 AS RESTRICTIVE TO peter, antonio", 0, false},
+                {"CREATE QUOTA qA FOR INTERVAL 15 month MAX queries = 123 TO CURRENT_USER", 0, false},
+                {"CREATE QUOTA qB FOR INTERVAL 30 minute MAX execution_time = 0.5, FOR INTERVAL 5 quarter MAX queries = 321, errors = 10 TO default", 0, false},
+                {"CREATE SETTINGS PROFILE max_memory_usage_profile SETTINGS max_memory_usage = 100000001 MIN 90000000 MAX 110000000 TO robin", 0, false},
+                {"CREATE NAMED COLLECTION foobar AS a = '1', b = '2' OVERRIDABLE", 0, false},
+
+
+        };
+    }
 }
