@@ -56,6 +56,8 @@ public class BinaryStreamReader {
 
     private static final int SB_INIT_SIZE = 100;
 
+    private ClickHouseColumn lastDataColumn = null;
+
     /**
      * Createa a BinaryStreamReader instance that will use the provided buffer allocator.
      *
@@ -108,6 +110,7 @@ public class BinaryStreamReader {
         }
 
         ClickHouseColumn actualColumn = column.getDataType() == ClickHouseDataType.Dynamic ? readDynamicData() : column;
+        lastDataColumn = actualColumn;
         ClickHouseDataType dataType = actualColumn.getDataType();
         int precision = actualColumn.getPrecision();
         int scale = actualColumn.getScale();
@@ -1336,6 +1339,9 @@ public class BinaryStreamReader {
             ClickHouseColumn dataColumn = predefinedColumns == null? JSON_PLACEHOLDER_COL :
                     predefinedColumns.getOrDefault(path, JSON_PLACEHOLDER_COL);
             Object value = readValue(dataColumn);
+            if (value == null && (lastDataColumn != null && lastDataColumn.getDataType() == ClickHouseDataType.Nothing) ) {
+                continue;
+            }
             obj.put(path, value);
         }
         return obj;
