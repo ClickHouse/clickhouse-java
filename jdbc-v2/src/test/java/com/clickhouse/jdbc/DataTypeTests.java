@@ -2031,7 +2031,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }});
         Map<String, Object> map5 = new HashMap<>();
         map5.put("array", new ArrayList<HashMap<String,Object>>() {{
-            add(new HashMap<>() {{
+            add(new HashMap<String, Object>() {{
                 put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
 
             }});
