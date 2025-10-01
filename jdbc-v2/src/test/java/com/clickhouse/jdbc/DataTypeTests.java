@@ -2018,10 +2018,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
         map3.put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
         Map<String, Object> map4 = new HashMap<>();
         map4.put("array", new ArrayList<HashMap<String,Object>>() {{
-            add(new HashMap<>() {{
+            add(new HashMap<String, Object>() {{
                 put("nested.key", "value");
             }});
-            add(new HashMap<>() {{
+            add(new HashMap<String, Object>() {{
                 put("nested.numbers", new ArrayList<Long>() {{
                     add(1L);
                     add(2L);
@@ -2032,7 +2032,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
         Map<String, Object> map5 = new HashMap<>();
         map5.put("array", new ArrayList<HashMap<String,Object>>() {{
             add(new HashMap<>() {{
-                put("nested.strings", new ArrayList<>() {{ add("one"); add("two"); add("three"); }});
+                put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
 
             }});
         }});
