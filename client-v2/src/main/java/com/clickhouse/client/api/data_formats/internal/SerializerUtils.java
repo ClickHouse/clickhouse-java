@@ -17,6 +17,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
@@ -292,10 +293,6 @@ public class SerializerUtils {
             throws IOException {
 
         ClickHouseDataType dt = typeColumn.getDataType();
-        byte binTag = dt.getBinTag();
-        if (binTag == -1) {
-            throw new ClientException("Type " + dt.name() +" serialization is not supported for Dynamic column");
-        }
 
         if (typeColumn.isNullable()) {
             stream.write(ClickHouseDataType.NULLABLE_BIN_TAG);
@@ -304,10 +301,24 @@ public class SerializerUtils {
             stream.write(ClickHouseDataType.LOW_CARDINALITY_BIN_TAG);
         }
 
+        byte binTag = dt.getBinTag();
+        if (binTag == -1) {
+            switch (dt) {
+                case Point:
+                case Polygon:
+                case Ring:
+                case MultiPolygon:
+                    stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
+                    BinaryStreamUtils.writeString(stream, dt.name());
+                    return;
+                default:
+                    throw new ClientException("Type " + dt.name() +" serialization is not supported for Dynamic column");
+            }
+        }
         switch (dt) {
             case FixedString:
                 stream.write(binTag);
-                writeVarInt(stream, typeColumn.getEstimatedLength());
+                BinaryStreamUtils.writeVarInt(stream, typeColumn.getEstimatedLength());
                 break;
             case Enum8:
             case Enum16:
@@ -315,7 +326,7 @@ public class SerializerUtils {
                 ClickHouseEnum enumVal = typeColumn.getEnumConstants();
                 String[] names = enumVal.getNames();
                 int[] values = enumVal.getValues();
-                writeVarInt(stream, names.length);
+                BinaryStreamUtils.writeVarInt(stream, names.length);
                 for (int i = 0; i < enumVal.size(); i++ ) {
                     BinaryStreamUtils.writeString(stream, names[i]);
                     if (dt == ClickHouseDataType.Enum8) {
@@ -379,13 +390,6 @@ public class SerializerUtils {
                 // Tuple(name1 T1, ..., nameN TN)
                 //  0x20<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><nested_type_encoding_1>...<var_uint_name_size_N><name_data_N><nested_type_encoding_N>
                 stream.write(0x20);
-                break;
-            case Point:
-            case Polygon:
-            case Ring:
-            case MultiPolygon:
-                stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
-                BinaryStreamUtils.writeString(stream, dt.name());
                 break;
             case Variant:
                 stream.write(binTag);
@@ -659,7 +663,7 @@ public class SerializerUtils {
         } else if (value instanceof Long) {
             BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
         } else if (value instanceof Instant) {
-            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond()).shiftLeft(32)
+            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond() * 1_000_000_000L)
                     .add(BigInteger.valueOf(((Instant) value).getNano())));
         } else {
             throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to Time64");

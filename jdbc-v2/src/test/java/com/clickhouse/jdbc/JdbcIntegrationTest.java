@@ -49,17 +49,17 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     @Override
     protected boolean runQuery(String query) {
-        return runQuery(query, new Properties());
+        runQuery(query, new Properties());
+        return true;
     }
 
-    protected boolean runQuery(String query, Properties connProperties) {
+    protected void runQuery(String query, Properties connProperties) {
         try (Connection connection = getJdbcConnection(connProperties)) {
             try (Statement stmt = connection.createStatement()) {
-                return stmt.execute(query);
+                stmt.execute(query);
             }
         } catch (SQLException e) {
-            LOGGER.error("Failed to run query: {}", query, e);
-            return false;
+            throw new RuntimeException(e);
         }
     }
 
