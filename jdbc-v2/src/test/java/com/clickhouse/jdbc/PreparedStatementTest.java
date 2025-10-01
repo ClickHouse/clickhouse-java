@@ -730,7 +730,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (Statement stmt01 = conn.createStatement()) {
                 try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp`")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getInt(1), "Users in users_tmp: " + sb);
+                    assertEquals(rs.getInt(1), 3,"Users in users_tmp: " + sb);
                 }
             }
 
