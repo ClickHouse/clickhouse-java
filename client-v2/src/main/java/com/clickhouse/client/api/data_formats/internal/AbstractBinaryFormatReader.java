@@ -640,13 +640,19 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String[] getStringArray(String colName) {
-        try {
-            List<String> l = getList(colName);
-            String [] a = l.toArray(new String[0]);
-            return l.toArray(new String[l.size()]);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+            int length = array.length;
+            if (!array.itemType.equals(String.class))
+                throw new ClientException("Not A String type.");
+            String [] values = new String[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            }
+            return values;
         }
+        throw new ClientException("Not ArrayValue type.");
     }
 
     @Override
