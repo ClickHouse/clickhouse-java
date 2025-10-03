@@ -1,5 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.jdbc.internal.parser.ClickHouseLexer;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -9,9 +12,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.tree.IterativeParseTreeWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class SqlParser {
 

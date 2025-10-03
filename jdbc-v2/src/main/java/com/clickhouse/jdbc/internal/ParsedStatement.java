@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
 import org.antlr.v4.runtime.tree.ErrorNode;
 
 import java.util.ArrayList;
