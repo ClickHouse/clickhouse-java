@@ -195,4 +195,55 @@ public class ClickHouseBinaryFormatReaderTest {
         Assert.assertEquals(reader.getString("a"),  "true");
         Assert.assertEquals(reader.getString("b"),  "false");
     }
+
+    @Test
+    public void testReadingArrays() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String[] names = new String[]{ "a1", "a2", "a3", "a4", "a5"};
+        String[] types = new String[]{"Array(Int8)", "Array(String)", "Array(Int16)", "Array(Int32)", "Array(Int64)"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        // write data
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeInt8(out, (byte) 1);
+        BinaryStreamUtils.writeInt8(out, (byte) 2);
+
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeString(out, "a");
+        BinaryStreamUtils.writeString(out, "b");
+
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeInt16(out, (short) 1);
+        BinaryStreamUtils.writeInt16(out, (short) 2);
+
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeInt32(out, (int) 1);
+        BinaryStreamUtils.writeInt32(out, (int) 2);
+
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeInt64(out, (long) 1);
+        BinaryStreamUtils.writeInt64(out, (long) 2);
+
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        Assert.assertEquals(reader.getByteArray("a1"), new byte[] {(byte) 1, (byte) 2});
+        Assert.assertEquals(reader.getStringArray("a2"), new String[] {"a", "b"});
+        Assert.assertEquals(reader.getShortArray("a3"), new short[] {(short) 1, (short) 2});
+        Assert.assertEquals(reader.getIntArray("a4"), new int[] {1, 2});
+        Assert.assertEquals(reader.getLongArray("a5"), new long[] {1L, 2L});
+
+    }
 }

@@ -294,6 +294,20 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     boolean[] getBooleanArray(String colName);
 
     /**
+     *
+     * @param colName
+     * @return
+     */
+    short[] getShortArray(String colName);
+
+    /**
+     *
+     * @param colName
+     * @return
+     */
+    String[] getStringArray(String colName);
+
+    /**
      * Reads column with name `colName` as a string.
      *
      * @param index
@@ -516,6 +530,10 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     double[] getDoubleArray(int index);
 
     boolean[] getBooleanArray(int index);
+
+    short [] getShortArray(int index);
+
+    String[] getStringArray(int index);
 
     Object[] getTuple(int index);
 

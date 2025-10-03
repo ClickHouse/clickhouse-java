@@ -589,6 +589,32 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public short[] getShortArray(String colName) {
+        try {
+            return getPrimitiveArray(colName,  short.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
+    }
+
+    @Override
+    public String[] getStringArray(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+            int length = array.length;
+            if (!array.itemType.equals(String.class))
+                throw new ClientException("Not A String type.");
+            String [] values = new String[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            }
+            return values;
+        }
+        throw new ClientException("Not ArrayValue type.");
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord[colIndex - 1] != null;
     }
@@ -731,6 +757,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public boolean[] getBooleanArray(int index) {
         return getBooleanArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public short[] getShortArray(int index) {
+        return getShortArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public String[] getStringArray(int index) {
+        return getStringArray(schema.columnIndexToName(index));
     }
 
     @Override
