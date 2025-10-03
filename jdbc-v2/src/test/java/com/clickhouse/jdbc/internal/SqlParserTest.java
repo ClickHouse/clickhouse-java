@@ -237,6 +237,7 @@ public class SqlParserTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors());
         Assert.assertEquals(stmt.getArgCount(), args);
+        Assert.assertTrue(stmt.isHasResultSet());
     }
 
     @DataProvider
@@ -248,7 +249,10 @@ public class SqlParserTest {
                 {"with a as (select 1) select * from a; ", 0},
                 {"(with ? as a select a);", 1},
                 {"select * from ( with x as ( select 9 ) select * from x );", 0},
-                {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1}
+                {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1},
+                {"WITH toDateTime('2025-08-20 12:34:56') AS target_time SELECT * FROM table", 0},
+                {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
+                {"WITH toDate(?) as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 1}
         };
     }
 
@@ -326,6 +330,11 @@ public class SqlParserTest {
             {"WITH 'hello' REGEXP 'h' AS result SELECT 1", 0},
             {"WITH (select 1) as a, z AS (select 2) SELECT 1", 0},
             {"SELECT result FROM test_view(myParam = ?)", 1},
+            {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
+            {"select 1 table where 1 = ?", 1},
+            {"insert into t (i, t) values (1, timestamp '2010-01-01 00:00:00')", 0},
+            {"insert into t (i, t) values (1, date '2010-01-01')", 0
+            }
         };
     }
 
@@ -412,4 +421,215 @@ public class SqlParserTest {
             "WHERE\n" +
             "    EventDate = toDate(?) AND\n" +
             "    EventTime <= ts_upper_bound;";
+
+
+    @Test(dataProvider = "testStatementWithoutResultSetDP")
+    public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
+        SqlParser parser = new SqlParser();
+        {
+            ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+            Assert.assertEquals(stmt.getArgCount(), args);
+            assertEquals(stmt.isHasResultSet(), hasResultSet, "Statement result set expectation does not match");
+            Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
+        }
+
+        {
+            ParsedStatement stmt = parser.parsedStatement(sql);
+            assertEquals(stmt.isHasResultSet(), hasResultSet, "Statement result set expectation does not match");
+            Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testStatementWithoutResultSetDP() {
+        return  new Object[][]{
+                /* has result set */
+                {"SELECT * FROM test_table", 0, true},
+                {"SHOW CREATE TABLE `db`.`test_table`", 0, true},
+                {"SHOW CREATE TEMPORARY TABLE `db1`.`tmp_table`", 0, true},
+                {"SHOW CREATE DICTIONARY dict1", 0, true},
+                {"SHOW CREATE VIEW view1", 0, true},
+                {"SHOW CREATE DATABASE db1", 0, true},
+                {"SHOW CREATE TABLE table1 INTO OUTFILE table1.sql", 0, true},
+                {"SHOW TABLES ", 0, true},
+                {"SHOW TABLES FROM system LIKE '%user%'", 0, true},
+                {"SHOW COLUMNS FROM 'orders' LIKE 'delivery_%'", 0, true},
+                {"SHOW DICTIONARIES FROM db LIKE '%reg%' LIMIT 2", 0, true},
+                {"SHOW INDEX FROM 'tbl'", 0, true},
+                {"SHOW PROCESSLIST", 0, true},
+                {"SHOW GRANTS FOR `user01`", 0, true},
+                {"SHOW GRANTS FOR `user01` FINAL", 0, true},
+                {"SHOW GRANTS FOR `user01` WITH IMPLICIT FINAL", 0, true},
+                {"SHOW CREATE USER `user01`", 0, true},
+                {"SHOW CREATE USER CURRENT_USER", 0, true},
+                {"SHOW CREATE ROLE `role_01`", 0, true},
+                {"SHOW CREATE POLICY policy_1 ON `tableA`, `db1`.`tableB`", 0, true},
+                {"SHOW CREATE ROW POLICY policy_1 ON `tableA`, `db1`.`tableB`", 0, true},
+                {"SHOW CREATE QUOTA CURRENT", 0, true},
+                {"SHOW CREATE QUOTA `q1`", 0, true},
+                {"SHOW CREATE PROFILE `p1`", 0, true},
+                {"SHOW CREATE SETTINGS PROFILE `p3`", 0, true},
+                {"SHOW USERS", 0, true},
+                {"SHOW CURRENT ROLES", 0, true},
+                {"SHOW ENABLED ROLES", 0, true},
+                {"SHOW SETTINGS PROFILES", 0, true},
+                {"SHOW PROFILES", 0, true},
+                {"SHOW POLICIES ON `db`.`table`", 0, true},
+                {"SHOW ROW POLICIES ON table1", 0, true},
+                {"SHOW QUOTAS", 0, true},
+                {"SHOW CURRENT QUOTA", 0, true},
+                {"SHOW QUOTA", 0, true},
+                {"SHOW ACCESS", 0, true},
+                {"SHOW CLUSTER `default`", 0, true},
+                {"SHOW CLUSTERS LIKE 'test%' LIMIT 1", 0, true},
+                {"SHOW SETTINGS LIKE 'send_timeout'", 0, true},
+                {"SHOW SETTINGS ILIKE '%CONNECT_timeout%'", 0, true},
+                {"SHOW CHANGED SETTINGS ILIKE '%MEMORY%'", 0, true},
+                {"SHOW SETTING `min_insert_block_size_rows`", 0, true},
+                {"SHOW FILESYSTEM CACHES", 0, true},
+                {"SHOW ENGINES", 0, true},
+                {"SHOW FUNCTIONS", 0, true},
+                {"SHOW FUNCTIONS LIKE '%max%", 0, true},
+                {"SHOW MERGES", 0, true},
+                {"SHOW MERGES LIKE 'your_t%' LIMIT 1", 0, true},
+                {"EXPLAIN SELECT sum(number) FROM numbers(10) GROUP BY number % ?;", 1, true},
+                {"EXPLAIN SELECT sum(number) FROM numbers(10) GROUP BY number % 4;", 0, true},
+                {"DESCRIBE TABLE table", 0, true},
+                {"DESC TABLE table1", 0, true},
+                {"EXISTS TABLE `db`.`table01`", 0, true},
+                {"EXISTS TABLE ?", 1, true},
+                {"CHECK GRANT SELECT(col2) ON table_2", 0, true},
+                {"CHECK TABLE test_table", 0, true},
+                {"CHECK TABLE t0 PARTITION ID '201003' FORMAT PrettyCompactMonoBlock SETTINGS check_query_single_value_result = 0", 0, true},
+
+
+                /* no result set */
+                {"INSERT INTO test_table VALUES (1, ?)", 1, false},
+                {"CREATE DATABASE `test_db`", 0, false},
+                {"CREATE DATABASE `test_db` COMMENT 'for tests'", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db`", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db` ON CLUSTER `cluster`", 0, false},
+                {"CREATE DATABASE IF NOT EXISTS `test_db` ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db')", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64)", 0, false},
+                {"CREATE TABLE IF NOT EXISTS `test_table` (id UInt64)", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64 NOT NULL ) ENGINE = MergeTree() ORDER BY id", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64 NULL ) ENGINE = MergeTree() ORDER BY id", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster`", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db')", 0, false},
+                {"CREATE TABLE `test_table` (id UInt64) ENGINE = MergeTree() ORDER BY id ON CLUSTER `cluster` ENGINE = Replicated('clickhouse1:9000', 'test_db') COMMENT 'for tests'", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE OR REPLACE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE OR REPLACE VIEW `test_db`.`source_table` source ON CLUSTER `cluster` AS ( SELECT * FROM source_a UNION SELECT * FROM source_b)", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView()", 0, false},
+                {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView() COMMENT 'for tests'", 0, false},
+                {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 EXPRESSION(k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000)", 0, false},
+                {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE OR REPLACE DICTIONARY IF NOT EXISTS `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE OR REPLACE DICTIONARY IF NOT EXISTS `dict1` (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS cache_size = 1000 COMMENT 'for tests'", 0, false},
+                {"CREATE FUNCTION test_func AS () -> 10", 0, false},
+                {"CREATE FUNCTION test_func AS (x) -> 10 * x", 0, false},
+                {"CREATE FUNCTION test_func AS (x, y) -> y * x", 0, false},
+                {"CREATE FUNCTION test_func ON CLUSTER `cluster` AS (x, y) -> y * x", 0, false},
+                {"CREATE USER IF NOT EXISTS `user`", 0, false},
+                {"CREATE USER IF NOT EXISTS `user` ON CLUSTER `cluster`", 0, false},
+                {"CREATE ROLE IF NOT EXISTS `role1` ON CLUSTER", 0, false},
+                {"CREATE ROW POLICY pol1 ON mydb.table1 USING b=1 TO mira, peter", 0, false},
+                {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 TO peter, antonio", 0, false},
+                {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 AS RESTRICTIVE TO peter, antonio", 0, false},
+                {"CREATE QUOTA qA FOR INTERVAL 15 month MAX queries = 123 TO CURRENT_USER", 0, false},
+                {"CREATE QUOTA qB FOR INTERVAL 30 minute MAX execution_time = 0.5, FOR INTERVAL 5 quarter MAX queries = 321, errors = 10 TO default", 0, false},
+                {"CREATE SETTINGS PROFILE max_memory_usage_profile SETTINGS max_memory_usage = 100000001 MIN 90000000 MAX 110000000 TO robin", 0, false},
+                {"CREATE NAMED COLLECTION foobar AS a = '1', b = '2' OVERRIDABLE", 0, false},
+                {"ALTER TABLE table1 ALTER COLUMN value Int64", 0, false},
+                {"alter table t alter column j default 1", 0, false},
+                {"alter table t modify comment 'comment'", 0, false},
+
+                {"DELETE FROM db.table1 ON CLUSTER `default` WHERE max(a, 10) > ?", 1, false},
+                {"DELETE FROM table WHERE a = ?", 1, false},
+                {"DELETE FROM table WHERE a = ? AND b = ?", 2, false},
+                {"DELETE FROM hits WHERE Title LIKE '%hello%';", 0, false},
+
+                {"SYSTEM START FETCHES", 0, false},
+                {"SYSTEM RELOAD DICTIONARIES", 0, false},
+                {"SYSTEM RELOAD DICTIONARIES ON CLUSTER `default`", 0, false},
+                {"GRANT SELECT ON db.* TO john", 0, false},
+                {"GRANT ON CLUSTER `default` SELECT(a, b) ON db1.tableA TO `user` WITH GRANT OPTION WITH REPLACE OPTION", 0, false},
+                {"GRANT SELECT db.* TO user01 WITH REPLACE OPTION", 0, false},
+                {"GRANT ON CLUSTER role1, role2 TO `user01` WITH ADMIN OPTION WITH REPLACE OPTION", 0, false},
+                {"GRANT CURRENT GRANTS TO user01", 0, false},
+                {"REVOKE SELECT(a,b) ON db1.tableA FROM `user01", 0, false},
+                {"REVOKE SELECT ON db1.* FROM ALL", 0, false},
+                {"REVOKE SELECT ON db1.* FROM ALL EXCEPT `admin01`", 0, false},
+                {"REVOKE SELECT ON db1.* FROM ALL EXCEPT CURRENT USER", 0, false},
+                {"REVOKE ON CLUSTER `default` SELECT ON db1.* FROM ALL EXCEPT CURRENT USER", 0, false},
+                {"REVOKE ON CLUSTER `blaster` ADMIN OPTION FOR role1, role3 FROM `user01`", 0, false},
+                {"REVOKE ON CLUSTER `blaster` role1, role3 FROM ALL EXCEPT CURRENT USER", 0, false},
+                {"REVOKE ON CLUSTER `blaster` role1, role3 FROM ALL EXCEPT `very_nice_user`", 0, false},
+                {"UPDATE db.table01 ON CLUSTER `default` SET col1 = ?, col2 = ? WHERE col3 > ?", 3, false},
+                {"UPDATE hits SET Title = 'Updated Title' WHERE EventDate = today()", 0, false},
+                {"ATTACH TABLE test FROM '01188_attach/test' (s String, n UInt8) ENGINE = File(TSV)", 0, false},
+                {"ATTACH TABLE test AS REPLICATED", 0, false},
+                {"DETACH TABLE test", 0, false},
+                {"ATTACH DICTIONARY IF NOT EXISTS db.dict1 ON CLUSTER `default`", 0, false},
+                {"ATTACH DATABASE IF NOT EXISTS db1 ENGINE=MergeTree ON CLUSTER `default`", 0, false},
+                {"DROP DATABASE `db1`",0, false},
+                {"DROP TABLE `db1`.`table01`", 0, false},
+                {"DROP DICTIONARY `dict1`", 0, false},
+                {"DROP ROLE IF EXISTS `role01`", 0 , false},
+                {"DROP POLICY IF EXISTS `pol1`", 0, false},
+                {"DROP QUOTA IF EXISTS q1", 0, false},
+                {"DROP SETTINGS PROFILE IF EXISTS `profile1` ON CLUSTER `default`", 0, false},
+                {"DROP VIEW view1 ON CLUSTER `default` SYNC", 0, false},
+                {"DROP FUNCTION linear_equation", 0, false},
+                {"DROP NAMED COLLECTION foobar", 0, false},
+                {"KILL QUERY WHERE query_id='2-857d-4a57-9ee0-327da5d60a90'", 0, false},
+                {"KILL QUERY WHERE user='username' SYNC", 0, false},
+                {"KILL QUERY ON CLUSTER `default` WHERE user='username' SYNC", 0, false},
+                {"KILL QUERY ON CLUSTER `default` WHERE user='username' ASYNC", 0, false},
+                {"KILL QUERY ON CLUSTER `default` WHERE user='username' TEST", 0, false},
+                {"KILL MUTATION WHERE database = 'default' AND table = 'table'", 0, false},
+                {"KILL MUTATION WHERE database = 'default' AND table = 'table' AND mutation_id = 'mutation_3.txt'", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY colX,colY,colZ", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY * EXCEPT colX", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY * EXCEPT (colX, colY)", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY COLUMNS('column-matched-by-regex')", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY COLUMNS('column-matched-by-regex') EXCEPT colX", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY COLUMNS('column-matched-by-regex') EXCEPT (colX, colY)", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE", 0, false},
+                {"OPTIMIZE TABLE table DEDUPLICATE BY *", 0, false},
+                {"RENAME TABLE table_A TO table_A_bak, table_B TO table_B_bak", 0, false},
+                {"RENAME TABLE table_A TO table_A_bak, table_B TO table_B_bak ON CLUSTER `default`", 0, false},
+                {"RENAME DICTIONARY dictA TO dictB ON CLUSTER `default`", 0, false},
+                {"EXCHANGE TABLES table1 AND table2", 0, false},
+                {"EXCHANGE TABLES table1 AND table2 ON CLUSTER `default`", 0, false},
+                {"EXCHANGE DICTIONARIES dict1 AND dict2", 0, false},
+                {"EXCHANGE DICTIONARIES dict1 AND dict2 ON CLUSTER `default`", 0, false},
+                {"SET profile = 'profile-name-from-the-settings-file'", 0, false},
+                {"SET ROLE role1", 0, false},
+                {"SET DEFAULT ROLE role1 TO user", 0, false},
+                {"SET DEFAULT ROLE NONE TO user", 0, false},
+                {"SET DEFAULT ROLE ALL EXCEPT role1, role2 TO user", 0, false},
+                {"TRUNCATE TABLE IF EXISTS `db1`.`table1` ON CLUSTER `default` SYNC", 0, false},
+                {"TRUNCATE TABLE `db1`.`table1` ON CLUSTER `default` SYNC", 0, false},
+                {"TRUNCATE TABLE `db1`.`table1` ON CLUSTER `default`", 0, false},
+                {"TRUNCATE TABLE `db1`.`table1`", 0, false},
+                {"TRUNCATE DATABASE IF EXISTS db ON CLUSTER `cluster`", 0, false},
+                {"TRUNCATE DATABASE IF EXISTS db", 0, false},
+                {"TRUNCATE DATABASE `db`", 0, false},
+                {"TRUNCATE ALL TABLES FROM IF EXISTS `db` NOT LIKE 'tmp%' ON CLUSTER `cluster`", 0, false},
+                {"TRUNCATE ALL TABLES FROM IF EXISTS `db` NOT LIKE 'tmp%'", 0, false},
+                {"TRUNCATE ALL TABLES FROM `db` NOT LIKE 'tmp%' ON CLUSTER `cluster`", 0, false},
+                {"TRUNCATE TABLES FROM `db` LIKE 'tmp%' ON CLUSTER `cluster`", 0, false},
+                {"TRUNCATE TABLES FROM `db` LIKE 'tmp%'", 0, false},
+                {"USE test_db", 0, false},
+                {"MOVE USER test TO local_directory", 0, false},
+                {"MOVE ROLE test TO memory", 0, false},
+                {"UNDROP TABLE tab", 0, false},
+                {"UNDROP TABLE db.tab ON CLUSTER `default`", 0, false},
+                {"UNDROP TABLE db.tab UUID '857d-4a57-9ee0-327da5d60a90' ON CLUSTER `default`", 0, false},
+
+        };
+    }
 }

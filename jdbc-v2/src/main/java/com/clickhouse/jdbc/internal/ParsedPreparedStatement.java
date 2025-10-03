@@ -136,7 +136,7 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
         ClickHouseParser.QueryContext qCtx = ctx.query();
         if (qCtx != null) {
-            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null || qCtx.describeStmt() != null) {
+            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null || qCtx.describeStmt() != null || qCtx.ctes() != null) {
                 setHasResultSet(true);
             }
         }
