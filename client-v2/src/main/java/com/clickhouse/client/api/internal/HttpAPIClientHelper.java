@@ -160,12 +160,16 @@ public class HttpAPIClientHelper {
                 com.clickhouse.client.api.ssl.SslContextSupplier supplier =
                         (com.clickhouse.client.api.ssl.SslContextSupplier) clazz.getDeclaredConstructor().newInstance();
                 SSLContext provided = supplier.get();
-                if (provided != null) {
-                    return provided;
+                if (provided == null) {
+                    throw new ClientMisconfigurationException("SSLContext supplier '" + supplierClassName + "' returned null SSLContext");
                 }
-            } catch (ClientMisconfigurationException e) {
-                throw e;
+                // Basic sanity: ensure context has at least default socket factory initialized
+                provided.getSocketFactory();
+                return provided;
             } catch (Exception e) {
+                if (e instanceof ClientMisconfigurationException) {
+                    throw (ClientMisconfigurationException) e;
+                }
                 throw new ClientMisconfigurationException("Failed to instantiate SSLContext supplier '" + supplierClassName + "'", e);
             }
         }
