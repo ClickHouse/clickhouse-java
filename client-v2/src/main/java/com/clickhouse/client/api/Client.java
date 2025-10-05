@@ -717,6 +717,20 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Sets a custom SSLContext supplier by class name. The class must implement
+         * {@code com.clickhouse.client.api.ssl.SslContextSupplier} and have a public
+         * no-arg constructor. Useful for providing an already-initialized SSLContext
+         * via properties (e.g., HikariCP data source properties).
+         *
+         * @param supplierClassName fully qualified class name of supplier
+         * @return this builder
+         */
+        public Builder setSSLContextSupplier(String supplierClassName) {
+            this.configuration.put(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey(), supplierClassName);
+            return this;
+        }
+
+        /**
          * Defines path to the key store file. It cannot be combined with
          * certificates. Either key store or certificates should be used.
          *
