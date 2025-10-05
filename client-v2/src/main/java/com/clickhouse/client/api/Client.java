@@ -730,21 +730,21 @@ public class Client implements AutoCloseable {
                 this.configuration.remove(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey());
                 return this;
             }
-try {
-    Class<?> clazz = Class.forName(supplierClassName);
-    if (!com.clickhouse.client.api.ssl.SslContextSupplier.class.isAssignableFrom(clazz)) {
-        throw new IllegalArgumentException("Class " + supplierClassName + " does not implement SslContextSupplier");
-    }
-    try {
-        clazz.getDeclaredConstructor();
-    } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
-    }
-    this.configuration.put(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey(), supplierClassName);
-    return this;
-} catch (ClassNotFoundException e) {
-    throw new IllegalArgumentException("Class not found: " + supplierClassName, e);
-}
+            try {
+                Class<?> clazz = Class.forName(supplierClassName);
+                if (!com.clickhouse.client.api.ssl.SslContextSupplier.class.isAssignableFrom(clazz)) {
+                    throw new IllegalArgumentException("Class " + supplierClassName + " does not implement SslContextSupplier");
+                }
+                try {
+                    clazz.getDeclaredConstructor();
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
+                }
+                this.configuration.put(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey(), supplierClassName);
+                return this;
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("Class not found: " + supplierClassName, e);
+            }
         }
 
         /**
