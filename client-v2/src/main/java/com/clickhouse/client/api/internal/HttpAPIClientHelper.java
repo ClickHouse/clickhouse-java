@@ -163,9 +163,13 @@ public class HttpAPIClientHelper {
                 if (provided == null) {
                     throw new ClientMisconfigurationException("SSLContext supplier '" + supplierClassName + "' returned null SSLContext");
                 }
-                // Basic sanity: ensure context has at least default socket factory initialized
-                provided.getSocketFactory();
-                return provided;
+// Basic sanity: ensure context has at least default socket factory initialized
+try {
+    provided.getSocketFactory();
+} catch (Exception e) {
+    throw new ClientMisconfigurationException("SSLContext supplier '" + supplierClassName + "' provided an invalid SSLContext", e);
+}
+return provided;
             } catch (Exception e) {
                 if (e instanceof ClientMisconfigurationException) {
                     throw (ClientMisconfigurationException) e;
