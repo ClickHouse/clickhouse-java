@@ -735,11 +735,13 @@ public class Client implements AutoCloseable {
                 if (!com.clickhouse.client.api.ssl.SslContextSupplier.class.isAssignableFrom(clazz)) {
                     throw new IllegalArgumentException("Class " + supplierClassName + " does not implement SslContextSupplier");
                 }
-                try {
-                    clazz.getDeclaredConstructor();
-                } catch (NoSuchMethodException e) {
-                    throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
-                }
+try {
+    clazz.getDeclaredConstructor().newInstance();
+} catch (NoSuchMethodException e) {
+    throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
+} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+    throw new IllegalArgumentException("Failed to instantiate " + supplierClassName, e);
+}
                 this.configuration.put(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey(), supplierClassName);
                 return this;
             } catch (ClassNotFoundException e) {
