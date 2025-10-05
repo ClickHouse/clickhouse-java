@@ -736,7 +736,7 @@ public class Client implements AutoCloseable {
                     throw new IllegalArgumentException("Class " + supplierClassName + " does not implement SslContextSupplier");
                 }
                 try {
-                    clazz.getDeclaredConstructor();
+                    clazz.getConstructor();
                 } catch (NoSuchMethodException e) {
                     throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
                 }
