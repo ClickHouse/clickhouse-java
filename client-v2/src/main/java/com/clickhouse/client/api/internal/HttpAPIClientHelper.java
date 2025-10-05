@@ -149,6 +149,36 @@ public class HttpAPIClientHelper {
         } catch (NoSuchAlgorithmException e) {
             throw new ClientException("Failed to create default SSL context", e);
         }
+        // First, try custom supplier if provided
+        String supplierClassName = (String) configuration.get(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey());
+        if (supplierClassName != null && !supplierClassName.trim().isEmpty()) {
+try {
+    Class<?> clazz = Class.forName(supplierClassName);
+    if (!com.clickhouse.client.api.ssl.SslContextSupplier.class.isAssignableFrom(clazz)) {
+        throw new ClientMisconfigurationException("Class '" + supplierClassName + "' does not implement SslContextSupplier");
+    }
+    com.clickhouse.client.api.ssl.SslContextSupplier supplier =
+            (com.clickhouse.client.api.ssl.SslContextSupplier) clazz.getDeclaredConstructor().newInstance();
+    SSLContext provided = supplier.get();
+    if (provided == null) {
+        throw new ClientMisconfigurationException("SSLContext supplier '" + supplierClassName + "' returned null SSLContext");
+    }
+    // Basic sanity: ensure context has at least default socket factory initialized
+    try {
+        provided.getSocketFactory();
+    } catch (Exception e) {
+        throw new ClientMisconfigurationException("SSLContext supplier '" + supplierClassName + "' provided an invalid SSLContext", e);
+    }
+    return provided;
+} catch (ClassNotFoundException e) {
+    throw new ClientMisconfigurationException("SSLContext supplier class '" + supplierClassName + "' not found", e);
+} catch (Exception e) {
+    if (e instanceof ClientMisconfigurationException) {
+        throw (ClientMisconfigurationException) e;
+    }
+    throw new ClientMisconfigurationException("Failed to instantiate SSLContext supplier '" + supplierClassName + "'", e);
+}
+        }
         ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
         String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
         if (trustStorePath != null) {

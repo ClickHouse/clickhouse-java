@@ -717,6 +717,44 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Sets a custom SSLContext supplier by class name. The class must implement
+         * {@code com.clickhouse.client.api.ssl.SslContextSupplier} and have a public
+         * no-arg constructor. Useful for providing an already-initialized SSLContext
+         * via properties (e.g., HikariCP data source properties).
+         *
+         * @param supplierClassName fully qualified class name of supplier
+         * @return this builder
+         */
+        public Builder setSSLContextSupplier(String supplierClassName) {
+            if (supplierClassName == null || supplierClassName.trim().isEmpty()) {
+                this.configuration.remove(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey());
+                return this;
+            }
+            try {
+                Class<?> clazz = Class.forName(supplierClassName);
+                if (!com.clickhouse.client.api.ssl.SslContextSupplier.class.isAssignableFrom(clazz)) {
+                    throw new IllegalArgumentException("Class " + supplierClassName + " does not implement SslContextSupplier");
+                }
+                try {
+                    clazz.getDeclaredConstructor().newInstance();
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
+                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                    throw new IllegalArgumentException("Failed to instantiate " + supplierClassName, e);
+                }
+                try {
+                    clazz.getConstructor();
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalArgumentException("Class " + supplierClassName + " does not have a public no-arg constructor", e);
+                }
+                this.configuration.put(ClientConfigProperties.SSL_CONTEXT_SUPPLIER.getKey(), supplierClassName);
+                return this;
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("Class not found: " + supplierClassName, e);
+            }
+        }
+
+        /**
          * Defines path to the key store file. It cannot be combined with
          * certificates. Either key store or certificates should be used.
          *

@@ -182,6 +182,12 @@ public enum ClientConfigProperties {
      * SNI SSL parameter that will be set for each outbound SSL socket.
      */
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
+
+    /**
+     * Fully-qualified class name implementing com.clickhouse.client.api.ssl.SslContextSupplier.
+     * When set, this supplier is used to construct SSLContext instead of keystore/cert properties.
+     */
+    SSL_CONTEXT_SUPPLIER("ssl_context_supplier", String.class),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
