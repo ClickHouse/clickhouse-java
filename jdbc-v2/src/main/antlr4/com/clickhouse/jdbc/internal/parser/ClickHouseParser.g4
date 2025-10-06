@@ -830,12 +830,34 @@ systemPrivilege
 // SHOW statements
 
 showStmt
-    : SHOW CREATE DATABASE databaseIdentifier                                                                    # showCreateDatabaseStmt
-    | SHOW CREATE DICTIONARY tableIdentifier                                                                     # showCreateDictionaryStmt
-    | SHOW CREATE TEMPORARY? TABLE? tableIdentifier                                                              # showCreateTableStmt
-    | SHOW DATABASES                                                                                             # showDatabasesStmt
-    | SHOW DICTIONARIES (FROM databaseIdentifier)?                                                               # showDictionariesStmt
-    | SHOW TEMPORARY? TABLES ((FROM | IN) databaseIdentifier)? (LIKE STRING_LITERAL | whereClause)? limitClause? # showTablesStmt
+    : SHOW CREATE? (TEMPORARY? TABLE | DICTIONARY | VIEW | DATABASE) tableIdentifier (INTO OUTFILE literal)? (FORMAT identifier) # showCreateStmt
+    | SHOW DATABASES (NOT? (LIKE | ILIKE) literal) (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDatabasesStmt
+    | SHOW FULL? TEMPORARY? TABLES ((FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showTablesStmt
+    | SHOW EXTENDED? FULL? COLUMNS ((FROM | IN) identifier (FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showColumnsStmt
+    | SHOW DICTIONARIES ((FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDictionariesStmt
+    | SHOW EXTENDED? (INDEX | INDEXES | INDICES | KEYS ) (FROM | IN) identifier ((FROM | IN) identifier)? (WHERE columnExpr) (INTO OUTFILE filename)? (FORMAT identifier)? # showIndexStmt
+    | SHOW PROCESSLIST (INTO OUTFILE filename)? (FORMAT identifier)? # showProcessListStmt
+    | SHOW GRANTS (FOR identifier (COMMA identifier)*)? (WITH IMPLICIT)? FINAL? # showGrantsStmt
+    | SHOW CREATE USER ((identifier (COMMA identifier)*) | CURRENT_USER) # showCreateUserStmt
+    | SHOW CREATE ROLE (identifier (COMMA identifier)*) # showCreateRoleStmt
+    | SHOW CREATE ROW? POLICY identifier ON tableIdentifier # showCreatePolicyStmt
+    | SHOW CREATE QUOTA ((identifier (COMMA identifier)*) | CURRENT) # showCreateQuotaStmt
+    | SHOW CREATE (SETTINGS)? PROFILE identifier (COMMA identifier)* # showCreateProfile
+    | SHOW USERS # showUsersStmt
+    | SHOW (CURRENT|ENABLED)? ROLES # showRolesStmt
+    | SHOW SETTINGS? PROFILES # showProfilesStmt
+    | SHOW ROW? POLICIES (ON identifier)? # showPoliciesStmt
+    | SHOW QUOTAS # showQuotasStmt
+    | SHOW CURRENT? QUOTA # showQuotaStmt
+    | SHOW ACCESS # showAccessStmt
+    | SHOW CLUSTER identifier # showClusterStmt
+    | SHOW CLUSTERS (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showClustersStmt
+    | SHOW CHANGED? SETTINGS (LIKE | ILIKE) literal # showSettingsStmt
+    | SHOW SETTING identifier # showSettingStmt
+    | SHOW FILESYSTEM CACHES # showFSCachesStmt
+    | SHOW ENGINES (INTO OUTFILE filename)? (FORMAT identifier)? # showEnginesStmt
+    | SHOW FUNCTIONS (NOT? (LIKE | ILIKE) literal)? # showFunctionsStmt
+    | SHOW MERGES (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showMergesStmt
     ;
 
 // SYSTEM statements
@@ -986,6 +1008,10 @@ tableIdentifier
     : (databaseIdentifier DOT)? identifier
     ;
 
+viewIdentifier
+    : tableIdentifier
+    ;
+
 tableArgList
     : tableArgExpr (COMMA tableArgExpr)*
     ;
@@ -1025,6 +1051,10 @@ literal
     : numberLiteral
     | STRING_LITERAL
     | NULL_SQL
+    ;
+
+filename
+    : STRING_LITERAL
     ;
 
 interval
