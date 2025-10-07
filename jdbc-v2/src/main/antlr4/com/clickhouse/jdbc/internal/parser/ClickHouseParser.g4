@@ -439,7 +439,7 @@ assignmentValue
     : literal   # InsertRawValue
     | QUERY     # InsertParameter
     | identifier (LPAREN columnExprList? RPAREN)? # InsertParameterFuncExpr
-    | LPAREN columnExpr RPAREN # InserParameterExpr
+    | LPAREN? columnExpr RPAREN? # InserParameterExpr
     ;
 
 // KILL statement

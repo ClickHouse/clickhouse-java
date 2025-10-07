@@ -333,8 +333,8 @@ public class SqlParserTest {
             {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
             {"select 1 table where 1 = ?", 1},
             {"insert into t (i, t) values (1, timestamp '2010-01-01 00:00:00')", 0},
-            {"insert into t (i, t) values (1, date '2010-01-01')", 0
-            }
+            {"insert into t (i, t) values (1, date '2010-01-01')", 0},
+            {"SELECT timestamp '2010-01-01 00:00:00' as ts, date '2010-01-01' as d", 0},
         };
     }
 
@@ -421,7 +421,6 @@ public class SqlParserTest {
             "WHERE\n" +
             "    EventDate = toDate(?) AND\n" +
             "    EventTime <= ts_upper_bound;";
-
 
     @Test(dataProvider = "testStatementWithoutResultSetDP")
     public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
