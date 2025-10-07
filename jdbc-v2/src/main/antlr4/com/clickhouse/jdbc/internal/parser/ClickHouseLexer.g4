@@ -100,6 +100,7 @@ ENGINES       : E N G I N E S;
 ESTIMATE     : E S T I M A T E;
 EVENTS       : E V E N T S;
 EXCEPT       : E X C E P T;
+EXCHANGE     : E X C H A N G E;
 EXISTS       : E X I S T S;
 EXPLAIN      : E X P L A I N;
 EXPRESSION   : E X P R E S S I O N;
@@ -241,6 +242,7 @@ REVOKE : R E V O K E;
 QUARTER      : Q U A R T E R;
 QUEUE : Q U E U E ;
 QUEUES : Q U E U E S ;
+QUERY_SQL : Q U E R Y; // conflicts with '?'
 QUOTA : Q U O T A;
 QUOTAS : Q U O T A S ;
 RABBITMQ : R A B B I T M Q;

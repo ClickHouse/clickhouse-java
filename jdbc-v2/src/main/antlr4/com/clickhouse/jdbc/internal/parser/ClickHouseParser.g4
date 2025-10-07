@@ -40,6 +40,7 @@ query
     | ctes? selectStmt
     | grantStmt
     | revokeStmt
+    | exchangeStmt
     ;
 
 // CTE statement
@@ -368,10 +369,12 @@ describeStmt
 // DROP statement
 
 dropStmt
-    : (DETACH | DROP) DATABASE (IF EXISTS)? databaseIdentifier clusterClause? # DropDatabaseStmt
-    | (DETACH | DROP) (DICTIONARY | TEMPORARY? TABLE | VIEW | ROLE | USER) (IF EXISTS)? tableIdentifier clusterClause? (
-        NO DELAY
-    )? # DropTableStmt
+    : (DETACH | DROP) DATABASE (IF EXISTS)? databaseIdentifier clusterClause? SYNC?
+    | (DETACH | DROP) (DICTIONARY | TEMPORARY? TABLE | VIEW) (IF EXISTS)? tableIdentifier clusterClause?
+        (NO DELAY)? SYNC?
+    | (DETACH | DROP) (USER | ROLE | QUOTA | SETTINGS? PROFILE) (IF EXISTS)? identifier clusterClause? (FROM identifier)?
+    | (DETACH | DROP) ROW? POLICY (IF EXISTS)? identifier ON grantTableIdentifier (COMMA grantTableIdentifier)* clusterClause? (FROM identifier)?
+    | (DETACH | DROP) (FUNCTION | NAMED COLLECTION) (IF EXISTS)? identifier clusterClause?
     ;
 
 // EXISTS statement
@@ -419,7 +422,8 @@ assignmentValue
 // KILL statement
 
 killStmt
-    : KILL MUTATION clusterClause? whereClause (SYNC | ASYNC | TEST)? # KillMutationStmt
+    : KILL MUTATION clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillMutationStmt
+    | KILL QUERY_SQL clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillQueryStmt
     ;
 
 // OPTIMIZE statement
@@ -432,6 +436,7 @@ optimizeStmt
 
 renameStmt
     : RENAME TABLE tableIdentifier TO tableIdentifier (COMMA tableIdentifier TO tableIdentifier)* clusterClause?
+    | RENAME
     ;
 
 // PROJECTION SELECT statement
@@ -608,6 +613,12 @@ winFrameBound
 
 //rangeClause: RANGE LPAREN (MIN identifier MAX identifier | MAX identifier MIN identifier) RPAREN;
 
+// EXCHANGE statement
+exchangeStmt
+    : EXCHANGE (TABLES|DICTIONARIES) tableIdentifier AND tableIdentifier clusterClause?
+    ;
+
+
 // SET statement
 
 setStmt
@@ -627,11 +638,9 @@ setRolesList
 // GRANT statements
 
 grantStmt
-    : GRANT clusterClause? identifier (COMMA identifier)* TO (CURRENT_USER | identifier (COMMA identifier)*)
-              (WITH ADMIN OPTION)? (WITH REPLACE OPTION)?
-    | GRANT clusterClause? privelegeList ON grantTableIdentifier
+    : GRANT clusterClause? ((identifier (COMMA identifier)*) | (privelegeList ON grantTableIdentifier))
         TO (CURRENT_USER | identifier) (COMMA identifier)*
-        (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+        (WITH ADMIN OPTION)? (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
     | GRANT CURRENT GRANTS (LPAREN ((privelegeList ON grantTableIdentifier) | (identifier (COMMA identifier)*)) RPAREN)?
         TO (CURRENT_USER | identifier (COMMA identifier)*)
                 (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
@@ -1250,6 +1259,7 @@ keyword
     | PRECEDING
     | PREWHERE
     | PRIMARY
+    | PROFILE
     | RANGE
     | RELOAD
     | REMOVE
