@@ -22,6 +22,7 @@ query
     | createStmt // DDL
     | describeStmt
     | dropStmt // DDL
+    | undropStmt // DDL
     | existsStmt
     | explainStmt
     | killStmt     // DDL
@@ -41,6 +42,7 @@ query
     | grantStmt
     | revokeStmt
     | exchangeStmt
+    | moveStmt
     ;
 
 // CTE statement
@@ -360,6 +362,11 @@ ttlExpr
     : columnExpr (DELETE | TO DISK STRING_LITERAL | TO VOLUME STRING_LITERAL)?
     ;
 
+// MOVE statement
+moveStmt
+    : MOVE (USER | ROLE | QUOTA | SETTINGS PROFILE | ROW POLICY) identifier TO identifier
+    ;
+
 // DESCRIBE statement
 
 describeStmt
@@ -375,6 +382,10 @@ dropStmt
     | (DETACH | DROP) (USER | ROLE | QUOTA | SETTINGS? PROFILE) (IF EXISTS)? identifier clusterClause? (FROM identifier)?
     | (DETACH | DROP) ROW? POLICY (IF EXISTS)? identifier ON grantTableIdentifier (COMMA grantTableIdentifier)* clusterClause? (FROM identifier)?
     | (DETACH | DROP) (FUNCTION | NAMED COLLECTION) (IF EXISTS)? identifier clusterClause?
+    ;
+
+undropStmt
+    : UNDROP TABLE tableIdentifier uuidClause? clusterClause?
     ;
 
 // EXISTS statement
