@@ -89,6 +89,7 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
+    | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
     | MOVE partitionClause (
         TO DISK STRING_LITERAL
         | TO VOLUME STRING_LITERAL
@@ -130,7 +131,9 @@ attachStmt
 // CHECK statement
 
 checkStmt
-    : CHECK TABLE tableIdentifier partitionClause?
+    : CHECK TABLE tableIdentifier (PARTITION identifier | PART identifier)? (FORMAT identifier)? settingsClause? # checkTableStmt
+    | CHECK ALL TABLES (FORMAT identifier)? settingsClause? # checkAllTablesStmt
+    | CHECK GRANT privilege columnsClause? ON grantTableIdentifier  # checkGrantStmt
     ;
 
 // CREATE statement
@@ -138,7 +141,7 @@ checkStmt
 createStmt
     : (ATTACH | CREATE) DATABASE (IF NOT EXISTS)? databaseIdentifier clusterClause? engineExpr? # CreateDatabaseStmt
     | (ATTACH | CREATE (OR REPLACE)? | REPLACE) DICTIONARY (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? dictionarySchemaClause
-        dictionaryEngineClause # CreateDictionaryStmt
+        dictionaryEngineClause sourceClause layoutClause lifetimeClause dictionarySettingsClause? (COMMENT literal)? # CreateDictionaryStmt
     | (ATTACH | CREATE) LIVE VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? (
         WITH TIMEOUT DECIMAL_LITERAL?
     )? destinationClause? tableSchemaClause? subqueryClause # CreateLiveViewStmt
@@ -147,8 +150,8 @@ createStmt
         | engineClause POPULATE?
     ) subqueryClause # CreateMaterializedViewStmt
     | (ATTACH | CREATE (OR REPLACE)? | REPLACE) TEMPORARY? TABLE (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause?
-        engineClause? subqueryClause?                                                                                                    # CreateTableStmt
-    | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause? subqueryClause #
+        engineClause? subqueryClause?  # CreateTableStmt
+    | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier alias? uuidClause? clusterClause? tableSchemaClause? subqueryClause #
         CreateViewStmt
     | CREATE USER ((IF NOT EXISTS) | (OR REPLACE))? userIdentifier (COMMA userIdentifier)* clusterClause?
         userIdentifiedClause?
@@ -162,6 +165,16 @@ createStmt
     | CREATE (ROW)? POLICY (IF NOT EXISTS | OR REPLACE)? identifier clusterClause? ON tableIdentifier
         (IN identifier)? (AS (PERMISSIVE | RESTRICTIVE))? (FOR SELECT)? USING columnExpr
         (TO identifier | ALL | ALL EXCEPT identifier)? # CreatePolicyStmt
+    | CREATE SETTINGS? PROFILE ((IF NOT EXISTS) | (OR REPLACE))? identifier (COMMA identifier)* clusterClause?
+        (IN identifier)? ((SETTINGS identifier (EQ_SINGLE literal)? (MIN EQ_SINGLE? literal)? (MAX EQ_SINGLE? literal)?
+         (CONST|READONLY|WRITABLE|CHANGEABLE_IN_READONLY)?)
+            | ( INHERIT identifier))? (TO identifier | ALL | ALL EXCEPT identifier)? # createProfileStmt
+    | CREATE FUNCTION identifier clusterClause? AS LPAREN (identifier)? (COMMA identifier)? RPAREN ARROW .+? #createFunctionStmt
+    | CREATE NAMED COLLECTION (IF NOT EXISTS)? identifier clusterClause? AS nameCollectionKey (COMMA nameCollectionKey)* #createNamedCollectionStmt
+    ;
+
+nameCollectionKey
+    : (identifier EQ_SINGLE literal (NOT? OVERRIDE)?)
     ;
 
 userIdentifier
@@ -205,7 +218,7 @@ dictionarySchemaClause
     ;
 
 dictionaryAttrDfnt
-    : identifier columnTypeExpr
+    : identifier columnTypeExpr ((DEFAULT | EXPRESSION) columnExpr)? (IS_OBJECT_ID|HIERARCHICAL|INJECTIVE)?
     ;
 
 dictionaryEngineClause
@@ -213,7 +226,7 @@ dictionaryEngineClause
     ;
 
 dictionaryPrimaryKeyClause
-    : PRIMARY KEY columnExprList
+    : PRIMARY KEY (identifier) (COMMA identifier)*
     ;
 
 dictionaryArgExpr
@@ -221,7 +234,7 @@ dictionaryArgExpr
     ;
 
 sourceClause
-    : SOURCE LPAREN identifier LPAREN dictionaryArgExpr* RPAREN RPAREN
+    : SOURCE LPAREN identifier LPAREN settingExprList RPAREN RPAREN
     ;
 
 lifetimeClause
@@ -298,7 +311,7 @@ tableElementExpr
     ;
 
 tableColumnDfnt
-    : nestedIdentifier columnTypeExpr tableColumnPropertyExpr? (COMMENT STRING_LITERAL)? codecExpr? (
+    : nestedIdentifier columnTypeExpr (NULL_SQL | NOT NULL_SQL)? tableColumnPropertyExpr? (COMMENT STRING_LITERAL)? codecExpr? (
         TTL columnExpr
     )?
     | nestedIdentifier columnTypeExpr? tableColumnPropertyExpr (COMMENT STRING_LITERAL)? codecExpr? (
@@ -307,7 +320,7 @@ tableColumnDfnt
     ;
 
 tableColumnPropertyExpr
-    : (DEFAULT | MATERIALIZED | ALIAS) columnExpr
+    : (DEFAULT | MATERIALIZED | ALIAS ) columnExpr
     ;
 
 tableIndexDfnt
@@ -348,15 +361,15 @@ dropStmt
 // EXISTS statement
 
 existsStmt
-    : EXISTS DATABASE databaseIdentifier                             # ExistsDatabaseStmt
-    | EXISTS (DICTIONARY | TEMPORARY? TABLE | VIEW)? tableIdentifier # ExistsTableStmt
+    : EXISTS DATABASE databaseIdentifier  (INTO OUTFILE filename)? (FORMAT identifier)? # ExistsDatabaseStmt
+    | EXISTS (DICTIONARY | TEMPORARY? TABLE | VIEW)? tableIdentifier (INTO OUTFILE filename)? (FORMAT identifier)?  # ExistsTableStmt
     ;
 
 // EXPLAIN statement
 
 explainStmt
-    : EXPLAIN AST query    # ExplainASTStmt
-    | EXPLAIN SYNTAX query # ExplainSyntaxStmt
+    : EXPLAIN (AST | SYNTAX | QUERY TREE | PLAN | PIPELINE | ESTIMATE | TABLE OVERRIDE)? settingExprList? .+?
+    | EXPLAIN .+?
     ;
 
 // INSERT statement

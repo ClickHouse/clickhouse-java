@@ -78,12 +78,8 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
-        ClickHouseParser.QueryContext qCtx = ctx.query();
-        if (qCtx != null) {
-            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null
-                    || qCtx.describeStmt() != null) {
-                setHasResultSet(true);
-            }
+        if (SqlParser.isStmtWithResultSet(ctx)) {
+            setHasResultSet(true);
         }
     }
 
