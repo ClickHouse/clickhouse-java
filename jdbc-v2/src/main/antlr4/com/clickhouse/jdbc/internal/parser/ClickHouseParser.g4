@@ -190,6 +190,18 @@ createStmt
             | ( INHERIT identifier))? (TO identifier | ALL | ALL EXCEPT identifier)? # createProfileStmt
     | CREATE FUNCTION identifier clusterClause? AS LPAREN (identifier)? (COMMA identifier)? RPAREN ARROW .+? #createFunctionStmt
     | CREATE NAMED COLLECTION (IF NOT EXISTS)? identifier clusterClause? AS nameCollectionKey (COMMA nameCollectionKey)* #createNamedCollectionStmt
+    | CREATE QUOTA (IF NOT EXISTS | OR REPLACE)? identifier clusterClause? (IN identifier)?
+        (KEYED BY identifier | NOT KEYED)?
+        quotaForClause (COMMA quotaForClause)*
+        (TO (identifier (COMMA identifier)* | ALL | CURRENT_USER | ALL EXCEPT identifier (COMMA identifier)* ))? # createQuotaStmt
+    ;
+
+quotaMaxExpr
+    : identifier EQ_SINGLE numberLiteral
+    ;
+
+quotaForClause
+    : FOR RANDOMIZED? INTERVAL numberLiteral interval (MAX quotaMaxExpr (COMMA quotaMaxExpr)*)+?
     ;
 
 nameCollectionKey

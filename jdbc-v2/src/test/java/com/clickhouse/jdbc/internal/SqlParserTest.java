@@ -538,6 +538,8 @@ public class SqlParserTest {
                 {"CREATE ROW POLICY pol1 ON mydb.table1 USING b=1 TO mira, peter", 0, false},
                 {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 TO peter, antonio", 0, false},
                 {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 AS RESTRICTIVE TO peter, antonio", 0, false},
+                {"CREATE QUOTA qA FOR INTERVAL 15 month MAX queries = 123 TO role1, role2", 0, false},
+                {"CREATE QUOTA qA FOR INTERVAL 15 month MAX queries = 123 TO ALL EXCEPT role3", 0, false},
                 {"CREATE QUOTA qA FOR INTERVAL 15 month MAX queries = 123 TO CURRENT_USER", 0, false},
                 {"CREATE QUOTA qB FOR INTERVAL 30 minute MAX execution_time = 0.5, FOR INTERVAL 5 quarter MAX queries = 321, errors = 10 TO default", 0, false},
                 {"CREATE SETTINGS PROFILE max_memory_usage_profile SETTINGS max_memory_usage = 100000001 MIN 90000000 MAX 110000000 TO robin", 0, false},
