@@ -237,6 +237,7 @@ PROFILE      : P R O F I L E;
 PROFILES      : P R O F I L E S;
 PROJECTION   : P R O J E C T I O N;
 PULLING : P U L L I N G ;
+REVOKE : R E V O K E;
 QUARTER      : Q U A R T E R;
 QUEUE : Q U E U E ;
 QUEUES : Q U E U E S ;

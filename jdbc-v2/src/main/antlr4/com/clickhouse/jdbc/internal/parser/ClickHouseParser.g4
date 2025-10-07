@@ -33,10 +33,13 @@ query
     | showStmt
     | systemStmt
     | truncateStmt // DDL
+    | deleteStmt
+    | updateStmt
     | useStmt
     | watchStmt
     | ctes? selectStmt
     | grantStmt
+    | revokeStmt
     ;
 
 // CTE statement
@@ -59,6 +62,17 @@ cteUnboundCol
     | LPAREN ctes? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
+// DELETE statement
+
+deleteStmt
+    : DELETE FROM tableIdentifier clusterClause?  (IN partitionClause)? whereClause?
+    ;
+
+// UPDATE statement
+updateStmt
+    : UPDATE tableIdentifier clusterClause? SET assignmentExprList whereClause?
+    ;
+
 // ALTER statement
 
 alterStmt
@@ -66,9 +80,9 @@ alterStmt
     ;
 
 alterTableClause
-    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt (AFTER nestedIdentifier)?         # AlterTableClauseAddColumn
-    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt (AFTER nestedIdentifier)?           # AlterTableClauseAddIndex
-    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt (AFTER nestedIdentifier)? # AlterTableClauseAddProjection
+    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt (AFTER (nestedIdentifier | FIRST))?         # AlterTableClauseAddColumn
+    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt (AFTER (nestedIdentifier | FIRST))?           # AlterTableClauseAddIndex
+    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt (AFTER (nestedIdentifier | FIRST))? # AlterTableClauseAddProjection
     | ATTACH partitionClause (FROM tableIdentifier)?                                # AlterTableClauseAttach
     | CLEAR COLUMN (IF EXISTS)? nestedIdentifier (IN partitionClause)?              # AlterTableClauseClearColumn
     | CLEAR INDEX (IF EXISTS)? nestedIdentifier (IN partitionClause)?               # AlterTableClauseClearIndex
@@ -87,6 +101,7 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier COMMENT STRING_LITERAL            # AlterTableClauseModifyComment
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier REMOVE tableColumnPropertyType    # AlterTableClauseModifyRemove
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
+    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? (AFTER (nestedIdentifier | FIRST))? # AlterTableClauseAlterType
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
     | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
@@ -107,6 +122,7 @@ assignmentExprList
 
 assignmentExpr
     : nestedIdentifier EQ_SINGLE columnExpr
+    | nestedIdentifier EQ_SINGLE QUERY
     ;
 
 tableColumnPropertyType
@@ -608,10 +624,25 @@ setRolesList
     : identifier (COMMA identifier)*
     ;
 
+// GRANT statements
+
 grantStmt
-    : GRANT clusterClause? ((privilege ON grantTableIdentifier) | (identifier (COMMA identifier)*))
+    : GRANT clusterClause? identifier (COMMA identifier)* TO (CURRENT_USER | identifier (COMMA identifier)*)
+              (WITH ADMIN OPTION)? (WITH REPLACE OPTION)?
+    | GRANT clusterClause? privelegeList ON grantTableIdentifier
         TO (CURRENT_USER | identifier) (COMMA identifier)*
         (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+    | GRANT CURRENT GRANTS (LPAREN ((privelegeList ON grantTableIdentifier) | (identifier (COMMA identifier)*)) RPAREN)?
+        TO (CURRENT_USER | identifier (COMMA identifier)*)
+                (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+    ;
+
+// REVOKE statements
+revokeStmt
+    : REVOKE clusterClause? privelegeList ON grantTableIdentifier
+        FROM ((CURRENT_USER | identifier) (COMMA identifier)* | ALL | ALL EXCEPT (CURRENT_USER | identifier) (COMMA identifier)* )
+    | REVOKE clusterClause? (ADMIN OPTION FOR)? identifier (COMMA identifier)*
+        FROM ((CURRENT_USER | identifier) (COMMA identifier)* | ALL | ALL EXCEPT (CURRENT_USER | identifier) (COMMA identifier)* )
     ;
 
 grantTableIdentifier
@@ -619,6 +650,15 @@ grantTableIdentifier
     | (identifier DOT)? ASTERISK
     | (ASTERISK DOT)? identifier
     | (ASTERISK DOT)? ASTERISK
+    ;
+
+privelegeList
+    : columnPrivilege (COMMA columnPrivilege)*
+    ;
+
+
+columnPrivilege
+    : privilege (LPAREN identifier (COMMA identifier)* RPAREN)?
     ;
 
 privilege
