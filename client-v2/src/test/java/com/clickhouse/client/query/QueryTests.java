@@ -2146,7 +2146,7 @@ public class QueryTests extends BaseIntegrationTest {
                     } else if (decision == 1) {
                         return rnd.nextInt();
                     } else {
-                        return rnd.nextDouble();
+                        return rnd.nextLong();
                     }
                 }), 1000);
 

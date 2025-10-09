@@ -1,5 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.jdbc.internal.parser.ClickHouseLexer;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -9,9 +12,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.tree.IterativeParseTreeWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class SqlParser {
 
@@ -47,5 +47,12 @@ public class SqlParser {
         public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
             LOG.warn("SQL syntax error at line: " + line + ", pos: " + charPositionInLine + ", " + msg);
         }
+    }
+
+    static boolean isStmtWithResultSet(ClickHouseParser.QueryStmtContext stmtContext) {
+        ClickHouseParser.QueryContext qCtx = stmtContext.query();
+        return  qCtx != null && (qCtx.selectStmt() != null ||  qCtx.selectUnionStmt() != null ||
+                qCtx.showStmt() != null || qCtx.explainStmt() != null || qCtx.describeStmt() != null ||
+                qCtx.existsStmt() != null || qCtx.checkStmt() != null );
     }
 }

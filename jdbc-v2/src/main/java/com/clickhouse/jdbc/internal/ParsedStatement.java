@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
+import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
 import org.antlr.v4.runtime.tree.ErrorNode;
 
 import java.util.ArrayList;
@@ -76,12 +78,8 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
-        ClickHouseParser.QueryContext qCtx = ctx.query();
-        if (qCtx != null) {
-            if (qCtx.selectStmt() != null || qCtx.selectUnionStmt() != null || qCtx.showStmt() != null
-                    || qCtx.describeStmt() != null) {
-                setHasResultSet(true);
-            }
+        if (SqlParser.isStmtWithResultSet(ctx)) {
+            setHasResultSet(true);
         }
     }
 
