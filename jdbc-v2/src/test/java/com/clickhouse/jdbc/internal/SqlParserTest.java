@@ -233,26 +233,42 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testCTEStmtsDP")
     public void testCTEStatements(String sql, int args) {
+        System.out.println(sql);
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
-        Assert.assertFalse(stmt.isHasErrors());
-        Assert.assertEquals(stmt.getArgCount(), args);
-        Assert.assertTrue(stmt.isHasResultSet());
+        Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch");
+        Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
+        Assert.assertTrue(stmt.isHasResultSet(), "show have a result set");
     }
 
     @DataProvider
     public static Object[][] testCTEStmtsDP() {
         return new Object[][] {
-                {"with ? as a, ? as b select a, b; -- two CTEs of the first form", 2},
+                {"with 'a' as a select 1, a union with 'b' as a all select 2, a", 0},
+                {"with 'a' as a select 1, a union all with 'b' as a select 2, a", 0},
+                {"with ? as a, ? as b select a, b -- two CTEs of the first form", 2},
+                {"with 'a' as a, 'b' as b select a, b -- two CTEs of the first form", 0},
                 {"with a as (select ?), b as (select 2) select * from a, b; -- two CTEs of the second form", 1},
-                {"(with a as (select ?) select * from a);", 1},
-                {"with a as (select 1) select * from a; ", 0},
-                {"(with ? as a select a);", 1},
+                {"(with a as (select ?) select * from a)", 1},
+                {"with a as (select ?) select * from a", 1},
+                {"with a as (select 1) select * from a", 0},
+                {"(select 1)", 0},
+                {"(with ? as a select a)", 1},
+                {"(with 'a' as a select a)", 0},
+                {"with ? as a select a", 1},
+                {"with 'a' as a select a", 0},
                 {"select * from ( with x as ( select 9 ) select * from x );", 0},
                 {"WITH toDateTime(?) AS target_time SELECT * FROM table", 1},
                 {"WITH toDateTime('2025-08-20 12:34:56') AS target_time SELECT * FROM table", 0},
                 {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
-                {"WITH toDate(?) as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 1}
+                {"WITH toDate(?) as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 1},
+                {"WITH ? as a, ? as b, body as ( select ? ) select a, b, body.* from body", 3},
+                {"WITH 'a_value' as a, 'b_value' as b, body as ( select 'html' ) select a, b, body.* from body", 0},
+                {"WITH 'a_value' as a, 'b_value' as b, body as ( with 'data' as d select d, 'html' ) select a, b, body.* from body", 0},
+                {"with date select date, 1 from (select now() date)", 0 },
+                {COMPLEX_CTE, 4},
+                {"WITH 'date' as const1, 'time' as const2, Tmp1 as (SELECT 1), Tmp2 as (SELECT * FROM Tmp1) SELECT * FROM Tmp2 ", 0},
+                {"WITH query1 AS ( WITH 'a' as date1 SELECT * FROM tracking.event WHERE project='a' AND time>=starting_time AND time<ending_time GROUP BY date, user_id ) SELECT * FROM query1", 0},
         };
     }
 

@@ -44,6 +44,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
+import static org.testng.Assert.fail;
 
 @Test(groups = { "integration" })
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -1337,6 +1338,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                         Assert.assertEquals(rs.getInt(1), 1000);
                         Assert.assertEquals(rs.getString(2), "test");
                     }
+                } catch (Exception e) {
+                    fail("failed at keyword " + keyword, e);
                 }
             }
         }

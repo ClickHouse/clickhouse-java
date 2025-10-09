@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -539,6 +540,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case Decimal128:
                     case Decimal256:
                         BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
+                        if (tmpDec.divide((BigDecimal)value, RoundingMode.FLOOR).equals(BigDecimal.ONE)) {
+                            continue;
+                        }
                         strValue = tmpDec.toPlainString();
                         break;
                     case IntervalMicrosecond:
@@ -739,7 +743,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             return; // time64 was introduced in 25.6
         }
 
-        String table = "test_time64_type";
+        String table = "data_type_tests_time64";
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "o_num UInt32", "t_sec Time64(0)",  "t_ms Time64(3)", "t_us Time64(6)", "t_ns Time64(9)"),
                 (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();

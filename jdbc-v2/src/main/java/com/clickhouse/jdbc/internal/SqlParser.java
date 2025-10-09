@@ -51,9 +51,8 @@ public class SqlParser {
 
     static boolean isStmtWithResultSet(ClickHouseParser.QueryStmtContext stmtContext) {
         ClickHouseParser.QueryContext qCtx = stmtContext.query();
-
         return  qCtx != null && (qCtx.selectStmt() != null ||  qCtx.selectUnionStmt() != null ||
                 qCtx.showStmt() != null || qCtx.explainStmt() != null || qCtx.describeStmt() != null ||
-                qCtx.existsStmt() != null || qCtx.checkStmt() != null);
+                qCtx.existsStmt() != null || qCtx.checkStmt() != null );
     }
 }

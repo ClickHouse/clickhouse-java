@@ -28,7 +28,6 @@ query
     | killStmt     // DDL
     | optimizeStmt // DDL
     | renameStmt   // DDL
-    | selectUnionStmt
     | setStmt
     | setRoleStmt
     | showStmt
@@ -38,31 +37,12 @@ query
     | updateStmt
     | useStmt
     | watchStmt
-    | ctes? selectStmt
+    | selectStmt
+    | selectUnionStmt
     | grantStmt
     | revokeStmt
     | exchangeStmt
     | moveStmt
-    ;
-
-// CTE statement
-ctes
-    : LPAREN? WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery (COMMA namedQuery)* RPAREN?
-    ;
-
-namedQuery
-    : name = identifier (columnAliases)? AS LPAREN query RPAREN
-    ;
-
-columnAliases
-    : LPAREN identifier (',' identifier)* RPAREN
-    ;
-
-cteUnboundCol
-    : (literal AS identifier) # CteUnboundColLiteral
-    | (QUERY AS identifier) # CteUnboundColParam
-    | LPAREN? columnExpr RPAREN? AS identifier # CteUnboundColExpr
-    | LPAREN ctes? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
 // DELETE statement
@@ -480,13 +460,34 @@ selectStmtWithParens
     ;
 
 selectStmt
-    : withClause? SELECT DISTINCT? topClause? columnExprList fromClause? arrayJoinClause? windowClause? prewhereClause? whereClause? groupByClause? (
+    : cteClause? SELECT DISTINCT? topClause? columnExprList fromClause? arrayJoinClause? windowClause? prewhereClause? whereClause? groupByClause? (
         WITH (CUBE | ROLLUP)
     )? (WITH TOTALS)? havingClause? orderByClause? limitByClause? limitClause? settingsClause?
     ;
 
 withClause
     : WITH columnExprList
+    ;
+
+// CTE statement
+cteClause
+    : WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery? (COMMA namedQuery)*
+    ;
+
+
+namedQuery
+    : identifier (columnAliases)? AS  LPAREN? ( selectStmt | selectStmtWithParens | selectUnionStmt) RPAREN?
+    ;
+
+columnAliases
+    : LPAREN identifier (',' identifier)* RPAREN
+    ;
+
+cteUnboundCol
+    : literal AS identifier # CteUnboundColLiteral
+    | QUERY AS identifier # CteUnboundColParam
+    | LPAREN? columnExpr RPAREN? AS? identifier? # CteUnboundColExpr
+//    | LPAREN cteStmt? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
 topClause
@@ -496,7 +497,7 @@ topClause
 fromClause
     : FROM joinExpr
     | FROM identifier LPAREN QUERY RPAREN
-    | FROM ctes
+    | FROM selectStmt
     | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
     ;
 
@@ -1294,6 +1295,7 @@ keyword
     | ROLLUP
     | ROW
     | ROWS
+    | REVOKE
     | SAMPLE
     | SELECT
     | SEMI
@@ -1320,6 +1322,7 @@ keyword
     | TRAILING
     | TRIM
     | TRUNCATE
+    | TRACKING
     | TO
     | TOP
     | TTL
@@ -1364,6 +1367,7 @@ keywordForAlias
     | HOUR
     | MINUTE
     | SECOND
+    | REVOKE
     ;
 
 alias
