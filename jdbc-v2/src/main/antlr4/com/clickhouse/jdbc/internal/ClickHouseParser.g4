@@ -41,7 +41,12 @@ query
 
 // CTE statement
 ctes
-    : LPAREN? WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery (COMMA namedQuery)* RPAREN?
+    : LPAREN? WITH cte (COMMA cte)* RPAREN?
+    ;
+
+cte
+    : namedQuery
+    | cteUnboundCol
     ;
 
 namedQuery

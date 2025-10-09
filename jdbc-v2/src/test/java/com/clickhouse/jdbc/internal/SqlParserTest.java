@@ -252,6 +252,26 @@ public class SqlParserTest {
         };
     }
 
+    @Test(dataProvider = "testMixedCTEStmtsDP")
+    public void testMixedCTEStatements(String sql, int args) {
+        SqlParser parser = new SqlParser();
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors());
+        Assert.assertEquals(stmt.getArgCount(), args);
+    }
+
+    @DataProvider
+    public static Object[][] testMixedCTEStmtsDP() {
+        return new Object[][] {
+                { "with a as (select ?), (select 2) as b select * from a, b;", 1 },
+                { "with (select 2) as b, a as (select ?) select * from a, b;", 1 },
+                { "with a as (select ?), (select 2) as b, c as (select ?) select * from a, b, c;", 2 },
+                { "with (select 2) as b, a as (select ?), (select 3) as c select * from a, b, c;", 1 },
+                { "with (select ?) as a select * from a", 1 },
+                { MULTI_PARAMS, 8 },
+        };
+    }
+
     @Test(dataProvider = "testMiscStmtDp")
     public void testMiscStatements(String sql, int args) {
         SqlParser parser = new SqlParser();
@@ -328,6 +348,25 @@ public class SqlParserTest {
             {"SELECT result FROM test_view(myParam = ?)", 1},
         };
     }
+
+
+    private static final String MULTI_PARAMS = "with brands as (" +
+            "    select" +
+            "        report_date," +
+            "        language_code" +
+            "    from brands" +
+            "    where domain = ?" +
+            "      and domain_hash = xxHash64(?)" +
+            "      and location_id = ?" +
+            "      and language_code = ?" +
+            "    ), (select max(report_date) as max_report_date from brands) as max_date " +
+            "select name " +
+            "from brands " +
+            "where domain = ?" +
+            "  and domain_hash = xxHash64(?)" +
+            "  and location_id = ?" +
+            "  and language_code = ?" +
+            "  and report_date = max_date";
 
     private static final String INSERT_INLINE_DATA =
             "INSERT INTO `interval_15_XUTLZWBLKMNZZPRZSKRF`.`checkins` (`timestamp`, `id`) " +
