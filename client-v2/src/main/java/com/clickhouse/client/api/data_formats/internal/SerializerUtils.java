@@ -437,7 +437,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    public static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
         if (value instanceof List) {
@@ -455,7 +455,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeMapData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    public static void serializeMapData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the map to the stream
         //The map is a list of key-value pairs
         Map<?, ?> map = (Map<?, ?>) value;
@@ -596,7 +596,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeInterval(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializeInterval(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
         long v;
 
         if (value instanceof Duration) {
@@ -666,7 +666,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
         int enumValue = -1;
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
@@ -687,7 +687,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeJSON(OutputStream stream, Object value) throws IOException {
+    public static void serializeJSON(OutputStream stream, Object value) throws IOException {
         if (value instanceof String) {
             BinaryStreamUtils.writeString(stream, (String)value);
         } else {
@@ -695,7 +695,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
         int typeOrdNum = column.getVariantOrdNum(value);
         if (typeOrdNum != -1) {
             BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
@@ -710,7 +710,7 @@ public class SerializerUtils {
     private static final ClickHouseColumn GEO_POLYGON_ARRAY = ClickHouseColumn.parse("geopolygin Array(Array(Tuple(Float64, Float64)))").get(0);
     private static final ClickHouseColumn GEO_MULTI_POLYGON_ARRAY = ClickHouseColumn.parse("geomultipolygin Array(Array(Array(Tuple(Float64, Float64))))").get(0);
 
-    private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    public static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot serialize null value for aggregate function: " + column.getAggregateFunction());
