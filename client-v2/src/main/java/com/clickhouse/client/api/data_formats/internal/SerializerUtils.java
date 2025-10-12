@@ -411,6 +411,9 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
     public static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (value == null) {
             writeVarInt(stream, 0);
@@ -437,6 +440,9 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
     public static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
@@ -455,6 +461,9 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
     public static void serializeMapData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the map to the stream
         //The map is a list of key-value pairs
