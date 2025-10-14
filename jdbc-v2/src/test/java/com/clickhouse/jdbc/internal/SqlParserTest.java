@@ -448,6 +448,7 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testStatementWithoutResultSetDP")
     public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
+        System.out.println("sql: " + sql);
         SqlParser parser = new SqlParser();
         {
             ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
@@ -557,7 +558,7 @@ public class SqlParserTest {
                 {"CREATE FUNCTION test_func ON CLUSTER `cluster` AS (x, y) -> y * x", 0, false},
                 {"CREATE USER IF NOT EXISTS `user`", 0, false},
                 {"CREATE USER IF NOT EXISTS `user` ON CLUSTER `cluster`", 0, false},
-                {"CREATE ROLE IF NOT EXISTS `role1` ON CLUSTER", 0, false},
+                {"CREATE ROLE IF NOT EXISTS `role1` ON CLUSTER 'cluster'", 0, false},
                 {"CREATE ROW POLICY pol1 ON mydb.table1 USING b=1 TO mira, peter", 0, false},
                 {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 TO peter, antonio", 0, false},
                 {"CREATE ROW POLICY pol2 ON mydb.table1 USING c=2 AS RESTRICTIVE TO peter, antonio", 0, false},

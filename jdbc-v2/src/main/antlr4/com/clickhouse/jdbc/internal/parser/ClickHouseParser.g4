@@ -124,7 +124,9 @@ partitionClause
 
 // ATTACH statement
 attachStmt
-    : ATTACH DICTIONARY tableIdentifier clusterClause? # AttachDictionaryStmt
+    : ATTACH TABLE (IF NOT EXISTS)? tableIdentifier clusterClause?
+    | ATTACH DICTIONARY (IF NOT EXISTS)? tableIdentifier clusterClause?
+    | ATTACH DATABASE (IF NOT EXISTS)? databaseIdentifier engineExpr? clusterClause?
     ;
 
 // CHECK statement
@@ -138,8 +140,8 @@ checkStmt
 // CREATE statement
 
 createStmt
-    : (ATTACH | CREATE) DATABASE (IF NOT EXISTS)? databaseIdentifier clusterClause? engineExpr? # CreateDatabaseStmt
-    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) DICTIONARY (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? dictionarySchemaClause
+    : CREATE DATABASE (IF NOT EXISTS)? databaseIdentifier clusterClause? engineExpr? # CreateDatabaseStmt
+    | (CREATE (OR REPLACE)? | REPLACE) DICTIONARY (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? dictionarySchemaClause
         dictionaryEngineClause sourceClause layoutClause lifetimeClause dictionarySettingsClause? (COMMENT literal)? # CreateDictionaryStmt
     | (ATTACH | CREATE) LIVE VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? (
         WITH TIMEOUT DECIMAL_LITERAL?
@@ -148,7 +150,7 @@ createStmt
         destinationClause
         | engineClause POPULATE?
     ) subqueryClause # CreateMaterializedViewStmt
-    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) TEMPORARY? TABLE (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause?
+    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) TEMPORARY? TABLE (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause
         engineClause? subqueryClause?  # CreateTableStmt
     | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier alias? uuidClause? clusterClause? tableSchemaClause? subqueryClause #
         CreateViewStmt
@@ -432,7 +434,13 @@ killStmt
 // OPTIMIZE statement
 
 optimizeStmt
-    : OPTIMIZE TABLE tableIdentifier clusterClause? partitionClause? FINAL? DEDUPLICATE?
+    : OPTIMIZE TABLE tableIdentifier clusterClause? partitionClause? FINAL? DEDUPLICATE? optimizeByExpr?
+    ;
+
+optimizeByExpr
+    : BY ASTERISK (EXCEPT LPAREN? (identifier (COMMA identifier)*) RPAREN? )?
+    | BY identifier (COMMA identifier)*
+    | BY COLUMNS LPAREN literal RPAREN (EXCEPT LPAREN? (identifier (COMMA identifier)*) RPAREN? )?
     ;
 
 // RENAME statement
@@ -640,7 +648,7 @@ winFrameBound
 
 // EXCHANGE statement
 exchangeStmt
-    : EXCHANGE (TABLES|DICTIONARIES) tableIdentifier AND tableIdentifier clusterClause?
+    : EXCHANGE (TABLES | DICTIONARIES) tableIdentifier AND tableIdentifier clusterClause?
     ;
 
 
@@ -917,12 +925,12 @@ systemPrivilege
 // SHOW statements
 
 showStmt
-    : SHOW CREATE? (TEMPORARY? TABLE | DICTIONARY | VIEW | DATABASE) tableIdentifier (INTO OUTFILE literal)? (FORMAT identifier) # showCreateStmt
+    : SHOW CREATE? (TEMPORARY? TABLE | DICTIONARY | VIEW | DATABASE) tableIdentifier (INTO OUTFILE literal)? (FORMAT identifier)? # showCreateStmt
     | SHOW DATABASES (NOT? (LIKE | ILIKE) literal) (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDatabasesStmt
-    | SHOW FULL? TEMPORARY? TABLES ((FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showTablesStmt
-    | SHOW EXTENDED? FULL? COLUMNS ((FROM | IN) identifier (FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showColumnsStmt
-    | SHOW DICTIONARIES ((FROM | IN) identifier)? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDictionariesStmt
-    | SHOW EXTENDED? (INDEX | INDEXES | INDICES | KEYS ) (FROM | IN) identifier ((FROM | IN) identifier)? (WHERE columnExpr) (INTO OUTFILE filename)? (FORMAT identifier)? # showIndexStmt
+    | SHOW FULL? TEMPORARY? TABLES showFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showTablesStmt
+    | SHOW EXTENDED? FULL? COLUMNS showFromTableFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showColumnsStmt
+    | SHOW DICTIONARIES showFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDictionariesStmt
+    | SHOW EXTENDED? (INDEX | INDEXES | INDICES | KEYS ) (FROM | IN) identifier showFromTableFromDbClause? (WHERE columnExpr)? (INTO OUTFILE filename)? (FORMAT identifier)? # showIndexStmt
     | SHOW PROCESSLIST (INTO OUTFILE filename)? (FORMAT identifier)? # showProcessListStmt
     | SHOW GRANTS (FOR identifier (COMMA identifier)*)? (WITH IMPLICIT)? FINAL? # showGrantsStmt
     | SHOW CREATE USER ((identifier (COMMA identifier)*) | CURRENT_USER) # showCreateUserStmt
@@ -947,16 +955,60 @@ showStmt
     | SHOW MERGES (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showMergesStmt
     ;
 
+showFromDbClause
+    : ((FROM | IN) identifier)
+    ;
+
+showFromTableFromDbClause
+    : ((FROM | IN) identifier) showFromDbClause?
+    ;
+
 // SYSTEM statements
 
 systemStmt
     : SYSTEM FLUSH DISTRIBUTED tableIdentifier
-    | SYSTEM FLUSH LOGS
-    | SYSTEM RELOAD DICTIONARIES
+    | SYSTEM RELOAD DICTIONARIES clusterClause? identifier?
     | SYSTEM RELOAD DICTIONARY tableIdentifier
-    | SYSTEM (START | STOP) (DISTRIBUTED SENDS | FETCHES | TTL? MERGES) tableIdentifier
-    | SYSTEM (START | STOP) REPLICATED SENDS
-    | SYSTEM SYNC REPLICA tableIdentifier
+    | SYSTEM RELOAD MODEL clusterClause? identifier?
+    | SYSTEM RELOAD FUNCTIONS clusterClause?
+    | SYSTEM RELOAD FUNCTION clusterClause? identifier
+    | SYSTEM RELOAD ASYNCHRONOUS METRICS clusterClause?
+    | SYSTEM DROP DNS CACHE
+    | SYSTEM DROP MARK CACHE
+    | SYSTEM DROP REPLICA literal (FROM SHARD literal)? (FROM (TABLE tableIdentifier) | (FROM DATABASE identifier) | (ZKPATH literal))?
+    | SYSTEM DROP UNCOMPRESSED CACHE
+    | SYSTEM DROP COMPILED EXPRESSION CACHE
+    | SYSTEM DROP QUERY CONDITION CACHE
+    | SYSTEM DROP QUERY CACHE (TAG literal)?
+    | SYSTEM DROP FORMAT SCHEMA CACHE (FOR literal)?
+    | SYSTEM FLUSH LOGS
+    | SYSTEM RELOAD CONFIG clusterClause?
+    | SYSTEM RELOAD USERS clusterClause?
+    | SYSTEM SHUTDOWN
+    | SYSTEM KILL
+    | SYSTEM (START | FLUSH | STOP) (DISTRIBUTED SENDS? | FETCHES | TTL? MERGES) tableIdentifier clusterClause? settingsClause?
+    | SYSTEM (START | STOP) LISTEN clusterClause? (QUERIES ALL | QUERIES DEFAULT | QUERIES CUSTOM | TCP | TCP WITH PROXY | TCP SECURE | HTTP | HTTPS | MYSQL | GRPC | POSTGRESQL | PROMETHEUS | CUSTOM literal)
+    | SYSTEM (START | STOP) MERGES clusterClause? ((ON VOLUME identifier) | tableIdentifier)?
+    | SYSTEM (START | STOP) TTL MERGES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) MOVES clusterClause? tableIdentifier?
+    | SYSTEM UNFREEZE WITH NAME literal
+    | SYSTEM WAIT LOADING PARTS clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) FETCHES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) REPLICATED SENDS clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) REPLICATION QUEUES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) PULLING REPLICATION LOG clusterClause? tableIdentifier?
+    | SYSTEM SYNC REPLICA clusterClause? tableIdentifier? (IF EXISTS)? (STRICT | LIGHTWEIGHT | FROM literal | PULL)?
+    | SYSTEM SYNC DATABASE REPLICA identifier
+    | SYSTEM RESTART REPLICA clusterClause? tableIdentifier?
+    | SYSTEM RESTORE DATABASE? REPLICA identifier clusterClause?
+    | SYSTEM RESTART REPLICAS
+    | SYSTEM DROP FILESYSTEM CACHE clusterClause?
+    | SYSTEM SYNC FILE CACHE clusterClause?
+    | SYSTEM (LOAD | UNLOAD) PRIMARY KEY tableIdentifier?
+    | SYSTEM REFRESH VIEW tableIdentifier
+    | SYSTEM REPLICATED? (START | STOP) ((VIEW tableIdentifier) | VIEWS)
+    | SYSTEM CANCEL VIEW tableIdentifier
+    | SYSTEM WAIT VIEW tableIdentifier
     ;
 
 // TRUNCATE statements
@@ -1343,6 +1395,7 @@ keyword
     | WHERE
     | WINDOW
     | WITH
+    | QUERIES
     ;
 
 keywordForAlias
