@@ -233,7 +233,6 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testCTEStmtsDP")
     public void testCTEStatements(String sql, int args) {
-        System.out.println(sql);
         SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch");
@@ -269,6 +268,13 @@ public class SqlParserTest {
                 {COMPLEX_CTE, 4},
                 {"WITH 'date' as const1, 'time' as const2, Tmp1 as (SELECT 1), Tmp2 as (SELECT * FROM Tmp1) SELECT * FROM Tmp2 ", 0},
                 {"WITH query1 AS ( WITH 'a' as date1 SELECT * FROM tracking.event WHERE project='a' AND time>=starting_time AND time<ending_time GROUP BY date, user_id ) SELECT * FROM query1", 0},
+                {"WITH a AS (SELECT ?), (SELECT 2) AS b SELECT b, *, c FROM a", 1},
+                {"WITH a AS (SELECT ?), (SELECT 2) AS b, c as (SELECT ?) SELECT *, b FROM a, c", 2},
+                {"WITH (SELECT 2) AS b, a as (select ?), (select 3) AS c SELECT *, b, c FROM a", 1},
+                {"WITH a AS (SELECT 2), (WITH 'a' as b1 SELECT 3, b1) AS b SELECT b, * FROM a", 0},
+                {"WITH a AS (SELECT ?), (WITH ? as b1 SELECT 3, b1) AS b SELECT b, * FROM a", 2},
+                {"WITH a AS (SELECT 2), (WITH 'a' as b1 SELECT 3, b1) AS b, c AS (SELECT 4) SELECT b, * FROM a, c", 0},
+
         };
     }
 
@@ -285,6 +291,8 @@ public class SqlParserTest {
         return new Object[][] {
             {"SELECT INTERVAL '1 day'", 0},
             {"SELECT INTERVAL 1 day", 0},
+            {"SELECT ?", 1},
+            {"(SELECT ?)", 1},
             {"SELECT * FROM table key WHERE ts = ?", 1},
             {"SELECT * FROM table source WHERE ts = ?", 1},
             {"SELECT * FROM table after WHERE ts = ?", 1},
@@ -540,7 +548,7 @@ public class SqlParserTest {
                 {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView", 0, false},
                 {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView()", 0, false},
                 {"CREATE VIEW `test_db`.`source_table` source AS ( SELECT * FROM source_a UNION SELECT * FROM source_b) ENGINE = MaterializedView() COMMENT 'for tests'", 0, false},
-                { "CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 EXPRESSION(k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000)", 0, false},
+                {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 EXPRESSION(k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000)", 0, false},
                 {"CREATE DICTIONARY `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS(cache_size = 1000) COMMENT 'for tests'", 0, false},
                 {"CREATE OR REPLACE DICTIONARY IF NOT EXISTS `test_db`.dict1 (k1 UInt64 (k1 + 1), k2 String DEFAULT 'default', a1 Array(UInt64) DEFAULT []) PRIMARY KEY k1 SOURCE(CLICKHOUSE(db='test_db', table='dict1')) LAYOUT(FLAT()) LIFETIME(MIN 1000 MAX 2000) SETTINGS(cache_size = 1000, v='123') COMMENT 'for tests'", 0, false},
                 {"CREATE FUNCTION test_func AS () -> 10", 0, false},
@@ -562,11 +570,12 @@ public class SqlParserTest {
                 {"alter table t2 alter column v type Int32", 0, false},
                 {"ALTER TABLE t MODIFY COLUMN j default 1", 0, false},
                 {"ALTER TABLE t MODIFY COMMENT 'comment'", 0, false},
+                {"ALTER TABLE t ADD COLUMN id Int32 AFTER v", 0, false},
+                {"ALTER TABLE t ADD COLUMN id Int32 FIRST", 0, false},
                 {"DELETE FROM db.table1 ON CLUSTER `default` WHERE max(a, 10) > ?", 1, false},
                 {"DELETE FROM table WHERE a = ?", 1, false},
                 {"DELETE FROM table WHERE a = ? AND b = ?", 2, false},
                 {"DELETE FROM hits WHERE Title LIKE '%hello%';", 0, false},
-
                 {"SYSTEM START FETCHES", 0, false},
                 {"SYSTEM RELOAD DICTIONARIES", 0, false},
                 {"SYSTEM RELOAD DICTIONARIES ON CLUSTER `default`", 0, false},

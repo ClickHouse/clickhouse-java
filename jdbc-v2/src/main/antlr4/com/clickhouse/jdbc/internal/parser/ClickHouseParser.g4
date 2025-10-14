@@ -63,8 +63,8 @@ alterStmt
     ;
 
 alterTableClause
-    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt (AFTER (nestedIdentifier | FIRST))?         # AlterTableClauseAddColumn
-    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt (AFTER (nestedIdentifier | FIRST))?           # AlterTableClauseAddIndex
+    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt ((AFTER nestedIdentifier) | FIRST)?         # AlterTableClauseAddColumn
+    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt ((AFTER nestedIdentifier) | FIRST)?           # AlterTableClauseAddIndex
     | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt (AFTER (nestedIdentifier | FIRST))? # AlterTableClauseAddProjection
     | ATTACH partitionClause (FROM tableIdentifier)?                                # AlterTableClauseAttach
     | CLEAR COLUMN (IF EXISTS)? nestedIdentifier (IN partitionClause)?              # AlterTableClauseClearColumn
@@ -84,7 +84,7 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier COMMENT STRING_LITERAL            # AlterTableClauseModifyComment
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier REMOVE tableColumnPropertyType    # AlterTableClauseModifyRemove
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
-    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? (AFTER (nestedIdentifier | FIRST))? # AlterTableClauseAlterType
+    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? ((AFTER nestedIdentifier) | FIRST)? # AlterTableClauseAlterType
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
     | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
@@ -471,7 +471,7 @@ withClause
 
 // CTE statement
 cteClause
-    : WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery? (COMMA namedQuery)*
+    : WITH (cteUnboundCol | namedQuery) (COMMA (cteUnboundCol | namedQuery))*
     ;
 
 
@@ -487,6 +487,7 @@ cteUnboundCol
     : literal AS identifier # CteUnboundColLiteral
     | QUERY AS identifier # CteUnboundColParam
     | LPAREN? columnExpr RPAREN? AS? identifier? # CteUnboundColExpr
+    | LPAREN selectStmt RPAREN AS identifier # CteUnboundSubQuery
 //    | LPAREN cteStmt? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
     ;
 
