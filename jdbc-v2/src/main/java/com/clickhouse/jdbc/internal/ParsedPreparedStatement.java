@@ -199,15 +199,15 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
 
     @Override
     public void enterFromClause(ClickHouseParser.FromClauseContext ctx) {
-        if (ctx.QUERY() != null) {
-            appendParameter(ctx.QUERY().getSymbol().getStartIndex());
+        if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
+            appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
         }
     }
 
     @Override
     public void enterViewParam(ClickHouseParser.ViewParamContext ctx) {
-        if (ctx.QUERY() != null) {
-            appendParameter(ctx.QUERY().getSymbol().getStartIndex());
+        if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
+            appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
         }
     }
 

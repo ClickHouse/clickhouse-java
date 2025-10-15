@@ -63,9 +63,9 @@ alterStmt
     ;
 
 alterTableClause
-    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt ((AFTER nestedIdentifier) | FIRST)?         # AlterTableClauseAddColumn
-    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt ((AFTER nestedIdentifier) | FIRST)?           # AlterTableClauseAddIndex
-    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt (AFTER (nestedIdentifier | FIRST))? # AlterTableClauseAddProjection
+    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt alterTableColumnPosition?         # AlterTableClauseAddColumn
+    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt alterTableColumnPosition?           # AlterTableClauseAddIndex
+    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt alterTableColumnPosition? # AlterTableClauseAddProjection
     | ATTACH partitionClause (FROM tableIdentifier)?                                # AlterTableClauseAttach
     | CLEAR COLUMN (IF EXISTS)? nestedIdentifier (IN partitionClause)?              # AlterTableClauseClearColumn
     | CLEAR INDEX (IF EXISTS)? nestedIdentifier (IN partitionClause)?               # AlterTableClauseClearIndex
@@ -84,7 +84,7 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier COMMENT STRING_LITERAL            # AlterTableClauseModifyComment
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier REMOVE tableColumnPropertyType    # AlterTableClauseModifyRemove
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
-    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? ((AFTER nestedIdentifier) | FIRST)? # AlterTableClauseAlterType
+    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? alterTableColumnPosition? # AlterTableClauseAlterType
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
     | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
@@ -99,13 +99,18 @@ alterTableClause
     | UPDATE assignmentExprList whereClause                           # AlterTableClauseUpdate
     ;
 
+alterTableColumnPosition
+    : (AFTER nestedIdentifier)
+    | FIRST
+    ;
+
 assignmentExprList
     : assignmentExpr (COMMA assignmentExpr)*
     ;
 
 assignmentExpr
     : nestedIdentifier EQ_SINGLE columnExpr
-    | nestedIdentifier EQ_SINGLE QUERY
+    | nestedIdentifier EQ_SINGLE JDBC_PARAM_PLACEHOLDER
     ;
 
 tableColumnPropertyType
@@ -419,7 +424,7 @@ assignmentValues
 
 assignmentValue
     : literal   # InsertRawValue
-    | QUERY     # InsertParameter
+    | JDBC_PARAM_PLACEHOLDER     # InsertParameter
     | identifier (LPAREN columnExprList? RPAREN)? # InsertParameterFuncExpr
     | LPAREN? columnExpr RPAREN? # InserParameterExpr
     ;
@@ -428,7 +433,7 @@ assignmentValue
 
 killStmt
     : KILL MUTATION clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillMutationStmt
-    | KILL QUERY_SQL clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillQueryStmt
+    | KILL QUERY clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillQueryStmt
     ;
 
 // OPTIMIZE statement
@@ -493,7 +498,7 @@ columnAliases
 
 cteUnboundCol
     : literal AS identifier # CteUnboundColLiteral
-    | QUERY AS identifier # CteUnboundColParam
+    | JDBC_PARAM_PLACEHOLDER AS identifier # CteUnboundColParam
     | LPAREN? columnExpr RPAREN? AS? identifier? # CteUnboundColExpr
     | LPAREN selectStmt RPAREN AS identifier # CteUnboundSubQuery
 //    | LPAREN cteStmt? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
@@ -505,13 +510,13 @@ topClause
 
 fromClause
     : FROM joinExpr
-    | FROM identifier LPAREN QUERY RPAREN
+    | FROM identifier LPAREN JDBC_PARAM_PLACEHOLDER RPAREN
     | FROM selectStmt
     | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
     ;
 
 viewParam
-    : identifier EQ_SINGLE (literal | QUERY)
+    : identifier EQ_SINGLE (literal | JDBC_PARAM_PLACEHOLDER)
     ;
 
 arrayJoinClause
@@ -1096,7 +1101,7 @@ columnExpr
     | columnExpr OR columnExpr    # ColumnExprOr
     // TODO(ilezhankin): `BETWEEN a AND b AND c` is parsed in a wrong way: `BETWEEN (a AND b) AND c`
     | columnExpr NOT? BETWEEN columnExpr AND columnExpr            # ColumnExprBetween
-    | <assoc = right> columnExpr QUERY columnExpr COLON columnExpr # ColumnExprTernaryOp
+    | <assoc = right> columnExpr JDBC_PARAM_PLACEHOLDER columnExpr COLON columnExpr # ColumnExprTernaryOp
     | columnExpr (alias | AS identifier)                           # ColumnExprAlias
     | (tableIdentifier DOT)? ASTERISK                              # ColumnExprAsterisk // single-column only
     | LPAREN selectUnionStmt RPAREN                                # ColumnExprSubquery // single-column only
@@ -1104,13 +1109,13 @@ columnExpr
     | LPAREN columnExprList RPAREN                                 # ColumnExprTuple
     | LBRACKET columnExprList? RBRACKET                            # ColumnExprArray
     | columnIdentifier                                             # ColumnExprIdentifier
-    | QUERY (CAST_OP identifier)?                                  # ColumnExprParam
+    | JDBC_PARAM_PLACEHOLDER (CAST_OP identifier)?                                  # ColumnExprParam
     | columnExpr REGEXP literal                                    # ColumnExprRegexp
     ;
 
 columnArgList
     : columnArgExpr (COMMA columnArgExpr)*
-    | QUERY (COMMA QUERY)*
+    | JDBC_PARAM_PLACEHOLDER (COMMA JDBC_PARAM_PLACEHOLDER)*
     ;
 
 columnArgExpr

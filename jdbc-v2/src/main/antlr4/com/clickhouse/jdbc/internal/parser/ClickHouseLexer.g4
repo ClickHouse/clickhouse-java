@@ -253,7 +253,7 @@ PULLING : P U L L I N G ;
 PULL : P U L L;
 QUARTER      : Q U A R T E R;
 QUERIES : Q U E R I E S;
-QUERY_SQL : Q U E R Y; // conflicts with '?'
+QUERY : Q U E R Y;
 QUEUE : Q U E U E ;
 QUEUES : Q U E U E S ;
 QUOTA : Q U O T A;
@@ -460,7 +460,7 @@ LT           : '<';
 NOT_EQ       : '!=' | '<>';
 PERCENT      : '%';
 PLUS         : '+';
-QUERY        : '?';
+JDBC_PARAM_PLACEHOLDER        : '?';
 QUOTE_DOUBLE : '"';
 QUOTE_SINGLE : '\'';
 RBRACE       : '}';
