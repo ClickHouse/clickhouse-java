@@ -1,23 +1,17 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.client.api.sql.SQLUtils;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
-import org.antlr.v4.runtime.tree.ErrorNode;
-
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-public class ParsedStatement extends ClickHouseParserBaseListener {
+/**
+ * Model of parsed statement when no parameters are used.
+ */
+public final class ParsedStatement {
 
     private String useDatabase;
 
     private boolean hasResultSet;
 
     private boolean insert;
-
-    private String insertTableId;
 
     private List<String> roles;
 
@@ -43,14 +37,6 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
         return insert;
     }
 
-    public void setInsertTableId(String insertTableId) {
-        this.insertTableId = insertTableId;
-    }
-
-    public String getInsertTableId() {
-        return insertTableId;
-    }
-
     public String getUseDatabase() {
         return useDatabase;
     }
@@ -70,38 +56,4 @@ public class ParsedStatement extends ClickHouseParserBaseListener {
     public void setHasErrors(boolean hasErrors) {
         this.hasErrors = hasErrors;
     }
-
-    @Override
-    public void visitErrorNode(ErrorNode node) {
-        setHasErrors(true);
-    }
-
-    @Override
-    public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
-        if (SqlParser.isStmtWithResultSet(ctx)) {
-            setHasResultSet(true);
-        }
-    }
-
-    @Override
-    public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
-        if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(SQLUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
-        }
-    }
-
-    @Override
-    public void enterSetRoleStmt(ClickHouseParser.SetRoleStmtContext ctx) {
-        if (ctx.NONE() != null) {
-            setRoles(Collections.emptyList());
-        } else {
-            List<String> roles = new ArrayList<>();
-            for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(SQLUtils.unquoteIdentifier(id.getText()));
-            }
-            setRoles(roles);
-        }
-    }
-
-
 }

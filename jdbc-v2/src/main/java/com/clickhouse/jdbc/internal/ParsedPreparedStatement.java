@@ -1,22 +1,12 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.client.api.sql.SQLUtils;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
-import org.antlr.v4.runtime.tree.ErrorNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * Parser listener that collects information for prepared statement.
+ * Model of parsed statement with parameters
  */
-public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
-    private static final Logger LOG = LoggerFactory.getLogger(ParsedPreparedStatement.class);
+public final class ParsedPreparedStatement {
 
     private String table;
 
@@ -78,8 +68,16 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return insertColumns;
     }
 
+    public void setInsertColumns(String[] insertColumns) {
+        this.insertColumns = insertColumns;
+    }
+
     public String getTable() {
         return table;
+    }
+
+    public void setTable(String table) {
+        this.table = table;
     }
 
     public int[] getParamPositions() {
@@ -98,8 +96,16 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         return assignValuesListStartPosition;
     }
 
+    public void setAssignValuesListStartPosition(int assignValuesListStartPosition) {
+        this.assignValuesListStartPosition = assignValuesListStartPosition;
+    }
+
     public int getAssignValuesListStopPosition() {
         return assignValuesListStopPosition;
+    }
+
+    public void setAssignValuesListStopPosition(int assignValuesListStopPosition) {
+        this.assignValuesListStopPosition = assignValuesListStopPosition;
     }
 
     public void setUseDatabase(String useDatabase) {
@@ -134,132 +140,11 @@ public class ParsedPreparedStatement extends ClickHouseParserBaseListener {
         this.hasErrors = hasErrors;
     }
 
-    @Override
-    public void enterQueryStmt(ClickHouseParser.QueryStmtContext ctx) {
-        if (SqlParser.isStmtWithResultSet(ctx)) {
-            setHasResultSet(true);
-        }
-    }
-
-    @Override
-    public void enterUseStmt(ClickHouseParser.UseStmtContext ctx) {
-        if (ctx.databaseIdentifier() != null) {
-            setUseDatabase(SQLUtils.unquoteIdentifier(ctx.databaseIdentifier().getText()));
-        }
-    }
-
-    @Override
-    public void enterSetRoleStmt(ClickHouseParser.SetRoleStmtContext ctx) {
-        if (ctx.NONE() != null) {
-            setRoles(Collections.emptyList());
-        } else {
-            List<String> roles = new ArrayList<>();
-            for (ClickHouseParser.IdentifierContext id : ctx.setRolesList().identifier()) {
-                roles.add(SQLUtils.unquoteIdentifier(id.getText()));
-            }
-            setRoles(roles);
-        }
-    }
-
-    @Override
-    public void enterColumnExprParam(ClickHouseParser.ColumnExprParamContext ctx) {
-        appendParameter(ctx.start.getStartIndex());
-    }
-
-    @Override
-    public void enterColumnExprPrecedence3(ClickHouseParser.ColumnExprPrecedence3Context ctx) {
-        super.enterColumnExprPrecedence3(ctx);
-    }
-
-    @Override
-    public void enterCteUnboundColParam(ClickHouseParser.CteUnboundColParamContext ctx) {
-        appendParameter(ctx.start.getStartIndex());
-    }
-
-    @Override
-    public void visitErrorNode(ErrorNode node) {
-        setHasErrors(true);
-    }
-
-    @Override
-    public void enterInsertParameterFuncExpr(ClickHouseParser.InsertParameterFuncExprContext ctx) {
-        setUseFunction(true);
-    }
-
-    @Override
-    public void enterAssignmentValuesList(ClickHouseParser.AssignmentValuesListContext ctx) {
-        assignValuesListStartPosition = ctx.getStart().getStartIndex();
-        assignValuesListStopPosition = ctx.getStop().getStopIndex();
-    }
-
-    @Override
-    public void enterInsertParameter(ClickHouseParser.InsertParameterContext ctx) {
-        appendParameter(ctx.start.getStartIndex());
-    }
-
-    @Override
-    public void enterFromClause(ClickHouseParser.FromClauseContext ctx) {
-        if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
-            appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
-        }
-    }
-
-    @Override
-    public void enterViewParam(ClickHouseParser.ViewParamContext ctx) {
-        if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
-            appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
-        }
-    }
-
-    private void appendParameter(int startIndex) {
+    void appendParameter(int startIndex) {
         argCount++;
         if (argCount > paramPositions.length) {
             paramPositions = Arrays.copyOf(paramPositions, paramPositions.length + 10);
         }
         paramPositions[argCount - 1] = startIndex;
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("parameter position {}", startIndex);
-        }
-    }
-
-    @Override
-    public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
-        if (ctx.tableIdentifier() != null) {
-            this.table = SQLUtils.unquoteIdentifier(ctx.tableIdentifier().getText());
-        }
-    }
-
-    @Override
-    public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
-        ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
-        if (tableId != null) {
-            this.table = SQLUtils.unquoteIdentifier(tableId.getText());
-        }
-
-        ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
-        if (columns != null) {
-            List<ClickHouseParser.NestedIdentifierContext> names = columns.nestedIdentifier();
-            this.insertColumns = new String[names.size()];
-            for (int i = 0; i < names.size(); i++) {
-                this.insertColumns[i] = names.get(i).getText();
-            }
-        }
-
-        setInsert(true);
-    }
-
-    @Override
-    public void enterDataClauseSelect(ClickHouseParser.DataClauseSelectContext ctx) {
-        setInsertWithSelect(true);
-    }
-
-    @Override
-    public void enterDataClauseValues(ClickHouseParser.DataClauseValuesContext ctx) {
-        setAssignValuesGroups(ctx.assignmentValues().size());
-    }
-
-    @Override
-    public void exitInsertParameterFuncExpr(ClickHouseParser.InsertParameterFuncExprContext ctx) {
-        setUseFunction(true);
     }
 }

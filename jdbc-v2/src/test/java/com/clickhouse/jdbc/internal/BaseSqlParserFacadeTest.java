@@ -9,7 +9,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
-public class SqlParserTest {
+public abstract class BaseSqlParserFacadeTest {
 
 //    @Test(groups = {"integration"})
 //    public void testWithComments() throws Exception {
@@ -41,10 +41,14 @@ public class SqlParserTest {
 //        assertEquals(SqlParser.parseStatementType("with data as (SELECT number FROM numbers(100)) select * from data").getType(), SqlParser.StatementType.SELECT);
 //    }
 
+    private SqlParserFacade parser;
+
+    public BaseSqlParserFacadeTest(String name) throws Exception {
+        parser = SqlParserFacade.getParser(name);
+    }
+
     @Test
     public void testParseInsertPrepared() throws Exception {
-        SqlParser parser = new SqlParser();
-
         String sql = "INSERT INTO \n`table` (id, \nnum1, col3) \nVALUES    (?, ?, ?)   ";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
         System.out.println("table: " + parsed.getTable());
@@ -95,7 +99,6 @@ public class SqlParserTest {
     @Test
     public void testParseSelectPrepared() throws Exception {
         // development test
-        SqlParser parser = new SqlParser();
 
         String sql = "SELECT c1, c2, (true ? 1 : 0 ) as foo FROM tab1 WHERE c3 = ? AND c4 = abs(?)";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
@@ -120,8 +123,6 @@ public class SqlParserTest {
 
     @Test
     public void testPreparedStatementCreateSQL() {
-        SqlParser parser = new SqlParser();
-
         String sql = "CREATE TABLE IF NOT EXISTS `with_complex_id` (`v?``1` Int32, " +
                 "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE MergeTree ORDER BY ();";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
@@ -136,7 +137,6 @@ public class SqlParserTest {
 
     @Test
     public void testPreparedStatementInsertSQL() {
-        SqlParser parser = new SqlParser();
 
         String sql = "INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')";
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
@@ -179,7 +179,6 @@ public class SqlParserTest {
     @Test
     public void testStmtWithCasts() {
         String sql = "SELECT ?::integer, ?, '?:: integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 3);
     }
@@ -187,7 +186,6 @@ public class SqlParserTest {
     @Test
     public void testStmtWithFunction() {
         String sql = "SELECT `parseDateTimeBestEffort`(?, ?) as dt FROM table WHERE v > `parseDateTimeBestEffort`(?, ?)  ";
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 4);
     }
@@ -195,7 +193,6 @@ public class SqlParserTest {
     @Test
     public void testStmtWithUUID() {
         String sql = "select sum(value) from `uuid_filter_db`.`uuid_filter_table` where uuid = ?";
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), 1);
         Assert.assertFalse(stmt.isHasErrors());
@@ -203,7 +200,6 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors());
     }
@@ -233,7 +229,6 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testCTEStmtsDP")
     public void testCTEStatements(String sql, int args) {
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch");
         Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
@@ -280,7 +275,6 @@ public class SqlParserTest {
 
     @Test(dataProvider = "testMiscStmtDp")
     public void testMiscStatements(String sql, int args) {
-        SqlParser parser = new SqlParser();
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), args);
         Assert.assertFalse(stmt.isHasErrors());
@@ -449,7 +443,6 @@ public class SqlParserTest {
     @Test(dataProvider = "testStatementWithoutResultSetDP")
     public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
         System.out.println("sql: " + sql);
-        SqlParser parser = new SqlParser();
         {
             ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
             Assert.assertEquals(stmt.getArgCount(), args);
