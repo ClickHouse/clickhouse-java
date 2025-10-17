@@ -180,6 +180,29 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <groupId>com.helger.maven</groupId>
+                <artifactId>ph-javacc-maven-plugin</artifactId>
+                <version>${javacc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>jjc</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>javacc</goal>
+                        </goals>
+                        <configuration>
+                            <jdkVersion>${minJdk}</jdkVersion>
+                            <javadocFriendlyComments>true</javadocFriendlyComments>
+                            <packageName>com.clickhouse.jdbc.internal.parser.javacc</packageName>
+                            <sourceDirectory>src/main/javacc</sourceDirectory>
+                            <outputDirectory>src/main/java</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 </project>

@@ -25,7 +25,7 @@ options {
 
 PARSER_BEGIN(ClickHouseSqlParser)
 
-package com.clickhouse.jdbc.parser;
+package com.clickhouse.jdbc.internal.parser.javacc;
 
 import java.io.StringReader;
 

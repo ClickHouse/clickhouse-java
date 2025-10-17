@@ -1,9 +1,10 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.sql.SQLUtils;
-import com.clickhouse.jdbc.internal.parser.ClickHouseLexer;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParser;
-import com.clickhouse.jdbc.internal.parser.ClickHouseParserBaseListener;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLexer;
+import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
+import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -28,7 +29,7 @@ public abstract class SqlParserFacade {
 
     public abstract ParsedPreparedStatement parsePreparedStatement(String sql);
 
-    static final class ANTLR4Parser extends SqlParserFacade {
+    private static class ANTLR4Parser extends SqlParserFacade {
 
         @Override
         public ParsedStatement parsedStatement(String sql) {
@@ -41,10 +42,11 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParsedPreparedStatementListener(stmt));
+            parseParameters(sql, stmt);
             return stmt;
         }
 
-        private ClickHouseParser parseSQL(String sql, ClickHouseParserBaseListener listener) {
+        protected ClickHouseParser parseSQL(String sql, ClickHouseParserBaseListener listener) {
             CharStream charStream = CharStreams.fromString(sql);
             ClickHouseLexer lexer = new ClickHouseLexer(charStream);
             ClickHouseParser parser = new ClickHouseParser(new CommonTokenStream(lexer));
@@ -112,9 +114,9 @@ public abstract class SqlParserFacade {
             }
         }
 
-        private static final class ParsedPreparedStatementListener extends ClickHouseParserBaseListener {
+        protected static class ParsedPreparedStatementListener extends ClickHouseParserBaseListener {
 
-            private final ParsedPreparedStatement parsedStatement;
+            protected final ParsedPreparedStatement parsedStatement;
 
             public ParsedPreparedStatementListener(ParsedPreparedStatement parsedStatement) {
                 this.parsedStatement = parsedStatement;
@@ -148,18 +150,8 @@ public abstract class SqlParserFacade {
             }
 
             @Override
-            public void enterColumnExprParam(ClickHouseParser.ColumnExprParamContext ctx) {
-                parsedStatement.appendParameter(ctx.start.getStartIndex());
-            }
-
-            @Override
             public void enterColumnExprPrecedence3(ClickHouseParser.ColumnExprPrecedence3Context ctx) {
                 super.enterColumnExprPrecedence3(ctx);
-            }
-
-            @Override
-            public void enterCteUnboundColParam(ClickHouseParser.CteUnboundColParamContext ctx) {
-                parsedStatement.appendParameter(ctx.start.getStartIndex());
             }
 
             @Override
@@ -178,24 +170,6 @@ public abstract class SqlParserFacade {
                 parsedStatement.setAssignValuesListStopPosition(ctx.getStop().getStopIndex());
             }
 
-            @Override
-            public void enterInsertParameter(ClickHouseParser.InsertParameterContext ctx) {
-                parsedStatement.appendParameter(ctx.start.getStartIndex());
-            }
-
-            @Override
-            public void enterFromClause(ClickHouseParser.FromClauseContext ctx) {
-                if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
-                    parsedStatement.appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
-                }
-            }
-
-            @Override
-            public void enterViewParam(ClickHouseParser.ViewParamContext ctx) {
-                if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
-                    parsedStatement.appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
-                }
-            }
 
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
@@ -241,22 +215,96 @@ public abstract class SqlParserFacade {
         }
     }
 
+    private static class ANTLR4AndParamsParser extends ANTLR4Parser {
+
+        @Override
+        public ParsedPreparedStatement parsePreparedStatement(String sql) {
+            ParsedPreparedStatement stmt = new ParsedPreparedStatement();
+            parseSQL(sql, new ParseStatementAndParamsListener(stmt));
+            return stmt;
+        }
+
+        private static class ParseStatementAndParamsListener extends ParsedPreparedStatementListener {
+
+            public ParseStatementAndParamsListener(ParsedPreparedStatement parsedStatement) {
+                super(parsedStatement);
+            }
+
+            @Override
+            public void enterColumnExprParam(ClickHouseParser.ColumnExprParamContext ctx) {
+                parsedStatement.appendParameter(ctx.start.getStartIndex());
+            }
+
+
+            @Override
+            public void enterCteUnboundColParam(ClickHouseParser.CteUnboundColParamContext ctx) {
+                parsedStatement.appendParameter(ctx.start.getStartIndex());
+            }
+
+            @Override
+            public void enterInsertParameter(ClickHouseParser.InsertParameterContext ctx) {
+                parsedStatement.appendParameter(ctx.start.getStartIndex());
+            }
+
+            @Override
+            public void enterFromClause(ClickHouseParser.FromClauseContext ctx) {
+                if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
+                    parsedStatement.appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
+                }
+            }
+
+            @Override
+            public void enterViewParam(ClickHouseParser.ViewParamContext ctx) {
+                if (ctx.JDBC_PARAM_PLACEHOLDER() != null) {
+                    parsedStatement.appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
+                }
+            }
+        }
+    }
+
+    private static void parseParameters(String originalQuery, ParsedPreparedStatement stmt) {
+        int len = originalQuery.length();
+        for (int i = 0; i < len; i++) {
+            char ch = originalQuery.charAt(i);
+            if (ClickHouseUtils.isQuote(ch)) {
+                i = ClickHouseUtils.skipQuotedString(originalQuery, i, len, ch) - 1;
+            } else if (ch == '?') {
+                int idx = ClickHouseUtils.skipContentsUntil(originalQuery, i + 2, len, '?', ':');
+                if (idx < len && originalQuery.charAt(idx - 1) == ':' && originalQuery.charAt(idx) != ':'
+                        && originalQuery.charAt(idx - 2) != ':') {
+                    i = idx - 1;
+                } else {
+                    stmt.appendParameter(i);
+                }
+            } else if (ch == ';') {
+                continue;
+            } else if (i + 1 < len) {
+                char nextCh = originalQuery.charAt(i + 1);
+                if (ch == '-' && nextCh == ch) {
+                    i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;
+                }
+            }
+        }
+    }
+
+
     public enum SQLParser {
         /**
          * JavaCC used to determine sql type (SELECT, INSERT, etc.) and extract some information
          * Separate procedure parses sql for `?` parameter placeholders.
          */
-        JAVACC_PARAMS_PARSER,
+        JAVACC,
 
         /**
-         * ANTLR4 used to determine sql type (SELECT, INSERT, etc.) and extract some information
-         * Separate procedure parses sql for `?` parameter placeholders.
+         * ANTLR4 used to determine sql type (SELECT, INSERT, etc.) and extract some information and parameters
          */
         ANTLR4_PARAMS_PARSER,
 
         /**
-         * ANTLR4 used to determine sql type (SELECT, INSERT, etc.), extract some information
-         * and determine parameter positions.
+         * ANTLR4 used to determine sql type (SELECT, INSERT, etc.), extract some information.
+         * Separate procedure parses sql for `?` parameter placeholders.
          */
         ANTLR4
     }
@@ -265,10 +313,10 @@ public abstract class SqlParserFacade {
         try {
             SQLParser parserSelection = SQLParser.valueOf(name);
             switch (parserSelection) {
-                case JAVACC_PARAMS_PARSER:
+                case JAVACC:
                     return null;
                 case ANTLR4_PARAMS_PARSER:
-                    return null;
+                    return new ANTLR4AndParamsParser();
                 case ANTLR4:
                     return new ANTLR4Parser();
             }
