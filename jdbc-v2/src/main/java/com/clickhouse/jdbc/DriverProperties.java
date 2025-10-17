@@ -57,6 +57,16 @@ public enum DriverProperties {
      *
      */
     USE_MAX_RESULT_ROWS("jdbc_use_max_result_rows", String.valueOf(Boolean.FALSE)),
+
+    /**
+     * Configures what SQL parser will be used. Choices:
+     * <ul>
+     *     <li>ANTLR4 - parser extracts required information but PreparedStatement parameters parsed separately.</li>
+     *     <li>ANTLR4_PARAMS_PARSER - parser extracts required information AND parameter positions.</li>
+     *     <li>JAVACC - parser extracts required information but PreparedStatement parameters parsed separately.</li>
+     * </ul>
+     */
+    SQL_PARSER("jdbc_sql_parser", "ANTLR4", List.of("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
     ;
 
 

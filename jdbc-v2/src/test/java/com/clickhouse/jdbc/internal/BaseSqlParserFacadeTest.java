@@ -11,36 +11,6 @@ import static org.testng.Assert.assertTrue;
 
 public abstract class BaseSqlParserFacadeTest {
 
-//    @Test(groups = {"integration"})
-//    public void testWithComments() throws Exception {
-//        assertEquals(SqlParser.parseStatementType("    /* INSERT TESTING */\n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("/* SELECT TESTING */\n INSERT INTO test_table VALUES (1)").getType(), SqlParser.StatementType.INSERT);
-//        assertEquals(SqlParser.parseStatementType("/* INSERT TESTING */\n\n\n UPDATE test_table SET num = 2").getType(), SqlParser.StatementType.UPDATE);
-//        assertEquals(SqlParser.parseStatementType("-- INSERT TESTING */\n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("     -- SELECT TESTING \n -- SELECT AGAIN \n INSERT INTO test_table VALUES (1)").getType(), SqlParser.StatementType.INSERT);
-//        assertEquals(SqlParser.parseStatementType(" SELECT 42    -- INSERT TESTING").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("#! INSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("#!INSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("# INSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("#INSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("\nINSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.INSERT_INTO_SELECT);
-//        assertEquals(SqlParser.parseStatementType("         \n          INSERT TESTING \n SELECT 1 AS num").getType(), SqlParser.StatementType.INSERT_INTO_SELECT);
-//        assertEquals(SqlParser.parseStatementType("INSERT INTO t SELECT 1 AS num").getType(), SqlParser.StatementType.INSERT_INTO_SELECT);
-//        assertEquals(SqlParser.parseStatementType("select 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType("insert into test_table values (1)").getType(), SqlParser.StatementType.INSERT);
-//        assertEquals(SqlParser.parseStatementType("update test_table set num = 2").getType(), SqlParser.StatementType.UPDATE);
-//        assertEquals(SqlParser.parseStatementType("delete from test_table where num = 2").getType(), SqlParser.StatementType.DELETE);
-//        assertEquals(SqlParser.parseStatementType("sElEcT 1 AS num").getType(), SqlParser.StatementType.SELECT);
-//        assertEquals(SqlParser.parseStatementType(null).getType(), SqlParser.StatementType.OTHER);
-//        assertEquals(SqlParser.parseStatementType("").getType(), SqlParser.StatementType.OTHER);
-//        assertEquals(SqlParser.parseStatementType("      ").getType(), SqlParser.StatementType.OTHER);
-//    }
-//
-//    @Test(groups = {"integration"})
-//    public void testParseStatementWithClause() throws Exception {
-//        assertEquals(SqlParser.parseStatementType("with data as (SELECT number FROM numbers(100)) select * from data").getType(), SqlParser.StatementType.SELECT);
-//    }
-
     private SqlParserFacade parser;
 
     public BaseSqlParserFacadeTest(String name) throws Exception {
@@ -353,8 +323,29 @@ public abstract class BaseSqlParserFacadeTest {
             {"insert into t (i, t) values (1, timestamp '2010-01-01 00:00:00')", 0},
             {"insert into t (i, t) values (1, date '2010-01-01')", 0},
             {"SELECT timestamp '2010-01-01 00:00:00' as ts, date '2010-01-01' as d", 0},
+            {INSERT_WITH_COMMENTS, 4},
+            {"    /* INSERT TESTING ?? */\n SELECT ? AS num", 1},
+            {"/* SELECT ? TESTING */\n INSERT INTO test_table VALUES (?)", 1},
+            {"/* INSERT ? T??ESTING */\n\n\n UPDATE test_table SET num = ?", 1},
+            {"-- INSERT ? TESTING */\n SELECT ? AS num", 1},
+            {"     -- SELECT ? TESTING \n -- SELECT AGAIN ?\n INSERT INTO test_table VALUES (?)", 1},
+            {" SELECT ?    -- INSERT ? TESTING", 1},
+            {"#! INSERT ? TESTING \n SELECT ? AS num", 1},
+            {"#!INSERT ? TESTING \n SELECT ? AS num", 1},
+            {"# INSERT ? TESTING \n SELECT ? AS num", 1},
+            {"#INSERT ? TESTING \n SELECT ? AS num", 1},
+            {"\nINSERT INTO TESTING \n SELECT ? AS num", 1},
+            {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
+            {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
+            {"WITH '#!?0.1' as f, ? as a\n #this is debug \n SELECT * FROM a", 1},
         };
     }
+
+    private static final String INSERT_WITH_COMMENTS = "-- line comment1 ?\n"
+            + "# line comment2 ?\n"
+            + "#! line comment3 ?\n"
+            + "/* block comment ? \n */"
+            + "INSERT INTO `with_complex_id`(`v?``1`, \"v?\"\"2\",`v?\\`3`, \"v?\\\"4\") VALUES (?, ?, ?, ?);";
 
     private static final String INSERT_INLINE_DATA =
             "INSERT INTO `interval_15_XUTLZWBLKMNZZPRZSKRF`.`checkins` (`timestamp`, `id`) " +

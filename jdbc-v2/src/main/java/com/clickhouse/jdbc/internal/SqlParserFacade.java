@@ -280,7 +280,7 @@ public abstract class SqlParserFacade {
                 continue;
             } else if (i + 1 < len) {
                 char nextCh = originalQuery.charAt(i + 1);
-                if (ch == '-' && nextCh == ch) {
+                if ((ch == '-' && nextCh == ch) || (ch == '#')) {
                     i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
                 } else if (ch == '/' && nextCh == '*') {
                     i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;

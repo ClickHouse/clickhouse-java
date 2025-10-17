@@ -117,7 +117,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
 
-            this.sqlParser = SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()); // TODO: path config string here
+
+            this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
+                    DriverProperties.SQL_PARSER.getDefaultValue()));
             this.featureManager = new FeatureManager(this.config);
         } catch (SQLException e) {
             throw e;
