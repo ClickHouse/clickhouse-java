@@ -1605,6 +1605,7 @@ public class Client implements AutoCloseable {
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", System.nanoTime() - startTime, httpResponse.getCode());
                             selectedEndpoint = getNextAliveNode();
+                            HttpAPIClientHelper.closeQuietly(httpResponse);
                             continue;
                         }
 
@@ -1625,7 +1626,7 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics);
 
                     } catch (Exception e) {
-                        httpClientHelper.closeQuietly(httpResponse);
+                        HttpAPIClientHelper.closeQuietly(httpResponse);
                         lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
                                 (i + 1), (retries + 1), System.nanoTime() - startTime), e);
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {

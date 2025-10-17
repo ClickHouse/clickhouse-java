@@ -454,14 +454,9 @@ public class HttpAPIClientHelper {
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
-                httpResponse.close();
                 throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
-                try {
-                    throw readError(httpResponse);
-                } finally {
-                    httpResponse.close();
-                }
+                throw readError(httpResponse);
             }
             return httpResponse;
 
@@ -473,10 +468,13 @@ public class HttpAPIClientHelper {
             closeQuietly(httpResponse);
             LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
             throw e;
+        } catch (Exception e) {
+            closeQuietly(httpResponse);
+            throw e;
         }
     }
 
-    public void closeQuietly(ClassicHttpResponse httpResponse) {
+    public static void closeQuietly(ClassicHttpResponse httpResponse) {
         if (httpResponse != null) {
             try {
                 httpResponse.close();
