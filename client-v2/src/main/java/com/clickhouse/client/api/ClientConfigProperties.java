@@ -75,7 +75,7 @@ public enum ClientConfigProperties {
 
     SOCKET_TCP_NO_DELAY_OPT("socket_tcp_nodelay", Boolean.class),
 
-    SOCKET_LINGER_OPT("socket_linger", Boolean.class),
+    SOCKET_LINGER_OPT("socket_linger", Integer.class),
 
     DATABASE("database", String.class, "default"),
 
