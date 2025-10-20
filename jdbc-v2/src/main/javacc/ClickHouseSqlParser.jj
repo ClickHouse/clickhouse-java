@@ -51,7 +51,6 @@ public class ClickHouseSqlParser {
 
     private final List<ClickHouseSqlStatement> statements = new ArrayList<>();
 
-    private ClickHouseConfig config;
     private ParseHandler handler;
     private int anyArgsListStart = -1;
 
@@ -76,14 +75,7 @@ public class ClickHouseSqlParser {
         return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
     }
 
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
-        return parse(sql, config, null);
-    }
-
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, ParseHandler handler) {
-        if (config == null) {
-            config = new ClickHouseConfig();
-        }
+    public static ClickHouseSqlStatement[] parse(String sql, ParseHandler handler) {
 
         ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
                 new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
@@ -92,7 +84,7 @@ public class ClickHouseSqlParser {
             return stmts;
         }
 
-        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, config, handler);
+        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, handler);
         try {
             stmts = p.sql();
         } catch (Exception e) {
@@ -106,10 +98,9 @@ public class ClickHouseSqlParser {
         return stmts;
     }
 
-    public ClickHouseSqlParser(String sql, ClickHouseConfig config, ParseHandler handler) {
+    public ClickHouseSqlParser(String sql, ParseHandler handler) {
         this(new StringReader(sql));
 
-        this.config = config;
         this.handler = handler;
     }
 

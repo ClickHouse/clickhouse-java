@@ -5,6 +5,10 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLexer;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlParser;
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.internal.parser.javacc.JdbcParseHandler;
+import com.clickhouse.jdbc.internal.parser.javacc.StatementType;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -28,6 +32,74 @@ public abstract class SqlParserFacade {
     public abstract ParsedStatement parsedStatement(String sql);
 
     public abstract ParsedPreparedStatement parsePreparedStatement(String sql);
+
+    private static class JavaCCParser extends SqlParserFacade {
+
+        @Override
+        public ParsedStatement parsedStatement(String sql) {
+            ParsedStatement stmt = new ParsedStatement();
+            ClickHouseSqlStatement parsedStmt = parse(sql);
+            if (parsedStmt.getStatementType() == StatementType.USE) {
+                stmt.setUseDatabase(parsedStmt.getDatabase());
+            }
+            // TODO: set roles
+            stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
+            stmt.setHasErrors(false);
+            stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
+            return stmt;
+        }
+
+        private boolean isStmtWithResultSet(ClickHouseSqlStatement parsedStmt) {
+            return parsedStmt.getStatementType() == StatementType.SELECT || parsedStmt.getStatementType() == StatementType.SHOW
+                    || parsedStmt.getStatementType() == StatementType.EXPLAIN || parsedStmt.getStatementType() == StatementType.DESCRIBE
+                    || parsedStmt.getStatementType() == StatementType.EXISTS || parsedStmt.getStatementType() == StatementType.CHECK;
+
+        }
+
+        @Override
+        public ParsedPreparedStatement parsePreparedStatement(String sql) {
+            ParsedPreparedStatement stmt = new ParsedPreparedStatement();
+            ClickHouseSqlStatement parsedStmt = parse(sql);
+            if (parsedStmt.getStatementType() == StatementType.USE) {
+                stmt.setUseDatabase(parsedStmt.getDatabase());
+            }
+            stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
+            stmt.setHasErrors(false);
+            stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
+            stmt.setTable(parsedStmt.getTable());
+            stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));
+
+            Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+            if (startIndex != null) {
+                stmt.setAssignValuesGroups(1);
+                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+                stmt.setAssignValuesListStartPosition(startIndex);
+                stmt.setAssignValuesListStopPosition(endIndex);
+                String query = parsedStmt.getSQL();
+                for (int i = startIndex + 1; i < endIndex; i++) {
+                    char ch = query.charAt(i);
+                    if (ch != '?' && ch != ',' && !Character.isWhitespace(ch)) {
+                        stmt.setUseFunction(true);
+                        break;
+                    }
+                }
+            }
+
+            stmt.setUseFunction(false);
+            parseParameters(sql, stmt);
+            return stmt;
+        }
+
+
+        public ClickHouseSqlStatement parse(String sql) {
+            JdbcParseHandler handler = JdbcParseHandler.getInstance();
+            ClickHouseSqlStatement[] stmts = ClickHouseSqlParser.parse(sql, handler);
+            if (stmts.length > 1) {
+                throw new RuntimeException("More than one SQL statement found: " + sql);
+            }
+            return stmts[0];
+        }
+    }
 
     private static class ANTLR4Parser extends SqlParserFacade {
 
@@ -314,7 +386,7 @@ public abstract class SqlParserFacade {
             SQLParser parserSelection = SQLParser.valueOf(name);
             switch (parserSelection) {
                 case JAVACC:
-                    return null;
+                    return new JavaCCParser();
                 case ANTLR4_PARAMS_PARSER:
                     return new ANTLR4AndParamsParser();
                 case ANTLR4:
