@@ -475,6 +475,7 @@ public class HttpAPIClientHelper {
             throw e;
         } catch (Exception e) {
             closeQuietly(httpResponse);
+            LOG.debug("Failed to execute request to '{}': {}", server.getBaseURL(), e.getMessage(), e);
             throw e;
         }
     }
