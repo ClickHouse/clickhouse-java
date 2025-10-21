@@ -335,21 +335,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(int index) {
-        return getString(schema.columnIndexToName(index));
+        return dataTypeConverter.convertToString(readValue(index), schema.getColumnByIndex(index));
     }
 
     private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
-        int colIndex = schema.nameToIndex(colName);
-        Function<Object, Object> converter = (Function<Object, Object>) convertions[colIndex].get(targetType);
+        return readNumberValue(schema.nameToColumnIndex(colName), targetType);
+    }
+
+    private <T> T readNumberValue(int colIndex, NumberConverter.NumberType targetType) {
+        Function<Object, Object> converter = (Function<Object, Object>) convertions[colIndex - 1].get(targetType);
         if (converter != null) {
-            Object value = readValue(colName);
-            if (value == null) {
-                throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
-                        targetType.getTypeName());
+            Object value = readValue(colIndex);
+            if (value != null) {
+                return (T) converter.apply(value);
             }
-            return (T) converter.apply(value);
+            throw new NullValueException("Column with index " + colIndex + " has null value and it cannot be cast to " +
+                    targetType.getTypeName());
         } else {
-            throw new ClientException("Column " + colName + " " + columns[colIndex].getDataType().name() +
+            throw new ClientException("Column with index " + colIndex + " " + columns[colIndex  -1].getDataType().name() +
                     " cannot be converted to " + targetType.getTypeName());
         }
     }
@@ -626,47 +629,47 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Byte);
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Short);
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Int);
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Long);
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Float);
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Double);
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Boolean);
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return getBigInteger(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.BigInteger);
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return getBigDecimal(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.BigDecimal);
     }
 
     @Override
