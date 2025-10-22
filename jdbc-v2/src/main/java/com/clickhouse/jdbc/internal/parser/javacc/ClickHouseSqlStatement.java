@@ -41,19 +41,20 @@ public class ClickHouseSqlStatement {
     private final Map<String, Integer> positions;
     private final Map<String, String> settings;
     private final Set<String> tempTables;
+    private final int valueGroups;
 
     public ClickHouseSqlStatement(String sql) {
-        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null, 0);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType) {
-        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null, 0);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType, String cluster, String database, String table,
             String input, String compressAlgorithm, String compressLevel, String format, String file,
             List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            Set<String> tempTables, int valueGroups) {
         this.sql = sql;
         this.stmtType = stmtType;
 
@@ -65,6 +66,7 @@ public class ClickHouseSqlStatement {
         this.compressLevel = compressLevel;
         this.format = format;
         this.file = file;
+        this.valueGroups = valueGroups;
 
         if (parameters != null && !parameters.isEmpty()) {
             this.parameters = Collections.unmodifiableList(parameters);
@@ -295,6 +297,10 @@ public class ClickHouseSqlStatement {
 
     public Map<String, Integer> getPositions() {
         return this.positions;
+    }
+
+    public int getValueGroups() {
+        return valueGroups;
     }
 
     public Map<String, String> getSettings() {

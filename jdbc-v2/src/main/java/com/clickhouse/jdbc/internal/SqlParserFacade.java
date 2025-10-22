@@ -68,10 +68,10 @@ public abstract class SqlParserFacade {
             stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
             stmt.setTable(parsedStmt.getTable());
             stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));
+            stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
             Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
             if (startIndex != null) {
-                stmt.setAssignValuesGroups(1);
                 int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
                 stmt.setAssignValuesListStartPosition(startIndex);
                 stmt.setAssignValuesListStopPosition(endIndex);

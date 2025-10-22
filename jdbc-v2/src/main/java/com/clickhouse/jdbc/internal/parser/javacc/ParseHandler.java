@@ -52,7 +52,7 @@ public abstract class ParseHandler {
     public ClickHouseSqlStatement handleStatement(String sql, StatementType stmtType, String cluster, String database,
                                                   String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
                                                   List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-                                                  Set<String> tempTables) {
+                                                  Set<String> tempTables, int valueGroup) {
         return null;
     }
 }

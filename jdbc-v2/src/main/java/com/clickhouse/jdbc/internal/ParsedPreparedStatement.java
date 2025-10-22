@@ -34,7 +34,7 @@ public final class ParsedPreparedStatement {
 
     private int assignValuesListStopPosition = -1;
 
-    private int assignValuesGroups = -1;
+    private int assignValuesGroups = 0;
 
     public void setHasResultSet(boolean hasResultSet) {
         this.hasResultSet = hasResultSet;

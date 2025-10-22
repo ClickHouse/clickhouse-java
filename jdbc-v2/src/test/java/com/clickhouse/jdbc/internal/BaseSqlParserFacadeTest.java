@@ -125,9 +125,14 @@ public abstract class BaseSqlParserFacadeTest {
                         + "#! line comment3 ?\n"
                         + "/* block comment ? \n */"
                         + "INSERT INTO `with_complex_id`(`v?``1`, \"v?\"\"2\",`v?\\`3`, \"v?\\\"4\") VALUES (?, ?, ?, ?);", 1, false, 4},
+                {"-- line comment1 ?\n"
+//                        + "# line comment2 ?\n"
+//                        + "#! line comment3 ?\n"
+                        + "/* block comment ? \n */"
+                        + "INSERT INTO `with_complex_id`(`v?``1`, \"v?\"\"2\",`v?\\`3`, \"v?\\\"4\") VALUES (?, ?, ?, ?);", 1, false, 4},
                 { "INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')", 3, false, 0 },
                 { "INSERT INTO `with_complex_id`(`v?``1`, \"v?\"\"2\",`v?\\`3`, \"v?\\\"4\") VALUES (?, ?, ?, ?);", 1, false, 4},
-                { "INSERT INTO tt SELECT now(), 10, 20.0, 30", -1, true, 0 },
+                { "INSERT INTO tt SELECT now(), 10, 20.0, 30", 0, true, 0 },
                 { "INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES\n" +
                         " (?, `parseDateTimeBestEffort`(?, ?), ?, 1)\n", 1, false, 4 },
         };

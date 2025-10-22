@@ -174,6 +174,7 @@ TOKEN_MGR_DECLS: {
     String compressLevel = null;
     String format = null;
     String file = null;
+    int valueGroups = 0;
 
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
@@ -276,12 +277,12 @@ TOKEN_MGR_DECLS: {
 
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups);
         }
         
         // reset variables
@@ -322,6 +323,9 @@ TOKEN_MGR_DECLS: {
         }
 
         this.settings.put(key.toLowerCase(Locale.ROOT), value);
+    }
+    void incValueGroup() {
+        this.valueGroups++;
     }
 }
 
@@ -366,7 +370,7 @@ SKIP: {
             }
         }
     }
-    | <SINGLE_LINE_COMMENT: ("--" | "//") (~["\r", "\n"])*> { append(image); }
+    | <SINGLE_LINE_COMMENT: ("--" | "//" | "#" | "#!") (~["\r", "\n"])*> { append(image); }
     | "/*" { commentNestingDepth = 1; append(image); }: MULTI_LINE_COMMENT
 }
 
@@ -418,6 +422,7 @@ void stmt(): {} {
     | optimizeStmt() { token_source.stmtType = StatementType.OPTIMIZE; }
     | renameStmt()   { token_source.stmtType = StatementType.RENAME;   }
     | revokeStmt()   { token_source.stmtType = StatementType.REVOKE;   }
+    | <LPAREN> selectStmt() <RPAREN> { token_source.stmtType = StatementType.SELECT; }
     | selectStmt()   { token_source.stmtType = StatementType.SELECT;   }
     | setStmt()      { token_source.stmtType = StatementType.SET;      }
     | showStmt()     { token_source.stmtType = StatementType.SHOW;     }
@@ -569,12 +574,12 @@ void dataClause(): {} {
     try {
         LOOKAHEAD(2) <VALUES> { token_source.addPosition(token); }
             <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_START, token); }
-            columnExprList()
+            columnExprList() { token_source.incValueGroup(); }
             <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_END, token); }
             (
                 LOOKAHEAD(2)
                 (<COMMA>)?
-                <LPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START); }
+                <LPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START); token_source.incValueGroup(); }
                 columnExprList()
                 <RPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_END); }
             )*
@@ -656,6 +661,7 @@ void showStmt(): {} {
             LOOKAHEAD(2)
             <CREATE>
             (<DATABASE> databaseIdentifier(true))
+            | LOOKAHEAD(2) (LOOKAHEAD(1) <CREATE>)? (LOOKAHEAD(1) <SETTINGS>)? <PROFILE> anyIdentifier()
             | LOOKAHEAD(2) (<DICTIONARY> tableIdentifier(true))
             | LOOKAHEAD(2) ((LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true))
         )

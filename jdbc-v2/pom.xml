@@ -17,7 +17,7 @@
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/jdbc-v2</url>
 
     <properties>
-        <javacc-plugin.version>4.1.4</javacc-plugin.version>
+        <javacc-plugin.version>5.0.0</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
         <jackson.version>2.17.2</jackson.version>
@@ -197,7 +197,6 @@
                             <javadocFriendlyComments>true</javadocFriendlyComments>
                             <packageName>com.clickhouse.jdbc.internal.parser.javacc</packageName>
                             <sourceDirectory>src/main/javacc</sourceDirectory>
-                            <outputDirectory>src/main/java</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
