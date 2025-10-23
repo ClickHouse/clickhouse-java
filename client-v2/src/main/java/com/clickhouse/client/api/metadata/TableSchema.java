@@ -2,9 +2,9 @@ package com.clickhouse.client.api.metadata;
 
 import com.clickhouse.data.ClickHouseColumn;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,15 +30,17 @@ public class TableSchema {
         this.databaseName = databaseName;
         this.query = query;
         this.columns = ImmutableList.copyOf(columns);
-        ImmutableMap.Builder<String, Integer> colIndexMapBuilder = ImmutableMap.builder();
+        Map<String, Integer> colIndexMapBuilder = new HashMap<>();
         for (int i = 0; i < this.columns.size(); i++) {
             ClickHouseColumn column= this.columns.get(i);
             if (column.hasDefault()) {
                 this.hasDefaults = true;
             }
-            colIndexMapBuilder.put(this.columns.get(i).getColumnName(), i);
+            String columnName = column.getColumnName();
+            // if a column is duplicated, the last one wins
+            colIndexMapBuilder.put(columnName, i);
         }
-        this.colIndex = colIndexMapBuilder.build();
+        this.colIndex = colIndexMapBuilder;
     }
 
     /**
