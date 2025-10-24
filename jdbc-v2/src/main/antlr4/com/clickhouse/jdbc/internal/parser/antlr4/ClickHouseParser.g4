@@ -513,6 +513,7 @@ fromClause
     | FROM identifier LPAREN JDBC_PARAM_PLACEHOLDER RPAREN
     | FROM selectStmt
     | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
+    | FROM tableFunctionExpr
     ;
 
 viewParam
@@ -1315,6 +1316,7 @@ keyword
     | LIVE
     | LOCAL
     | LOGS
+    | LOG
     | MATERIALIZE
     | MATERIALIZED
     | MAX
@@ -1345,6 +1347,7 @@ keyword
     | RANGE
     | RELOAD
     | REMOVE
+    | REMOTE
     | RENAME
     | REPLACE
     | REPLICA
@@ -1391,7 +1394,9 @@ keyword
     | USE
     | USING
     | USER
+    | USERS
     | UUID
+    | URL
     | VALUES
     | VIEW
     | VOLUME
@@ -1401,6 +1406,10 @@ keyword
     | WINDOW
     | WITH
     | QUERIES
+    | SUM
+    | AVG
+    | REFRESH
+    | EXPLAIN
     ;
 
 keywordForAlias

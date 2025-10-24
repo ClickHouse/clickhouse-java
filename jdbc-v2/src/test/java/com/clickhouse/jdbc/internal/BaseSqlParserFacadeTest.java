@@ -239,14 +239,28 @@ public abstract class BaseSqlParserFacadeTest {
     public void testMiscStatements(String sql, int args) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertEquals(stmt.getArgCount(), args);
-        Assert.assertFalse(stmt.isHasErrors());
+        Assert.assertFalse(stmt.isHasErrors(), "Statement has errors");
     }
 
     @DataProvider
     public Object[][] testMiscStmtDp() {
         return new Object[][] {
+            {"SELECT x, a FROM (SELECT arrayJoin(['Hello', 'Goodbye']) AS x, [1, 2, 3] AS arr) ARRAY JOIN arr AS a", 0},
+            {"SELECT quantilesTiming(0.1, 0.5, 0.9)(dummy) FROM remote('127.0.0.{2,3}', 'system', 'one') GROUP BY 1 WITH TOTALS", 0}, // FROM remote issue
+            {"SELECT StartDate, sumMerge(Visits) AS Visits, uniqMerge(Users)  AS Users FROM basic_00040 GROUP BY StartDate ORDER BY StartDate", 0}, // keywords
+            {"SELECT uniq(URL) FROM test.hits WHERE TraficSourceID IN (7)", 0}, // keywords URL
             {"SELECT INTERVAL '1 day'", 0},
             {"SELECT INTERVAL 1 day", 0},
+            {"SET extremes = 1", 0},
+            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = Log", 0 },
+            {"CREATE TABLE log (x UInt8) ENGINE = StripeLog", 0},
+            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0 },
+            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0 },
+            {"select abs(log(e()) - 1) < 1e-8", 0},
+            {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
+                        " FROM test.hits_s3 WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP " +
+                        "   ORDER BY c DESC LIMIT 10", 0},
+            {"SELECT (id % 10) AS key, count() FROM 03279_test_database.test_table_1 GROUP BY key ORDER BY key", 0},
             {"SELECT ?", 1},
             {"(SELECT ?)", 1},
             {"SELECT * FROM table key WHERE ts = ?", 1},

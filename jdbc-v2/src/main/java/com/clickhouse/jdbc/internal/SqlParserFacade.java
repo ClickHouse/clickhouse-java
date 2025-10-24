@@ -44,7 +44,7 @@ public abstract class SqlParserFacade {
             }
             // TODO: set roles
             stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
-            stmt.setHasErrors(false);
+            stmt.setHasErrors(parsedStmt.getStatementType() == StatementType.UNKNOWN);
             stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
             return stmt;
         }
@@ -64,7 +64,7 @@ public abstract class SqlParserFacade {
                 stmt.setUseDatabase(parsedStmt.getDatabase());
             }
             stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
-            stmt.setHasErrors(false);
+            stmt.setHasErrors(parsedStmt.getStatementType() == StatementType.UNKNOWN);
             stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
             stmt.setTable(parsedStmt.getTable());
             stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));

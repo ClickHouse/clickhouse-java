@@ -377,6 +377,8 @@ WORKLOAD : W O R K L O A D;
 WRITABLE : W R I T A B L E;
 YEAR         : Y E A R | Y Y Y Y;
 ZKPATH : Z K P A T H;
+SUM : S U M;
+AVG : A V G;
 
 JSON_FALSE : 'false';
 JSON_TRUE  : 'true';
