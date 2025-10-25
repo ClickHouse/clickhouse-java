@@ -510,6 +510,7 @@ topClause
 
 fromClause
     : FROM joinExpr
+    | FROM tableIdentifier
     | FROM identifier LPAREN JDBC_PARAM_PLACEHOLDER RPAREN
     | FROM selectStmt
     | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
@@ -661,7 +662,7 @@ exchangeStmt
 // SET statement
 
 setStmt
-    : SET settingExprList
+    : SET IDENTIFIER EQ_SINGLE literal
     ;
 
 // SET ROLE statement
