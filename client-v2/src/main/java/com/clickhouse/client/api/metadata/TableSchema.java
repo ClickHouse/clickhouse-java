@@ -32,13 +32,13 @@ public class TableSchema {
         this.columns = ImmutableList.copyOf(columns);
         ImmutableMap.Builder<String, Integer> colIndexMapBuilder = ImmutableMap.builder();
         for (int i = 0; i < this.columns.size(); i++) {
-            ClickHouseColumn column= this.columns.get(i);
+            ClickHouseColumn column = this.columns.get(i);
             if (column.hasDefault()) {
                 this.hasDefaults = true;
             }
             colIndexMapBuilder.put(this.columns.get(i).getColumnName(), i);
         }
-        this.colIndex = colIndexMapBuilder.build();
+        this.colIndex = colIndexMapBuilder.buildKeepingLast();
     }
 
     /**

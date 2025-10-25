@@ -2215,4 +2215,32 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
         }
     }
+
+    @Test
+    public void testDuplicateColumnNames() throws Exception {
+        {
+            // simple scenario
+            List<GenericRecord> records = client.queryAll("SELECT 'a', 'a'");
+            GenericRecord record = records.get(0);
+            Assert.assertEquals(record.getString("'a'"), "a");
+            Assert.assertEquals(record.getString(1), "a");
+            Assert.assertEquals(record.getString(2), "a");
+        }
+
+        {
+            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names_1").get().close();
+            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names_2").get().close();
+            client.execute("CREATE TABLE test_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();
+            client.execute("INSERT INTO test_duplicate_column_names1 VALUES ('some name')").get().close();
+            client.execute("CREATE TABLE test_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();
+            client.execute("INSERT INTO test_duplicate_column_names2 VALUES ('another name')").get().close();
+
+            List<GenericRecord> records = client.queryAll("SELECT * FROM test_duplicate_column_names1, test_duplicate_column_names2");
+            GenericRecord record = records.get(0);
+            Assert.assertEquals(record.getString("name"), "some name");
+            Assert.assertEquals(record.getString("test_duplicate_column_names2.name"), "another name");
+            Assert.assertEquals(record.getString(1), "some name");
+            Assert.assertEquals(record.getString(2), "another name");
+        }
+    }
 }
