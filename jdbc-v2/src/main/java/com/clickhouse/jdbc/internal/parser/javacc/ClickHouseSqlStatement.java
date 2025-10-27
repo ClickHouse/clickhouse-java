@@ -27,6 +27,9 @@ public class ClickHouseSqlStatement {
     public static final String KEYWORD_VALUES_START = "ValuesStart";
     public static final String KEYWORD_VALUES_END = "ValuesEnd";
 
+    public static final String ROLES_COUNT_SETTINGS_KEY = "_ROLES_COUNT";
+    public static final String ROLES_PREFIX_SETTINGS_KEY = "_ROLE_";
+
     private final String sql;
     private final StatementType stmtType;
     private final String cluster;

@@ -66,7 +66,8 @@ public enum DriverProperties {
      *     <li>JAVACC - parser extracts required information but PreparedStatement parameters parsed separately.</li>
      * </ul>
      */
-    SQL_PARSER("jdbc_sql_parser", "JAVACC", List.of("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
+//    SQL_PARSER("jdbc_sql_parser", "JAVACC", List.of("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
+    SQL_PARSER("jdbc_sql_parser", "ANTLR4", List.of("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
     ;
 
 

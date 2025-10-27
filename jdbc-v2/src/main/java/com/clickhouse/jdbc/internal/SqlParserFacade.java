@@ -42,7 +42,25 @@ public abstract class SqlParserFacade {
             if (parsedStmt.getStatementType() == StatementType.USE) {
                 stmt.setUseDatabase(parsedStmt.getDatabase());
             }
-            // TODO: set roles
+
+            String rolesCount = parsedStmt.getSettings().get("_ROLES_COUNT");
+            if (rolesCount != null) {
+                int rolesCountInt = Integer.parseInt(rolesCount);
+                ArrayList<String> roles = new ArrayList<>(rolesCountInt);
+                boolean resetRoles = false;
+                for (int i = 0; i < rolesCountInt; i++) {
+                    String role = parsedStmt.getSettings().get("_ROLE_" + i);
+                    if (role.equalsIgnoreCase("NONE")) {
+                        resetRoles = true;
+                    }
+                    roles.add(parsedStmt.getSettings().get("_ROLE_" + i));
+                }
+                if (resetRoles) {
+                    roles.clear();
+                }
+                stmt.setRoles(roles);
+            }
+
             stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
             stmt.setHasErrors(parsedStmt.getStatementType() == StatementType.UNKNOWN);
             stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
@@ -66,7 +84,11 @@ public abstract class SqlParserFacade {
             stmt.setInsert(parsedStmt.getStatementType() == StatementType.INSERT);
             stmt.setHasErrors(parsedStmt.getStatementType() == StatementType.UNKNOWN);
             stmt.setHasResultSet(isStmtWithResultSet(parsedStmt));
-            stmt.setTable(parsedStmt.getTable());
+            String tableName = parsedStmt.getTable();
+            if (parsedStmt.getDatabase() != null && parsedStmt.getTable() != null) {
+                tableName = String.format("%s.%s", parsedStmt.getDatabase(), parsedStmt.getTable());
+            }
+            stmt.setTable(tableName);
             stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
