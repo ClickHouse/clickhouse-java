@@ -15,6 +15,7 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
@@ -1185,6 +1186,43 @@ public class StatementTest extends JdbcIntegrationTest {
                 stmt.setFetchSize(0);
                 Assert.assertEquals(stmt.getFetchSize(), 0);
                 Assert.assertThrows(SQLException.class, () -> stmt.setFetchSize(-1));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testResponseWithDuplicateColumns() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+
+
+            try (ResultSet rs = stmt.executeQuery("SELECT 'a', 'a'")) {
+                ResultSetMetaData metaData = rs.getMetaData();
+                Assert.assertEquals(metaData.getColumnCount(), 2);
+                Assert.assertEquals(metaData.getColumnName(1), "'a'");
+                Assert.assertEquals(metaData.getColumnName(2), "'a'");
+            }
+
+            {
+                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names1");
+                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names2");
+                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()");
+                stmt.execute("INSERT INTO test_jdbc_duplicate_column_names1 VALUES ('some name')");
+                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()");
+                stmt.execute("INSERT INTO test_jdbc_duplicate_column_names2 VALUES ('another name')");
+
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_jdbc_duplicate_column_names1, test_jdbc_duplicate_column_names2")) {
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    Assert.assertEquals(metaData.getColumnCount(), 2);
+                    Assert.assertEquals(metaData.getColumnName(1), "name");
+                    Assert.assertEquals(metaData.getColumnName(2), "test_jdbc_duplicate_column_names2.name");
+
+                    rs.next();
+                    Assert.assertEquals(rs.getString("name"), "some name");
+                    Assert.assertEquals(rs.getString("test_jdbc_duplicate_column_names2.name"), "another name");
+                    Assert.assertEquals(rs.getString(1), "some name");
+                    Assert.assertEquals(rs.getString(2), "another name");
+
+                }
             }
         }
     }
