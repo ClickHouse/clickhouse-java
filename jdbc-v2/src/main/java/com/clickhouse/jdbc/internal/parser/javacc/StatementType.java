@@ -28,8 +28,12 @@ public enum StatementType {
     UPDATE(LanguageType.DML, OperationType.WRITE, false), // the upcoming light-weight update statement
     USE(LanguageType.DDL, OperationType.UNKNOWN, true), // use statement
     WATCH(LanguageType.DDL, OperationType.UNKNOWN, true), // watch statement
-    TRANSACTION(LanguageType.TCL, OperationType.WRITE, true); // TCL statement
+    TRANSACTION(LanguageType.TCL, OperationType.WRITE, true), // TCL statement
+    UNDROP(LanguageType.DDL, OperationType.UNKNOWN, false),
+    MOVE(LanguageType.DCL, OperationType.UNKNOWN, false),
+    EXCHANGE(LanguageType.DML, OperationType.UNKNOWN, false),
 
+    ;
     private LanguageType langType;
     private OperationType opType;
     private boolean idempotent;

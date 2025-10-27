@@ -348,9 +348,9 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
-    private static final String SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS = "SELECT `source`.`id` AS `id`,\n" +
+    private static final String SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS = "SELECT `source`.`id` AS `id`, \n" +
             "                      `source`.`val` AS `val` FROM\n" +
-            "               (with base as (\\n select 1 id, 'abc' val\\n)\\nselect * from base)\n" +
+            "               (with base as (\n select 1 id, 'abc' val\n) \nselect * from base)\n" +
             "               AS `source`\n" +
             "               WHERE `positionCaseInsensitiveUTF8`(`source`.`val`, ?) > ? LIMIT 2000";
 
@@ -646,6 +646,7 @@ public abstract class BaseSqlParserFacadeTest {
                 {"TRUNCATE TABLE `db1`.`table1` ON CLUSTER `default` SYNC", 0, false},
                 {"TRUNCATE TABLE `db1`.`table1` ON CLUSTER `default`", 0, false},
                 {"TRUNCATE TABLE `db1`.`table1`", 0, false},
+                {"TRUNCATE TEMPORARY TABLE t", 0, false},
                 {"TRUNCATE DATABASE IF EXISTS db ON CLUSTER `cluster`", 0, false},
                 {"TRUNCATE DATABASE IF EXISTS db", 0, false},
                 {"TRUNCATE DATABASE `db`", 0, false},
