@@ -1,0 +1,34 @@
+---
+- name: select_all_events
+  query: SELECT * FROM events
+  tables:
+    events: datasets/events
+#  checks:
+#    - name: row_count
+#      expected: ${events.rowCount}
+#    - name: column_count
+#      expected: ${events.columnsCount}
+#    - name: column_names
+#      expected: ${events.columnNames}
+#    - name: column_types
+#      expected: ${events.columnTypes}
+- name: cte_select_with_params_01
+  query: |
+    WITH
+    	toDate('2025-08-20') as DATE_END
+    	,events AS (
+    		SELECT 1
+    	)
+    SELECT *
+    FROM events
+  tables:
+    events: datasets/events
+  checks:
+    - name: row_count
+      expected: 1
+    - name: column_count
+      expected: 1
+    - name: column_names
+      expected: ["1"]
+    - name: column_types
+      expected: ["UInt8"]

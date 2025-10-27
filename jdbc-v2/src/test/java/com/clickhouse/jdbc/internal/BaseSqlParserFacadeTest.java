@@ -344,8 +344,15 @@ public abstract class BaseSqlParserFacadeTest {
             {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
             {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
             {"WITH '#!?0.1' as f, ? as a\n #this is debug \n SELECT * FROM a", 1},
+            {SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS, 2}
         };
     }
+
+    private static final String SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS = "SELECT `source`.`id` AS `id`,\n" +
+            "                      `source`.`val` AS `val` FROM\n" +
+            "               (with base as (\\n select 1 id, 'abc' val\\n)\\nselect * from base)\n" +
+            "               AS `source`\n" +
+            "               WHERE `positionCaseInsensitiveUTF8`(`source`.`val`, ?) > ? LIMIT 2000";
 
     private static final String INSERT_WITH_COMMENTS = "-- line comment1 ?\n"
             + "# line comment2 ?\n"
@@ -459,6 +466,7 @@ public abstract class BaseSqlParserFacadeTest {
         return  new Object[][]{
                 /* has result set */
                 {"SELECT * FROM test_table", 0, true},
+                {"SELECT 1 table WHERE 1 = ?", 1, true},
                 {"SHOW CREATE TABLE `db`.`test_table`", 0, true},
                 {"SHOW CREATE TEMPORARY TABLE `db1`.`tmp_table`", 0, true},
                 {"SHOW CREATE DICTIONARY dict1", 0, true},
@@ -559,6 +567,7 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CREATE SETTINGS PROFILE max_memory_usage_profile SETTINGS max_memory_usage = 100000001 MIN 90000000 MAX 110000000 TO robin", 0, false},
                 {"CREATE NAMED COLLECTION foobar AS a = '1', b = '2' OVERRIDABLE", 0, false},
                 {"alter table t2 alter column v type Int32", 0, false},
+                {"alter table t alter column j default 1", 0, false},
                 {"ALTER TABLE t MODIFY COLUMN j default 1", 0, false},
                 {"ALTER TABLE t MODIFY COMMENT 'comment'", 0, false},
                 {"ALTER TABLE t ADD COLUMN id Int32 AFTER v", 0, false},
@@ -567,6 +576,7 @@ public abstract class BaseSqlParserFacadeTest {
                 {"DELETE FROM table WHERE a = ?", 1, false},
                 {"DELETE FROM table WHERE a = ? AND b = ?", 2, false},
                 {"DELETE FROM hits WHERE Title LIKE '%hello%';", 0, false},
+                {"DELETE FROM t WHERE true", 0, false},
                 {"SYSTEM START FETCHES", 0, false},
                 {"SYSTEM RELOAD DICTIONARIES", 0, false},
                 {"SYSTEM RELOAD DICTIONARIES ON CLUSTER `default`", 0, false},

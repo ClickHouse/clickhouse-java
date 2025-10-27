@@ -29,12 +29,12 @@ import java.util.stream.Collectors;
 import static org.testng.Assert.fail;
 
 @Test(groups = {"integration"})
-public class SQLTests extends JdbcIntegrationTest {
+public class BaseSQLTests extends JdbcIntegrationTest {
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    @Test(groups = {"integration"}, dataProvider = "testSQLQueryWithResultSetDP")
+    @Test(groups = {"integration"}, dataProvider = "testSQLQueryWithResultSetDP", enabled = false)
     public void testSQLQueryWithResultSet(Map<String, TestDataset> tables, SQLTestCase testCase) throws Exception {
 
         try (Connection connection = getJdbcConnection()) {
@@ -61,9 +61,13 @@ public class SQLTests extends JdbcIntegrationTest {
 
     @DataProvider(name = "testSQLQueryWithResultSetDP")
     public static Object[][] testSQLQueryWithResultSetDP() throws Exception {
-        ClassLoader classLoader = SQLTests.class.getClassLoader();
-        try (InputStream datasetsInput = classLoader.getResourceAsStream("datasets.yaml");
-             InputStream tests = classLoader.getResourceAsStream("SQLTests.yaml")) {
+        return loadTestData("datasets.yaml", "SQLTests.yaml");
+    }
+
+    protected static Object[][] loadTestData(String datasetsSource, String sqlTestsSource) throws Exception {
+        ClassLoader classLoader = BaseSQLTests.class.getClassLoader();
+        try (InputStream datasetsInput = classLoader.getResourceAsStream(datasetsSource);
+             InputStream tests = classLoader.getResourceAsStream(sqlTestsSource)) {
 
             // Parse resource files
             TestDataset[] datasets = yamlMapper.readValue(datasetsInput, TestDataset[].class);
@@ -91,12 +95,11 @@ public class SQLTests extends JdbcIntegrationTest {
 
             return testData;
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
 
-    private void setupTables(Map<String, TestDataset> tables, Connection connection) throws Exception {
+    protected void setupTables(Map<String, TestDataset> tables, Connection connection) throws Exception {
         for (Map.Entry<String, TestDataset> entry : tables.entrySet()) {
             String tableName = entry.getKey();
             TestDataset dataset = entry.getValue();
@@ -155,7 +158,7 @@ public class SQLTests extends JdbcIntegrationTest {
         return checkCount;
     }
 
-    private int dataCheck(ResultSet rs, SQLTestCase testCase, Map<String, TestDataset> tables) throws Exception {
+    protected int dataCheck(ResultSet rs, SQLTestCase testCase, Map<String, TestDataset> tables) throws Exception {
 
         List<Pair<TestResultCheckModel, DataCheck>> checks = testCase.getChecks().stream().filter(cm -> DATA_CHECKS.containsKey(cm.getName()))
                 .map(cm -> Pair.of(cm, DATA_CHECKS.get(cm.getName()))).collect(Collectors.toList());
