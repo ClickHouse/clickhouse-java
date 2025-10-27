@@ -2228,8 +2228,8 @@ public class QueryTests extends BaseIntegrationTest {
         }
 
         {
-            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names_1").get().close();
-            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names_2").get().close();
+            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names1").get().close();
+            client.execute("DROP TABLE IF EXISTS test_duplicate_column_names2").get().close();
             client.execute("CREATE TABLE test_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();
             client.execute("INSERT INTO test_duplicate_column_names1 VALUES ('some name')").get().close();
             client.execute("CREATE TABLE test_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();

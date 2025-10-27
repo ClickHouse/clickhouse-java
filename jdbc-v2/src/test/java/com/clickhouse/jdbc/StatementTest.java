@@ -1203,8 +1203,8 @@ public class StatementTest extends JdbcIntegrationTest {
             }
 
             {
-                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names_1");
-                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names_2");
+                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names1");
+                stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names2");
                 stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()");
                 stmt.execute("INSERT INTO test_jdbc_duplicate_column_names1 VALUES ('some name')");
                 stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()");
