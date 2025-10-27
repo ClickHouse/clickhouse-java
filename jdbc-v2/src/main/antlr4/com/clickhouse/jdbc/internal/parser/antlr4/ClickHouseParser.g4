@@ -84,7 +84,7 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier COMMENT STRING_LITERAL            # AlterTableClauseModifyComment
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier REMOVE tableColumnPropertyType    # AlterTableClauseModifyRemove
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
-    | ALTER COLUMN (IF EXISTS)? identifier TYPE columnTypeExpr codecExpr? ttlClause? settingExprList? alterTableColumnPosition? # AlterTableClauseAlterType
+    | ALTER COLUMN (IF EXISTS)? identifier TYPE? columnTypeExpr codecExpr? ttlClause? settingExprList? alterTableColumnPosition? # AlterTableClauseAlterType
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
     | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
@@ -662,7 +662,7 @@ exchangeStmt
 // SET statement
 
 setStmt
-    : SET IDENTIFIER EQ_SINGLE literal
+    : SET (identifier | settingExpr)
     ;
 
 // SET ROLE statement

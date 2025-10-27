@@ -636,6 +636,7 @@ public abstract class BaseSqlParserFacadeTest {
                 {"EXCHANGE DICTIONARIES dict1 AND dict2", 0, false},
                 {"EXCHANGE DICTIONARIES dict1 AND dict2 ON CLUSTER `default`", 0, false},
                 {"SET profile = 'profile-name-from-the-settings-file'", 0, false},
+                {"SET setting_1 = 'some value'", 0, false},
                 {"SET use_some_feature_flag", 0, false},
                 {"SET use_some_feature_flag = 'true'", 0, false},
                 {"SET ROLE role1", 0, false},
