@@ -473,10 +473,14 @@ public class HttpAPIClientHelper {
             closeQuietly(httpResponse);
             LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
             throw e;
+        } catch (Exception e) {
+            closeQuietly(httpResponse);
+            LOG.debug("Failed to execute request to '{}': {}", server.getBaseURL(), e.getMessage(), e);
+            throw e;
         }
     }
 
-    public void closeQuietly(ClassicHttpResponse httpResponse) {
+    public static void closeQuietly(ClassicHttpResponse httpResponse) {
         if (httpResponse != null) {
             try {
                 httpResponse.close();

@@ -7,11 +7,16 @@ import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -1960,4 +1965,98 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    private static final HashMap<String, Object> EMPTY_JSON = new HashMap<>();
+
+    @Test(groups = { "integration" }, dataProvider = "testJSONReadDP")
+    public void testJSONRead(String json, Object expected) throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,24.8]")) {
+            return; // JSON was introduced in 24.10
+        }
+        Properties createProperties = new Properties();
+        createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
+        runQuery("DROP TABLE IF EXISTS test_jdbc_json_read");
+        runQuery("CREATE TABLE test_jdbc_json_read (data JSON) ENGINE = MergeTree ORDER BY ()", createProperties);
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String sql = "INSERT INTO test_jdbc_json_read (data) VALUES ('%s'), ('{}')";
+            stmt.executeUpdate(String.format(sql, json));
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_jdbc_json_read")) {
+
+                assertTrue(rs.next());
+                Object jsonObj = rs.getObject(1);
+                if (expected == null) {
+                    expected = jsonToClientMap(json);
+                }
+                assertEquals(jsonObj, expected);
+                assertTrue(rs.next());
+                Object emptyJsonObj = rs.getObject(1);
+                assertEquals(emptyJsonObj, EMPTY_JSON);
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .enable(DeserializationFeature.USE_LONG_FOR_INTS);
+
+    private HashMap<String, Object> jsonToClientMap(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<HashMap<String, Object>>() {});
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read json to Map<String, Object>", e);
+        }
+    }
+
+    @DataProvider(name = "testJSONReadDP")
+    public Object[][] testJSONReadDP() {
+        Map<String, Object> map1 = new HashMap<>();
+        map1.put("nested.key", "value");
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put("nested.numbers",new ArrayList<Long>() {{ add(1L); add(2L); add(3L); }});
+        Map<String, Object> map3 = new HashMap<>();
+        map3.put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
+        Map<String, Object> map4 = new HashMap<>();
+        map4.put("array", new ArrayList<HashMap<String,Object>>() {{
+            add(new HashMap<String, Object>() {{
+                put("nested.key", "value");
+            }});
+            add(new HashMap<String, Object>() {{
+                put("nested.numbers", new ArrayList<Long>() {{
+                    add(1L);
+                    add(2L);
+                    add(3L);
+                }});
+            }});
+        }});
+        Map<String, Object> map5 = new HashMap<>();
+        map5.put("array", new ArrayList<HashMap<String,Object>>() {{
+            add(new HashMap<String, Object>() {{
+                put("nested.strings", new ArrayList<String>() {{ add("one"); add("two"); add("three"); }});
+
+            }});
+        }});
+        Map<String, Object> map6 = new HashMap<>();
+        map6.put("level1.level2.level3", "value");
+
+        Map<String, Object> map7 = new HashMap<>();
+        map7.put("level1.level2.level3.level4", "value");
+
+        return new Object[][] {
+                {"{\"key\": \"value\"}", null}, // Simple object
+                {"{\"numbers\":[1, 2, 3]}", null},
+                {"{\"strings\":[\"one\", \"two\", \"three\"]}", null},
+                {"{\"nested\":{\"key\": \"value\"}}", map1}, // nested objects
+                {"{\"nested\":{\"numbers\":[1, 2, 3]}}", map2}, // nested objects
+                {"{\"nested\":{\"strings\":[\"one\", \"two\", \"three\"]}}", map3}, // nested objects
+                {"{\"array\":[{\"key\": \"value\"},{\"key\": \"value\"}]}", null}, // array of objects
+                {"{\"array\":[{\"numbers\":[1, 2, 3]},{\"strings\":[\"one\", \"two\", \"three\"]}]}", null}, // array of objects
+                {"{\"array\":[{\"nested\":{\"key\": \"value\"}},{\"nested\":{\"numbers\":[1, 2, 3]}}]}", map4}, // array of objects
+                {"{\"array\":[{\"nested\":{\"strings\":[\"one\", \"two\", \"three\"]}}]}", map5}, // array of objects
+                {"{\"array\":[{\"nested\":[{\"key\": \"value\"}]}]}", null}, // simple array of objects
+                {"{\"level1\": {\"level2\": {\"level3\": \"value\"}}}", map6}, // deep nested objects
+                {"{\"level1\": {\"level2\": {\"level3\": {\"level4\": \"value\"}}}}", map7}, // deep nested objects
+
+        };
+    }
 }

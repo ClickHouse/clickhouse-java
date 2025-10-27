@@ -1,5 +1,14 @@
 package com.clickhouse.data;
 
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.clickhouse.data.value.UnsignedByte;
+import com.clickhouse.data.value.UnsignedInteger;
+import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.UnsignedShort;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -9,7 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -28,15 +36,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoPointValue;
-import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
-import com.clickhouse.data.value.ClickHouseGeoRingValue;
-import com.clickhouse.data.value.UnsignedByte;
-import com.clickhouse.data.value.UnsignedInteger;
-import com.clickhouse.data.value.UnsignedLong;
-import com.clickhouse.data.value.UnsignedShort;
 
 /**
  * Basic ClickHouse data types.
@@ -101,12 +100,12 @@ public enum ClickHouseDataType implements SQLType {
     IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, 0x28, "INET4"),
     IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, 0x29, "INET6"),
     UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false, 0x1D),
-    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true, 0x2C), // same as Tuple(Float64, Float64)
-    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Ring)
-    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Polygon)
-    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Point)
-    LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Point)
-    MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true, 0x2C), // same as Array(Ring)
+    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true), // same as Tuple(Float64, Float64)
+    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
+    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Polygon)
+    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
+    LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
+    MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
 
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
     @Deprecated
@@ -372,11 +371,11 @@ public enum ClickHouseDataType implements SQLType {
         allAliases = Collections.unmodifiableSet(set);
         name2type = Collections.unmodifiableMap(map);
 
-        Map<Byte, ClickHouseDataType> tmpbinTag2Type = new HashMap<>();
+        Map<Byte, ClickHouseDataType> tmpBinTag2Type = new HashMap<>();
         for (ClickHouseDataType type : ClickHouseDataType.values()) {
-            tmpbinTag2Type.put((byte) type.getBinTag(), type);
+            tmpBinTag2Type.put(type.getBinTag(), type);
         }
-        binTag2Type = Collections.unmodifiableMap(tmpbinTag2Type);
+        binTag2Type = Collections.unmodifiableMap(tmpBinTag2Type);
 
         Map<Byte, ClickHouseDataType> tmpIntervalKind2Type = new HashMap<>();
         Map<ClickHouseDataType, ClickHouseDataType.IntervalKind > tmpIntervalType2Kind = new HashMap<>();
