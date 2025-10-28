@@ -344,7 +344,16 @@ public abstract class BaseSqlParserFacadeTest {
             {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
             {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
             {"WITH '#!?0.1' as f, ? as a\n #this is debug \n SELECT * FROM a", 1},
-            {SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS, 2}
+            {SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS, 2},
+            {"SELECT arrayFilter(x -> x > 0, [0, 1, 2, -3])", 0},
+            {"SELECT [0, 1, 2, -3] arr, arrayFilter(x -> x > 0, arr)", 0},
+            {"SELECT arrayFill(x, y, z -> x > y AND x < z, [5, 3, 6, 2], [4, 7, 1, 3], [10, 2, 8, 5]) AS res", 0},
+            {"SELECT arrayFilter(x -> x LIKE '%World%', ['Hello', 'abc World']) AS res", 0},
+            {"SELECT arrayFilter(x -> not (x is null), ['Hello', 'abc World']) AS res", 0},
+            {"SELECT arrayDistinct(arrayFilter(x -> not (x is null), " +
+                    "              arrayConcat(t.s.arr1, t.s.arr2)" +
+                    "              )" +
+                    ")", 0},
         };
     }
 
