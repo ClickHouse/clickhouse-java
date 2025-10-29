@@ -11,7 +11,6 @@
     </parent>
 
     <artifactId>clickhouse-jdbc-all</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>(Package) ClickHouse JDBC All Dependencies</name>
@@ -31,6 +30,16 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
 
                 <version>3.2.4</version>
@@ -47,6 +56,19 @@
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName></shadedClassifierName>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
