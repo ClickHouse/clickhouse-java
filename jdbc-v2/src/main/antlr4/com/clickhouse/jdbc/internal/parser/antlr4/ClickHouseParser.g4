@@ -1300,6 +1300,7 @@ keyword
     | INSERT
     | INTERVAL
     | INTO
+    | IP
     | IS
     | IS_OBJECT_ID
     | JOIN
