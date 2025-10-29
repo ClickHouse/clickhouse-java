@@ -44,6 +44,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
+import static org.testng.Assert.fail;
 
 @Test(groups = { "integration" })
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -1347,6 +1348,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                         Assert.assertEquals(rs.getInt(1), 1000);
                         Assert.assertEquals(rs.getString(2), "test");
                     }
+                } catch (Exception e) {
+                    fail("failed at keyword " + keyword, e);
                 }
             }
         }
@@ -1372,10 +1375,25 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     public void testWithInClause() throws Exception {
 
         try (Connection conn = getJdbcConnection()) {
-            String cte = "select number from system.numbers where number in (?) limit 10";
-            Long[] filter =  new Long[]{2L, 4L, 6L};
-            try (PreparedStatement stmt = conn.prepareStatement(cte)) {
+            final String q1 = "select number from system.numbers where number in (?) limit 10";
+            try (PreparedStatement stmt = conn.prepareStatement(q1)) {
+                Long[] filter =  new Long[]{2L, 4L, 6L};
                 stmt.setArray(1, conn.createArrayOf("Int64", filter));
+                ResultSet rs = stmt.executeQuery();
+
+                for (Long filterValue : filter) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getLong(1), filterValue);
+                }
+                Assert.assertFalse(rs.next());
+            }
+
+            final String q2 = "with t as (select arrayJoin([1, 2, 3]) as a )  select * from t where a in(?, ?)";
+            try (PreparedStatement stmt = conn.prepareStatement(q2)) {
+                Long[] filter =  new Long[]{2L, 3L};
+
+                stmt.setInt(1, 2);
+                stmt.setInt(2, 3);
                 ResultSet rs = stmt.executeQuery();
 
                 for (Long filterValue : filter) {

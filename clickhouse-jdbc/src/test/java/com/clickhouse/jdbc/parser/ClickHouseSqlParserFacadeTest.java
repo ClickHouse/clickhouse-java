@@ -20,13 +20,13 @@ import java.util.regex.Pattern;
 
 import com.clickhouse.client.ClickHouseConfig;
 
-public class ClickHouseSqlParserTest {
+public class ClickHouseSqlParserFacadeTest {
     private ClickHouseSqlStatement[] parse(String sql) {
         return ClickHouseSqlParser.parse(sql, new ClickHouseConfig());
     }
 
     private String loadSql(String file) {
-        InputStream inputStream = ClickHouseSqlParserTest.class.getResourceAsStream("/sqls/" + file);
+        InputStream inputStream = ClickHouseSqlParserFacadeTest.class.getResourceAsStream("/sqls/" + file);
 
         StringBuilder sql = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream))) {

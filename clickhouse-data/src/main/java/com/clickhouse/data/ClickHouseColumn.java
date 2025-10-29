@@ -639,6 +639,41 @@ public final class ClickHouseColumn implements Serializable {
         return list.get(0);
     }
 
+    public static ClickHouseColumn of(ClickHouseDataType dataType) {
+        return ClickHouseColumn.of(dataType, false);
+    }
+
+    public static ClickHouseColumn of(ClickHouseDataType dataType, boolean nullable) {
+        return ClickHouseColumn.of("", dataType, nullable);
+    }
+
+    public static ClickHouseColumn nullable(ClickHouseDataType dataType) {
+        return ClickHouseColumn.of(dataType, true);
+    }
+
+    public static ClickHouseColumn string(boolean nullable) {
+        return ClickHouseColumn.of(ClickHouseDataType.String, nullable);
+    }
+
+    public static ClickHouseColumn string() {
+        return ClickHouseColumn.of(ClickHouseDataType.String, false);
+    }
+
+    public static ClickHouseColumn array(String columnName, boolean nullable, ClickHouseColumn innerColumn) {
+        return ClickHouseColumn.of(columnName, ClickHouseDataType.Array, nullable, innerColumn);
+    }
+
+    public static ClickHouseColumn map(String columnName, boolean nullable, ClickHouseDataType keyColumn, ClickHouseColumn valueColumn) {
+        return ClickHouseColumn.of(columnName, ClickHouseDataType.Map, nullable,
+                ClickHouseColumn.of(keyColumn),
+                valueColumn);
+    }
+
+    public static ClickHouseColumn tuple(String columnName, boolean nullable, ClickHouseColumn... innerColumn) {
+        return ClickHouseColumn.of(columnName, ClickHouseDataType.Tuple, nullable, innerColumn);
+    }
+
+
     public static List<ClickHouseColumn> parse(String args) {
         if (args == null || args.isEmpty()) {
             return Collections.emptyList();
