@@ -107,7 +107,7 @@ public abstract class SqlParserFacade {
                 }
             }
 
-            stmt.setUseFunction(false);
+            stmt.setUseFunction(parsedStmt.isFuncUsed());
             parseParameters(sql, stmt);
             return stmt;
         }

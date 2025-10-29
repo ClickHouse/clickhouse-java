@@ -45,19 +45,20 @@ public class ClickHouseSqlStatement {
     private final Map<String, String> settings;
     private final Set<String> tempTables;
     private final int valueGroups;
+    private final boolean funcUsed;
 
     public ClickHouseSqlStatement(String sql) {
-        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null, 0);
+        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null,0, false);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType) {
-        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null, 0);
+        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null, 0, false);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType, String cluster, String database, String table,
             String input, String compressAlgorithm, String compressLevel, String format, String file,
             List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables, int valueGroups) {
+            Set<String> tempTables, int valueGroups, boolean funcUsed) {
         this.sql = sql;
         this.stmtType = stmtType;
 
@@ -70,6 +71,7 @@ public class ClickHouseSqlStatement {
         this.format = format;
         this.file = file;
         this.valueGroups = valueGroups;
+        this.funcUsed = funcUsed;
 
         if (parameters != null && !parameters.isEmpty()) {
             this.parameters = Collections.unmodifiableList(parameters);
@@ -142,6 +144,10 @@ public class ClickHouseSqlStatement {
 
     public boolean isTCL() {
         return this.stmtType.getLanguageType() == LanguageType.TCL;
+    }
+
+    public boolean isFuncUsed() {
+        return funcUsed;
     }
 
     public boolean isIdemponent() {

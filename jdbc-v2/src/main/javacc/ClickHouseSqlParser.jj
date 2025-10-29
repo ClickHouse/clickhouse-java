@@ -175,6 +175,7 @@ TOKEN_MGR_DECLS: {
     String format = null;
     String file = null;
     int valueGroups = 0;
+    boolean funcUsed = false;
 
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
@@ -277,12 +278,12 @@ TOKEN_MGR_DECLS: {
 
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups, funcUsed);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups, funcUsed);
         }
         
         // reset variables
@@ -811,7 +812,7 @@ void columnExpr(): { Token t; } {
     | LOOKAHEAD(3) literal() <REGEXP> literal()
     | (LOOKAHEAD(2) macro())+
     | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
-    | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr()
+    | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr() { token_source.funcUsed = true; }
     | anyIdentifier() (LOOKAHEAD(2) <DOT> anyIdentifier())*
 }
 
