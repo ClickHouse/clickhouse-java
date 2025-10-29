@@ -647,6 +647,10 @@ public final class ClickHouseColumn implements Serializable {
         return ClickHouseColumn.of("", dataType, nullable);
     }
 
+    public static ClickHouseColumn nullable(ClickHouseDataType dataType) {
+        return ClickHouseColumn.of(dataType, true);
+    }
+
     public static ClickHouseColumn string(boolean nullable) {
         return ClickHouseColumn.of(ClickHouseDataType.String, nullable);
     }
