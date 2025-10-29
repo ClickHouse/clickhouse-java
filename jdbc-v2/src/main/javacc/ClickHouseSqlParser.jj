@@ -25,7 +25,7 @@ options {
 
 PARSER_BEGIN(ClickHouseSqlParser)
 
-package com.clickhouse.jdbc.parser;
+package com.clickhouse.jdbc.internal.parser.javacc;
 
 import java.io.StringReader;
 
@@ -51,7 +51,6 @@ public class ClickHouseSqlParser {
 
     private final List<ClickHouseSqlStatement> statements = new ArrayList<>();
 
-    private ClickHouseConfig config;
     private ParseHandler handler;
     private int anyArgsListStart = -1;
 
@@ -76,14 +75,7 @@ public class ClickHouseSqlParser {
         return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
     }
 
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
-        return parse(sql, config, null);
-    }
-
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, ParseHandler handler) {
-        if (config == null) {
-            config = new ClickHouseConfig();
-        }
+    public static ClickHouseSqlStatement[] parse(String sql, ParseHandler handler) {
 
         ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
                 new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
@@ -92,7 +84,7 @@ public class ClickHouseSqlParser {
             return stmts;
         }
 
-        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, config, handler);
+        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, handler);
         try {
             stmts = p.sql();
         } catch (Exception e) {
@@ -106,10 +98,9 @@ public class ClickHouseSqlParser {
         return stmts;
     }
 
-    public ClickHouseSqlParser(String sql, ClickHouseConfig config, ParseHandler handler) {
+    public ClickHouseSqlParser(String sql, ParseHandler handler) {
         this(new StringReader(sql));
 
-        this.config = config;
         this.handler = handler;
     }
 
@@ -183,6 +174,8 @@ TOKEN_MGR_DECLS: {
     String compressLevel = null;
     String format = null;
     String file = null;
+    int valueGroups = 0;
+    boolean funcUsed = false;
 
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
@@ -285,12 +278,12 @@ TOKEN_MGR_DECLS: {
 
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups, funcUsed);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, valueGroups, funcUsed);
         }
         
         // reset variables
@@ -331,6 +324,9 @@ TOKEN_MGR_DECLS: {
         }
 
         this.settings.put(key.toLowerCase(Locale.ROOT), value);
+    }
+    void incValueGroup() {
+        this.valueGroups++;
     }
 }
 
@@ -375,7 +371,7 @@ SKIP: {
             }
         }
     }
-    | <SINGLE_LINE_COMMENT: ("--" | "//") (~["\r", "\n"])*> { append(image); }
+    | <SINGLE_LINE_COMMENT: ("--" | "//" | "#" | "#!") (~["\r", "\n"])*> { append(image); }
     | "/*" { commentNestingDepth = 1; append(image); }: MULTI_LINE_COMMENT
 }
 
@@ -420,6 +416,7 @@ void stmt(): {} {
     | detachStmt()   { token_source.stmtType = StatementType.DETACH;   }
     | dropStmt()     { token_source.stmtType = StatementType.DROP;     }
     | existsStmt()   { token_source.stmtType = StatementType.EXISTS;   }
+    | exchangeStmt() { token_source.stmtType = StatementType.EXCHANGE; }
     | explainStmt()  { token_source.stmtType = StatementType.EXPLAIN;  }
     | insertStmt()   { token_source.stmtType = StatementType.INSERT;   }
     | grantStmt()    { token_source.stmtType = StatementType.GRANT;    }
@@ -427,15 +424,18 @@ void stmt(): {} {
     | optimizeStmt() { token_source.stmtType = StatementType.OPTIMIZE; }
     | renameStmt()   { token_source.stmtType = StatementType.RENAME;   }
     | revokeStmt()   { token_source.stmtType = StatementType.REVOKE;   }
+    | <LPAREN> selectStmt() <RPAREN> { token_source.stmtType = StatementType.SELECT; }
     | selectStmt()   { token_source.stmtType = StatementType.SELECT;   }
     | setStmt()      { token_source.stmtType = StatementType.SET;      }
     | showStmt()     { token_source.stmtType = StatementType.SHOW;     }
     | systemStmt()   { token_source.stmtType = StatementType.SYSTEM;   }
     | truncateStmt() { token_source.stmtType = StatementType.TRUNCATE; }
+    | undropStmt()   { token_source.stmtType = StatementType.UNDROP; }
     | updateStmt()   { token_source.stmtType = StatementType.UPDATE;   }
     | useStmt()      { token_source.stmtType = StatementType.USE;      }
     | watchStmt()    { token_source.stmtType = StatementType.WATCH;    }
     | txStmt()       { token_source.stmtType = StatementType.TRANSACTION; }
+    | moveStmt()     { token_source.stmtType = StatementType.MOVE; }
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/alter/
@@ -480,9 +480,21 @@ void checkStmt(): {} { // not interested
     <CHECK> anyExprList()
 }
 
+void undropStmt(): {} { // not interested
+    <UNDROP> anyExprList()
+}
+
+void moveStmt(): {} { // not interested
+    <MOVE> (LOOKAHEAD(2) <USER> | <ROLE>)? anyExprList()
+}
+
+void exchangeStmt(): {} { // not interested
+    <EXCHANGE> (<TABLES> | <DICTIONARIES>) anyExprList()
+}
+
 // https://clickhouse.tech/docs/en/sql-reference/statements/create/
 void createStmt(): {} {
-    <CREATE> (
+    <CREATE> (LOOKAHEAD(2) <OR> <REPLACE>)? (
         LOOKAHEAD(2)
         (
             <DATABASE> { token_source.addPosition(token); }
@@ -578,12 +590,12 @@ void dataClause(): {} {
     try {
         LOOKAHEAD(2) <VALUES> { token_source.addPosition(token); }
             <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_START, token); }
-            columnExprList()
+            columnExprList() { token_source.incValueGroup(); }
             <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_VALUES_END, token); }
             (
                 LOOKAHEAD(2)
                 (<COMMA>)?
-                <LPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START); }
+                <LPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START); token_source.incValueGroup(); }
                 columnExprList()
                 <RPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_END); }
             )*
@@ -621,7 +633,6 @@ void revokeStmt(): {} { // not interested
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/select/
 void selectStmt(): {} {
-    // FIXME with (select 1), (select 2), 3 select *
     (withClause())?
     <SELECT> (LOOKAHEAD(2) <DISTINCT>)? (LOOKAHEAD(2) topClause())? columnExprList()
     (LOOKAHEAD(2) <FROM> tableClause(true) (<COMMA> tableClause(false))*)?
@@ -665,6 +676,7 @@ void showStmt(): {} {
             LOOKAHEAD(2)
             <CREATE>
             (<DATABASE> databaseIdentifier(true))
+            | LOOKAHEAD(2) (LOOKAHEAD(1) <CREATE>)? (LOOKAHEAD(1) <SETTINGS>)? <PROFILE> anyIdentifier()
             | LOOKAHEAD(2) (<DICTIONARY> tableIdentifier(true))
             | LOOKAHEAD(2) ((LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true))
         )
@@ -680,13 +692,12 @@ void systemStmt(): {} { // not interested
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/truncate/
 void truncateStmt(): {} {
-    <TRUNCATE> (LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? (LOOKAHEAD(2) <IF> <EXISTS>)?
-    tableIdentifier(true) (clusterClause())?
+    <TRUNCATE> (LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? (LOOKAHEAD(2) <IF> <EXISTS>)?  anyExprList()
 }
 
 // upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
 void updateStmt(): {} {
-    <UPDATE> { token_source.addPosition(token); } tableIdentifier(true)
+    <UPDATE> { token_source.addPosition(token); } tableIdentifier(true) (LOOKAHEAD(2) clusterClause())?
     <SET> { token_source.addPosition(token); } anyExprList()
 }
 
@@ -798,9 +809,10 @@ void columnExpr(): { Token t; } {
     | <LBRACE> (LOOKAHEAD(2) anyExprList())? <RBRACE>
     | <LBRACKET> (LOOKAHEAD(2) anyExprList())? <RBRACKET>
     | <LPAREN> anyExprList() <RPAREN>
+    | LOOKAHEAD(3) literal() <REGEXP> literal()
     | (LOOKAHEAD(2) macro())+
     | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
-    | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr()
+    | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr() { token_source.funcUsed = true; }
     | anyIdentifier() (LOOKAHEAD(2) <DOT> anyIdentifier())*
 }
 
@@ -1007,9 +1019,9 @@ Token anyKeyword(): { Token t; } {
     (
         // leading keywords(except with)
         t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
-        | t = <DETACH> | t = <DROP> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
-        | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
-        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
+        | t = <DETACH> | t = <DROP> | t = <EXCHANGE> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
+        | t = <MOVE> | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
+        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
         // others
         | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
         | t = <CLUSTER> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
@@ -1020,7 +1032,7 @@ Token anyKeyword(): { Token t; } {
         | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
         | t = <SETTINGS> | t = <STDOUT> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
         | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
-        | t = <WHEN> | t = <WHERE> | t = <WITH>
+        | t = <WHEN> | t = <WHERE> | t = <WITH> | t = <REGEXP>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -1033,16 +1045,16 @@ Token keyword(): { Token t; } {
     (
         // leading keywords(except with)
         t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
-        | t = <DETACH> | t = <DROP> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
-        | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
-        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
+        | t = <DETACH> | t = <DROP> | t = <EXCHANGE> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
+        | t = <MOVE>  | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
+        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
         // others
         | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
         | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
         | t = <IF> | t = <INTERVAL> | t = <IS> | t = <INFILE> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
         | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
         | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
-        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER>
+        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER> | t = <REGEXP>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -1063,10 +1075,12 @@ TOKEN: {
     | <DETACH   : <D> <E> <T> <A> <C> <H>        >
     | <DROP     : <D> <R> <O> <P>                >
     | <EXISTS   : <E> <X> <I> <S> <T> <S>        >
+    | <EXCHANGE : <E> <X> <C> <H> <A> <N> <G> <E>>
     | <EXPLAIN  : <E> <X> <P> <L> <A> <I> <N>    >
     | <GRANT    : <G> <R> <A> <N> <T>            >
     | <INSERT   : <I> <N> <S> <E> <R> <T>        >
     | <KILL     : <K> <I> <L> <L>                >
+    | <MOVE    : <M> <O> <V> <E>            >
     | <OPTIMIZE : <O> <P> <T> <I> <M> <I> <Z> <E>>
     | <RENAME   : <R> <E> <N> <A> <M> <E>        >
     | <REVOKE   : <R> <E> <V> <O> <K> <E>        >
@@ -1081,6 +1095,7 @@ TOKEN: {
     | <BEGIN    : <B> <E> <G> <I> <N>            >
     | <COMMIT   : <C> <O> <M> <M> <I> <T>        >
     | <ROLLBACK : <R> <O> <L> <L> <B> <A> <C> <K>>
+    | <UNDROP  : <U> <N> <D> <R> <O> <P>    >
 
     | <ALL      : <A> <L> <L>                        >
     | <AND      : <A> <N> <D>                        >
@@ -1159,6 +1174,7 @@ TOKEN: {
     | <WHEN     : <W> <H> <E> <N>                    >
     | <WHERE    : <W> <H> <E> <R> <E>                >
     | <WITH     : <W> <I> <T> <H>                    >
+    | <REGEXP   : <R> <E> <G> <E> <X> <P>            >
 
     | <SECOND   : <S> <E> <C> <O> <N> <D>     >
     | <MINUTE   : <M> <I> <N> <U> <T> <E>     >
