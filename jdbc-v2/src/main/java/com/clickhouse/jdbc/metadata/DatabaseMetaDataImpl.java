@@ -8,10 +8,9 @@ import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
-import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -29,7 +28,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
@@ -132,7 +130,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return Driver.driverVersion;
+        return Driver.getLibraryVersion();
     }
 
     @Override
@@ -898,7 +896,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(typeName);
         if (type == null) {
             try {
-                type = JdbcUtils.convertToSqlType(ClickHouseColumn.of("v1", typeName).getDataType());
+                ClickHouseColumn c = ClickHouseColumn.of("v", typeName);
+                ClickHouseDataType dt = c.getDataType();
+                type = JdbcUtils.convertToSqlType(dt);
             } catch (Exception e) {
                 log.error("Failed to convert column data type to SQL type: {}", typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
@@ -1095,8 +1095,23 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         row.put("NULLABLE", nullability);
     };
 
+    private static final Consumer<Map<String, Object>> TYPE_INFO_VALUE_FUNCTION = row -> {
+        String typeName = (String) row.get("TYPE_NAME");
+        SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(typeName);
+        if (type == null) {
+            try {
+                type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
+            } catch (Exception e) {
+                log.error("Failed to convert column data type to SQL type: {}", typeName, e);
+                type = JDBCType.OTHER; // In case of error, return SQL type 0
+            }
+        }
+
+        row.put("DATA_TYPE", type.getVendorTypeNumber());
+    };
+
     private static final List<Consumer<Map<String, Object>>> GET_TYPE_INFO_MUTATORS = Arrays.asList(
-            DATA_TYPE_VALUE_FUNCTION,
+            TYPE_INFO_VALUE_FUNCTION,
             NULLABILITY_VALUE_FUNCTION
     );
 

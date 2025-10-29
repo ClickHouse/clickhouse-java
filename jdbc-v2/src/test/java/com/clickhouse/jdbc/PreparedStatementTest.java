@@ -45,6 +45,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
+import static org.testng.Assert.fail;
 
 @Test(groups = { "integration" })
 public class PreparedStatementTest extends JdbcIntegrationTest {
@@ -720,10 +721,20 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.executeBatch();
             }
 
+            StringBuilder sb = new StringBuilder();
+            try (Statement stmt01 = conn.createStatement()) {
+                try (ResultSet rs = stmt01.executeQuery("SELECT id, name FROM `users_tmp`")) {
+                    while (rs.next()) {
+                        sb.append(rs.getInt(1)).append(",").append(rs.getString(2)).append(";");
+                    }
+                }
+            }
+
+
             try (Statement stmt01 = conn.createStatement()) {
                 try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp`")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getInt(1), 3);
+                    assertEquals(rs.getInt(1), 3,"Users in users_tmp: " + sb);
                 }
             }
 
@@ -1340,6 +1351,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                         Assert.assertEquals(rs.getInt(1), 1000);
                         Assert.assertEquals(rs.getString(2), "test");
                     }
+                } catch (Exception e) {
+                    fail("failed at keyword " + keyword, e);
                 }
             }
         }
@@ -1365,10 +1378,25 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     public void testWithInClause() throws Exception {
 
         try (Connection conn = getJdbcConnection()) {
-            String cte = "select number from system.numbers where number in (?) limit 10";
-            Long[] filter =  new Long[]{2L, 4L, 6L};
-            try (PreparedStatement stmt = conn.prepareStatement(cte)) {
+            final String q1 = "select number from system.numbers where number in (?) limit 10";
+            try (PreparedStatement stmt = conn.prepareStatement(q1)) {
+                Long[] filter =  new Long[]{2L, 4L, 6L};
                 stmt.setArray(1, conn.createArrayOf("Int64", filter));
+                ResultSet rs = stmt.executeQuery();
+
+                for (Long filterValue : filter) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getLong(1), filterValue);
+                }
+                Assert.assertFalse(rs.next());
+            }
+
+            final String q2 = "with t as (select arrayJoin([1, 2, 3]) as a )  select * from t where a in(?, ?)";
+            try (PreparedStatement stmt = conn.prepareStatement(q2)) {
+                Long[] filter =  new Long[]{2L, 3L};
+
+                stmt.setInt(1, 2);
+                stmt.setInt(2, 3);
                 ResultSet rs = stmt.executeQuery();
 
                 for (Long filterValue : filter) {
@@ -1391,11 +1419,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                    rs.next();
                    assertEquals(rs.getString(2), expectedType.getName());
                    switch (expectedType) {
-                       case IPv4:
-                           assertEquals(rs.getString(1), "/" + value);
-                           break;
                        case IPv6:
-                           // do not check
+                           // do not check because auto-converted to IPv4
                            break;
                        default:
                            assertEquals(rs.getString(1), String.valueOf(value));
@@ -1417,7 +1442,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {100L, ClickHouseDataType.UInt32, ClickHouseDataType.UInt32},
                 {100L, ClickHouseDataType.UInt64, ClickHouseDataType.UInt64},
                 {"ed0c77a3-2e4b-4954-98ee-22a4fdad9565", ClickHouseDataType.UUID, ClickHouseDataType.UUID},
-                {"::ffff:127.0.0.1", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
+                {"0:0:0:0:0:ffff:5ab0:4b61", ClickHouseDataType.IPv6, ClickHouseDataType.IPv6},
                 {"116.253.40.133", ClickHouseDataType.IPv4, ClickHouseDataType.IPv4},
                 {100, JDBCType.TINYINT, ClickHouseDataType.Int8}
         };

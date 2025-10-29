@@ -6,17 +6,17 @@ on:
       ch_version:
         description: ClickHouse Version
         required: false
-        default: 24.8
+        default: 25.8
       client_version:
-        description: ClickHouse Java Version
+        description: Build Type
         type: choice
         options:
-          - latest
-          - pre_release
-      pre_release_version:
-        description: Client Release Version
+          - head
+          - nightly
+      nightly_version:
+        description: Nightly Version
         required: false
-        default: 0.9.0
+        default: 0.9.2-SNAPSHOT
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   run-examples-with-8-jdk-and-latest:
-    if: github.event.inputs.client_version == 'latest'
+    if: github.event.inputs.client_version == 'head'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     name: Run Examples With HEAD on JVM 8
@@ -56,7 +56,7 @@ jobs:
           mvn --batch-mode --no-transfer-progress --show-version clean compile
           mvn --no-transfer-progress exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic" -DchPassword=secret -DfailOnError=true
   run-examples-with-8-jdk-and-staging-release:
-    if: github.event.inputs.client_version == 'pre_release'
+    if: github.event.inputs.client_version == 'nightly'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     name: Run Examples With Pre-Release on JVM 8
@@ -69,12 +69,11 @@ jobs:
           distribution: "temurin"
           java-version: 8
           cache: "maven"
-      - name: Run Examples
+      - name: Run JDBC Example
         run: |
           java -version
           docker run -d -q --name demo-service-db -e CLICKHOUSE_USER=default -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_PASSWORD=secret -p 8123:8123 clickhouse/clickhouse-server:${{ github.event.inputs.ch_version }}
           cd examples/jdbc
-          sed -i "s|<clickhouse-java.version>.*<\/clickhouse-java.version>|<clickhouse-java.version>${{ github.event.inputs.pre_release_version }}<\/clickhouse-java.version>|g" pom.xml
-          sed -i "s|<url>https:\/\/s01\.oss\.sonatype\.org\/content\/repositories\/snapshots\/<\/url>|<url>https:\/\/s01\.oss\.sonatype\.org\/content\/groups\/staging\/<\/url>|g" pom.xml
+          sed -i "s|<clickhouse-java.version>.*<\/clickhouse-java.version>|<clickhouse-java.version>${{ github.event.inputs.nightly_version }}<\/clickhouse-java.version>|g" pom.xml
           mvn --batch-mode --no-transfer-progress --show-version clean compile
           mvn --no-transfer-progress exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.Basic" -DchPassword=secret -DfailOnError=true

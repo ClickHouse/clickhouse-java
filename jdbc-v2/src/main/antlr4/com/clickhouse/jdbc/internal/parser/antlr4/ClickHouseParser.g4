@@ -22,41 +22,38 @@ query
     | createStmt // DDL
     | describeStmt
     | dropStmt // DDL
+    | undropStmt // DDL
     | existsStmt
     | explainStmt
     | killStmt     // DDL
     | optimizeStmt // DDL
     | renameStmt   // DDL
-    | selectUnionStmt
     | setStmt
     | setRoleStmt
     | showStmt
     | systemStmt
     | truncateStmt // DDL
+    | deleteStmt
+    | updateStmt
     | useStmt
     | watchStmt
-    | ctes? selectStmt
+    | selectStmt
+    | selectUnionStmt
     | grantStmt
+    | revokeStmt
+    | exchangeStmt
+    | moveStmt
     ;
 
-// CTE statement
-ctes
-    : LPAREN? WITH cteUnboundCol? (COMMA cteUnboundCol)* COMMA? namedQuery (COMMA namedQuery)* RPAREN?
+// DELETE statement
+
+deleteStmt
+    : DELETE FROM tableIdentifier clusterClause?  (IN partitionClause)? whereClause?
     ;
 
-namedQuery
-    : name = identifier (columnAliases)? AS LPAREN query RPAREN
-    ;
-
-columnAliases
-    : LPAREN identifier (',' identifier)* RPAREN
-    ;
-
-cteUnboundCol
-    : (literal AS identifier) # CteUnboundColLiteral
-    | (QUERY AS identifier) # CteUnboundColParam
-    | LPAREN columnExpr RPAREN AS identifier # CteUnboundColExpr
-    | LPAREN ctes? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
+// UPDATE statement
+updateStmt
+    : UPDATE tableIdentifier clusterClause? SET assignmentExprList whereClause?
     ;
 
 // ALTER statement
@@ -66,9 +63,9 @@ alterStmt
     ;
 
 alterTableClause
-    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt (AFTER nestedIdentifier)?         # AlterTableClauseAddColumn
-    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt (AFTER nestedIdentifier)?           # AlterTableClauseAddIndex
-    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt (AFTER nestedIdentifier)? # AlterTableClauseAddProjection
+    : ADD COLUMN (IF NOT EXISTS)? tableColumnDfnt alterTableColumnPosition?         # AlterTableClauseAddColumn
+    | ADD INDEX (IF NOT EXISTS)? tableIndexDfnt alterTableColumnPosition?           # AlterTableClauseAddIndex
+    | ADD PROJECTION (IF NOT EXISTS)? tableProjectionDfnt alterTableColumnPosition? # AlterTableClauseAddProjection
     | ATTACH partitionClause (FROM tableIdentifier)?                                # AlterTableClauseAttach
     | CLEAR COLUMN (IF EXISTS)? nestedIdentifier (IN partitionClause)?              # AlterTableClauseClearColumn
     | CLEAR INDEX (IF EXISTS)? nestedIdentifier (IN partitionClause)?               # AlterTableClauseClearIndex
@@ -87,8 +84,10 @@ alterTableClause
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier COMMENT STRING_LITERAL            # AlterTableClauseModifyComment
     | MODIFY COLUMN (IF EXISTS)? nestedIdentifier REMOVE tableColumnPropertyType    # AlterTableClauseModifyRemove
     | MODIFY COLUMN (IF EXISTS)? tableColumnDfnt                                    # AlterTableClauseModify
+    | ALTER COLUMN (IF EXISTS)? identifier TYPE? columnTypeExpr codecExpr? ttlClause? settingExprList? alterTableColumnPosition? # AlterTableClauseAlterType
     | MODIFY ORDER BY columnExpr                                                    # AlterTableClauseModifyOrderBy
     | MODIFY ttlClause                                                              # AlterTableClauseModifyTTL
+    | MODIFY COMMENT literal                                                        # AlterTableClauseModifyComment
     | MOVE partitionClause (
         TO DISK STRING_LITERAL
         | TO VOLUME STRING_LITERAL
@@ -100,12 +99,18 @@ alterTableClause
     | UPDATE assignmentExprList whereClause                           # AlterTableClauseUpdate
     ;
 
+alterTableColumnPosition
+    : (AFTER nestedIdentifier)
+    | FIRST
+    ;
+
 assignmentExprList
     : assignmentExpr (COMMA assignmentExpr)*
     ;
 
 assignmentExpr
     : nestedIdentifier EQ_SINGLE columnExpr
+    | nestedIdentifier EQ_SINGLE JDBC_PARAM_PLACEHOLDER
     ;
 
 tableColumnPropertyType
@@ -124,21 +129,25 @@ partitionClause
 
 // ATTACH statement
 attachStmt
-    : ATTACH DICTIONARY tableIdentifier clusterClause? # AttachDictionaryStmt
+    : ATTACH TABLE (IF NOT EXISTS)? tableIdentifier clusterClause?
+    | ATTACH DICTIONARY (IF NOT EXISTS)? tableIdentifier clusterClause?
+    | ATTACH DATABASE (IF NOT EXISTS)? databaseIdentifier engineExpr? clusterClause?
     ;
 
 // CHECK statement
 
 checkStmt
-    : CHECK TABLE tableIdentifier partitionClause?
+    : CHECK TABLE tableIdentifier (PARTITION identifier | PART identifier)? (FORMAT identifier)? settingsClause? # checkTableStmt
+    | CHECK ALL TABLES (FORMAT identifier)? settingsClause? # checkAllTablesStmt
+    | CHECK GRANT privilege columnsClause? ON grantTableIdentifier  # checkGrantStmt
     ;
 
 // CREATE statement
 
 createStmt
-    : (ATTACH | CREATE) DATABASE (IF NOT EXISTS)? databaseIdentifier clusterClause? engineExpr? # CreateDatabaseStmt
-    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) DICTIONARY (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? dictionarySchemaClause
-        dictionaryEngineClause # CreateDictionaryStmt
+    : CREATE DATABASE (IF NOT EXISTS)? databaseIdentifier clusterClause? engineExpr? # CreateDatabaseStmt
+    | (CREATE (OR REPLACE)? | REPLACE) DICTIONARY (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? dictionarySchemaClause
+        dictionaryEngineClause sourceClause layoutClause lifetimeClause dictionarySettingsClause? (COMMENT literal)? # CreateDictionaryStmt
     | (ATTACH | CREATE) LIVE VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? (
         WITH TIMEOUT DECIMAL_LITERAL?
     )? destinationClause? tableSchemaClause? subqueryClause # CreateLiveViewStmt
@@ -146,9 +155,9 @@ createStmt
         destinationClause
         | engineClause POPULATE?
     ) subqueryClause # CreateMaterializedViewStmt
-    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) TEMPORARY? TABLE (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause?
-        engineClause? subqueryClause?                                                                                                    # CreateTableStmt
-    | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause? subqueryClause #
+    | (ATTACH | CREATE (OR REPLACE)? | REPLACE) TEMPORARY? TABLE (IF NOT EXISTS)? tableIdentifier uuidClause? clusterClause? tableSchemaClause
+        engineClause? subqueryClause?  # CreateTableStmt
+    | (ATTACH | CREATE) (OR REPLACE)? VIEW (IF NOT EXISTS)? tableIdentifier alias? uuidClause? clusterClause? tableSchemaClause? subqueryClause #
         CreateViewStmt
     | CREATE USER ((IF NOT EXISTS) | (OR REPLACE))? userIdentifier (COMMA userIdentifier)* clusterClause?
         userIdentifiedClause?
@@ -162,6 +171,28 @@ createStmt
     | CREATE (ROW)? POLICY (IF NOT EXISTS | OR REPLACE)? identifier clusterClause? ON tableIdentifier
         (IN identifier)? (AS (PERMISSIVE | RESTRICTIVE))? (FOR SELECT)? USING columnExpr
         (TO identifier | ALL | ALL EXCEPT identifier)? # CreatePolicyStmt
+    | CREATE SETTINGS? PROFILE ((IF NOT EXISTS) | (OR REPLACE))? identifier (COMMA identifier)* clusterClause?
+        (IN identifier)? ((SETTINGS identifier (EQ_SINGLE literal)? (MIN EQ_SINGLE? literal)? (MAX EQ_SINGLE? literal)?
+         (CONST|READONLY|WRITABLE|CHANGEABLE_IN_READONLY)?)
+            | ( INHERIT identifier))? (TO identifier | ALL | ALL EXCEPT identifier)? # createProfileStmt
+    | CREATE FUNCTION identifier clusterClause? AS LPAREN (identifier)? (COMMA identifier)? RPAREN ARROW .+? #createFunctionStmt
+    | CREATE NAMED COLLECTION (IF NOT EXISTS)? identifier clusterClause? AS nameCollectionKey (COMMA nameCollectionKey)* #createNamedCollectionStmt
+    | CREATE QUOTA (IF NOT EXISTS | OR REPLACE)? identifier clusterClause? (IN identifier)?
+        (KEYED BY identifier | NOT KEYED)?
+        quotaForClause (COMMA quotaForClause)*
+        (TO (identifier (COMMA identifier)* | ALL | CURRENT_USER | ALL EXCEPT identifier (COMMA identifier)* ))? # createQuotaStmt
+    ;
+
+quotaMaxExpr
+    : identifier EQ_SINGLE numberLiteral
+    ;
+
+quotaForClause
+    : FOR RANDOMIZED? INTERVAL numberLiteral interval (MAX quotaMaxExpr (COMMA quotaMaxExpr)*)+?
+    ;
+
+nameCollectionKey
+    : (identifier EQ_SINGLE literal (NOT? OVERRIDE)?)
     ;
 
 userIdentifier
@@ -205,7 +236,7 @@ dictionarySchemaClause
     ;
 
 dictionaryAttrDfnt
-    : identifier columnTypeExpr
+    : identifier columnTypeExpr ((DEFAULT | EXPRESSION) columnExpr)? (IS_OBJECT_ID|HIERARCHICAL|INJECTIVE)?
     ;
 
 dictionaryEngineClause
@@ -213,7 +244,7 @@ dictionaryEngineClause
     ;
 
 dictionaryPrimaryKeyClause
-    : PRIMARY KEY columnExprList
+    : PRIMARY KEY (identifier) (COMMA identifier)*
     ;
 
 dictionaryArgExpr
@@ -221,7 +252,7 @@ dictionaryArgExpr
     ;
 
 sourceClause
-    : SOURCE LPAREN identifier LPAREN dictionaryArgExpr* RPAREN RPAREN
+    : SOURCE LPAREN identifier LPAREN settingExprList RPAREN RPAREN
     ;
 
 lifetimeClause
@@ -298,7 +329,7 @@ tableElementExpr
     ;
 
 tableColumnDfnt
-    : nestedIdentifier columnTypeExpr tableColumnPropertyExpr? (COMMENT STRING_LITERAL)? codecExpr? (
+    : nestedIdentifier columnTypeExpr (NULL_SQL | NOT NULL_SQL)? tableColumnPropertyExpr? (COMMENT STRING_LITERAL)? codecExpr? (
         TTL columnExpr
     )?
     | nestedIdentifier columnTypeExpr? tableColumnPropertyExpr (COMMENT STRING_LITERAL)? codecExpr? (
@@ -307,7 +338,7 @@ tableColumnDfnt
     ;
 
 tableColumnPropertyExpr
-    : (DEFAULT | MATERIALIZED | ALIAS) columnExpr
+    : (DEFAULT | MATERIALIZED | ALIAS ) columnExpr
     ;
 
 tableIndexDfnt
@@ -330,6 +361,11 @@ ttlExpr
     : columnExpr (DELETE | TO DISK STRING_LITERAL | TO VOLUME STRING_LITERAL)?
     ;
 
+// MOVE statement
+moveStmt
+    : MOVE (USER | ROLE | QUOTA | SETTINGS PROFILE | ROW POLICY) identifier TO identifier
+    ;
+
 // DESCRIBE statement
 
 describeStmt
@@ -339,24 +375,30 @@ describeStmt
 // DROP statement
 
 dropStmt
-    : (DETACH | DROP) DATABASE (IF EXISTS)? databaseIdentifier clusterClause? # DropDatabaseStmt
-    | (DETACH | DROP) (DICTIONARY | TEMPORARY? TABLE | VIEW | ROLE | USER) (IF EXISTS)? tableIdentifier clusterClause? (
-        NO DELAY
-    )? # DropTableStmt
+    : (DETACH | DROP) DATABASE (IF EXISTS)? databaseIdentifier clusterClause? SYNC?
+    | (DETACH | DROP) (DICTIONARY | TEMPORARY? TABLE | VIEW) (IF EXISTS)? tableIdentifier clusterClause?
+        (NO DELAY)? SYNC?
+    | (DETACH | DROP) (USER | ROLE | QUOTA | SETTINGS? PROFILE) (IF EXISTS)? identifier clusterClause? (FROM identifier)?
+    | (DETACH | DROP) ROW? POLICY (IF EXISTS)? identifier ON grantTableIdentifier (COMMA grantTableIdentifier)* clusterClause? (FROM identifier)?
+    | (DETACH | DROP) (FUNCTION | NAMED COLLECTION) (IF EXISTS)? identifier clusterClause?
+    ;
+
+undropStmt
+    : UNDROP TABLE tableIdentifier uuidClause? clusterClause?
     ;
 
 // EXISTS statement
 
 existsStmt
-    : EXISTS DATABASE databaseIdentifier                             # ExistsDatabaseStmt
-    | EXISTS (DICTIONARY | TEMPORARY? TABLE | VIEW)? tableIdentifier # ExistsTableStmt
+    : EXISTS DATABASE databaseIdentifier  (INTO OUTFILE filename)? (FORMAT identifier)? # ExistsDatabaseStmt
+    | EXISTS (DICTIONARY | TEMPORARY? TABLE | VIEW)? tableIdentifier (INTO OUTFILE filename)? (FORMAT identifier)?  # ExistsTableStmt
     ;
 
 // EXPLAIN statement
 
 explainStmt
-    : EXPLAIN AST query    # ExplainASTStmt
-    | EXPLAIN SYNTAX query # ExplainSyntaxStmt
+    : EXPLAIN (AST | SYNTAX | QUERY TREE | PLAN | PIPELINE | ESTIMATE | TABLE OVERRIDE)? settingExprList? .+?
+    | EXPLAIN .+?
     ;
 
 // INSERT statement
@@ -382,27 +424,35 @@ assignmentValues
 
 assignmentValue
     : literal   # InsertRawValue
-    | QUERY     # InsertParameter
+    | JDBC_PARAM_PLACEHOLDER     # InsertParameter
     | identifier (LPAREN columnExprList? RPAREN)? # InsertParameterFuncExpr
-    | LPAREN columnExpr RPAREN # InserParameterExpr
+    | LPAREN? columnExpr RPAREN? # InserParameterExpr
     ;
 
 // KILL statement
 
 killStmt
-    : KILL MUTATION clusterClause? whereClause (SYNC | ASYNC | TEST)? # KillMutationStmt
+    : KILL MUTATION clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillMutationStmt
+    | KILL QUERY clusterClause? whereClause (SYNC | ASYNC | TEST)? (FORMAT identifier)? # KillQueryStmt
     ;
 
 // OPTIMIZE statement
 
 optimizeStmt
-    : OPTIMIZE TABLE tableIdentifier clusterClause? partitionClause? FINAL? DEDUPLICATE?
+    : OPTIMIZE TABLE tableIdentifier clusterClause? partitionClause? FINAL? DEDUPLICATE? optimizeByExpr?
+    ;
+
+optimizeByExpr
+    : BY ASTERISK (EXCEPT LPAREN? (identifier (COMMA identifier)*) RPAREN? )?
+    | BY identifier (COMMA identifier)*
+    | BY COLUMNS LPAREN literal RPAREN (EXCEPT LPAREN? (identifier (COMMA identifier)*) RPAREN? )?
     ;
 
 // RENAME statement
 
 renameStmt
     : RENAME TABLE tableIdentifier TO tableIdentifier (COMMA tableIdentifier TO tableIdentifier)* clusterClause?
+    | RENAME
     ;
 
 // PROJECTION SELECT statement
@@ -423,7 +473,7 @@ selectStmtWithParens
     ;
 
 selectStmt
-    : withClause? SELECT DISTINCT? topClause? columnExprList fromClause? arrayJoinClause? windowClause? prewhereClause? whereClause? groupByClause? (
+    : cteClause? SELECT DISTINCT? topClause? columnExprList fromClause? arrayJoinClause? windowClause? prewhereClause? whereClause? groupByClause? (
         WITH (CUBE | ROLLUP)
     )? (WITH TOTALS)? havingClause? orderByClause? limitByClause? limitClause? settingsClause?
     ;
@@ -432,19 +482,43 @@ withClause
     : WITH columnExprList
     ;
 
+// CTE statement
+cteClause
+    : WITH (cteUnboundCol | namedQuery) (COMMA (cteUnboundCol | namedQuery))*
+    ;
+
+
+namedQuery
+    : identifier (columnAliases)? AS  LPAREN? ( selectStmt | selectStmtWithParens | selectUnionStmt) RPAREN?
+    ;
+
+columnAliases
+    : LPAREN identifier (',' identifier)* RPAREN
+    ;
+
+cteUnboundCol
+    : literal AS identifier # CteUnboundColLiteral
+    | JDBC_PARAM_PLACEHOLDER AS identifier # CteUnboundColParam
+    | LPAREN? columnExpr RPAREN? AS? identifier? # CteUnboundColExpr
+    | LPAREN selectStmt RPAREN AS identifier # CteUnboundSubQuery
+//    | LPAREN cteStmt? selectStmt RPAREN AS identifier # CteUnboundNestedSelect
+    ;
+
 topClause
     : TOP DECIMAL_LITERAL (WITH TIES)?
     ;
 
 fromClause
     : FROM joinExpr
-    | FROM identifier LPAREN QUERY RPAREN
-    | FROM ctes
+    | FROM tableIdentifier
+    | FROM identifier LPAREN JDBC_PARAM_PLACEHOLDER RPAREN
+    | FROM selectStmt
     | FROM identifier LPAREN viewParam (COMMA viewParam)?  RPAREN
+    | FROM tableFunctionExpr
     ;
 
 viewParam
-    : identifier EQ_SINGLE (literal | QUERY)
+    : identifier EQ_SINGLE (literal | JDBC_PARAM_PLACEHOLDER)
     ;
 
 arrayJoinClause
@@ -579,10 +653,16 @@ winFrameBound
 
 //rangeClause: RANGE LPAREN (MIN identifier MAX identifier | MAX identifier MIN identifier) RPAREN;
 
+// EXCHANGE statement
+exchangeStmt
+    : EXCHANGE (TABLES | DICTIONARIES) tableIdentifier AND tableIdentifier clusterClause?
+    ;
+
+
 // SET statement
 
 setStmt
-    : SET settingExprList
+    : SET (identifier | settingExpr)
     ;
 
 // SET ROLE statement
@@ -595,10 +675,23 @@ setRolesList
     : identifier (COMMA identifier)*
     ;
 
+// GRANT statements
+
 grantStmt
-    : GRANT clusterClause? ((privilege ON grantTableIdentifier) | (identifier (COMMA identifier)*))
+    : GRANT clusterClause? ((identifier (COMMA identifier)*) | (privelegeList ON grantTableIdentifier))
         TO (CURRENT_USER | identifier) (COMMA identifier)*
-        (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+        (WITH ADMIN OPTION)? (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+    | GRANT CURRENT GRANTS (LPAREN ((privelegeList ON grantTableIdentifier) | (identifier (COMMA identifier)*)) RPAREN)?
+        TO (CURRENT_USER | identifier (COMMA identifier)*)
+                (WITH GRANT OPTION)? (WITH REPLACE OPTION)?
+    ;
+
+// REVOKE statements
+revokeStmt
+    : REVOKE clusterClause? privelegeList ON grantTableIdentifier
+        FROM ((CURRENT_USER | identifier) (COMMA identifier)* | ALL | ALL EXCEPT (CURRENT_USER | identifier) (COMMA identifier)* )
+    | REVOKE clusterClause? (ADMIN OPTION FOR)? identifier (COMMA identifier)*
+        FROM ((CURRENT_USER | identifier) (COMMA identifier)* | ALL | ALL EXCEPT (CURRENT_USER | identifier) (COMMA identifier)* )
     ;
 
 grantTableIdentifier
@@ -606,6 +699,15 @@ grantTableIdentifier
     | (identifier DOT)? ASTERISK
     | (ASTERISK DOT)? identifier
     | (ASTERISK DOT)? ASTERISK
+    ;
+
+privelegeList
+    : columnPrivilege (COMMA columnPrivilege)*
+    ;
+
+
+columnPrivilege
+    : privilege (LPAREN identifier (COMMA identifier)* RPAREN)?
     ;
 
 privilege
@@ -830,24 +932,90 @@ systemPrivilege
 // SHOW statements
 
 showStmt
-    : SHOW CREATE DATABASE databaseIdentifier                                                                    # showCreateDatabaseStmt
-    | SHOW CREATE DICTIONARY tableIdentifier                                                                     # showCreateDictionaryStmt
-    | SHOW CREATE TEMPORARY? TABLE? tableIdentifier                                                              # showCreateTableStmt
-    | SHOW DATABASES                                                                                             # showDatabasesStmt
-    | SHOW DICTIONARIES (FROM databaseIdentifier)?                                                               # showDictionariesStmt
-    | SHOW TEMPORARY? TABLES ((FROM | IN) databaseIdentifier)? (LIKE STRING_LITERAL | whereClause)? limitClause? # showTablesStmt
+    : SHOW CREATE? (TEMPORARY? TABLE | DICTIONARY | VIEW | DATABASE) tableIdentifier (INTO OUTFILE literal)? (FORMAT identifier)? # showCreateStmt
+    | SHOW DATABASES (NOT? (LIKE | ILIKE) literal) (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDatabasesStmt
+    | SHOW FULL? TEMPORARY? TABLES showFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showTablesStmt
+    | SHOW EXTENDED? FULL? COLUMNS showFromTableFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showColumnsStmt
+    | SHOW DICTIONARIES showFromDbClause? (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showDictionariesStmt
+    | SHOW EXTENDED? (INDEX | INDEXES | INDICES | KEYS ) (FROM | IN) identifier showFromTableFromDbClause? (WHERE columnExpr)? (INTO OUTFILE filename)? (FORMAT identifier)? # showIndexStmt
+    | SHOW PROCESSLIST (INTO OUTFILE filename)? (FORMAT identifier)? # showProcessListStmt
+    | SHOW GRANTS (FOR identifier (COMMA identifier)*)? (WITH IMPLICIT)? FINAL? # showGrantsStmt
+    | SHOW CREATE USER ((identifier (COMMA identifier)*) | CURRENT_USER) # showCreateUserStmt
+    | SHOW CREATE ROLE (identifier (COMMA identifier)*) # showCreateRoleStmt
+    | SHOW CREATE ROW? POLICY identifier ON tableIdentifier # showCreatePolicyStmt
+    | SHOW CREATE QUOTA ((identifier (COMMA identifier)*) | CURRENT) # showCreateQuotaStmt
+    | SHOW CREATE (SETTINGS)? PROFILE identifier (COMMA identifier)* # showCreateProfile
+    | SHOW USERS # showUsersStmt
+    | SHOW (CURRENT|ENABLED)? ROLES # showRolesStmt
+    | SHOW SETTINGS? PROFILES # showProfilesStmt
+    | SHOW ROW? POLICIES (ON identifier)? # showPoliciesStmt
+    | SHOW QUOTAS # showQuotasStmt
+    | SHOW CURRENT? QUOTA # showQuotaStmt
+    | SHOW ACCESS # showAccessStmt
+    | SHOW CLUSTER identifier # showClusterStmt
+    | SHOW CLUSTERS (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showClustersStmt
+    | SHOW CHANGED? SETTINGS (LIKE | ILIKE) literal # showSettingsStmt
+    | SHOW SETTING identifier # showSettingStmt
+    | SHOW FILESYSTEM CACHES # showFSCachesStmt
+    | SHOW ENGINES (INTO OUTFILE filename)? (FORMAT identifier)? # showEnginesStmt
+    | SHOW FUNCTIONS (NOT? (LIKE | ILIKE) literal)? # showFunctionsStmt
+    | SHOW MERGES (NOT? (LIKE | ILIKE) literal)? (LIMIT numberLiteral)? (INTO OUTFILE filename)? (FORMAT identifier)? # showMergesStmt
+    ;
+
+showFromDbClause
+    : ((FROM | IN) identifier)
+    ;
+
+showFromTableFromDbClause
+    : ((FROM | IN) identifier) showFromDbClause?
     ;
 
 // SYSTEM statements
 
 systemStmt
     : SYSTEM FLUSH DISTRIBUTED tableIdentifier
-    | SYSTEM FLUSH LOGS
-    | SYSTEM RELOAD DICTIONARIES
+    | SYSTEM RELOAD DICTIONARIES clusterClause? identifier?
     | SYSTEM RELOAD DICTIONARY tableIdentifier
-    | SYSTEM (START | STOP) (DISTRIBUTED SENDS | FETCHES | TTL? MERGES) tableIdentifier
-    | SYSTEM (START | STOP) REPLICATED SENDS
-    | SYSTEM SYNC REPLICA tableIdentifier
+    | SYSTEM RELOAD MODEL clusterClause? identifier?
+    | SYSTEM RELOAD FUNCTIONS clusterClause?
+    | SYSTEM RELOAD FUNCTION clusterClause? identifier
+    | SYSTEM RELOAD ASYNCHRONOUS METRICS clusterClause?
+    | SYSTEM DROP DNS CACHE
+    | SYSTEM DROP MARK CACHE
+    | SYSTEM DROP REPLICA literal (FROM SHARD literal)? (FROM (TABLE tableIdentifier) | (FROM DATABASE identifier) | (ZKPATH literal))?
+    | SYSTEM DROP UNCOMPRESSED CACHE
+    | SYSTEM DROP COMPILED EXPRESSION CACHE
+    | SYSTEM DROP QUERY CONDITION CACHE
+    | SYSTEM DROP QUERY CACHE (TAG literal)?
+    | SYSTEM DROP FORMAT SCHEMA CACHE (FOR literal)?
+    | SYSTEM FLUSH LOGS
+    | SYSTEM RELOAD CONFIG clusterClause?
+    | SYSTEM RELOAD USERS clusterClause?
+    | SYSTEM SHUTDOWN
+    | SYSTEM KILL
+    | SYSTEM (START | FLUSH | STOP) (DISTRIBUTED SENDS? | FETCHES | TTL? MERGES) tableIdentifier clusterClause? settingsClause?
+    | SYSTEM (START | STOP) LISTEN clusterClause? (QUERIES ALL | QUERIES DEFAULT | QUERIES CUSTOM | TCP | TCP WITH PROXY | TCP SECURE | HTTP | HTTPS | MYSQL | GRPC | POSTGRESQL | PROMETHEUS | CUSTOM literal)
+    | SYSTEM (START | STOP) MERGES clusterClause? ((ON VOLUME identifier) | tableIdentifier)?
+    | SYSTEM (START | STOP) TTL MERGES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) MOVES clusterClause? tableIdentifier?
+    | SYSTEM UNFREEZE WITH NAME literal
+    | SYSTEM WAIT LOADING PARTS clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) FETCHES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) REPLICATED SENDS clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) REPLICATION QUEUES clusterClause? tableIdentifier?
+    | SYSTEM (START | STOP) PULLING REPLICATION LOG clusterClause? tableIdentifier?
+    | SYSTEM SYNC REPLICA clusterClause? tableIdentifier? (IF EXISTS)? (STRICT | LIGHTWEIGHT | FROM literal | PULL)?
+    | SYSTEM SYNC DATABASE REPLICA identifier
+    | SYSTEM RESTART REPLICA clusterClause? tableIdentifier?
+    | SYSTEM RESTORE DATABASE? REPLICA identifier clusterClause?
+    | SYSTEM RESTART REPLICAS
+    | SYSTEM DROP FILESYSTEM CACHE clusterClause?
+    | SYSTEM SYNC FILE CACHE clusterClause?
+    | SYSTEM (LOAD | UNLOAD) PRIMARY KEY tableIdentifier?
+    | SYSTEM REFRESH VIEW tableIdentifier
+    | SYSTEM REPLICATED? (START | STOP) ((VIEW tableIdentifier) | VIEWS)
+    | SYSTEM CANCEL VIEW tableIdentifier
+    | SYSTEM WAIT VIEW tableIdentifier
     ;
 
 // TRUNCATE statements
@@ -935,7 +1103,7 @@ columnExpr
     | columnExpr OR columnExpr    # ColumnExprOr
     // TODO(ilezhankin): `BETWEEN a AND b AND c` is parsed in a wrong way: `BETWEEN (a AND b) AND c`
     | columnExpr NOT? BETWEEN columnExpr AND columnExpr            # ColumnExprBetween
-    | <assoc = right> columnExpr QUERY columnExpr COLON columnExpr # ColumnExprTernaryOp
+    | <assoc = right> columnExpr JDBC_PARAM_PLACEHOLDER columnExpr COLON columnExpr # ColumnExprTernaryOp
     | columnExpr (alias | AS identifier)                           # ColumnExprAlias
     | (tableIdentifier DOT)? ASTERISK                              # ColumnExprAsterisk // single-column only
     | LPAREN selectUnionStmt RPAREN                                # ColumnExprSubquery // single-column only
@@ -943,13 +1111,13 @@ columnExpr
     | LPAREN columnExprList RPAREN                                 # ColumnExprTuple
     | LBRACKET columnExprList? RBRACKET                            # ColumnExprArray
     | columnIdentifier                                             # ColumnExprIdentifier
-    | QUERY (CAST_OP identifier)?                                  # ColumnExprParam
+    | JDBC_PARAM_PLACEHOLDER (CAST_OP identifier)?                                  # ColumnExprParam
     | columnExpr REGEXP literal                                    # ColumnExprRegexp
     ;
 
 columnArgList
     : columnArgExpr (COMMA columnArgExpr)*
-    | QUERY (COMMA QUERY)*
+    | JDBC_PARAM_PLACEHOLDER (COMMA JDBC_PARAM_PLACEHOLDER)*
     ;
 
 columnArgExpr
@@ -984,6 +1152,10 @@ tableFunctionExpr
 
 tableIdentifier
     : (databaseIdentifier DOT)? identifier
+    ;
+
+viewIdentifier
+    : tableIdentifier
     ;
 
 tableArgList
@@ -1025,6 +1197,10 @@ literal
     : numberLiteral
     | STRING_LITERAL
     | NULL_SQL
+    ;
+
+filename
+    : STRING_LITERAL
     ;
 
 interval
@@ -1124,6 +1300,7 @@ keyword
     | INSERT
     | INTERVAL
     | INTO
+    | IP
     | IS
     | IS_OBJECT_ID
     | JOIN
@@ -1141,6 +1318,7 @@ keyword
     | LIVE
     | LOCAL
     | LOGS
+    | LOG
     | MATERIALIZE
     | MATERIALIZED
     | MAX
@@ -1167,9 +1345,11 @@ keyword
     | PRECEDING
     | PREWHERE
     | PRIMARY
+    | PROFILE
     | RANGE
     | RELOAD
     | REMOVE
+    | REMOTE
     | RENAME
     | REPLACE
     | REPLICA
@@ -1178,6 +1358,7 @@ keyword
     | ROLLUP
     | ROW
     | ROWS
+    | REVOKE
     | SAMPLE
     | SELECT
     | SEMI
@@ -1204,6 +1385,7 @@ keyword
     | TRAILING
     | TRIM
     | TRUNCATE
+    | TRACKING
     | TO
     | TOP
     | TTL
@@ -1214,7 +1396,9 @@ keyword
     | USE
     | USING
     | USER
+    | USERS
     | UUID
+    | URL
     | VALUES
     | VIEW
     | VOLUME
@@ -1223,6 +1407,11 @@ keyword
     | WHERE
     | WINDOW
     | WITH
+    | QUERIES
+    | SUM
+    | AVG
+    | REFRESH
+    | EXPLAIN
     ;
 
 keywordForAlias
@@ -1237,6 +1426,7 @@ keywordForAlias
     | CURRENT
     | INDEX
     | TABLES
+    | TABLE
     | TEST
     | VIEW
     | PRIMARY
@@ -1247,6 +1437,7 @@ keywordForAlias
     | HOUR
     | MINUTE
     | SECOND
+    | REVOKE
     ;
 
 alias

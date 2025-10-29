@@ -8,12 +8,14 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
@@ -30,6 +32,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -539,6 +542,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case Decimal128:
                     case Decimal256:
                         BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
+                        if (tmpDec.divide((BigDecimal)value, RoundingMode.FLOOR).equals(BigDecimal.ONE)) {
+                            continue;
+                        }
                         strValue = tmpDec.toPlainString();
                         break;
                     case IntervalMicrosecond:
@@ -579,9 +585,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                 },
                 new String[]{
                         "a,b",
-                        "[a, null, b]",
+                        "[a, NULL, b]",
                         "[c, d]",
-                        "[1, null, 2, null, 3]"
+                        "[1, NULL, 2, NULL, 3]"
                 });
         testDynamicWith("arrays",
                 new Object[]{
@@ -652,16 +658,128 @@ public class DataTypeTests extends BaseIntegrationTest {
                         String.valueOf(_999_hours),
                 });
 
-        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
-                999999999);
+        Instant time64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
+        long time64Value = time64.getEpochSecond() * 1_000_000_000 + time64.getNano();
+        testDynamicWith("Time64",
+                new Object[]{
+                        time64Value
+                },
+                new String[]{
+                        String.valueOf(time64Value)
+                }
+        );
 
+        Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
+                123456789);
+        long maxTime64Value = maxTime64.getEpochSecond() * 1_000_000_000 + maxTime64.getNano();
         testDynamicWith("Time64",
                 new Object[]{
                         maxTime64,
                 },
                 new String[]{
-                        "3958241016481971977"
+                        String.valueOf(maxTime64Value)
                 });
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithNestedTypes() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT (1, 'row1', 0.1)::Tuple(rowId Int32, name String, value Float64)::Dynamic AS row, 10::Int32 AS num");
+
+        Object[] tuple = (Object[]) records.get(0).getObject("row");
+        Assert.assertEquals(tuple[0], 1);
+        Assert.assertEquals(tuple[1], "row1");
+        Assert.assertEquals(tuple[2], 0.1);
+        Assert.assertEquals(records.get(0).getInteger("num"), 10);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithFixedString() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll("SELECT 'row1'::FixedString(4)::Dynamic AS str, 10::Int32 AS num");
+        Assert.assertEquals("row1", records.get(0).getString("str"));
+        Assert.assertEquals(records.get(0).getInteger("num"), 10); // added to check if reading further is not affected
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testDynamicWithJSON_dp")
+    public void testDynamicWithJSON(String type, String json, Object expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll("SELECT '" + json + "'::" + type + "::Dynamic AS val");
+        GenericRecord row = records.get(0);
+        Object val = row.getObject("val");
+        Assert.assertEquals(val, expected);
+    }
+
+    @DataProvider
+    public Object[][] testDynamicWithJSON_dp() {
+        Map<String, Object> map1 = new HashMap<>();
+        map1.put("name", "row1");
+        map1.put("value", 0.1);
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put("name", "row1");
+        map2.put("value", 0.1f);
+        Map<String, Object> map3 = new HashMap<>();
+        map3.put("a.b", "c");
+        map3.put("a.d", "e");
+        Map<String, Object> map4 = new HashMap<>();
+        map4.put("a.d", "e");
+
+        return new Object[][] {
+                { "JSON(max_dynamic_paths=100, max_dynamic_types=100)", "{\"name\": \"row1\", \"value\": 0.1}", map1},
+                { "JSON(value Float32)", "{\"name\": \"row1\", \"value\": 0.1}", map2},
+                { "JSON", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map3},
+                { "JSON(SKIP a.b)", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
+                { "JSON(SKIP REGEXP \'a\\.b\')", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
+
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithJSONWithArrays() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String json = "{ \"array\": [ {\"a\": 100 }, {\"b\": \"name\"}]}";
+        String type = "JSON(max_dynamic_paths=100, max_dynamic_types=100)";
+        List<GenericRecord> records = client.queryAll("SELECT '" + json + "'::" + type + "::Dynamic AS val");
+        GenericRecord row = records.get(0);
+        HashMap<String, Object> val = (HashMap<String, Object>) row.getObject("val");
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) val.get("array");
+        List<HashMap<String, Object>> items = array.asList();
+
+        Assert.assertEquals(items.size(), 2);
+        Assert.assertEquals(items.get(0).get("a"), 100L);
+        Assert.assertEquals(items.get(1).get("b"), "name");
+
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("select arrayJoin([1, 'a', 3]::Array(Variant(String, Int32)))::Dynamic as val");
+
+        GenericRecord row = records.get(0);
+        Object val = row.getObject("val");
+        Assert.assertEquals(val, 1);
+
+        row = records.get(1);
+        val = row.getObject("val");
+        Assert.assertEquals(val, "a");
+
+        row = records.get(2);
+        val = row.getObject("val");
+        Assert.assertEquals(val, 3);
     }
 
     @Data
@@ -739,7 +857,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             return; // time64 was introduced in 25.6
         }
 
-        String table = "test_time64_type";
+        String table = "data_type_tests_time64";
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "o_num UInt32", "t_sec Time64(0)",  "t_ms Time64(3)", "t_us Time64(6)", "t_ns Time64(9)"),
                 (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
@@ -830,9 +948,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         String table = "test_dynamic_with_" + withWhat;
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic"),createTableSettings).get();
 
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
 
@@ -858,10 +979,13 @@ public class DataTypeTests extends BaseIntegrationTest {
         actualFields[0] = "rowId Int32";
         System.arraycopy(fields, 0, actualFields, 1, fields.length);
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, actualFields),
-                (CommandSettings) new CommandSettings()
-                        .serverSetting("allow_experimental_variant_type", "1")
-                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
+
+
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1");
+        if (isVersionMatch("[25.6,)")) {
+            createTableSettings.serverSetting("allow_experimental_time_time64_type", "1"); // time64 was introduced in 25.6
+        }
+        client.execute(tableDefinition(table, actualFields),createTableSettings).get();
 
         client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(table));
 
@@ -913,6 +1037,33 @@ public class DataTypeTests extends BaseIntegrationTest {
                 {"JSON(max_dynamic_paths=3, stat.name String, SKIP alt_count)"},
                 {"JSON(max_dynamic_paths=3, stat.name String, SKIP REGEXP '^-.*')"},
                 {"JSON(max_dynamic_paths=3,SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testDataTypesAsStringDP")
+    public void testDataTypesAsString(String sql, String[] expectedStrValues) throws Exception {
+
+        try (QueryResponse resp = client.query(sql).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+            reader.next();
+            for (int i = 0; i < expectedStrValues.length; i++) {
+                Assert.assertEquals(reader.getString(i + 1), expectedStrValues[i]);
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testDataTypesAsStringDP() {
+        return new Object[][] {
+                {"SELECT '192.168.1.1'::IPv4, '2001:db8::1'::IPv6, '192.168.1.1'::IPv6",
+                    new String[] {"192.168.1.1", "2001:db8:0:0:0:0:0:1", "192.168.1.1"}},
+                {"SELECT '2024-10-04'::Date32, '2024-10-04 12:34:56'::DateTime32, '2024-10-04 12:34:56.789'::DateTime64(3), " +
+                        " '2024-10-04 12:34:56.789012'::DateTime64(6), '2024-10-04 12:34:56.789012345'::DateTime64(9)",
+                    new String[] {"2024-10-04", "2024-10-04 12:34:56", "2024-10-04 12:34:56.789", "2024-10-04 12:34:56.789012",
+                            "2024-10-04 12:34:56.789012345"}},
+                {"SELECT 1::Enum16('one' = 1, 'two' = 2)", "one"},
+                {"SELECT 2::Enum8('one' = 1, 'two' = 2)", "two"},
+                {"SELECT 3::Enum('one' = 1, 'two' = 2, 'three' = 3)", "three"},
         };
     }
 

@@ -12,7 +12,7 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
-import com.clickhouse.jdbc.internal.SqlParser;
+import com.clickhouse.jdbc.internal.SqlParserFacade;
 import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,6 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
@@ -65,7 +64,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private final DatabaseMetaDataImpl metadata;
     protected final Calendar defaultCalendar;
 
-    private final SqlParser sqlParser;
+    private final SqlParserFacade sqlParser;
 
     private Executor networkTimeoutExecutor;
 
@@ -80,7 +79,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-            String clientName = "ClickHouse JDBC Driver V2/" + Driver.driverVersion;
+            String clientName = "ClickHouse JDBC Driver V2/" + Driver.getLibraryVersion();
 
             Map<String, String> clientProperties = config.getClientProperties();
             if (clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()) != null) {
@@ -118,7 +117,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
 
-            this.sqlParser = new SqlParser();
+
+            this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
+                    DriverProperties.SQL_PARSER.getDefaultValue()));
             this.featureManager = new FeatureManager(this.config);
         } catch (SQLException e) {
             throw e;
@@ -127,7 +128,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         }
     }
 
-    public SqlParser getSqlParser() {
+    public SqlParserFacade getSqlParser() {
         return sqlParser;
     }
 

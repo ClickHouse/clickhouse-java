@@ -12,7 +12,7 @@ on:
 
 env:
   CHC_BRANCH: "main"
-  CH_VERSION: "24.8"
+  CH_VERSION: "25.3"
   JAVA_VERSION: 17
 
 concurrency:

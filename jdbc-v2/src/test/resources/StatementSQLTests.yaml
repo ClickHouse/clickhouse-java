@@ -1,0 +1,91 @@
+---
+- name: select_all_events
+  query: SELECT * FROM events
+  tables:
+    events: datasets/events
+#  checks:
+#    - name: row_count
+#      expected: ${events.rowCount}
+#    - name: column_count
+#      expected: ${events.columnsCount}
+#    - name: column_names
+#      expected: ${events.columnNames}
+#    - name: column_types
+#      expected: ${events.columnTypes}
+- name: select_with_01
+  query: |
+    WITH
+      toDate('2025-08-20') as DATE_END, 
+      cte_events AS (
+          SELECT 1, DATE_END
+      )
+    SELECT *, DATE_END
+    FROM cte_events
+  tables:
+    events: datasets/events
+  checks:
+    - name: column_count
+      expected: 3
+    - name: column_names
+      expected: ["1", "cte_events.DATE_END", "DATE_END"]
+    - name: column_types
+      expected: ["UInt8", "Date", "Date"]
+- name: select_with_02
+  query: |
+    WITH
+      toDate('2025-08-20') as DATE_END, 
+      cte_events AS (
+          SELECT 1
+      )
+    SELECT *
+    FROM cte_events
+  tables:
+    events: datasets/events
+  checks:
+    - name: row_count
+      expected: 1
+    - name: column_count
+      expected: 1
+    - name: column_names
+      expected: ["1"]
+    - name: column_types
+      expected: ["UInt8"]
+- name: select_with_fill_03
+  query: |
+    SELECT
+      value,
+      toUnixTimestamp(ts1) * 1000 AS timestamp
+    FROM
+    (
+      SELECT
+        count() AS value,
+        toStartOfInterval(ts, toIntervalDay(1)) AS ts1
+      FROM events
+      WHERE (ts >= toDateTime(1736035200)) AND (ts <= toDateTime(1751587199))
+      GROUP BY ts1
+      ORDER BY ts1 ASC WITH FILL FROM toDateTime(1736035200) TO toDateTime(1751587199) STEP toIntervalDay(1)
+    )
+  tables:
+    events: datasets/events
+  checks:
+    - name: row_count
+      expected: 180
+    - name: column_count
+      expected: 2
+    - name: column_names
+      expected: ["value", "timestamp"]
+    - name: column_types
+      expected: ["UInt64", "UInt64"]
+- name: explain_stmt_01
+  query: EXPLAIN SELECT 1
+  tables:
+    events: datasets/empty_table
+  checks:
+    - name: row_count
+      expected: 2
+    - name: column_count
+      expected: 1
+    - name: column_names
+      expected: ["explain"]
+    - name: column_types
+      expected: ["String"]

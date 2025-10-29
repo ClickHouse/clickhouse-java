@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
 
@@ -104,7 +105,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .setSharedOperationExecutor(Executors.newCachedThreadPool());
     }
 
     @AfterMethod(groups = { "integration" })
@@ -234,7 +236,6 @@ public class InsertTests extends BaseIntegrationTest {
         try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(30, TimeUnit.SECONDS)) {
             fail("Should have thrown an exception");
         } catch (ClickHouseException e) {
-            e.printStackTrace();
             assertTrue(e.getCause() instanceof  IllegalArgumentException);
         }
     }
@@ -281,15 +282,12 @@ public class InsertTests extends BaseIntegrationTest {
         writer.flush();
         client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
                 ClickHouseFormat.TSV, localSettings).whenComplete((response, throwable) -> {
-                OperationMetrics metrics = response.getMetrics();
                 assertEquals((int)response.getWrittenRows(), 1000 );
 
                 List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
                 assertEquals(records.size(), 1000);
-                assertTrue(Thread.currentThread().getName()
-                        .startsWith(async ? "ForkJoinPool.commonPool" : "main"), "Threads starts with " + Thread.currentThread().getName());
         })
-                .join(); // wait operation complete. only for tests
+        .join().close(); // wait operation complete. only for tests
     }
 
     @DataProvider
@@ -660,14 +658,10 @@ public class InsertTests extends BaseIntegrationTest {
                 out.write(row.getBytes());
             }
         }, ClickHouseFormat.JSONEachRow, new InsertSettings()).get()) {
-            System.out.println("Rows written: " + response.getWrittenRows());
         }
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName  + "\"" );
-
-        for (GenericRecord record : records) {
-            System.out.println("> " + record.getString(1) + ", " + record.getFloat(2) + ", " + record.getFloat(3));
-        }
+        assertEquals(records.size(), 4);
     }
 
 //    static {

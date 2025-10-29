@@ -1,3 +1,36 @@
+## 0.9.2 
+
+### Improvements 
+- [jdbc-v2] `ResultSetImpl.getObject()` handles `java.time.Instant`
+
+### Improvements 
+- [jdbc-v2] Classes `com.clickhouse.jdbc.ClientInfoProperties` and `com.clickhouse.jdbc.DriverProperties` moved to public 
+API. (https://github.com/ClickHouse/clickhouse-java/pull/2521)
+- [jdbc-v2] Implemented `isBeforeFirst`, `isAfterLast`, `isFirst`, `isLast` methods for `ResultSet` and `ResultSetMetaData`.
+Improved test coverage for `ResultSetImpl`. (https://github.com/ClickHouse/clickhouse-java/pull/2530)
+- [jdbc-v2] Implemented `createArray` and `createStruct` methods for `Connection` interface. Method `createStruct`
+should be used to create `Tuple` values and `createArray` to create various arrays. (https://github.com/ClickHouse/clickhouse-java/pull/2523)
+- [jdbc-v2] Implemented `setNetworkTimeout` of `Connection` interface. Used to fail fast when network operation fails. Related to
+stale connection problem. (https://github.com/ClickHouse/clickhouse-java/pull/2522)
+- [client-v2] Added support for JSON with predefined paths. Previously columns with definition like `JSON(a string, b.c Int32)`
+were not supported. (https://github.com/ClickHouse/clickhouse-java/pull/2531)
+
+### Bug Fixes
+- [jdbc-v2] Fixed issue creating array of tuples with `createArray` method of `Connection` interface. 
+(https://github.com/ClickHouse/clickhouse-java/issues/2360)
+- [jdbc-v2] Fixed issue with reading nested arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2539)
+- [jdbc-v2] Fixed issue with not shaded antlr4-runtime dependency. Potential problem for Apache Spark users. (https://github.com/ClickHouse/clickhouse-java/issues/2553)
+- [jdbc-v2] Fixed issue with parsing CTE for prepared statement. (https://github.com/ClickHouse/clickhouse-java/issues/2551)
+- [jdbc-v2] Fixed issue with parsing SQL containing view parameters. (https://github.com/ClickHouse/clickhouse-java/issues/2547)
+- [jdbc-v2] Fixed issue with `InsertSettings` when two concurrent insert operations sharing same settings object may be insert 
+wrong columns or to a wrong table. (https://github.com/ClickHouse/clickhouse-java/pull/2550)
+- [jdbc-v2] Fixed issue with batch insert when it is not cleared after execution. Now batch is cleared after execution even on failure. (https://github.com/ClickHouse/clickhouse-java/issues/2548)
+- [jdbc-v2] Fixed `DatabaseMetadataImpl` to return result set with defined by spec structure. Resolves issue for many database tools
+relying on metadata. (https://github.com/ClickHouse/clickhouse-java/issues/2396)
+- [jdbc-v2] Fixed `DatabaseMetadataImpl` to return empty result set where appropriate. (https://github.com/ClickHouse/clickhouse-java/issues/2517)
+- [jdbc-v2] Fixed issue with verbose logging. (https://github.com/ClickHouse/clickhouse-java/issues/2148)
+- [client-v2] Fixed issue with reading JSON with predefined paths. (https://github.com/ClickHouse/clickhouse-java/issues/2462)
+
 ## 0.9.1
 
 ### New Features

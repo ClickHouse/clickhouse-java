@@ -363,8 +363,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>${project.artifactId}-${project.version}-all-dependencies</finalName>
-                    <appendAssemblyId>false</appendAssemblyId>
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
@@ -377,15 +375,6 @@
                         </manifest>
                     </archive>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>make-assembly</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -457,6 +446,89 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
+                                        <Specification-Title>${spec.title}</Specification-Title>
+                                        <Specification-Version>${spec.version}</Specification-Version>
+                                    </manifestEntries>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>google/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+
+                    <execution>
+                        <id>all-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/bundle/</outputDirectory>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <!--                            <createSourcesJar>true</createSourcesJar>-->
+                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <shadedClassifierName>all-dependencies</shadedClassifierName>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- provided libraries -->
+                                    <exclude>io.micrometer:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <!-- lz4 compression -->
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.net.jpountz</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.roaringbitmap</pattern>
+                                    <shadedPattern>${shade.base}.org.roaringbitmap</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <!-- asm -->
+                                    <pattern>org.objectweb</pattern>
+                                    <shadedPattern>${shade.base}.org.objectweb</shadedPattern>
+                                </relocation>
+
+
+                                <relocation>
+                                    <pattern>com.google</pattern>
+                                    <shadedPattern>${shade.base}.com.google</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.org.apache</shadedPattern>
+                                </relocation>
+
+                                <relocation>
+                                    <pattern>org.antlr</pattern>
+                                    <shadedPattern>${shade.base}.org.antlr</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <transformers>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
                                         <Main-Class>${mainClass}</Main-Class>

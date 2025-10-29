@@ -17,6 +17,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
@@ -292,10 +293,6 @@ public class SerializerUtils {
             throws IOException {
 
         ClickHouseDataType dt = typeColumn.getDataType();
-        byte binTag = dt.getBinTag();
-        if (binTag == -1) {
-            throw new ClientException("Type " + dt.name() +" serialization is not supported for Dynamic column");
-        }
 
         if (typeColumn.isNullable()) {
             stream.write(ClickHouseDataType.NULLABLE_BIN_TAG);
@@ -304,10 +301,24 @@ public class SerializerUtils {
             stream.write(ClickHouseDataType.LOW_CARDINALITY_BIN_TAG);
         }
 
+        byte binTag = dt.getBinTag();
+        if (binTag == -1) {
+            switch (dt) {
+                case Point:
+                case Polygon:
+                case Ring:
+                case MultiPolygon:
+                    stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
+                    BinaryStreamUtils.writeString(stream, dt.name());
+                    return;
+                default:
+                    throw new ClientException("Type " + dt.name() +" serialization is not supported for Dynamic column");
+            }
+        }
         switch (dt) {
             case FixedString:
                 stream.write(binTag);
-                writeVarInt(stream, typeColumn.getEstimatedLength());
+                BinaryStreamUtils.writeVarInt(stream, typeColumn.getEstimatedLength());
                 break;
             case Enum8:
             case Enum16:
@@ -315,7 +326,7 @@ public class SerializerUtils {
                 ClickHouseEnum enumVal = typeColumn.getEnumConstants();
                 String[] names = enumVal.getNames();
                 int[] values = enumVal.getValues();
-                writeVarInt(stream, names.length);
+                BinaryStreamUtils.writeVarInt(stream, names.length);
                 for (int i = 0; i < enumVal.size(); i++ ) {
                     BinaryStreamUtils.writeString(stream, names[i]);
                     if (dt == ClickHouseDataType.Enum8) {
@@ -380,13 +391,6 @@ public class SerializerUtils {
                 //  0x20<var_uint_number_of_elements><var_uint_name_size_1><name_data_1><nested_type_encoding_1>...<var_uint_name_size_N><name_data_N><nested_type_encoding_N>
                 stream.write(0x20);
                 break;
-            case Point:
-            case Polygon:
-            case Ring:
-            case MultiPolygon:
-                stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
-                BinaryStreamUtils.writeString(stream, dt.name());
-                break;
             case Variant:
                 stream.write(binTag);
                 break;
@@ -411,6 +415,9 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
     public static void serializeArrayData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (value == null) {
             writeVarInt(stream, 0);
@@ -437,7 +444,10 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
+    public static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the tuple to the stream
         //The tuple is a list of values
         if (value instanceof List) {
@@ -455,7 +465,10 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeMapData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    /**
+     DO NOT USE - part of internal API that will be changed
+     */
+    public static void serializeMapData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the map to the stream
         //The map is a list of key-value pairs
         Map<?, ?> map = (Map<?, ?>) value;
@@ -596,7 +609,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeInterval(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializeInterval(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
         long v;
 
         if (value instanceof Duration) {
@@ -659,14 +672,14 @@ public class SerializerUtils {
         } else if (value instanceof Long) {
             BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
         } else if (value instanceof Instant) {
-            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond()).shiftLeft(32)
+            BinaryStreamUtils.writeUnsignedInt64(stream, BigInteger.valueOf(((Instant) value).getEpochSecond() * 1_000_000_000L)
                     .add(BigInteger.valueOf(((Instant) value).getNano())));
         } else {
             throw new UnsupportedOperationException("Cannot convert " + value.getClass() + " to Time64");
         }
     }
 
-    private static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
         int enumValue = -1;
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
@@ -687,7 +700,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializeJSON(OutputStream stream, Object value) throws IOException {
+    public static void serializeJSON(OutputStream stream, Object value) throws IOException {
         if (value instanceof String) {
             BinaryStreamUtils.writeString(stream, (String)value);
         } else {
@@ -695,7 +708,7 @@ public class SerializerUtils {
         }
     }
 
-    private static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
+    public static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
         int typeOrdNum = column.getVariantOrdNum(value);
         if (typeOrdNum != -1) {
             BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
@@ -710,7 +723,7 @@ public class SerializerUtils {
     private static final ClickHouseColumn GEO_POLYGON_ARRAY = ClickHouseColumn.parse("geopolygin Array(Array(Tuple(Float64, Float64)))").get(0);
     private static final ClickHouseColumn GEO_MULTI_POLYGON_ARRAY = ClickHouseColumn.parse("geomultipolygin Array(Array(Array(Tuple(Float64, Float64))))").get(0);
 
-    private static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+    public static void serializeAggregateFunction(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot serialize null value for aggregate function: " + column.getAggregateFunction());
@@ -1143,7 +1156,7 @@ public class SerializerUtils {
             Instant dt = (Instant) value;
             ts = dt.getEpochSecond();
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+            throw new IllegalArgumentException("Cannot convert " + value + " to DateTime");
         }
 
         BinaryStreamUtils.writeUnsignedInt32(output, ts);
@@ -1179,7 +1192,7 @@ public class SerializerUtils {
             ts = dt.getEpochSecond();
             nano = dt.getNano();
         } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to DataTime");
+            throw new IllegalArgumentException("Cannot convert " + value + " to DateTime");
         }
 
         ts *= BinaryStreamReader.BASES[scale];

@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.NoSuchColumnException;
@@ -61,6 +62,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     protected BinaryStreamReader binaryStreamReader;
 
+    protected DataTypeConverter dataTypeConverter;
+
     private TableSchema schema;
     private ClickHouseColumn[] columns;
     private Map[] convertions;
@@ -84,6 +87,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (schema != null) {
             setSchema(schema);
         }
+        this.dataTypeConverter = DataTypeConverter.INSTANCE; // singleton while no need to customize conversion
     }
 
     protected Object[] currentRecord;
@@ -326,52 +330,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        return readAsString(readValue(colName), schema.getColumnByName(colName));
-    }
-
-    /**
-     * Converts value in to a string representation. Does some formatting for selected data types
-     * @return string representation of a value for specified column
-     */
-    public static String readAsString(Object value, ClickHouseColumn column) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof String) {
-            return (String) value;
-        } else if (value instanceof ZonedDateTime) {
-            ClickHouseDataType dataType = column.getDataType();
-            ZonedDateTime zdt = (ZonedDateTime) value;
-            switch (dataType) { // should not be null
-                case Date:
-                case Date32:
-                    return zdt.format(DataTypeUtils.DATE_FORMATTER);
-                case DateTime:
-                case DateTime32:
-                    return zdt.format(DataTypeUtils.DATETIME_FORMATTER);
-                case DateTime64:
-                    return zdt.format(DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER);
-                default:
-                    return value.toString();
-            }
-        } else if (value instanceof BinaryStreamReader.EnumValue) {
-            return ((BinaryStreamReader.EnumValue)value).name;
-        } else if (value instanceof Number ) {
-            ClickHouseDataType dataType = column.getDataType();
-            int num = ((Number) value).intValue();
-            if (column.getDataType() == ClickHouseDataType.Variant) {
-                for (ClickHouseColumn c : column.getNestedColumns()) {
-                    // TODO: will work only if single enum listed as variant
-                    if (c.getDataType() == ClickHouseDataType.Enum8 || c.getDataType() == ClickHouseDataType.Enum16) {
-                        return c.getEnumConstants().name(num);
-                    }
-                }
-            } else if (dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16) {
-                return column.getEnumConstants().name(num);
-            }
-        } else if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue)value).asList().toString();
-        }
-        return value.toString();
+        return dataTypeConverter.convertToString(readValue(colName), schema.getColumnByName(colName));
     }
 
     @Override
@@ -630,6 +589,32 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public short[] getShortArray(String colName) {
+        try {
+            return getPrimitiveArray(colName,  short.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
+    }
+
+    @Override
+    public String[] getStringArray(String colName) {
+        Object value = readValue(colName);
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+            int length = array.length;
+            if (!array.itemType.equals(String.class))
+                throw new ClientException("Not A String type.");
+            String [] values = new String[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            }
+            return values;
+        }
+        throw new ClientException("Not ArrayValue type.");
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord[colIndex - 1] != null;
     }
@@ -772,6 +757,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public boolean[] getBooleanArray(int index) {
         return getBooleanArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public short[] getShortArray(int index) {
+        return getShortArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public String[] getStringArray(int index) {
+        return getStringArray(schema.columnIndexToName(index));
     }
 
     @Override

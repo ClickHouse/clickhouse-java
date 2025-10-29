@@ -17,9 +17,11 @@
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/jdbc-v2</url>
 
     <properties>
-        <javacc-plugin.version>4.1.4</javacc-plugin.version>
+        <javacc-plugin.version>5.0.0</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
+        <jackson.version>2.17.2</jackson.version>
+        <lombok.version>1.18.36</lombok.version>
         <shade.base>${project.groupId}.shaded</shade.base>
     </properties>
 
@@ -33,7 +35,7 @@
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
-            <version>4.13.2</version>
+            <version>${antlr4.version}</version>
         </dependency>
 
         <dependency>
@@ -49,6 +51,13 @@
         </dependency>
 
 <!--        Test dependencies -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
@@ -70,12 +79,38 @@
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock-standalone</artifactId>
             <version>3.13.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -142,7 +177,7 @@
             <plugin>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-maven-plugin</artifactId>
-                <version>4.13.2</version>
+                <version>${antlr4.version}</version>
                 <executions>
                     <execution>
                         <phase>generate-sources</phase>
@@ -152,6 +187,28 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <groupId>com.helger.maven</groupId>
+                <artifactId>ph-javacc-maven-plugin</artifactId>
+                <version>${javacc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>jjc</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>javacc</goal>
+                        </goals>
+                        <configuration>
+                            <jdkVersion>${minJdk}</jdkVersion>
+                            <javadocFriendlyComments>true</javadocFriendlyComments>
+                            <packageName>com.clickhouse.jdbc.internal.parser.javacc</packageName>
+                            <sourceDirectory>src/main/javacc</sourceDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 </project>

@@ -105,6 +105,8 @@ public class SettingsTests {
 
         {
             final QuerySettings settings = new QuerySettings();
+            Assert.assertEquals(settings.getNetworkTimeout().intValue(),
+                    (Integer) ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefObjVal());
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
         }
@@ -164,6 +166,8 @@ public class SettingsTests {
 
         {
             final InsertSettings settings = new InsertSettings();
+            Assert.assertEquals(settings.getNetworkTimeout().intValue(),
+                    (Integer) ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefObjVal());
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
         }
