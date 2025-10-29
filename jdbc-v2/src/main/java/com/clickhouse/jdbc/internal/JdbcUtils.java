@@ -217,6 +217,27 @@ public class JdbcUtils {
         return DATA_TYPE_CLASS_MAP.get(clickhouseType);
     }
 
+    private static Class<?> unwrapPrimitiveType(Class<?> type) {
+        if (type == int.class) {
+            return Integer.class;
+        } else if (type == long.class) {
+            return Long.class;
+        } else if (type == boolean.class) {
+            return Boolean.class;
+        } else if (type == float.class) {
+            return Float.class;
+        } else if (type == double.class) {
+            return Double.class;
+        } else if (type == char.class) {
+            return Character.class;
+        } else if (type == byte.class) {
+            return Byte.class;
+        } else if (type == short.class) {
+            return Short.class;
+        }
+        return type;
+    }
+
     public static Object convert(Object value, Class<?> type) throws SQLException {
         return convert(value, type, null);
     }
@@ -225,74 +246,100 @@ public class JdbcUtils {
         if (value == null || type == null) {
             return value;
         }
+
+        type = unwrapPrimitiveType(type);
+        if (type.isInstance(value)) {
+            return value;
+        }
+
+        if (value instanceof List<?>) {
+            List<?> listValue = (List<?>) value;
+            if (type != java.sql.Array.class) {
+                return convertList(listValue, type);
+            }
+
+            if (column != null && column.getArrayBaseColumn() != null) {
+                ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
+                Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType));
+                return new Array(column, convertedValues);
+            }
+
+            // base type is unknown. all objects should be converted
+            return new Array(column, listValue.toArray());
+        }
+
+        if (value.getClass().isArray()) {
+            if (type == java.sql.Array.class) {
+                return new Array(column, arrayToObjectArray(value));
+            } else if (type == Tuple.class) {
+                return new Tuple(true, value);
+            }
+        }
+
+        if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) value;
+
+            if (column != null && column.getArrayBaseColumn() != null) {
+                ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
+                Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(), convertToJavaClass(baseType));
+                return new Array(column, convertedValues);
+            }
+
+            return new Array(column, arrayValue.getArrayOfObjects());
+        }
+
+        return convertObject(value, type);
+    }
+
+    public static Object convertObject(Object value, Class<?> type) throws SQLException {
+        if (value == null || type == null) {
+            return value;
+        }
         try {
-            if (type.isInstance(value)) {
-                return value;
-            } else if (type != java.sql.Array.class && value instanceof List<?>) {
-                return convertList((List<?>) value, type);
-            } else if (type == String.class) {
+            if (type == String.class) {
                 return value.toString();
-            } else if (type == Boolean.class || type == boolean.class) {
+            } else if (type == Boolean.class) {
                 String str = value.toString();
                 return !("false".equalsIgnoreCase(str) || "0".equalsIgnoreCase(str));
-            } else if (type == Byte.class || type == byte.class) {
+            } else if (type == Byte.class) {
                 return Byte.parseByte(value.toString());
-            } else if (type == Short.class || type == short.class) {
+            } else if (type == Short.class) {
                 return Short.parseShort(value.toString());
-            } else if (type == Integer.class || type == int.class) {
+            } else if (type == Integer.class) {
                 return Integer.parseInt(value.toString());
-            } else if (type == Long.class || type == long.class) {
+            } else if (type == Long.class) {
                 return Long.parseLong(value.toString());
-            } else if (type == Float.class || type == float.class) {
+            } else if (type == Float.class) {
                 return Float.parseFloat(value.toString());
-            } else if (type == Double.class || type == double.class) {
+            } else if (type == Double.class) {
                 return Double.parseDouble(value.toString());
             } else if (type == java.math.BigDecimal.class) {
                 return new java.math.BigDecimal(value.toString());
-            } else if (type == byte[].class) {
-                return value.toString().getBytes();
-            } else if (type == LocalDate.class && value instanceof TemporalAccessor) {
-                return LocalDate.from((TemporalAccessor) value);
-            } else if (type == LocalDateTime.class && value instanceof TemporalAccessor) {
-                return LocalDateTime.from((TemporalAccessor) value);
-            } else if (type == OffsetDateTime.class && value instanceof TemporalAccessor) {
-                return OffsetDateTime.from((TemporalAccessor) value);
-            } else if (type == ZonedDateTime.class && value instanceof TemporalAccessor) {
-                return ZonedDateTime.from((TemporalAccessor) value);
-            } else if (type == Instant.class && value instanceof TemporalAccessor) {
-                return Instant.from((TemporalAccessor) value);
-            } else if (type == Date.class && value instanceof TemporalAccessor) {
-                return Date.valueOf(LocalDate.from((TemporalAccessor) value));
-            } else if (type == java.sql.Timestamp.class && value instanceof TemporalAccessor) {
-                return java.sql.Timestamp.valueOf(LocalDateTime.from((TemporalAccessor) value));
-            } else if (type == java.sql.Time.class && value instanceof TemporalAccessor) {
-                return java.sql.Time.valueOf(LocalTime.from((TemporalAccessor) value));
-            } else if (type == java.sql.Array.class && value instanceof BinaryStreamReader.ArrayValue) {//It's cleaner to use getList but this handles the more generic getObject
-                BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) value;
-                if (column != null && column.getArrayBaseColumn() != null) {
-                    ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                    Object[] convertedValues = convertArray(arrayValue.getArrayOfObjects(), JdbcUtils.convertToJavaClass(baseType));
-                    return new Array(column, convertedValues);
+            } else if (value instanceof TemporalAccessor) {
+                TemporalAccessor temporalValue = (TemporalAccessor) value;
+                if (type == LocalDate.class) {
+                    return LocalDate.from(temporalValue);
+                } else if (type == LocalDateTime.class) {
+                    return LocalDateTime.from(temporalValue);
+                } else if (type == OffsetDateTime.class) {
+                    return OffsetDateTime.from(temporalValue);
+                } else if (type == ZonedDateTime.class) {
+                    return ZonedDateTime.from(temporalValue);
+                } else if (type == Instant.class) {
+                    return Instant.from(temporalValue);
+                } else if (type == Date.class) {
+                    return Date.valueOf(LocalDate.from(temporalValue));
+                } else if (type == java.sql.Timestamp.class) {
+                    return java.sql.Timestamp.valueOf(LocalDateTime.from(temporalValue));
+                } else if (type == java.sql.Time.class) {
+                    return java.sql.Time.valueOf(LocalTime.from(temporalValue));
                 }
-                return new Array(column, arrayValue.getArrayOfObjects());
-            } else if (type == java.sql.Array.class && value instanceof List<?>) {
-                if (column != null && column.getArrayBaseColumn() != null) {
-                    ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                    Object[] convertedValues = convertList((List<?>) value, JdbcUtils.convertToJavaClass(baseType));
-                    return new Array(column, convertedValues);
-                }
-                // base type is unknown. all objects should be converted
-                return new Array(column, ((List<?>) value).toArray());
-            } else if (type == java.sql.Array.class && value.getClass().isArray()) {
-                return new Array(column, arrayToObjectArray(value));
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return InetAddressConverter.convertToIpv4((InetAddress) value);
             } else if (type == Inet6Address.class && value instanceof Inet4Address) {
                 // Convert Inet4Address to Inet6Address
                 return InetAddressConverter.convertToIpv6((InetAddress) value);
-            } else if (type == Tuple.class && value.getClass().isArray()) {
-                return new Tuple(true, value);
             }
         } catch (Exception e) {
             throw new SQLException("Failed to convert from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
@@ -301,28 +348,27 @@ public class JdbcUtils {
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
     }
 
-    public static Object[] convertList(List<?> values, Class<?> type) throws SQLException {
+    public static <T> T[] convertList(List<?> values, Class<T> type) throws SQLException {
         if (values == null) {
             return null;
         }
         if (values.isEmpty()) {
-            return new Object[0];
+            return (T[]) java.lang.reflect.Array.newInstance(type, 0);
         }
-
-        Object[] convertedValues = new Object[values.size()];
+        T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, values.size());
         for (int i = 0; i < values.size(); i++) {
-            convertedValues[i] = convert(values.get(i), type);
+            convertedValues[i] = (T) convert(values.get(i), type);
         }
         return convertedValues;
     }
 
-    public static Object[] convertArray(Object[] values, Class<?> type) throws SQLException {
-        if (values == null || type == null) {
-            return values;
+    public static <T> T[] convertArray(Object[] values, Class<T> type) throws SQLException {
+        if (values == null) {
+            return null;
         }
-        Object[] convertedValues = new Object[values.length];
+        T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, values.length);
         for (int i = 0; i < values.length; i++) {
-            convertedValues[i] = convert(values[i], type);
+            convertedValues[i] = (T) convert(values[i], type);
         }
         return convertedValues;
     }
@@ -340,56 +386,56 @@ public class JdbcUtils {
 
         if (array instanceof byte[]) {
             byte[] src = (byte[]) array;
-            Object[] dst = new Object[src.length];
+            Byte[] dst = new Byte[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof short[]) {
             short[] src = (short[]) array;
-            Object[] dst = new Object[src.length];
+            Short[] dst = new Short[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof int[]) {
             int[] src = (int[]) array;
-            Object[] dst = new Object[src.length];
+            Integer[] dst = new Integer[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof long[]) {
             long[] src = (long[]) array;
-            Object[] dst = new Object[src.length];
+            Long[] dst = new Long[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof float[]) {
             float[] src = (float[]) array;
-            Object[] dst = new Object[src.length];
+            Float[] dst = new Float[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof double[]) {
             double[] src = (double[]) array;
-            Object[] dst = new Object[src.length];
+            Double[] dst = new Double[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof char[]) {
             char[] src = (char[]) array;
-            Object[] dst = new Object[src.length];
+            Character[] dst = new Character[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
             return dst;
         } else if (array instanceof boolean[]) {
             boolean[] src = (boolean[]) array;
-            Object[] dst = new Object[src.length];
+            Boolean[] dst = new Boolean[src.length];
             for (int i = 0; i < src.length; i++) {
                 dst[i] = src[i];
             }
