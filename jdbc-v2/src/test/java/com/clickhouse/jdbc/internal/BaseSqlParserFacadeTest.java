@@ -283,6 +283,7 @@ public abstract class BaseSqlParserFacadeTest {
             {"alter table user delete where reg_time = ?", 1},
             {"SELECT * FROM a,b WHERE id > ?", 1},
             {"select ip from myusers where tenant=?", 1},
+            {"SELECT myColumn FROM myTable WHERE myColumn in (?, ?, ?)", 3},
             {"DROP USER IF EXISTS default_impersonation_user", 0},
             {"DROP ROLE IF EXISTS `vkonfwxapllzkkgkqdvt`", 0},
             {"CREATE ROLE `kjxrsscptauligukwgmf` ON CLUSTER '{cluster}'", 0},
