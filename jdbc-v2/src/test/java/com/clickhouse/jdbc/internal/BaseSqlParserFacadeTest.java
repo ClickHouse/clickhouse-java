@@ -356,6 +356,9 @@ public abstract class BaseSqlParserFacadeTest {
                     "              arrayConcat(t.s.arr1, t.s.arr2)" +
                     "              )" +
                     ")", 0},
+            {"select count(*) filter (where 1 = 1)", 0},
+            {"select countIf(*, 1 = ?)", 1},
+            {"select count(*) filter (where 1 = ?)", 1}
         };
     }
 

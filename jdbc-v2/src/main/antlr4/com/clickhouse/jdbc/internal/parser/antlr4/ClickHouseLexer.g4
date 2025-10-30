@@ -114,6 +114,7 @@ FETCHES      : F E T C H E S;
 FETCH : F E T C H ;
 FILE : F I L E;
 FILESYSTEM : F I L E S Y S T E M ;
+FILTER : F I L T E R;
 FINAL        : F I N A L;
 FIRST        : F I R S T;
 FLUSH        : F L U S H;

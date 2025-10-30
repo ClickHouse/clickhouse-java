@@ -1069,6 +1069,7 @@ columnExpr
     | TRIM LPAREN (BOTH | LEADING | TRAILING) STRING_LITERAL FROM columnExpr RPAREN      # ColumnExprTrim
     | identifier (LPAREN columnExprList? RPAREN) OVER LPAREN windowExpr RPAREN           # ColumnExprWinFunction
     | identifier (LPAREN columnExprList? RPAREN) OVER identifier                         # ColumnExprWinFunctionTarget
+    | identifier (LPAREN columnExprList? RPAREN) FILTER LPAREN whereClause RPAREN        # ColumnExprAgrFuncWithFilter
     | identifier (LPAREN columnExprList? RPAREN)? LPAREN DISTINCT? columnArgList? RPAREN # ColumnExprFunction
     | literal                                                                            # ColumnExprLiteral
 
