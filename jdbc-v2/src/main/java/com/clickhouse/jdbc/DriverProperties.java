@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.internal.ServerSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -66,7 +67,7 @@ public enum DriverProperties {
      *     <li>JAVACC - parser extracts required information but PreparedStatement parameters parsed separately.</li>
      * </ul>
      */
-    SQL_PARSER("jdbc_sql_parser", "JAVACC", List.of("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
+    SQL_PARSER("jdbc_sql_parser", "JAVACC", Arrays.asList("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
     ;
 
 
