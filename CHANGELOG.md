@@ -18,6 +18,7 @@ To use it set `com.clickhouse.jdbc.DriverProperties#SQL_PARSER` to `ANTLR4`.
   - https://github.com/ClickHouse/clickhouse-java/issues/2572
   - https://github.com/ClickHouse/clickhouse-java/issues/2573
   - https://github.com/ClickHouse/clickhouse-java/issues/2609
+  - https://github.com/ClickHouse/clickhouse-java/issues/2527
 
 - [repo] New artifact `clickhouse-jdbc-all` added to address issue when maven package qualifiers may not be used. 
 This artifact should is a copy of `clickhouse-jdbc:all` but should be used only when required. (https://github.com/ClickHouse/clickhouse-java/issues/2625) 

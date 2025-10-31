@@ -1369,6 +1369,7 @@ keyword
     | SHOW
     | SOURCE
     | START
+    | STATISTICS
     | STOP
     | SUBSTRING
     | SYNC
@@ -1439,6 +1440,8 @@ keywordForAlias
     | MINUTE
     | SECOND
     | REVOKE
+    | URL
+    | STATISTICS
     ;
 
 alias
