@@ -1,3 +1,55 @@
+## 0.9.3
+
+### Important Changes 
+- [jdbc-v2] SQL parser from v1 is ported to v2 to address multiple issues with SQL parsing. The ANTLR4-based parser is 
+still an option and will be developed further. The main difference between parses is completeness of their grammar:
+JavaCC grabs only needed information and skips parsing of the rest (what makes it work for most cases) while ANTLR4 
+has more complete grammar and can detect type of some complex statements more accurate than JavaCC.
+To use it set `com.clickhouse.jdbc.DriverProperties#SQL_PARSER` to `ANTLR4`.
+  (https://github.com/ClickHouse/clickhouse-java/pull/2579). This fixes issue:
+  - https://github.com/ClickHouse/clickhouse-java/issues/2574
+  - https://github.com/ClickHouse/clickhouse-java/issues/2568
+  - https://github.com/ClickHouse/clickhouse-java/issues/2537
+  - https://github.com/ClickHouse/clickhouse-java/issues/2595
+  - https://github.com/ClickHouse/clickhouse-java/issues/2617
+  - https://github.com/ClickHouse/clickhouse-java/issues/2569
+  - https://github.com/ClickHouse/clickhouse-java/issues/2570
+  - https://github.com/ClickHouse/clickhouse-java/issues/2571
+  - https://github.com/ClickHouse/clickhouse-java/issues/2572
+  - https://github.com/ClickHouse/clickhouse-java/issues/2573
+  - https://github.com/ClickHouse/clickhouse-java/issues/2609
+  - https://github.com/ClickHouse/clickhouse-java/issues/2527
+
+- [repo] New artifact `clickhouse-jdbc-all` added to address issue when maven package qualifiers may not be used. 
+This artifact should is a copy of `clickhouse-jdbc:all` but should be used only when required. (https://github.com/ClickHouse/clickhouse-java/issues/2625) 
+
+### Improvements 
+- [client-v2] Added `getShortArray()` and `getStringArray()` to `ClickHouseBinaryFormatReader`.  (https://github.com/ClickHouse/clickhouse-java/pull/2604)
+- [client-v2] Added `result_rows` and `elapsed_time` to summary object. (https://github.com/ClickHouse/clickhouse-java/pull/1633/files)
+
+### Bug Fixes
+- [jdbc-v2] Fixed issue with `maxRows` in `Statement` when additional settings were used to limit result set size.
+It caused problems with read-only users because such users may not change settings in most cases. Now when `maxRows` is 
+set then `ResultSet` will skip extra rows. (https://github.com/ClickHouse/clickhouse-java/issues/2582)
+- [jdbc-v2] Fixed issue with driver version. Previously version of a library was converted to minor and major version.
+But this approach doesn't work well with `0.9.x` versions. Now major and minor versions are combined by shifting major. 
+Patch version becomes a minor version. (https://github.com/ClickHouse/clickhouse-java/issues/2410)
+- [jdbc-v2, client-v2] Fixed converting different data types to a string. For example, there was an issue with IP 
+address when `toString()` was used and returned `\0.0.0.0` instead of `0.0.0.0`. (https://github.com/ClickHouse/clickhouse-java/issues/2575)
+- [jdbc-v2] Fixed issues around spatial data (GEO types). (https://github.com/ClickHouse/clickhouse-java/issues/2577)
+- [client-v2] Fixed issue with current user name. If user name is set then it will be used event after reading 
+server context. (https://github.com/ClickHouse/clickhouse-java/issues/2247)
+- [client-v2] Fixed issue with network timeout settings when default value failed to be cast to Long. (https://github.com/ClickHouse/clickhouse-java/issues/2597)
+- [jdbc-v2] Fixed getting metadata for nullable columns. (https://github.com/ClickHouse/clickhouse-java/issues/2586)
+- [jdbc-v2, client-v2] Fixed issues related to reading JSON data type. Fixed reading JSON columns with arrays. Previously was causing exceptions like 
+`com.clickhouse.client.api.ClientException: Unsupported data type with tag 101 at ...`
+(https://github.com/ClickHouse/clickhouse-java/issues/2598, https://github.com/ClickHouse/clickhouse-java/issues/2593,
+  https://github.com/ClickHouse/clickhouse-java/issues/2613, https://github.com/ClickHouse/clickhouse-java/issues/2102)
+- [client-v2] Fixed configuration parameter type for `socket_linger` to match documentation. (https://github.com/ClickHouse/clickhouse-java/issues/2524)
+- [client-v2] Fixed handling exceptions in http client code. Now response object is always closed to prevent connection leaking. (https://github.com/ClickHouse/clickhouse-java/pull/2615)
+- [jdbc-v2, client-v2] Fixed issue with duplicate column names in a result set. (https://github.com/ClickHouse/clickhouse-java/issues/2459, https://github.com/ClickHouse/clickhouse-java/issues/2336)
+- [jdbc-v2] Fixed ANTLR4 parse issue with `filter` clause along with aggregate function. (https://github.com/ClickHouse/clickhouse-java/pull/2631) 
+
 ## 0.9.2 
 
 ### Improvements 
