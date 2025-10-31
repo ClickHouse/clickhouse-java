@@ -1,8 +1,11 @@
 ## 0.9.3
 
 ### Important Changes 
-- [jdbc-v2] SQL parser from v1 is ported to v2 to address multiple issues with SQL parsing. The new parser is 
-still an option and will be developed further. To use it set `com.clickhouse.jdbc.DriverProperties#SQL_PARSER` to `ANTLR4`.
+- [jdbc-v2] SQL parser from v1 is ported to v2 to address multiple issues with SQL parsing. The ANTLR4-based parser is 
+still an option and will be developed further. The main difference between parses is completeness of their grammar:
+JavaCC grabs only needed information and skips parsing of the rest (what makes it work for most cases) while ANTLR4 
+has more complete grammar and can detect type of some complex statements more accurate than JavaCC.
+To use it set `com.clickhouse.jdbc.DriverProperties#SQL_PARSER` to `ANTLR4`.
   (https://github.com/ClickHouse/clickhouse-java/pull/2579). This fixes issue:
   - https://github.com/ClickHouse/clickhouse-java/issues/2574
   - https://github.com/ClickHouse/clickhouse-java/issues/2568
