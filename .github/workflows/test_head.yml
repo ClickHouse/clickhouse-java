@@ -49,7 +49,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: '8'
+          java-version: '17'
           distribution: 'temurin'
           architecture: x64
       - name: Test Java client
