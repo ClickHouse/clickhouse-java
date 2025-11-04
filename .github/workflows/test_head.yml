@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CH_VERSION: "HEAD"
+  CH_VERSION: "head"
 
 jobs:
   test-java-client:
