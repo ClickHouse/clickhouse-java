@@ -36,50 +36,8 @@ env:
   CH_VERSION: "HEAD"
 
 jobs:
-  compile:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    name: Compile (JDK 8)
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: |
-            8
-            21
-          cache: "maven"
-      - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
-      - name: Copy Artifacts to Build dir
-        run: |
-          mkdir clickhouse-jdbc-artifacts
-          cp -rf $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/* ./clickhouse-jdbc-artifacts/
-      - name: Compile examples
-        run: |
-          export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
-          find `pwd`/examples -type f -name pom.xml -exec sed -i -e "s|\(<clickhouse-java.version>\).*\(<\)|\1$LIB_VER\2|g" {} \;
-          for d in $(ls -d `pwd`/examples/*/); do \
-            if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
-            if [ -e $d/gradlew ]; then cd $d && ./gradlew clean build; fi;
-          done
-      - name: Save clickhouse-jdbc-all for tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: clickhouse-jdbc-archive
-          path: clickhouse-jdbc-artifacts/
-          retention-days: 5
-
   test-java-client:
     runs-on: ubuntu-latest
-    needs: compile
     strategy:
       matrix:
         project: ["clickhouse-http-client", "client-v2"]
@@ -120,11 +78,9 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -137,7 +93,6 @@ jobs:
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
-    needs: test-java-client
     strategy:
       matrix:
         protocol: ["apache_http_client"]
@@ -178,11 +133,9 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=$CH_VERSION -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=$CH_VERSION -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -236,12 +189,10 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Install Java client
-        run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
-            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
+            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
