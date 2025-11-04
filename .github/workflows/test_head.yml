@@ -40,44 +40,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        project: ["clickhouse-http-client", "client-v2"]
+        project: ["clickhouse-http-client", "client-v2", "clickhouse-jdbc"]
       fail-fast: false
     timeout-minutes: 15
-    name: Java client ( ${{ matrix.project }} ) + CH HEAD
+    name: ${{ matrix.project }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
+      - uses: actions/checkout@v5
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: |
-            8
-            17
-          cache: "maven"
-      - name: Setup Toolchain
-        shell: bash
-        run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
-          <?xml version="1.0" encoding="UTF8"?>
-          <toolchains>
-            <toolchain>
-              <type>jdk</type>
-              <provides>
-                <version>17</version>
-              </provides>
-              <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
-              </configuration>
-            </toolchain>
-          </toolchains>
-          EOF
+          java-version: '8'
+          distribution: 'temurin'
+          architecture: x64
       - name: Test Java client
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true clean install
@@ -85,69 +59,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}_HEAD
+          name: result ${{ github.job }}_${{ matrix.project }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
           retention-days: 5
 
-  test-jdbc-driver:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        protocol: ["apache_http_client"]
-      fail-fast: false
-    timeout-minutes: 20
-    name: JDBC driver + CH HEAD (${{ matrix.protocol }})
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: |
-            8
-            17
-          cache: "maven"
-      - name: Setup Toolchain
-        shell: bash
-        run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
-          <?xml version="1.0" encoding="UTF8"?>
-          <toolchains>
-            <toolchain>
-              <type>jdk</type>
-              <provides>
-                <version>17</version>
-              </provides>
-              <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
-              </configuration>
-            </toolchain>
-          </toolchains>
-          EOF
-      - name: Test JDBC driver
-        run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=$CH_VERSION -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.project }}_HEAD
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-
   test-r2dbc-driver:
     runs-on: ubuntu-latest
-    needs: test-jdbc-driver
     strategy:
       matrix:
         protocol: ["http"]
@@ -156,39 +75,13 @@ jobs:
     timeout-minutes: 10
     name: R2DBC ${{ matrix.r2dbc }} + CH HEAD (${{ matrix.protocol }})
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
+      - uses: actions/checkout@v5
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: |
-            8
-            17
-          cache: "maven"
-      - name: Setup Toolchain
-        shell: bash
-        run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
-          <?xml version="1.0" encoding="UTF8"?>
-          <toolchains>
-            <toolchain>
-              <type>jdk</type>
-              <provides>
-                <version>17</version>
-              </provides>
-              <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
-              </configuration>
-            </toolchain>
-          </toolchains>
-          EOF
+          java-version: '8'
+          distribution: 'temurin'
+          architecture: x64
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
@@ -197,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}
+          name: result ${{ github.job }}_${{ matrix.r2dbc }}_${{ matrix.protocol }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
