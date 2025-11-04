@@ -1,4 +1,4 @@
-name: Nightly
+name: Test with CH HEAD
 
 on:
   schedule:
@@ -85,7 +85,7 @@ jobs:
         project: ["clickhouse-http-client", "client-v2"]
       fail-fast: false
     timeout-minutes: 15
-    name: Java client ( ${{ matrix.project }} ) + CH ${{ env.CH_VERSION }}
+    name: Java client ( ${{ matrix.project }} ) + CH HEAD
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -124,12 +124,12 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ env.CH_VERSION }} -Dmaven.javadoc.skip=true verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}_${{ env.CH_VERSION }}
+          name: result ${{ github.job }}_HEAD
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
@@ -143,7 +143,7 @@ jobs:
         protocol: ["apache_http_client"]
       fail-fast: false
     timeout-minutes: 20
-    name: JDBC driver + CH ${{ env.CH_VERSION }} (${{ matrix.protocol }})
+    name: JDBC driver + CH HEAD (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -182,12 +182,12 @@ jobs:
         run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=${{ env.CH_VERSION }} -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=$CH_VERSION -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: result ${{ github.job }}_${{ matrix.project }}_${{ env.CH_VERSION }}
+          name: result ${{ github.job }}_${{ matrix.project }}_HEAD
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
@@ -201,7 +201,7 @@ jobs:
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
-    name: R2DBC ${{ matrix.r2dbc }} + CH ${{ env.CH_VERSION }} (${{ matrix.protocol }})
+    name: R2DBC ${{ matrix.r2dbc }} + CH HEAD (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -240,7 +240,7 @@ jobs:
         run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests=true -Dmaven.javadoc.skip=true install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=${{ env.CH_VERSION}} \
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
