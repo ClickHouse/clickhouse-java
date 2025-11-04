@@ -12,22 +12,6 @@ on:
       - "**/LICENSE"
       - "**/NOTICE"
 
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths-ignore:
-      - "**.md"
-      - "**/docs/**"
-      - "**/LICENSE"
-      - "**/NOTICE"
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: "Pull request#"
-        required: false
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
