@@ -644,8 +644,7 @@ public class HttpAPIClientHelper {
 
         if (httpEntity.getContentEncoding() != null && !appCompressedData) {
             // http header is set and data is not compressed
-            String algo = getCompressionAlgoName(httpEntity.getContentEncoding());
-            return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton(), algo);
+            return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
         } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
@@ -664,8 +663,7 @@ public class HttpAPIClientHelper {
 
         if (httpEntity.getContentEncoding() != null) {
             // http compressed response
-            String algo = getCompressionAlgoName(httpEntity.getContentEncoding());
-            return new CompressedEntity(httpEntity, true, CompressorStreamFactory.getSingleton(), algo);
+            return new CompressedEntity(httpEntity, true, CompressorStreamFactory.getSingleton());
         }
 
         // data compression
@@ -675,16 +673,6 @@ public class HttpAPIClientHelper {
         }
 
         return httpEntity;
-    }
-
-    private String getCompressionAlgoName(String contentEncoding) {
-        String algo = contentEncoding;
-        if (algo.equalsIgnoreCase("gzip")) {
-            algo = CompressorStreamFactory.GZIP;
-        } else if (algo.equalsIgnoreCase("lz4")) {
-            algo = CompressorStreamFactory.LZ4_FRAMED;
-        }
-        return algo;
     }
 
     public static int getHeaderInt(Header header, int defaultValue) {

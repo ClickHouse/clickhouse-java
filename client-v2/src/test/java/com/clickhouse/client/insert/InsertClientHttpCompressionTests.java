@@ -64,7 +64,7 @@ public class InsertClientHttpCompressionTests extends InsertTests {
             { "lz4" },
             { "zstd" },
             { "deflate" },
-            { "gz" },
+            { "gzip" },
         };
     }
 }

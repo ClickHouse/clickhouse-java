@@ -17,13 +17,13 @@ public class CompressedEntity implements HttpEntity {
     private HttpEntity httpEntity;
     private final boolean isResponse;
     private final CompressorStreamFactory compressorStreamFactory;
-    private final String contentEncoding;
+    private final String compressionAlgo;
 
-    CompressedEntity(HttpEntity httpEntity, boolean isResponse, CompressorStreamFactory compressorStreamFactory, String contentEncoding) {
+    CompressedEntity(HttpEntity httpEntity, boolean isResponse, CompressorStreamFactory compressorStreamFactory) {
         this.httpEntity = httpEntity;
         this.isResponse = isResponse;
         this.compressorStreamFactory = compressorStreamFactory;
-        this.contentEncoding = contentEncoding;
+        this.compressionAlgo = getCompressionAlgoName(httpEntity.getContentEncoding());
     }
 
     @Override
@@ -38,7 +38,7 @@ public class CompressedEntity implements HttpEntity {
         }
 
         try {
-            return compressorStreamFactory.createCompressorInputStream(contentEncoding, httpEntity.getContent());
+            return compressorStreamFactory.createCompressorInputStream(compressionAlgo, httpEntity.getContent());
         } catch (CompressorException e) {
             throw new IOException("Failed to create decompressing input stream", e);
         }
@@ -52,7 +52,7 @@ public class CompressedEntity implements HttpEntity {
         }
 
         try {
-            httpEntity.writeTo(compressorStreamFactory.createCompressorOutputStream(contentEncoding, outStream));
+            httpEntity.writeTo(compressorStreamFactory.createCompressorOutputStream(compressionAlgo, outStream));
         } catch (CompressorException e) {
             throw new IOException("Failed to create compressing output stream", e);
         }
@@ -96,5 +96,15 @@ public class CompressedEntity implements HttpEntity {
     @Override
     public Set<String> getTrailerNames() {
         return httpEntity.getTrailerNames();
+    }
+
+    private String getCompressionAlgoName(String contentEncoding) {
+        String algo = contentEncoding;
+        if (algo.equalsIgnoreCase("gzip")) {
+            algo = CompressorStreamFactory.GZIP;
+        } else if (algo.equalsIgnoreCase("lz4")) {
+            algo = CompressorStreamFactory.LZ4_FRAMED;
+        }
+        return algo;
     }
 }
