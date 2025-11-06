@@ -1,3 +1,11 @@
+### 0.9.4 
+
+### New Features 
+- [client-v2] Added support for different compression algorithms when HTTP compression is enabled. (https://github.com/ClickHouse/clickhouse-java/pull/2645)
+
+### Bug Fixes 
+- [client-v1] Fixes issue linked to a enabled by default HTTP compression in ClickHouse 25.10. (https://github.com/ClickHouse/clickhouse-java/issues/2636)
+
 ## 0.9.3
 
 ### Important Changes 
