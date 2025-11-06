@@ -16,6 +16,7 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
+import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -104,6 +105,8 @@ public class HttpAPIClientHelper {
     private static final Logger LOG = LoggerFactory.getLogger(HttpAPIClientHelper.class);
 
     private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
+
+    private final String DEFAULT_HTTP_COMPRESSION_ALGO = "lz4";
 
     private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
         "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
@@ -322,6 +325,8 @@ public class HttpAPIClientHelper {
             clientBuilder.setKeepAliveStrategy((response, context) -> TimeValue.ofMilliseconds(keepAliveTimeout));
         }
 
+        clientBuilder.disableContentCompression(); // will handle ourselves
+
         return clientBuilder.build();
     }
 
@@ -427,14 +432,12 @@ public class HttpAPIClientHelper {
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, requestConfig);
 
-        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
-        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
-        boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
-
 
         // setting entity. wrapping if compression is enabled
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, null, writeCallback),
-                clientCompression, useHttpCompression, appCompressedData, lz4Factory, requestConfig));
+        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
+                lz4Factory,
+                requestConfig));
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -448,8 +451,11 @@ public class HttpAPIClientHelper {
         ClassicHttpResponse httpResponse = null;
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
-            boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
-            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), serverCompression, useHttpCompression, lz4Factory, requestConfig));
+
+            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
+                    httpResponse.getCode(),
+                    lz4Factory,
+                    requestConfig));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
@@ -493,30 +499,30 @@ public class HttpAPIClientHelper {
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
-        addHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+        setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_FORMAT,
                     ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
         }
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_QUERY_ID,
                     (String) requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()));
         }
-        addHeader(
+        setHeader(
             req,
             ClickHouseHttpProto.HEADER_DATABASE,
             ClientConfigProperties.DATABASE.getOrDefault(requestConfig));
 
         if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_DB_USER,
                 ClientConfigProperties.USER.getOrDefault(requestConfig));
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_SSL_CERT_AUTH,
                 "on");
@@ -529,11 +535,11 @@ public class HttpAPIClientHelper {
                 "Basic " + Base64.getEncoder().encodeToString(
                     (user + ":" + password).getBytes(StandardCharsets.UTF_8)));
         } else {
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_DB_USER,
                 ClientConfigProperties.USER.getOrDefault(requestConfig));
-            addHeader(
+            setHeader(
                 req,
                 ClickHouseHttpProto.HEADER_DB_PASSWORD,
                 ClientConfigProperties.PASSWORD.getOrDefault(requestConfig));
@@ -551,10 +557,11 @@ public class HttpAPIClientHelper {
 
         if (useHttpCompression) {
             if (serverCompression) {
-                addHeader(req, HttpHeaders.ACCEPT_ENCODING, "lz4");
+                setHeader(req, HttpHeaders.ACCEPT_ENCODING, DEFAULT_HTTP_COMPRESSION_ALGO);
             }
+
             if (clientCompression && !appCompressedData) {
-                addHeader(req, HttpHeaders.CONTENT_ENCODING, "lz4");
+                setHeader(req, HttpHeaders.CONTENT_ENCODING, DEFAULT_HTTP_COMPRESSION_ALGO);
             }
         }
 
@@ -562,7 +569,7 @@ public class HttpAPIClientHelper {
             if (key.startsWith(ClientConfigProperties.HTTP_HEADER_PREFIX)) {
                 Object val = requestConfig.get(key);
                 if (val != null) {
-                    addHeader(
+                    setHeader(
                         req,
                         key.substring(ClientConfigProperties.HTTP_HEADER_PREFIX.length()),
                         String.valueOf(val));
@@ -626,11 +633,19 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, boolean clientCompression, boolean useHttpCompression,
-                                         boolean appControlledCompression, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
-        LOG.debug("wrapRequestEntity: client compression: {}, http compression: {}", clientCompression, useHttpCompression);
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
 
-        if (clientCompression && !appControlledCompression) {
+        boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
+        boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
+
+        LOG.debug("wrapRequestEntity: client compression: {}, http compression: {}, content encoding: {}",
+                clientCompression, useHttpCompression, httpEntity.getContentEncoding());
+
+        if (httpEntity.getContentEncoding() != null && !appCompressedData) {
+            // http header is set and data is not compressed
+            return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
+        } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
                     buffSize, false, lz4Factory);
@@ -639,25 +654,22 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, boolean serverCompression, boolean useHttpCompression, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
-        LOG.debug("wrapResponseEntity: server compression: {}, http compression: {}", serverCompression, useHttpCompression);
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
+        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
-        if (serverCompression) {
-            // Server doesn't compress certain errors like 403
-            switch (httpStatus) {
-                case HttpStatus.SC_OK:
-                case HttpStatus.SC_CREATED:
-                case HttpStatus.SC_ACCEPTED:
-                case HttpStatus.SC_NO_CONTENT:
-                case HttpStatus.SC_PARTIAL_CONTENT:
-                case HttpStatus.SC_RESET_CONTENT:
-                case HttpStatus.SC_NOT_MODIFIED:
-                case HttpStatus.SC_BAD_REQUEST:
-                case HttpStatus.SC_INTERNAL_SERVER_ERROR:
-                case HttpStatus.SC_NOT_FOUND:
-                    int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-                    return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
-            }
+        LOG.debug("wrapResponseEntity: server compression: {}, http compression: {}, content encoding: {}",
+                serverCompression, useHttpCompression, httpEntity.getContentEncoding());
+
+        if (httpEntity.getContentEncoding() != null) {
+            // http compressed response
+            return new CompressedEntity(httpEntity, true, CompressorStreamFactory.getSingleton());
+        }
+
+        // data compression
+        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
+            int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
+            return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
         }
 
         return httpEntity;
@@ -803,8 +815,8 @@ public class HttpAPIClientHelper {
         httpClient.close(CloseMode.IMMEDIATE);
     }
 
-    private static <T> void addHeader(HttpRequest req, String headerName,
-        String value)
+    private static <T> void setHeader(HttpRequest req, String headerName,
+                                      String value)
     {
         if (value == null) {
             return;
@@ -814,10 +826,10 @@ public class HttpAPIClientHelper {
             return;
         }
         if (PATTERN_HEADER_VALUE_ASCII.matcher(value).matches()) {
-            req.addHeader(headerName, value);
+            req.setHeader(headerName, value);
         } else {
             try {
-                req.addHeader(
+                req.setHeader(
                         headerName + "*",
                         "UTF-8''" + URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
             } catch (UnsupportedEncodingException e) {

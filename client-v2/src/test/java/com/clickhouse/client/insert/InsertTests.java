@@ -62,14 +62,14 @@ import static org.testng.Assert.fail;
 
 @Test(groups = {"integration"})
 public class InsertTests extends BaseIntegrationTest {
-    private Client client;
-    private InsertSettings settings;
+    protected Client client;
+    protected InsertSettings settings;
 
     private boolean useClientCompression = false;
 
     private boolean useHttpCompression = false;
 
-    private static final int EXECUTE_CMD_TIMEOUT = 10; // seconds
+    static final int EXECUTE_CMD_TIMEOUT = 10; // seconds
 
     InsertTests() {
     }
@@ -262,6 +262,14 @@ public class InsertTests extends BaseIntegrationTest {
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + tableName);
         assertEquals(records.size(), 1000);
+
+        for (int i = 0; i < records.size(); i++) {
+            assertEquals(records.get(i).getInteger(1), i);
+            assertEquals(records.get(i).getString("event_ts"), "2021-01-01 00:00:00");
+            assertEquals(records.get(i).getString("name"), "name" + i);
+            assertEquals(records.get(i).getInteger("p1"), i);
+            assertEquals(records.get(i).getString("p2"), "p2");
+        }
     }
 
     @Test(groups = { "integration" }, dataProvider = "insertRawDataAsyncProvider", dataProviderClass = InsertTests.class)

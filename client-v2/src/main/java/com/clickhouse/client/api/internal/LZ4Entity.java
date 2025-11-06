@@ -15,7 +15,7 @@ import java.util.Set;
 
 class LZ4Entity implements HttpEntity {
 
-    private HttpEntity httpEntity;
+    private final HttpEntity httpEntity;
 
     private final boolean useHttpCompression;
 
