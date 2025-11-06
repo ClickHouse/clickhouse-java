@@ -171,6 +171,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
             switch (dataType) {
                 case BFloat16:
+                case QBit:
                     // TODO: add support
                     continue dataTypesLoop;
                     // skipped
@@ -464,6 +465,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             switch (dataType) {
                 case BFloat16:
+                case QBit:
                     // TODO: add support
                     continue;
                 case Array:
