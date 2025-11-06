@@ -130,7 +130,7 @@ public enum ClickHouseDataType implements SQLType {
     Dynamic(Object.class, true, true, false, 0, 0, 0, 0, 0, true, 0x2B),
     Time(LocalDateTime.class, true, false, false, 4, 9, 0, 0, 9, false, 0x32), // 0x33 for Time(Timezone)
     Time64(LocalDateTime.class, true, false, false, 8, 9, 0, 0, 0, false, 0x34), // 0x35 for Time64(P, Timezone)
-    QBit(Double.class, true, true, false, 0, 0, 0, 0, 0, true, 0x36),
+    QBit(Double.class, true, true, false, 0, 0, 0, 0, 0, false, 0x36),
     ;
 
     public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =
