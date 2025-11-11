@@ -987,7 +987,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "system.tables.database AS TABLE_SCHEM, " +
                     "system.tables.name AS TABLE_NAME, " +
                     "trim(c.1) AS COLUMN_NAME, " +
-                    "c.2::Int16 AS KEY_SEQ, " +
+                    "CAST(c.2 AS Int16) AS KEY_SEQ, " +
                     "'PRIMARY' AS PK_NAME " +
                     "FROM system.tables " +
                     "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
