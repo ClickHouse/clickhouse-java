@@ -1480,7 +1480,7 @@ public class Client implements AutoCloseable {
 
                     // Check response
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", durationSince(startTime), httpResponse.getCode());
+                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
                         selectedEndpoint = getNextAliveNode();
                         continue;
                     }
@@ -1603,7 +1603,7 @@ public class Client implements AutoCloseable {
 
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", durationSince(startTime), httpResponse.getCode());
+                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
                             selectedEndpoint = getNextAliveNode();
                             HttpAPIClientHelper.closeQuietly(httpResponse);
                             continue;
