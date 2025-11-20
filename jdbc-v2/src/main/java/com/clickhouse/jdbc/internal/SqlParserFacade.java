@@ -265,10 +265,39 @@ public abstract class SqlParserFacade {
             }
 
 
+            private String extractTableName(ClickHouseParser.TableIdentifierContext tableId) {
+                if (tableId == null) {
+                    return null;
+                }
+                
+                StringBuilder tableName = new StringBuilder();
+                
+                // Handle database identifier if present
+                if (tableId.databaseIdentifier() != null) {
+                    ClickHouseParser.DatabaseIdentifierContext dbCtx = tableId.databaseIdentifier();
+                    // Database identifier can have multiple parts: identifier (DOT identifier)*
+                    List<ClickHouseParser.IdentifierContext> dbParts = dbCtx.identifier();
+                    for (int i = 0; i < dbParts.size(); i++) {
+                        if (i > 0) {
+                            tableName.append('.');
+                        }
+                        tableName.append(SQLUtils.unquoteIdentifier(dbParts.get(i).getText()));
+                    }
+                    tableName.append('.');
+                }
+                
+                // Handle table identifier
+                if (tableId.identifier() != null) {
+                    tableName.append(SQLUtils.unquoteIdentifier(tableId.identifier().getText()));
+                }
+                
+                return tableName.toString();
+            }
+
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
                 if (ctx.tableIdentifier() != null) {
-                    parsedStatement.setTable(SQLUtils.unquoteIdentifier(ctx.tableIdentifier().getText()));
+                    parsedStatement.setTable(extractTableName(ctx.tableIdentifier()));
                 }
             }
 
@@ -276,7 +305,7 @@ public abstract class SqlParserFacade {
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
-                    parsedStatement.setTable(SQLUtils.unquoteIdentifier(tableId.getText()));
+                    parsedStatement.setTable(extractTableName(tableId));
                 }
 
                 ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
