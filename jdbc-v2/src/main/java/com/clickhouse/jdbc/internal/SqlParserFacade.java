@@ -283,7 +283,11 @@ public abstract class SqlParserFacade {
                         }
                         tableName.append(SQLUtils.unquoteIdentifier(dbParts.get(i).getText()));
                     }
-                    tableName.append('.');
+                    
+                    // Only append dot if table identifier exists
+                    if (tableId.identifier() != null) {
+                        tableName.append('.');
+                    }
                 }
                 
                 // Handle table identifier
