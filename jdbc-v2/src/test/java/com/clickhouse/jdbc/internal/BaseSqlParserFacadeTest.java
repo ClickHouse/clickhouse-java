@@ -160,6 +160,31 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertFalse(stmt.isHasErrors());
     }
 
+    @Test
+    public void testMultiDotNotation() {
+        // Test with three parts: a.b.c where a.b is database and c is table
+        String sql1 = "SELECT * FROM a.b.c WHERE id = ?";
+        ParsedPreparedStatement stmt1 = parser.parsePreparedStatement(sql1);
+        Assert.assertEquals(stmt1.getArgCount(), 1);
+        Assert.assertFalse(stmt1.isHasErrors());
+        Assert.assertEquals(stmt1.getTable(), "a.b.c");
+        
+        // Test with quoted identifiers
+        String sql2 = "SELECT * FROM `db.part1`.`table` WHERE id = ?";
+        ParsedPreparedStatement stmt2 = parser.parsePreparedStatement(sql2);
+        Assert.assertEquals(stmt2.getArgCount(), 1);
+        Assert.assertFalse(stmt2.isHasErrors());
+        Assert.assertEquals(stmt2.getTable(), "db.part1.table");
+        
+        // Test INSERT with multi-dot notation
+        String sql3 = "INSERT INTO a.b.c (col1, col2) VALUES (?, ?)";
+        ParsedPreparedStatement stmt3 = parser.parsePreparedStatement(sql3);
+        Assert.assertEquals(stmt3.getArgCount(), 2);
+        Assert.assertFalse(stmt3.isHasErrors());
+        Assert.assertTrue(stmt3.isInsert());
+        Assert.assertEquals(stmt3.getTable(), "a.b.c");
+    }
+
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);

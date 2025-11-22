@@ -1172,7 +1172,7 @@ tableArgExpr
 // Databases
 
 databaseIdentifier
-    : identifier
+    : identifier (DOT identifier)*
     ;
 
 // Basics
