@@ -903,9 +903,12 @@ void nestedIdentifier(): {} {
     (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
 }
 
-void tableIdentifier(boolean record): { Token t; } {
+void tableIdentifier(boolean record): { Token t; StringBuilder fullName = new StringBuilder(); } {
     (
-        (LOOKAHEAD(2) databaseIdentifier(record) <DOT>)? t = anyIdentifier()
+        t = anyIdentifier() { fullName.append(ClickHouseSqlUtils.unescape(t.image)); }
+        (
+            LOOKAHEAD(2) <DOT> t = anyIdentifier() { fullName.append('.').append(ClickHouseSqlUtils.unescape(t.image)); }
+        )*
         (LOOKAHEAD(2)
             <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
             anyExprList()
@@ -913,8 +916,15 @@ void tableIdentifier(boolean record): { Token t; } {
         )?
     )
     {
-        if (record && t != null && token_source.table == null) {
-            token_source.table = ClickHouseSqlUtils.unescape(t.image);
+        if (record && token_source.table == null) {
+            String qualifiedName = fullName.toString();
+            int lastDot = qualifiedName.lastIndexOf('.');
+            if (lastDot > 0) {
+                token_source.database = qualifiedName.substring(0, lastDot);
+                token_source.table = qualifiedName.substring(lastDot + 1);
+            } else {
+                token_source.table = qualifiedName;
+            }
         }
     }
 }

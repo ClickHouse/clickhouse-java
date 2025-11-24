@@ -248,6 +248,25 @@ public abstract class SqlParserFacade {
                 super.enterColumnExprPrecedence3(ctx);
             }
 
+            private String unquoteTableIdentifier(String rawTableId) {
+                if (rawTableId == null || rawTableId.isEmpty()) {
+                    return rawTableId;
+                }
+                
+                // Split by dots and unquote each part
+                String[] parts = rawTableId.split("\\.");
+                StringBuilder result = new StringBuilder();
+                
+                for (int i = 0; i < parts.length; i++) {
+                    if (i > 0) {
+                        result.append('.');
+                    }
+                    result.append(SQLUtils.unquoteIdentifier(parts[i]));
+                }
+                
+                return result.toString();
+            }
+
             @Override
             public void visitErrorNode(ErrorNode node) {
                 parsedStatement.setHasErrors(true);
@@ -265,43 +284,10 @@ public abstract class SqlParserFacade {
             }
 
 
-            private String extractTableName(ClickHouseParser.TableIdentifierContext tableId) {
-                if (tableId == null) {
-                    return null;
-                }
-                
-                StringBuilder tableName = new StringBuilder();
-                
-                // Handle database identifier if present
-                if (tableId.databaseIdentifier() != null) {
-                    ClickHouseParser.DatabaseIdentifierContext dbCtx = tableId.databaseIdentifier();
-                    // Database identifier can have multiple parts: identifier (DOT identifier)*
-                    List<ClickHouseParser.IdentifierContext> dbParts = dbCtx.identifier();
-                    for (int i = 0; i < dbParts.size(); i++) {
-                        if (i > 0) {
-                            tableName.append('.');
-                        }
-                        tableName.append(SQLUtils.unquoteIdentifier(dbParts.get(i).getText()));
-                    }
-                    
-                    // Only append dot if table identifier exists
-                    if (tableId.identifier() != null) {
-                        tableName.append('.');
-                    }
-                }
-                
-                // Handle table identifier
-                if (tableId.identifier() != null) {
-                    tableName.append(SQLUtils.unquoteIdentifier(tableId.identifier().getText()));
-                }
-                
-                return tableName.toString();
-            }
-
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
                 if (ctx.tableIdentifier() != null) {
-                    parsedStatement.setTable(extractTableName(ctx.tableIdentifier()));
+                    parsedStatement.setTable(unquoteTableIdentifier(ctx.tableIdentifier().getText()));
                 }
             }
 
@@ -309,7 +295,7 @@ public abstract class SqlParserFacade {
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
-                    parsedStatement.setTable(extractTableName(tableId));
+                    parsedStatement.setTable(unquoteTableIdentifier(tableId.getText()));
                 }
 
                 ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
