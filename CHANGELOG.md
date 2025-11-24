@@ -1,4 +1,9 @@
-### 0.9.4 
+## 0.9.5
+
+### New Features
+- [client-v2] Log durations in ISO-8601 duration format
+
+## 0.9.4 
 
 ### New Features 
 - [client-v2] Added support for different compression algorithms when HTTP compression is enabled. (https://github.com/ClickHouse/clickhouse-java/pull/2645)
