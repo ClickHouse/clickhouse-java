@@ -7,6 +7,7 @@ import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlParser;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
 import com.clickhouse.jdbc.internal.parser.javacc.JdbcParseHandler;
 import com.clickhouse.jdbc.internal.parser.javacc.StatementType;
 import org.antlr.v4.runtime.BaseErrorListener;
@@ -253,15 +254,46 @@ public abstract class SqlParserFacade {
                     return rawTableId;
                 }
                 
-                // Split by dots and unquote each part
-                String[] parts = rawTableId.split("\\.");
+                // Parse respecting quoted identifiers - don't split dots inside quotes
                 StringBuilder result = new StringBuilder();
+                boolean inQuote = false;
+                char quoteChar = 0;
+                StringBuilder currentPart = new StringBuilder();
                 
-                for (int i = 0; i < parts.length; i++) {
-                    if (i > 0) {
+                for (int i = 0; i < rawTableId.length(); i++) {
+                    char ch = rawTableId.charAt(i);
+                    
+                    if (!inQuote && (ch == '`' || ch == '"' || ch == '\'')) {
+                        inQuote = true;
+                        quoteChar = ch;
+                        currentPart.append(ch);
+                    } else if (inQuote && ch == quoteChar) {
+                        // Check for escaped quote (doubled quote)
+                        if (i + 1 < rawTableId.length() && rawTableId.charAt(i + 1) == quoteChar) {
+                            currentPart.append(ch).append(ch);
+                            i++; // Skip the next quote
+                        } else {
+                            inQuote = false;
+                            currentPart.append(ch);
+                        }
+                    } else if (!inQuote && ch == '.') {
+                        // Dot outside quotes - split here
+                        if (result.length() > 0) {
+                            result.append('.');
+                        }
+                        result.append(ClickHouseSqlUtils.unescape(currentPart.toString()));
+                        currentPart.setLength(0);
+                    } else {
+                        currentPart.append(ch);
+                    }
+                }
+                
+                // Append the last part
+                if (currentPart.length() > 0) {
+                    if (result.length() > 0) {
                         result.append('.');
                     }
-                    result.append(SQLUtils.unquoteIdentifier(parts[i]));
+                    result.append(ClickHouseSqlUtils.unescape(currentPart.toString()));
                 }
                 
                 return result.toString();

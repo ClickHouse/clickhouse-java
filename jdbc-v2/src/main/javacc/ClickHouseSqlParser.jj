@@ -903,11 +903,11 @@ void nestedIdentifier(): {} {
     (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
 }
 
-void tableIdentifier(boolean record): { Token t; StringBuilder fullName = new StringBuilder(); } {
+void tableIdentifier(boolean record): { Token t; java.util.List<String> parts = new java.util.ArrayList<>(); } {
     (
-        t = anyIdentifier() { fullName.append(ClickHouseSqlUtils.unescape(t.image)); }
+        t = anyIdentifier() { parts.add(ClickHouseSqlUtils.unescape(t.image)); }
         (
-            LOOKAHEAD(2) <DOT> t = anyIdentifier() { fullName.append('.').append(ClickHouseSqlUtils.unescape(t.image)); }
+            LOOKAHEAD(2) <DOT> t = anyIdentifier() { parts.add(ClickHouseSqlUtils.unescape(t.image)); }
         )*
         (LOOKAHEAD(2)
             <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
@@ -916,14 +916,18 @@ void tableIdentifier(boolean record): { Token t; StringBuilder fullName = new St
         )?
     )
     {
-        if (record && token_source.table == null) {
-            String qualifiedName = fullName.toString();
-            int lastDot = qualifiedName.lastIndexOf('.');
-            if (lastDot > 0) {
-                token_source.database = qualifiedName.substring(0, lastDot);
-                token_source.table = qualifiedName.substring(lastDot + 1);
-            } else {
-                token_source.table = qualifiedName;
+        if (record && token_source.table == null && parts.size() > 0) {
+            // Last part is always the table name
+            token_source.table = parts.get(parts.size() - 1);
+            
+            // All parts before the last are the database (if any)
+            if (parts.size() > 1) {
+                StringBuilder db = new StringBuilder();
+                for (int i = 0; i < parts.size() - 1; i++) {
+                    if (i > 0) db.append('.');
+                    db.append(parts.get(i));
+                }
+                token_source.database = db.toString();
             }
         }
     }
