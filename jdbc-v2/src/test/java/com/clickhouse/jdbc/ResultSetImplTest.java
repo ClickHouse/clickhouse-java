@@ -360,4 +360,29 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test
+    public void testGetResultSetFromArray() throws Exception {
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("select [1, 2, 3, 4]::Array(UInt16) as v")) {
+                assertTrue(rs.next());
+
+                Array array = rs.getArray("v");
+                Assert.assertNotNull(array);
+                Assert.assertEquals(array.getBaseType(), Types.INTEGER);
+                Assert.assertEquals(array.getBaseTypeName(), "UInt16");
+
+                Integer[] array2 = (Integer[]) array.getArray();
+
+                ResultSet rs2 = array.getResultSet();
+                Assert.assertTrue(rs2.isBeforeFirst());
+                Assert.assertFalse(rs2.isAfterLast());
+                for (int i = 0; i < array2.length; i++) {
+                    rs2.next();
+                    Assert.assertEquals(rs2.getInt(1), array2[i]);
+                }
+            }
+        }
+    }
 }
