@@ -6,6 +6,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.jdbc.PreparedStatementImpl;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
@@ -31,7 +32,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class JdbcUtils {
@@ -85,6 +88,8 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.LineString, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiPolygon, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiLineString, JDBCType.ARRAY);
+        map.put(ClickHouseDataType.Tuple, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Nothing, JDBCType.OTHER);
         return ImmutableMap.copyOf(map);
     }
 
@@ -169,6 +174,8 @@ public class JdbcUtils {
                     default:
                         map.put(e.getKey(), Object.class);
                 }
+            } else if (e.getValue().equals(JDBCType.STRUCT)) {
+                map.put(e.getKey(), Object.class);
             } else {
                 map.put(e.getKey(), SQL_TYPE_TO_CLASS_MAP.get(e.getValue()));
             }
@@ -255,12 +262,12 @@ public class JdbcUtils {
         if (value instanceof List<?>) {
             List<?> listValue = (List<?>) value;
             if (type != java.sql.Array.class) {
-                return convertList(listValue, type);
+                return convertList(listValue, type, column.getArrayNestedLevel());
             }
 
             if (column != null && column.getArrayBaseColumn() != null) {
                 ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
-                Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType));
+                Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType), column.getArrayNestedLevel());
                 return new Array(column, convertedValues);
             }
 
@@ -348,17 +355,41 @@ public class JdbcUtils {
         throw new SQLException("Unsupported conversion from " + value.getClass().getName() + " to " + type.getName(), ExceptionUtils.SQL_STATE_DATA_EXCEPTION);
     }
 
-    public static <T> T[] convertList(List<?> values, Class<T> type) throws SQLException {
+    public static <T> T[] convertList(List<?> values, Class<T> type, int dimensions) throws SQLException {
         if (values == null) {
             return null;
         }
         if (values.isEmpty()) {
             return (T[]) java.lang.reflect.Array.newInstance(type, 0);
         }
-        T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, values.size());
-        for (int i = 0; i < values.size(); i++) {
-            convertedValues[i] = (T) convert(values.get(i), type);
+
+
+        int[] arrayDimensions = new int[dimensions];
+        arrayDimensions[0] = values.size();
+        T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
+        Stack<ArrayProcessingCursor> stack = new Stack<>();
+        stack.push(new ArrayProcessingCursor(convertedValues, values, 0, values.size()));
+
+        while (!stack.isEmpty()) {
+            ArrayProcessingCursor cursor = stack.pop();
+
+            for (int i = 0; i < cursor.size; i++) {
+                Object value = cursor.getValue(i);
+                if (value == null) {
+                    continue; // no need to set null value
+                } else  if (value instanceof List<?>) {
+                    List<?> srcList = (List<?>) value;
+                    arrayDimensions = new int[Math.max(dimensions - stack.size() - 1, 1)];
+                    arrayDimensions[0] = srcList.size();
+                    T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
+                    stack.push(new ArrayProcessingCursor(targetArray, value, 0, srcList.size()));
+                    java.lang.reflect.Array.set(cursor.targetArray, i, targetArray);
+                } else {
+                    java.lang.reflect.Array.set(cursor.targetArray, i, convert(value, type));
+                }
+            }
         }
+
         return convertedValues;
     }
 
@@ -371,6 +402,31 @@ public class JdbcUtils {
             convertedValues[i] = (T) convert(values[i], type);
         }
         return convertedValues;
+    }
+
+    private static final class ArrayProcessingCursor {
+        private final Object targetArray;
+        private final Object srcArray;
+        private final int pos;
+        private final int size;
+        private final Function<Integer, Object> valueGetter;
+
+        public  ArrayProcessingCursor(Object targetArray, Object srcArray, int pos, int size) {
+            this.targetArray = targetArray;
+            this.srcArray = srcArray;
+            this.pos = pos;
+            this.size = size;
+            if (srcArray instanceof List<?>) {
+                List<?> list = (List<?>)  srcArray;
+                this.valueGetter = list::get;
+            } else {
+                this.valueGetter = (i) -> java.lang.reflect.Array.get(srcArray, i);
+            }
+        }
+
+        public Object getValue(int i) {
+            return valueGetter.apply(i);
+        }
     }
 
     private static Object[] arrayToObjectArray(Object array) {

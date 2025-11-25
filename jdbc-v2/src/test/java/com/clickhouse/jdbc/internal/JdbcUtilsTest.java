@@ -67,13 +67,13 @@ public class JdbcUtilsTest {
     public void testConvertList() throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("arr", "Array(Int32)");
         List<Integer> src = Arrays.asList(1, 2, 3);
-        Integer[] dst = JdbcUtils.convertList(src, Integer.class);
+        Integer[] dst = JdbcUtils.convertList(src, Integer.class, 1);
         assertEquals(dst.length, src.size());
         assertEquals(dst[0], src.get(0));
         assertEquals(dst[1], src.get(1));
         assertEquals(dst[2], src.get(2));
 
-        assertNull(JdbcUtils.convertList(null, Integer.class));
+        assertNull(JdbcUtils.convertList(null, Integer.class, 1));
     }
 
 
