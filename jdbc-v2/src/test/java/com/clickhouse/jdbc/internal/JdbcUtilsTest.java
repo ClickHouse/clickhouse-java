@@ -50,16 +50,19 @@ public class JdbcUtilsTest {
     @Test(groups = {"unit"})
     public void testConvertArray() throws Exception {
         // primitive classes are unwrapped
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Boolean.class), new Boolean[] { false, true });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Byte.class), new Byte[] { 0, 1 });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Short.class), new Short[] { 0, 1 });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Integer.class), new Integer[] { 0, 1 });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Long.class), new Long[] { 0L, 1L });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Float.class), new Float[] { 0.0f, 1.0f });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Double.class), new Double[] { 0.0, 1.0 });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, String.class), new String[] { "0", "1" });
-        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, BigDecimal.class), new BigDecimal[] { BigDecimal.valueOf(0), BigDecimal.valueOf(1) });
-        assertNull(JdbcUtils.convertArray(null, Integer.class));
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Boolean.class, 1), new Boolean[] { false, true });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Byte.class, 1), new Byte[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Short.class, 1), new Short[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Integer.class, 1), new Integer[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Long.class, 1), new Long[] { 0L, 1L });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Float.class, 1), new Float[] { 0.0f, 1.0f });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Double.class, 1), new Double[] { 0.0, 1.0 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, String.class, 1), new String[] { "0", "1" });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, BigDecimal.class, 1), new BigDecimal[] { BigDecimal.valueOf(0), BigDecimal.valueOf(1) });
+        assertEquals(JdbcUtils.convertArray(new Object[][] { new Object[] {1, 2, 3}, new Object[] { 4, 5, 6} }, String.class, 2),
+                new String[][] { new String[] {"1", "2", "3"}, new String[] {"4", "5", "6"} });
+
+        assertNull(JdbcUtils.convertArray(null, Integer.class, 1));
     }
 
 
