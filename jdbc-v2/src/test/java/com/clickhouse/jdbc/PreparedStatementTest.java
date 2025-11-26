@@ -985,7 +985,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY tuple()");
             }
 
             final int nBatches = 10;
@@ -1040,7 +1040,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY tuple()");
             }
 
             final int nBatches = 10;
@@ -1335,7 +1335,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 final String table = keyword;
                 try (Statement stmt = conn.createStatement()) {
                     stmt.execute("DROP TABLE IF EXISTS " + table);
-                    stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+                    stmt.execute(
+"CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
                     stmt.execute("INSERT INTO `" + table + "` VALUES (1000, 'test')");
                 }
 
