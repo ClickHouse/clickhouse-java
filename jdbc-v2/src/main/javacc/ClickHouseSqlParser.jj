@@ -903,32 +903,40 @@ void nestedIdentifier(): {} {
     (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
 }
 
-void tableIdentifier(boolean record): { Token t; java.util.List<String> parts = new java.util.ArrayList<>(); } {
+void tableIdentifier(boolean record): { } {
     (
-        t = anyIdentifier() { parts.add(ClickHouseSqlUtils.unescape(t.image)); }
-        (
-            LOOKAHEAD(2) <DOT> t = anyIdentifier() { parts.add(ClickHouseSqlUtils.unescape(t.image)); }
-        )*
-        (LOOKAHEAD(2)
-            <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
-            anyExprList()
-            <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, token); }
-        )?
-    )
+        // Match all identifiers followed by DOT as database parts
+        LOOKAHEAD(anyIdentifier() <DOT>) databasePart(record) <DOT>
+    )*
+    // Last identifier is the table
+    tablePart(record)
+    // Optional column list
+    (LOOKAHEAD(2)
+        <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
+        anyExprList()
+        <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, token); }
+    )?
+}
+
+void databasePart(boolean record): { Token t; } {
+    t = anyIdentifier()
     {
-        if (record && token_source.table == null && parts.size() > 0) {
-            // Last part is always the table name
-            token_source.table = parts.get(parts.size() - 1);
-            
-            // All parts before the last are the database (if any)
-            if (parts.size() > 1) {
-                StringBuilder db = new StringBuilder();
-                for (int i = 0; i < parts.size() - 1; i++) {
-                    if (i > 0) db.append('.');
-                    db.append(parts.get(i));
-                }
-                token_source.database = db.toString();
+        if (record && token_source.table == null) {
+            String part = ClickHouseSqlUtils.unescape(t.image);
+            if (token_source.database == null) {
+                token_source.database = part;
+            } else {
+                token_source.database = token_source.database + "." + part;
             }
+        }
+    }
+}
+
+void tablePart(boolean record): { Token t; } {
+    t = anyIdentifier()
+    {
+        if (record && token_source.table == null) {
+            token_source.table = ClickHouseSqlUtils.unescape(t.image);
         }
     }
 }

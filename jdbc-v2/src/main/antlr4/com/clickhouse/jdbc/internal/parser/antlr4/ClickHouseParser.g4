@@ -196,7 +196,7 @@ nameCollectionKey
     ;
 
 userIdentifier
-    : (IDENTIFIER | STRING_LITERAL)
+    : (BACKTICK_ID | QUOTED_IDENTIFIER | IDENTIFIER | STRING_LITERAL)
     ;
 
 userIdentifiedClause
@@ -1152,7 +1152,8 @@ tableFunctionExpr
     ;
 
 tableIdentifier
-    : (databaseIdentifier DOT)? identifier
+    : databaseIdentifier DOT identifier
+    | identifier
     ;
 
 viewIdentifier
@@ -1450,7 +1451,9 @@ alias
     ; // |interval| can't be an alias, otherwise 'INTERVAL 1 SOMETHING' becomes ambiguous.
 
 identifier
-    : IDENTIFIER
+    : BACKTICK_ID
+    | QUOTED_IDENTIFIER
+    | IDENTIFIER
     | interval
     | keyword
     ;

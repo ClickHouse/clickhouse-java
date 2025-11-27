@@ -25,6 +25,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class SqlParserFacade {
 
@@ -137,6 +138,14 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParsedPreparedStatementListener(stmt));
+            
+            // Combine database and table like JavaCC does
+            String tableName = stmt.getTable();
+            if (stmt.getDatabase() != null && stmt.getTable() != null) {
+                tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
+            }
+            stmt.setTable(tableName);
+            
             parseParameters(sql, stmt);
             return stmt;
         }
@@ -249,56 +258,6 @@ public abstract class SqlParserFacade {
                 super.enterColumnExprPrecedence3(ctx);
             }
 
-            private String unquoteTableIdentifier(String rawTableId) {
-                if (rawTableId == null || rawTableId.isEmpty()) {
-                    return rawTableId;
-                }
-                
-                // Parse respecting quoted identifiers - don't split dots inside quotes
-                StringBuilder result = new StringBuilder();
-                boolean inQuote = false;
-                char quoteChar = 0;
-                StringBuilder currentPart = new StringBuilder();
-                
-                for (int i = 0; i < rawTableId.length(); i++) {
-                    char ch = rawTableId.charAt(i);
-                    
-                    if (!inQuote && (ch == '`' || ch == '"' || ch == '\'')) {
-                        inQuote = true;
-                        quoteChar = ch;
-                        currentPart.append(ch);
-                    } else if (inQuote && ch == quoteChar) {
-                        // Check for escaped quote (doubled quote)
-                        if (i + 1 < rawTableId.length() && rawTableId.charAt(i + 1) == quoteChar) {
-                            currentPart.append(ch).append(ch);
-                            i++; // Skip the next quote
-                        } else {
-                            inQuote = false;
-                            currentPart.append(ch);
-                        }
-                    } else if (!inQuote && ch == '.') {
-                        // Dot outside quotes - split here
-                        if (result.length() > 0) {
-                            result.append('.');
-                        }
-                        result.append(ClickHouseSqlUtils.unescape(currentPart.toString()));
-                        currentPart.setLength(0);
-                    } else {
-                        currentPart.append(ch);
-                    }
-                }
-                
-                // Append the last part
-                if (currentPart.length() > 0) {
-                    if (result.length() > 0) {
-                        result.append('.');
-                    }
-                    result.append(ClickHouseSqlUtils.unescape(currentPart.toString()));
-                }
-                
-                return result.toString();
-            }
-
             @Override
             public void visitErrorNode(ErrorNode node) {
                 parsedStatement.setHasErrors(true);
@@ -315,11 +274,10 @@ public abstract class SqlParserFacade {
                 parsedStatement.setAssignValuesListStopPosition(ctx.getStop().getStopIndex());
             }
 
-
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
                 if (ctx.tableIdentifier() != null) {
-                    parsedStatement.setTable(unquoteTableIdentifier(ctx.tableIdentifier().getText()));
+                    extractAndSetDatabaseAndTable(ctx.tableIdentifier());
                 }
             }
 
@@ -327,7 +285,7 @@ public abstract class SqlParserFacade {
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
-                    parsedStatement.setTable(unquoteTableIdentifier(tableId.getText()));
+                    extractAndSetDatabaseAndTable(tableId);
                 }
 
                 ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
@@ -341,6 +299,35 @@ public abstract class SqlParserFacade {
                 }
 
                 parsedStatement.setInsert(true);
+            }
+
+            /**
+             * Extracts database and table from parse tree using grammar structure.
+             * Grammar: tableIdentifier = (databaseIdentifier DOT)? identifier
+             * The grammar itself defines what's database vs table!
+             * 
+             * Examples:
+             *   table -> databaseIdentifier=null, identifier="table"
+             *   db.table -> databaseIdentifier="db", identifier="table"  
+             *   a.b.c -> databaseIdentifier="a.b", identifier="c"
+             */
+            private void extractAndSetDatabaseAndTable(ClickHouseParser.TableIdentifierContext tableId) {
+                if (tableId == null) {
+                    return;
+                }
+                
+                // Table is always the standalone identifier (last part)
+                if (tableId.identifier() != null) {
+                    parsedStatement.setTable(ClickHouseSqlUtils.unescape(tableId.identifier().getText()));
+                }
+                
+                // Database is the databaseIdentifier part (if present)
+                if (tableId.databaseIdentifier() != null) {
+                    String database = tableId.databaseIdentifier().identifier().stream()
+                        .map(id -> ClickHouseSqlUtils.unescape(id.getText()))
+                        .collect(Collectors.joining("."));
+                    parsedStatement.setDatabase(database);
+                }
             }
 
             @Override
@@ -366,6 +353,14 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParseStatementAndParamsListener(stmt));
+            
+            // Combine database and table like JavaCC does
+            String tableName = stmt.getTable();
+            if (stmt.getDatabase() != null && stmt.getTable() != null) {
+                tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
+            }
+            stmt.setTable(tableName);
+            
             return stmt;
         }
 
