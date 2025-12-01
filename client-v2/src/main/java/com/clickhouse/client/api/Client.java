@@ -139,20 +139,21 @@ public class Client implements AutoCloseable {
     private String dbUser;
     private String serverVersion;
     private Object metricsRegistry;
-    private int retries;
+    private final int retries;
     private LZ4Factory lz4Factory = null;
+    private final Supplier<String> queryIdGenerator;
 
     private Client(Set<String> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
-        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricRegistry, Supplier<String> queryIdGenerator) {
+        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null, metricRegistry, queryIdGenerator);
     }
 
     private Client(Set<String> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
-        // Simple initialization
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry, Object metricRegistry, Supplier<String> queryIdGenerator) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
+        this.queryIdGenerator = queryIdGenerator;
 
         // Serialization
         this.pojoSerDe = new POJOSerDe(columnToMethodMatchingStrategy);
@@ -267,6 +268,8 @@ public class Client implements AutoCloseable {
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
+        private Supplier<String> queryIdGenerator;
+
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<>();
@@ -1048,6 +1051,16 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets query id generator. Will be used when operation settings (InsertSettings, QuerySettings) do not have query id set.
+         * @param supplier
+         * @return
+         */
+        public Builder queryIdGenerator(Supplier<String> supplier) {
+            this.queryIdGenerator = supplier;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1106,7 +1119,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
         }
     }
 
@@ -1245,6 +1258,9 @@ public class Client implements AutoCloseable {
         final int maxRetries = retry == null ? 0 : retry;
 
         requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1462,6 +1478,9 @@ public class Client implements AutoCloseable {
         }
         sqlStmt.append(" FORMAT ").append(format.name());
         requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1586,6 +1605,9 @@ public class Client implements AutoCloseable {
 
             if (queryParams != null) {
                 requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+            }
+            if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+                requestSettings.setQueryId(queryIdGenerator.get());
             }
             responseSupplier = () -> {
                 long startTime = System.nanoTime();
