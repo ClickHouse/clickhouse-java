@@ -96,7 +96,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     private final static Random RANDOM = new Random();
 
-    private Client client;
+    protected Client client;
 
     private boolean useServerCompression = false;
 
@@ -1455,7 +1455,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
-    private final static List<String> DATASET_COLUMNS = Arrays.asList(
+    protected final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
             "col3 String",
@@ -1465,7 +1465,7 @@ public class QueryTests extends BaseIntegrationTest {
             "col7 Array(Int32)"
     );
 
-    private final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = Arrays.asList(
+    protected final static List<Function<String, Object>> DATASET_VALUE_GENERATORS = Arrays.asList(
             c -> Long.valueOf(RANDOM.nextInt(Integer.MAX_VALUE)),
             c -> RANDOM.nextInt(Integer.MAX_VALUE),
             c -> "value_" + RANDOM.nextInt(Integer.MAX_VALUE),
@@ -1475,13 +1475,13 @@ public class QueryTests extends BaseIntegrationTest {
             c -> RANDOM.ints(10, 0, Integer.MAX_VALUE).boxed().collect(Collectors.toList())
     );
 
-    private final static String DATASET_TABLE = "query_test_table";
+    protected final static String DATASET_TABLE = "query_test_table";
 
     private Map<String, Object> prepareSimpleDataSet() {
         return prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, 1).get(0);
     }
 
-    private List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
+    protected List<Map<String, Object>> prepareDataSet(String table, List<String> columns, List<Function<String, Object>> valueGenerators,
                                                      int rows) {
         List<Map<String, Object>> data = new ArrayList<>(rows);
 

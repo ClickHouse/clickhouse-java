@@ -1048,13 +1048,14 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 //    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
 //        String encodedObject = encodeObject(x);
 //        if (clickHouseDataType != null) {
-//            encodedObject += "::" + clickHouseDataType.name();
+//            encodedObject = "CAST (" + encodedObject + " AS " + clickHouseDataType.name();
 //            if (clickHouseDataType.hasParameter()) {
 //                if (scaleOrLength == null) {
 //                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
 //                }
 //                encodedObject += "(" + scaleOrLength + ")";
 //            }
+            encodedObject += ")";
 //        }
 //        return encodedObject;
 //    }

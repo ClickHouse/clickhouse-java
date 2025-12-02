@@ -1,0 +1,80 @@
+name: Test with CH HEAD
+
+on:
+  schedule:
+    - cron: "55 10 * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  CH_VERSION: "head"
+
+jobs:
+  test-java-client:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: ["clickhouse-http-client", "client-v2", "clickhouse-jdbc"]
+      fail-fast: false
+    timeout-minutes: 15
+    name: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          architecture: x64
+      - name: Test Java client
+        run: |
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true clean install
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: result ${{ github.job }}_${{ matrix.project }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+          retention-days: 5
+
+  test-r2dbc-driver:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        protocol: ["http"]
+        r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
+      fail-fast: false
+    timeout-minutes: 10
+    name: R2DBC ${{ matrix.r2dbc }} + CH HEAD (${{ matrix.protocol }})
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          architecture: x64
+      - name: Test R2DBC ${{ matrix.r2dbc }}
+        run: |
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
+            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: result ${{ github.job }}_${{ matrix.r2dbc }}_${{ matrix.protocol }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports

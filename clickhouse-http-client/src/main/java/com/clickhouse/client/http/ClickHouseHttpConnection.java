@@ -275,11 +275,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
         // Also, you can use the ‘default_format’ URL parameter
         map.put("x-clickhouse-format", config.getFormat().name());
-        if (config.isResponseCompressed()) {
+        if (config.isResponseCompressed() && config.getResponseCompressAlgorithm() != ClickHouseCompression.LZ4) {
             map.put("accept-encoding", config.getResponseCompressAlgorithm().encoding());
         }
-        if (config.isRequestCompressed()
-                && config.getRequestCompressAlgorithm() != ClickHouseCompression.LZ4) {
+        if (config.isRequestCompressed() && config.getRequestCompressAlgorithm() != ClickHouseCompression.LZ4) {
             map.put("content-encoding", config.getRequestCompressAlgorithm().encoding());
         }
         return map;

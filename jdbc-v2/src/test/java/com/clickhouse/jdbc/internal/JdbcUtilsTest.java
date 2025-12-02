@@ -19,15 +19,15 @@ public class JdbcUtilsTest {
 
     @Test(groups = {"unit"})
     public void testConvertPrimitiveTypes() throws SQLException {
-        assertEquals(JdbcUtils.convert(1, int.class), 1);
-        assertEquals(JdbcUtils.convert(1L, long.class), 1L);
+        assertEquals(JdbcUtils.convert(1, int.class), Integer.valueOf(1));
+        assertEquals(JdbcUtils.convert(1L, long.class), Long.valueOf(1));
         assertEquals(JdbcUtils.convert("1", String.class), "1");
-        assertEquals(JdbcUtils.convert(1.0f, float.class), 1.0f);
-        assertEquals(JdbcUtils.convert(1.0, double.class), 1.0);
-        assertEquals(JdbcUtils.convert(true, boolean.class), true);
-        assertEquals(JdbcUtils.convert((short) 1, short.class), (short) 1);
-        assertEquals(JdbcUtils.convert((byte) 1, byte.class), (byte) 1);
-        assertEquals(JdbcUtils.convert(1.0d, BigDecimal.class), BigDecimal.valueOf(1.0d));
+        assertEquals(JdbcUtils.convert(1.0f, float.class), Float.valueOf(1));
+        assertEquals(JdbcUtils.convert(1.0, double.class), Double.valueOf(1));
+        assertEquals(JdbcUtils.convert(true, boolean.class), Boolean.TRUE);
+        assertEquals(JdbcUtils.convert((short) 1, short.class), Short.valueOf("1"));
+        assertEquals(JdbcUtils.convert((byte) 1, byte.class), Byte.valueOf("1"));
+        assertEquals(JdbcUtils.convert(1.0d, BigDecimal.class), new BigDecimal("1.0"));
     }
 
 
@@ -40,8 +40,8 @@ public class JdbcUtilsTest {
         java.sql.Array array = (java.sql.Array) JdbcUtils.convert(arrayValue, java.sql.Array.class, column);
         Object arr = array.getArray();
         assertEquals(array.getBaseTypeName(), "Int32");
-        assertEquals(arr.getClass().getComponentType(), Object.class);
-        Object[] arrs = (Object[]) arr;
+        assertEquals(arr.getClass().getComponentType(), Integer.class);
+        Integer[] arrs = (Integer[]) arr;
         assertEquals(arrs[0], 1);
         assertEquals(arrs[1], 2);
     }
@@ -49,15 +49,20 @@ public class JdbcUtilsTest {
 
     @Test(groups = {"unit"})
     public void testConvertArray() throws Exception {
-        Object[] src = {1, 2, 3};
-        Object[] dst = JdbcUtils.convertArray(src, int.class);
-        assertEquals(dst.length, src.length);
-        assertEquals(dst[0], src[0]);
-        assertEquals(dst[1], src[1]);
-        assertEquals(dst[2], src[2]);
+        // primitive classes are unwrapped
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Boolean.class, 1), new Boolean[] { false, true });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Byte.class, 1), new Byte[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Short.class, 1), new Short[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Integer.class, 1), new Integer[] { 0, 1 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Long.class, 1), new Long[] { 0L, 1L });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Float.class, 1), new Float[] { 0.0f, 1.0f });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, Double.class, 1), new Double[] { 0.0, 1.0 });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, String.class, 1), new String[] { "0", "1" });
+        assertEquals(JdbcUtils.convertArray(new Object[] { 0, 1 }, BigDecimal.class, 1), new BigDecimal[] { BigDecimal.valueOf(0), BigDecimal.valueOf(1) });
+        assertEquals(JdbcUtils.convertArray(new Object[][] { new Object[] {1, 2, 3}, new Object[] { 4, 5, 6} }, String.class, 2),
+                new String[][] { new String[] {"1", "2", "3"}, new String[] {"4", "5", "6"} });
 
-        assertNull(JdbcUtils.convertArray(null, int.class));
-        assertEquals(JdbcUtils.convertArray(new Integer[] { 1, 2}, null), new Integer[] { 1, 2});
+        assertNull(JdbcUtils.convertArray(null, Integer.class, 1));
     }
 
 
@@ -65,13 +70,13 @@ public class JdbcUtilsTest {
     public void testConvertList() throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("arr", "Array(Int32)");
         List<Integer> src = Arrays.asList(1, 2, 3);
-        Object[] dst = JdbcUtils.convertList(src, Integer.class);
+        Integer[] dst = JdbcUtils.convertList(src, Integer.class, 1);
         assertEquals(dst.length, src.size());
         assertEquals(dst[0], src.get(0));
         assertEquals(dst[1], src.get(1));
         assertEquals(dst[2], src.get(2));
 
-        assertNull(JdbcUtils.convertList(null, Integer.class));
+        assertNull(JdbcUtils.convertList(null, Integer.class, 1));
     }
 
 

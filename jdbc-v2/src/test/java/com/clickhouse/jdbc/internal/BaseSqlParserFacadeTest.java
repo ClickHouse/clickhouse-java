@@ -356,6 +356,9 @@ public abstract class BaseSqlParserFacadeTest {
                     "              arrayConcat(t.s.arr1, t.s.arr2)" +
                     "              )" +
                     ")", 0},
+            {"select count(*) filter (where 1 = 1)", 0},
+            {"select countIf(*, 1 = ?)", 1},
+            {"select count(*) filter (where 1 = ?)", 1}
         };
     }
 
@@ -578,6 +581,8 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CREATE QUOTA qB FOR INTERVAL 30 minute MAX execution_time = 0.5, FOR INTERVAL 5 quarter MAX queries = 321, errors = 10 TO default", 0, false},
                 {"CREATE SETTINGS PROFILE max_memory_usage_profile SETTINGS max_memory_usage = 100000001 MIN 90000000 MAX 110000000 TO robin", 0, false},
                 {"CREATE NAMED COLLECTION foobar AS a = '1', b = '2' OVERRIDABLE", 0, false},
+                {"CREATE TABLE IF NOT EXISTS statistics.vast_event_v2 (ip UInt32, url String) ENGINE = ReplacingMergeTree()", 0, false},
+                {"CREATE TABLE IF NOT EXISTS `statistics`.vast_event_v2 (ip UInt32, url String) ENGINE = ReplacingMergeTree()", 0, false},
                 {"alter table t2 alter column v type Int32", 0, false},
                 {"alter table t alter column j default 1", 0, false},
                 {"ALTER TABLE t MODIFY COLUMN j default 1", 0, false},

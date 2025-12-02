@@ -1,6 +1,5 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
@@ -405,10 +404,12 @@ public class HttpTransportTests extends BaseIntegrationTest {
         EnumSet<ClickHouseFormat> formats = EnumSet.of(ClickHouseFormat.CSV, ClickHouseFormat.TSV,
                                             ClickHouseFormat.JSON, ClickHouseFormat.JSONCompact);
 
-        Object[][] result = new Object[formats.size() * 3][];
+        int permutations = 3;
+        Object[][] result = new Object[formats.size() * permutations][];
 
         int i = 0;
         for (ClickHouseFormat format : formats) {
+            // format, server compression, http compression
             result[i++] = new Object[]{format, false, false};
             result[i++] = new Object[]{format, true, false};
             result[i++] = new Object[]{format, true, true};

@@ -423,7 +423,7 @@ public class ClickHouseColumnTest {
             if (type.isNested() || type == ClickHouseDataType.AggregateFunction
                     || type == ClickHouseDataType.SimpleAggregateFunction || type == ClickHouseDataType.Enum
                     || type == ClickHouseDataType.Nullable || type == ClickHouseDataType.BFloat16 ||
-                     type == ClickHouseDataType.Time || type == ClickHouseDataType.Time64) {
+                     type == ClickHouseDataType.Time || type == ClickHouseDataType.Time64 || type == ClickHouseDataType.QBit) {
                 continue;
             }
 
