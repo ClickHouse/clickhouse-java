@@ -22,6 +22,7 @@ public class Array implements java.sql.Array {
     private final String elementTypeName;
     private boolean valid;
     private final ClickHouseDataType baseDataType;
+    private ArrayResultSet arrayResultSet;
 
     public Array(ClickHouseColumn column, Object[] elements) throws SQLException {
         this.column = column;
@@ -88,8 +89,12 @@ public class Array implements java.sql.Array {
     }
 
     @Override
-    public ResultSet getResultSet() throws SQLException {
-        throw new SQLFeatureNotSupportedException("getResultSet() is not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+    public synchronized ResultSet getResultSet() throws SQLException {
+        ensureValid();
+        if (arrayResultSet == null) {
+            arrayResultSet = new ArrayResultSet(array, column);
+        }
+        return arrayResultSet;
     }
 
     @Override
@@ -99,7 +104,8 @@ public class Array implements java.sql.Array {
 
     @Override
     public ResultSet getResultSet(long index, int count) throws SQLException {
-        throw new SQLFeatureNotSupportedException("getResultSet(long, int) is not supported", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        ensureValid();
+        return new ArrayResultSet(getArray(index, count), column);
     }
 
     @Override
