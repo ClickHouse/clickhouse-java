@@ -333,6 +333,29 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testGetTablesReturnKnownTableTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+            try (ResultSet rs = dbmd.getTables(null, "system", null, null)) {
+                while (rs.next()) {
+                    String tableType = rs.getString("TABLE_TYPE");
+                    Assert.assertEquals(tableType, DatabaseMetaDataImpl.TableType.SYSTEM_TABLE.getTypeName());
+                }
+            }
+            try (Statement stmt = conn.createStatement()){
+                stmt.executeUpdate("CREATE TABLE test_db_metadata_type_memory (v Int32) ENGINE Memory");
+            }
+            try (ResultSet rs = dbmd.getTables(null, "default", "test_db_metadata_type_memory", null)) {
+                while (rs.next()) {
+                    String tableType = rs.getString("TABLE_TYPE");
+                    Assert.assertEquals(tableType, DatabaseMetaDataImpl.TableType.MEMORY_TABLE.getTypeName());
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" }, enabled = false)
     public void testGetColumnsWithEmptyCatalog() throws Exception {
         // test not relevant until catalogs are implemented

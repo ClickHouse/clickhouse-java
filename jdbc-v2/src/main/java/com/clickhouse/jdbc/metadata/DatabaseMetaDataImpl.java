@@ -31,6 +31,27 @@ import java.util.function.Consumer;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
+
+    public enum TableType {
+        DICTIONARY("DICTIONARY"),
+        LOG_TABLE("LOG TABLE"),
+        MEMORY_TABLE("MEMORY TABLE"),
+        REMOTE_TABLE("REMOTE TABLE"),
+        TABLE("TABLE"),
+        VIEW("VIEW"),
+        SYSTEM_TABLE("SYSTEM TABLE"),
+        TEMPORARY_TABLE("TEMPORARY TABLE");
+
+        private final String typeName;
+
+        TableType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+    }
     public static final String[] TABLE_TYPES = new String[] { "DICTIONARY", "LOG TABLE", "MEMORY TABLE",
             "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
 
@@ -544,107 +565,107 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public int getMaxBinaryLiteralLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxCharLiteralLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxColumnNameLength() throws SQLException {
-        return 0;
+        return Short.MAX_VALUE;
     }
 
     @Override
     public int getMaxColumnsInGroupBy() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInIndex() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInOrderBy() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInSelect() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInTable() throws SQLException {
-        return 0;
+        return 1000;
     }
 
     @Override
     public int getMaxConnections() throws SQLException {
-        return 0;
+        return 150; // no limit in theory but 150 is too many from one client
     }
 
     @Override
     public int getMaxCursorNameLength() throws SQLException {
-        return 0;
+        return 0; // no cursor - no limit
     }
 
     @Override
     public int getMaxIndexLength() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxSchemaNameLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxProcedureNameLength() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxCatalogNameLength() throws SQLException {
-        return 0;
+        return 0; // no catalog - no limit
     }
 
     @Override
     public int getMaxRowSize() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public boolean doesMaxRowSizeIncludeBlobs() throws SQLException {
-        return true;
+        return true; // blobs sent as String as part of row data and not accessible from somehow else
     }
 
     @Override
     public int getMaxStatementLength() throws SQLException {
-        return 0;
+        return 0; // there is configurable limit in ClickHouse but at this point we treat it as unknown.
     }
 
     @Override
     public int getMaxStatements() throws SQLException {
-        return 0;
+        return getMaxConnections(); // as much as connections
     }
 
     @Override
     public int getMaxTableNameLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxTablesInSelect() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxUserNameLength() throws SQLException {
-        return 0;
+        return 0; // unknown
     }
 
     @Override
@@ -1541,7 +1562,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public long getMaxLogicalLobSize() throws SQLException {
-        return 0;
+        return 0; // no limits - mainly stored as strings
     }
 
     @Override
