@@ -479,7 +479,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 }
 
                 if (ClickHouseVersion.of(getServerVersion()).check("(,25.10]")) {
-                    assertTrue(nestedTypes.isEmpty(), "Nested types " + nestedTypes + " not found");
+                    assertEquals(nestedTypes, Arrays.asList("Geometry")); // Geometry was introduced in 25.11
                 } else {
                     assertEquals(nestedTypes, Arrays.asList("Object")); // Object is deprecated in 25.11
                 }
