@@ -172,6 +172,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             switch (dataType) {
                 case BFloat16:
                 case QBit:
+                case Geometry:
                     // TODO: add support
                     continue dataTypesLoop;
                     // skipped
@@ -466,6 +467,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             switch (dataType) {
                 case BFloat16:
                 case QBit:
+                case Geometry:
                     // TODO: add support
                     continue;
                 case Array:
