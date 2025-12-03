@@ -631,7 +631,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                         assertEquals(rs.getShort("NULLABLE"), DatabaseMetaData.typeNoNulls);
                     }
 
-                    if (dataType != ClickHouseDataType.Enum) {
+                    if (dataType != ClickHouseDataType.Enum && dataType != ClickHouseDataType.Geometry) {
                         assertEquals(rs.getBoolean("CASE_SENSITIVE"), dataType.isCaseSensitive());
                     }
                     assertEquals(rs.getInt("SEARCHABLE"), DatabaseMetaData.typeSearchable);
@@ -663,7 +663,11 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     nestedTypes.remove(typeName);
                 }
 
-                assertTrue(nestedTypes.isEmpty(), "Nested types " + nestedTypes + " not found");
+                if (ClickHouseVersion.of(getServerVersion()).check("(,25.10]")) {
+                    assertEquals(nestedTypes, Arrays.asList("Geometry")); // Geometry was introduced in 25.11
+                } else {
+                    assertEquals(nestedTypes, Arrays.asList("Object")); // Object is deprecated in 25.11
+                }
             }
         }
     }
