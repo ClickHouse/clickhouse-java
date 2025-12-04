@@ -66,6 +66,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           architecture: x64
+      - name: Build
+        run: |
+          mvn --also-make --batch-mode --no-transfer-progress -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true -DskipTests=true clean install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
