@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        project: ["clickhouse-http-client", "client-v2", "clickhouse-jdbc"]
+        project: ["clickhouse-http-client", "client-v2", "clickhouse-jdbc", "jdbc-v2"]
       fail-fast: false
     timeout-minutes: 15
     name: ${{ matrix.project }}
