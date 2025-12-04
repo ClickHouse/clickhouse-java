@@ -9,6 +9,8 @@ import java.util.List;
 public final class ParsedPreparedStatement {
 
     private String table;
+    
+    private String database;
 
     private String useDatabase;
 
@@ -78,6 +80,14 @@ public final class ParsedPreparedStatement {
 
     public void setTable(String table) {
         this.table = table;
+    }
+
+    public String getDatabase() {
+        return database;
+    }
+
+    public void setDatabase(String database) {
+        this.database = database;
     }
 
     public int[] getParamPositions() {
