@@ -41,7 +41,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("" +
                         "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
-                        "ENGINE MergeTree ORDER BY ()");
+                        "ENGINE MergeTree ORDER BY tuple()");
             }
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -164,7 +164,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 createTableStmt.append(columnNames.get(i)).append(" ").append(columnTypes.get(i)).append(',');
             }
             createTableStmt.setLength(createTableStmt.length() - 1);
-            createTableStmt.append(") ENGINE = MergeTree ORDER BY ()");
+            createTableStmt.append(") ENGINE = MergeTree ORDER BY tuple()");
             conn.createStatement().execute(createTableStmt.toString());
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -356,7 +356,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     public void testGetServerVersions() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
-            Assert.assertTrue(dbmd.getDatabaseMajorVersion() >= 23); // major version is year and cannot be less than LTS version we test with
+            Assert.assertTrue(dbmd.getDatabaseMajorVersion() >= 21); // major version is year and cannot be less than LTS version we test with
             Assert.assertTrue(dbmd.getDatabaseMinorVersion() > 0); // minor version is always greater than 0
             Assert.assertFalse(dbmd.getDatabaseProductVersion().isEmpty(), "Version cannot be blank string");
             Assert.assertEquals(dbmd.getUserName(), "default");
@@ -446,7 +446,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                         assertEquals(rs.getShort("NULLABLE"), DatabaseMetaData.typeNoNulls);
                     }
 
-                    if (dataType != ClickHouseDataType.Enum) {
+                    if (dataType != ClickHouseDataType.Enum && dataType != ClickHouseDataType.Geometry) {
                         assertEquals(rs.getBoolean("CASE_SENSITIVE"), dataType.isCaseSensitive());
                     }
                     assertEquals(rs.getInt("SEARCHABLE"), DatabaseMetaData.typeSearchable);
@@ -471,14 +471,18 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             DatabaseMetaData dbmd = conn.getMetaData();
             try (ResultSet rs = dbmd.getTypeInfo()) {
                 Set<String> nestedTypes = Arrays.stream(ClickHouseDataType.values())
-                        .filter(dt -> dt.isNested()).map(dt -> dt.name()).collect(Collectors.toSet());
+                        .filter(ClickHouseDataType::isNested).map(Enum::name).collect(Collectors.toSet());
 
                 while (rs.next()) {
                     String typeName = rs.getString("TYPE_NAME");
                     nestedTypes.remove(typeName);
                 }
 
-                assertTrue(nestedTypes.isEmpty(), "Nested types " + nestedTypes + " not found");
+                if (ClickHouseVersion.of(getServerVersion()).check("(,25.10]")) {
+                    assertEquals(nestedTypes, Arrays.asList("Geometry")); // Geometry was introduced in 25.11
+                } else {
+                    assertEquals(nestedTypes, Arrays.asList("Object")); // Object is deprecated in 25.11
+                }
             }
         }
     }

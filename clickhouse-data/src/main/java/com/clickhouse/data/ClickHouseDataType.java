@@ -106,13 +106,12 @@ public enum ClickHouseDataType implements SQLType {
     Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
-
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
-    @Deprecated
+    @Deprecated // (since = "CH 25.11")
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
     String(String.class, false, true, false, 0, 0, 0, 0, 0, false, 0x15, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
-            "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
+            "CHARACTER VARYING", "CLOB", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
             "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
             "NATIONAL CHARACTER VARYING", "NCHAR", "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT",
             "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR", "VARCHAR2"),
@@ -131,6 +130,7 @@ public enum ClickHouseDataType implements SQLType {
     Time(LocalDateTime.class, true, false, false, 4, 9, 0, 0, 9, false, 0x32), // 0x33 for Time(Timezone)
     Time64(LocalDateTime.class, true, false, false, 8, 9, 0, 0, 0, false, 0x34), // 0x35 for Time64(P, Timezone)
     QBit(Double.class, true, true, false, 0, 0, 0, 0, 0, false, 0x36),
+    Geometry(Object.class, false, false, false, 0, 0, 0, 0, 0, true),
     ;
 
     public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =

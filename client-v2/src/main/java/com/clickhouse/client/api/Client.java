@@ -1728,14 +1728,12 @@ public class Client implements AutoCloseable {
             CompletableFuture<QueryResponse> f = query(sqlQuery, params, requestSettings);
             try (QueryResponse response = operationTimeout == 0 ? f.get() : f.get(operationTimeout, TimeUnit.MILLISECONDS)) {
                 List<GenericRecord> records = new ArrayList<>();
-                if (response.getResultRows() > 0) {
-                    RowBinaryWithNamesAndTypesFormatReader reader =
-                            (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
+                RowBinaryWithNamesAndTypesFormatReader reader =
+                        (RowBinaryWithNamesAndTypesFormatReader) newBinaryFormatReader(response);
 
-                    Map<String, Object> record;
-                    while (reader.readRecord((record = new LinkedHashMap<>()))) {
-                        records.add(new MapBackedRecord(record, reader.getConvertions(), reader.getSchema()));
-                    }
+                Map<String, Object> record;
+                while (reader.readRecord((record = new LinkedHashMap<>()))) {
+                    records.add(new MapBackedRecord(record, reader.getConvertions(), reader.getSchema()));
                 }
                 return records;
             }
