@@ -28,6 +28,7 @@ import java.util.Properties;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
+@Test(groups = "integration")
 public class ResultSetImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
@@ -361,7 +362,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testGetResultSetFromArray() throws Exception {
 
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
