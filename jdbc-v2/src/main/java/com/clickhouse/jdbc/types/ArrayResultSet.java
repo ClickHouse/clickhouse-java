@@ -3,12 +3,15 @@ package com.clickhouse.jdbc.types;
 import com.clickhouse.client.api.data_formats.internal.ValueConverters;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -123,6 +126,16 @@ public class ArrayResultSet implements ResultSet {
         return value == null ? defaultValue : value;
     }
 
+    private void throwReadOnlyException() throws SQLException {
+        throw new SQLException("ResultSet is read-only");
+    }
+
+    private void throwUnsupportedIndexOperation(int columnIndex, String operation) throws SQLException {
+        if (columnIndex == 1) {
+            throw new SQLFeatureNotSupportedException("operation " + operation + " is not supported on INDEX column");
+        }
+    }
+
     @Override
     public void close() throws SQLException {
         this.closed = true;
@@ -143,9 +156,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as boolean");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getBoolean");
         return (Boolean) getValueAsObject(columnIndex, Boolean.class, false);
     }
 
@@ -215,17 +226,13 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as bytes");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getBytes");
         return (byte[]) getValueAsObject(columnIndex, byte[].class, null);
     }
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as date");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getDate");
         return (Date) getValueAsObject(columnIndex, Date.class, null);
     }
 
@@ -233,9 +240,7 @@ public class ArrayResultSet implements ResultSet {
     public Time getTime(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as time");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getTime");
         return (Time) getValueAsObject(columnIndex, Time.class, null);
     }
 
@@ -243,9 +248,7 @@ public class ArrayResultSet implements ResultSet {
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as timestamp");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getTimestamp");
         return (Timestamp) getValueAsObject(columnIndex, Timestamp.class, null);
     }
 
@@ -253,9 +256,7 @@ public class ArrayResultSet implements ResultSet {
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as ascii stream");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getAsciiStream");
         throw new SQLFeatureNotSupportedException("getAsciiStream is not implemented");
     }
 
@@ -263,9 +264,7 @@ public class ArrayResultSet implements ResultSet {
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as unicode stream");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getUnicodeStream");
         throw new SQLFeatureNotSupportedException("getUnicodeStream is not implemented");
     }
 
@@ -273,9 +272,7 @@ public class ArrayResultSet implements ResultSet {
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as binary stream");
-        }
+        throwUnsupportedIndexOperation(columnIndex, "getBinaryStream");
         throw new SQLFeatureNotSupportedException("getBinaryStream is not implemented");
     }
 
@@ -357,17 +354,17 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
-        return null;
+        return getAsciiStream(getColumnIndex(columnLabel));
     }
 
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        return null;
+        return getUnicodeStream(getColumnIndex(columnLabel));
     }
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        return null;
+        return getBinaryStream(getColumnIndex(columnLabel));
     }
 
     @Override
@@ -407,19 +404,22 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getCharacterStream");
+        throw new SQLFeatureNotSupportedException("getCharacterStream is not implemented");
     }
 
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
-        return null;
+        return getCharacterStream(getColumnIndex(columnLabel));
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as big decimal");
-        }
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getBigDecimal");
         return (BigDecimal) getValueAsObject(columnIndex, BigDecimal.class, null);
     }
 
@@ -739,10 +739,6 @@ public class ArrayResultSet implements ResultSet {
         throwReadOnlyException();
     }
 
-    private void throwReadOnlyException() throws SQLException {
-        throw new SQLException("ResultSet is read-only");
-    }
-
     @Override
     public void insertRow() throws SQLException {
         throwReadOnlyException();
@@ -812,22 +808,34 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Ref getRef(int columnIndex) throws SQLException {
-        return null;
+        checkRowPosition();
+        checkColumnIndex(columnIndex);
+        throwUnsupportedIndexOperation(columnIndex, "getRef");
+        throw new SQLFeatureNotSupportedException("getRef is not implemented");
     }
 
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getBlob");
+        throw new SQLFeatureNotSupportedException("getBlob is not implemented");
     }
 
     @Override
     public Clob getClob(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getClob");
+        throw new SQLFeatureNotSupportedException("getClob is not implemented");
     }
 
     @Override
     public Array getArray(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getArray");
+        return (Array) getValueAsObject(columnIndex, Array.class, null);
     }
 
     @Override
@@ -837,29 +845,29 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Ref getRef(String columnLabel) throws SQLException {
-        return null;
+        return getRef(getColumnIndex(columnLabel));
     }
 
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
-        return null;
+        return getBlob(getColumnIndex(columnLabel));
     }
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
-        return null;
+        return getClob(getColumnIndex(columnLabel));
     }
 
     @Override
     public Array getArray(String columnLabel) throws SQLException {
-        return null;
+        return getArray(getColumnIndex(columnLabel));
     }
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as date");
-        }
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getDate");
         return null;
     }
 
@@ -870,9 +878,9 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        if (columnIndex == 1) {
-            throw new SQLException("INDEX column cannot be get as time");
-        }
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getTime");
         return null;
     }
 
@@ -883,6 +891,9 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getTimestamp");
         return (Timestamp) getValueAsObject(columnIndex, Timestamp.class, null);
     }
 
@@ -893,7 +904,15 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public URL getURL(int columnIndex) throws SQLException {
-        return (URL) getValueAsObject(columnIndex, URL.class, null);
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getURL");
+        String value = getString(columnIndex);
+        try {
+            return new URL(value);
+        } catch (MalformedURLException e) {
+            throw new SQLException("Invalid URL value", ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
+        }
     }
 
     @Override
@@ -943,12 +962,15 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public RowId getRowId(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getRowId");
+        throw new SQLFeatureNotSupportedException("getRowId is not implemented");
     }
 
     @Override
     public RowId getRowId(String columnLabel) throws SQLException {
-        return null;
+        return getRowId(getColumnIndex(columnLabel));
     }
 
     @Override
@@ -993,22 +1015,28 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public NClob getNClob(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getNClob");
+        throw new SQLFeatureNotSupportedException("getNClob is not implemented");
     }
 
     @Override
     public NClob getNClob(String columnLabel) throws SQLException {
-        return null;
+        return getNClob(getColumnIndex(columnLabel));
     }
 
     @Override
     public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getSQLXML");
+        throw new SQLFeatureNotSupportedException("getSQLXML is not implemented");
     }
 
     @Override
     public SQLXML getSQLXML(String columnLabel) throws SQLException {
-        return null;
+        return getSQLXML(getColumnIndex(columnLabel));
     }
 
     @Override
@@ -1023,22 +1051,25 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public String getNString(int columnIndex) throws SQLException {
-        return "";
+        return getString(columnIndex);
     }
 
     @Override
     public String getNString(String columnLabel) throws SQLException {
-        return "";
+        return getString(getColumnIndex(columnLabel));
     }
 
     @Override
     public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        return null;
+        checkColumnIndex(columnIndex);
+        checkRowPosition();
+        throwUnsupportedIndexOperation(columnIndex, "getNCharacterStream");
+        throw new SQLFeatureNotSupportedException("getNCharacterStream is not implemented");
     }
 
     @Override
     public Reader getNCharacterStream(String columnLabel) throws SQLException {
-        return null;
+        return getNCharacterStream(getColumnIndex(columnLabel));
     }
 
     @Override

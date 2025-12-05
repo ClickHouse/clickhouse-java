@@ -157,24 +157,26 @@ public class ArrayResultSetTest {
         for (int i = 0; i < len; i++) {
             rs.next();
             Object value = Array.get(array, i);
-            Object actualValue = rs.getObject(2);
+            Object actualValue = rs.getObject(valueColumn);
             assertEquals(actualValue, value, "Actual value is " + actualValue.getClass() + " but expected " + value.getClass());
             if (itemClass.isPrimitive() && (itemClass != Boolean.class && itemClass != boolean.class)) {
-                assertEquals(rs.getByte(valueColumn), ((Number) value).byteValue());
-                assertEquals(rs.getShort(valueColumn), ((Number) value).shortValue());
-                assertEquals(rs.getInt(valueColumn), ((Number) value).intValue());
-                assertEquals(rs.getLong(valueColumn), ((Number) value).longValue());
-                assertEquals(rs.getFloat(valueColumn), ((Number) value).floatValue());
-                assertEquals(rs.getDouble(valueColumn), ((Number) value).doubleValue());
-
+                Number number = ((Number) value);
+                assertEquals(rs.getByte(valueColumn), number.byteValue());
+                assertEquals(rs.getShort(valueColumn), number.shortValue());
+                assertEquals(rs.getInt(valueColumn), number.intValue());
+                assertEquals(rs.getLong(valueColumn), number.longValue());
+                assertEquals(rs.getFloat(valueColumn), number.floatValue());
+                assertEquals(rs.getDouble(valueColumn), number.doubleValue());
                 assertEquals(rs.getString(valueColumn), String.valueOf(value));
             } else if (Number.class.isAssignableFrom(itemClass)) {
-                assertEquals(rs.getByte(valueColumn), ((Number) value).byteValue());
-                assertEquals(rs.getShort(valueColumn), ((Number) value).shortValue());
-                assertEquals(rs.getInt(valueColumn), ((Number) value).intValue());
-                assertEquals(rs.getLong(valueColumn), ((Number) value).longValue());
-                assertEquals(rs.getFloat(valueColumn), ((Number) value).floatValue());
-                assertEquals(rs.getDouble(valueColumn), ((Number) value).doubleValue());
+                Number number = ((Number) value);
+                assertEquals(rs.getByte(valueColumn), number.byteValue());
+                assertEquals(rs.getShort(valueColumn), number.shortValue());
+                assertEquals(rs.getInt(valueColumn), number.intValue());
+                assertEquals(rs.getLong(valueColumn), number.longValue());
+                assertEquals(rs.getFloat(valueColumn), number.floatValue());
+                assertEquals(rs.getDouble(valueColumn), number.doubleValue());
+                assertEquals(rs.getBigDecimal(valueColumn), BigDecimal.valueOf(number.doubleValue()));
             } else if (itemClass == Boolean.class || itemClass == boolean.class) {
                 Number number = ((Boolean) value) ? 1 : 0;
                 assertEquals(rs.getBoolean(valueColumn), ((Boolean) value));
@@ -184,7 +186,6 @@ public class ArrayResultSetTest {
                 assertEquals(rs.getLong(valueColumn), number.longValue());
                 assertEquals(rs.getFloat(valueColumn), number.floatValue());
                 assertEquals(rs.getDouble(valueColumn), number.doubleValue());
-
             }
 
             String indexColumn = rs.getMetaData().getColumnName(1);
@@ -224,12 +225,14 @@ public class ArrayResultSetTest {
         ArrayResultSet rs = new ArrayResultSet(array, column);
 
         int len = java.lang.reflect.Array.getLength(array);
-        Class<?> itemClass = array.getClass().getComponentType();
+        final String valueColumn = rs.getMetaData().getColumnName(2);
         for (int i = 0; i < len; i++) {
             rs.next();
             Object value = Array.get(array, i);
-            java.sql.Array sqlArray = (java.sql.Array) rs.getObject(2);
+            java.sql.Array sqlArray = (java.sql.Array) rs.getObject(valueColumn);
             assertEquals(sqlArray.getArray(), value);
+            java.sql.Array sqlArray2 = rs.getArray(valueColumn);
+            assertEquals(sqlArray2.getArray(), value);
 
             ArrayResultSet nestedRs = (ArrayResultSet) sqlArray.getResultSet();
             for (int j = 0; j < len; j++) {
@@ -255,10 +258,39 @@ public class ArrayResultSetTest {
     }
 
     @Test
+    void testStringValues() throws SQLException {
+        String[] array = new String[] {"a", null, "c"};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Nullable(String))").get(0));
+
+        final String valueColumn = rs.getMetaData().getColumnLabel(2);
+        int len = java.lang.reflect.Array.getLength(array);
+        for (int i = 0; i < len; i++) {
+            rs.next();
+            String value = array[i];
+            assertEquals(rs.getString(valueColumn), value);
+            assertEquals(rs.getObject(valueColumn), value);
+            assertEquals(rs.getNString(valueColumn), value);
+            if (value == null) {
+                assertTrue(rs.wasNull());
+            } else {
+                assertEquals(rs.getBytes(valueColumn), value.getBytes());
+            }
+        }
+    }
+
+    @Test
+    void testEmptyArray() throws SQLException {
+        ArrayResultSet rs = new ArrayResultSet(new Object[0], ClickHouseColumn.parse("v Array(Int32)").get(0));
+        assertFalse(rs.next());
+    }
+
+    @Test
     public void testReadOnlyException() throws Throwable {
         Integer[] array = {1, null, 3, 4, 5};
         ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
 
+        rs.next();
+        final String valueColumn = rs.getMetaData().getColumnName(2);
         Assert.ThrowingRunnable[] rsUnsupportedMethods = new Assert.ThrowingRunnable[]{
                 rs::moveToCurrentRow,
                 rs::moveToInsertRow,
@@ -280,7 +312,6 @@ public class ArrayResultSetTest {
                 () -> rs.updateBlob("col1", (Blob) null),
                 () -> rs.updateClob("col1", new StringReader("test")),
                 () -> rs.updateNClob("col1", new StringReader("test")),
-
                 () -> rs.updateBoolean(1, true),
                 () -> rs.updateByte(1, (byte) 1),
                 () -> rs.updateShort(1, (short) 1),
@@ -363,6 +394,18 @@ public class ArrayResultSetTest {
                 rs::updateRow,
                 rs::insertRow,
                 rs::deleteRow,
+                () -> rs.getCharacterStream(valueColumn),
+                () -> rs.getBinaryStream(valueColumn),
+                () -> rs.getUnicodeStream(valueColumn),
+                () -> rs.getAsciiStream(valueColumn),
+                () -> rs.getNCharacterStream(valueColumn),
+                () -> rs.getNClob(valueColumn),
+                () -> rs.getClob(valueColumn),
+                () -> rs.getBlob(valueColumn),
+                () -> rs.getSQLXML(valueColumn),
+                () -> rs.getRef(valueColumn),
+                () -> rs.getRowId(valueColumn),
+                () -> rs.getSQLXML(valueColumn),
         };
 
         for (Assert.ThrowingRunnable op : rsUnsupportedMethods) {
