@@ -108,7 +108,7 @@ public class JdbcUtils {
         map.put(JDBCType.INTEGER, Integer.class);
         map.put(JDBCType.BIGINT, Long.class);
         map.put(JDBCType.REAL, Float.class);
-        map.put(JDBCType.FLOAT, Double.class);
+        map.put(JDBCType.FLOAT, Float.class);
         map.put(JDBCType.DOUBLE, Double.class);
         map.put(JDBCType.BINARY, byte[].class);
         map.put(JDBCType.VARBINARY, byte[].class);
@@ -454,7 +454,7 @@ public class JdbcUtils {
         }
     }
 
-    private static Object[] arrayToObjectArray(Object array) {
+    public static Object[] arrayToObjectArray(Object array) {
         if (array == null) {
             return null;
         }

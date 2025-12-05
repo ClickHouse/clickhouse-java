@@ -9,7 +9,6 @@ import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -22,6 +21,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLType;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
@@ -29,14 +29,13 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 public class ArrayResultSet implements ResultSet {
 
-    private final Object[] array;
+    private final Object array;
     private final int length;
     private Integer pos;
     private boolean closed;
@@ -47,41 +46,34 @@ public class ArrayResultSet implements ResultSet {
     private int fetchDirection = ResultSet.FETCH_FORWARD;
     private int fetchSize = 0;
     private boolean wasNull = false;
-    private final Map<Class<?>, Function<Object, Object>> converterMap;
+    private Map<Class<?>, Function<Object, Object>> converterMap;
 
-    public ArrayResultSet(Object[] array, ClickHouseColumn column) {
+    private final ClickHouseDataType componentDataType;
+    private final Class<?> defaultClass;
+    private final ClickHouseColumn column;
+
+    public ArrayResultSet(Object array, ClickHouseColumn column) {
         this.array = array;
         this.length = java.lang.reflect.Array.getLength(array);
         this.pos = -1;
-        this.converterMap = new HashMap<>();
+        this.column = column;
 
         List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
-        ClickHouseColumn valueColumn = column.getArrayNestedLevel() == 1? column.getArrayBaseColumn() : nestedColumns.get(0);
+        ClickHouseColumn valueColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
         this.metadata = new ResultSetMetaDataImpl(Arrays.asList(INDEX_COLUMN, valueColumn)
                 , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP);
-
-        if (array.length > 1) {
+        this.componentDataType = valueColumn.getDataType();
+        this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
+        if (this.length > 1) {
             ValueConverters converters = new ValueConverters();
-            converterMap.put(Object.class, o -> o); // default conversion
-            if (array[0] instanceof Number) {
-                converterMap.put(Byte.class, converters::convertNumberToByte);
-                converterMap.put(Short.class, converters::convertNumberToShort);
-                converterMap.put(Integer.class, converters::convertNumberToInt);
-                converterMap.put(Long.class, converters::convertNumberToLong);
-                converterMap.put(Float.class, converters::convertNumberToFloat);
-                converterMap.put(Double.class, converters::convertNumberToDouble);
-                converterMap.put(BigInteger.class, converters::convertNumberToBigInteger);
-                converterMap.put(BigDecimal.class, converters::convertNumberToBigDecimal);
-                converterMap.put(Boolean.class, converters::convertNumberToBoolean);
-                converterMap.put(String.class, converters::convertNumberToString);
-            } else if (array[0] instanceof Boolean) {
-                converterMap.put(Boolean.class, converters::convertBooleanToNumber);
-                converterMap.put(String.class, converters::convertBooleanToString);
-            } else if (array[0] instanceof String) {
-                converterMap.put(String.class, converters::convertStringToString);
-                converterMap.put(Boolean.class, converters::convertStringToBoolean);
-                converterMap.put(byte[].class, converters::convertStringToBytes);
+            Class<?> itemClass = array.getClass().getComponentType();
+            if (itemClass == null) {
+                itemClass = java.lang.reflect.Array.get(array, 0).getClass();
             }
+            converterMap = converters.getConvertersForType(itemClass);
+        } else {
+            // empty array - no values to convert
+            converterMap = null;
         }
     }
 
@@ -113,27 +105,22 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             return pos;
         }
-        Object value = array[pos];
-        if (value != null) {
+
+        Object value = java.lang.reflect.Array.get(array, pos);
+        if (value != null && type == Array.class) {
+            ClickHouseColumn nestedColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : column.getNestedColumns().get(0);
+            return new com.clickhouse.jdbc.types.Array(nestedColumn, JdbcUtils.arrayToObjectArray(value));
+        } else if (value != null && type != Object.class) {
+            // if there is something to convert. type == Object.class means no conversion
             Function<Object, Object> converter = converterMap.get(type);
             if (converter != null) {
                 value = converter.apply(value);
             } else {
-                throw new SQLException("Value cannot be converted to " + type);
+                throw new SQLException("Value of " + value.getClass() + " cannot be converted to " + type);
             }
         }
         wasNull = value == null;
         return value == null ? defaultValue : value;
-    }
-
-
-    private String getValueAsString(int columnIndex) throws SQLException {
-        checkColumnIndex(columnIndex);
-        checkRowPosition();
-        if (columnIndex == 1) {
-            return String.valueOf(pos);
-        }
-        return String.valueOf(array[pos]);
     }
 
     @Override
@@ -151,7 +138,7 @@ public class ArrayResultSet implements ResultSet {
     @Override
     public String getString(int columnIndex) throws SQLException {
         checkColumnIndex(columnIndex);
-        return getValueAsString(columnIndex);
+        return (String) getValueAsObject(columnIndex, String.class, null);
     }
 
     @Override
@@ -171,7 +158,7 @@ public class ArrayResultSet implements ResultSet {
                 throw new SQLException("INDEX column value too big and cannot be get as byte");
             }
         }
-        return (Byte) getValueAsObject(columnIndex, Byte.class, 0);
+        return ((Number) getValueAsObject(columnIndex, Byte.class, 0)).byteValue();
     }
 
     @Override
@@ -183,7 +170,7 @@ public class ArrayResultSet implements ResultSet {
                 throw new SQLException("INDEX column value too big and cannot be get as short");
             }
         }
-        return (Short) getValueAsObject(columnIndex, Short.class, 0);
+        return ((Number) getValueAsObject(columnIndex, Short.class, 0)).shortValue();
     }
 
     @Override
@@ -191,7 +178,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             return getRow();
         }
-        return (Integer) getValueAsObject(columnIndex, Integer.class, 0);
+        return ((Number) getValueAsObject(columnIndex, Integer.class, 0)).intValue();
     }
 
     @Override
@@ -199,7 +186,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             return getRow();
         }
-        return (Long) getValueAsObject(columnIndex, Long.class, 0L);
+        return ((Number) getValueAsObject(columnIndex, Long.class, 0L)).longValue();
     }
 
     @Override
@@ -207,7 +194,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             return (float) getRow();
         }
-        return (Float) getValueAsObject(columnIndex, Float.class, 0.0f);
+        return ((Number) getValueAsObject(columnIndex, Float.class, 0.0f)).floatValue();
     }
 
     @Override
@@ -215,7 +202,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             return getRow();
         }
-        return (Double) getValueAsObject(columnIndex, Double.class, 0.0d);
+        return ((Number) getValueAsObject(columnIndex, Double.class, 0.0d)).doubleValue();
     }
 
     @Override
@@ -231,7 +218,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             throw new SQLException("INDEX column cannot be get as bytes");
         }
-        return (byte[])getValueAsObject(columnIndex, byte[].class, null);
+        return (byte[]) getValueAsObject(columnIndex, byte[].class, null);
     }
 
     @Override
@@ -259,7 +246,7 @@ public class ArrayResultSet implements ResultSet {
         if (columnIndex == 1) {
             throw new SQLException("INDEX column cannot be get as timestamp");
         }
-        return (Timestamp)  getValueAsObject(columnIndex, Timestamp.class, null);
+        return (Timestamp) getValueAsObject(columnIndex, Timestamp.class, null);
     }
 
     @Override
@@ -405,7 +392,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return getValueAsObject(columnIndex, Object.class, null);
+        return getObject(columnIndex, defaultClass);
     }
 
     @Override
@@ -798,7 +785,29 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return null;
+        Class<?> type = map.get(componentDataType.getName());
+        if (type == null) {
+            SQLType sqlType = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.get(componentDataType);
+            if (sqlType != null) {
+                type = map.get(sqlType.getName());
+            }
+
+            if (type == null) {
+                // try to find by alias
+                for (String alias : componentDataType.getAliases()) {
+                    type = map.get(alias);
+                    if (type != null) {
+                        break;
+                    }
+                }
+            }
+
+            if (type == null) {
+                type = defaultClass;
+            }
+        }
+
+        return getObject(columnIndex, type);
     }
 
     @Override
@@ -823,7 +832,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        return null;
+        return getObject(getColumnIndex(columnLabel), map);
     }
 
     @Override
@@ -1185,7 +1194,8 @@ public class ArrayResultSet implements ResultSet {
                 throw new SQLException("INDEX column cannot be converted to non-number value");
             }
         }
-        return null;
+
+        return (T) getValueAsObject(columnIndex, type, null);
     }
 
     @Override
