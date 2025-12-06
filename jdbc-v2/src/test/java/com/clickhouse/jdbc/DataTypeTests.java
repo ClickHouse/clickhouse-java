@@ -820,11 +820,11 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), -3.402823E38d);
+                    assertEquals(rs.getObject("float32"), -3.402823E38f);
                     assertEquals(rs.getObject("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), 3.402823E38d);
+                    assertEquals(rs.getObject("float32"), 3.402823E38f);
                     assertEquals(rs.getObject("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());

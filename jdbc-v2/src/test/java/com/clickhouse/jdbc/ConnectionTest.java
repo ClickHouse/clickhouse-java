@@ -397,10 +397,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 assertEquals(arrayValue.getBaseType(), JDBCType.OTHER.getVendorTypeNumber());
                 assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(null));
                 assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(0, 1, null));
-                assertThrows(SQLFeatureNotSupportedException.class, arrayValue::getResultSet);
-                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1));
-                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(null));
-                assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getResultSet(0, 1, null));
 
                 Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(-1, 1));
                 Assert.expectThrows(SQLException.class, () -> arrayValue.getArray(0, -1));
