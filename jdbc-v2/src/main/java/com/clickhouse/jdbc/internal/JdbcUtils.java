@@ -20,6 +20,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
+import java.sql.Time;
 import java.sql.Types;
 import java.time.*;
 import java.time.chrono.ChronoZonedDateTime;
@@ -79,6 +80,8 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.Time, JDBCType.TIME);
+        map.put(ClickHouseDataType.Time64, JDBCType.TIME);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);

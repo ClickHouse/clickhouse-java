@@ -4,9 +4,11 @@ import com.google.common.collect.ImmutableMap;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Arrays;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -100,6 +102,10 @@ public final class ValueConverters {
         stringMapBuilder.put(byte[].class, this::convertStringToBytes);
         mapBuilder.put(String.class, stringMapBuilder.build());
 
+        mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::conveSqlDateToSqlDate));
+        mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::conveSqlTimeToSqlTime));
+        mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::conveSqlTimestampToSqlTimestamp));
+
         classConverters = mapBuilder.build();
     }
 
@@ -192,6 +198,39 @@ public final class ValueConverters {
 
     public BigDecimal convertNumberToBigDecimal(Object value) {
         return BigDecimal.valueOf(((Number) value).doubleValue());
+    }
+
+    // Date & Time converters
+
+    public java.sql.Date convertZonedDateTimeToSqlDate(Object value) {
+        // Date is stored without time zone information and should be treated as UTC
+        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+        Date date = Date.valueOf(zonedDateTime.toLocalDate());
+        return date;
+    }
+
+    public Time convertZonedDateTimeToSqlTime(Object value) {
+        // Time is stored without time zone information and should be treated as UTC
+        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+        Time time = Time.valueOf(zonedDateTime.toLocalTime());
+        return time;
+    }
+
+    public Timestamp convertZonedDateTimeToSqlTimestamp(Object value) {
+        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+        return Timestamp.valueOf(zonedDateTime.toLocalDateTime());
+    }
+
+    public java.sql.Date conveSqlDateToSqlDate(Object value) {
+        return (java.sql.Date) value;
+    }
+
+    public Time conveSqlTimeToSqlTime(Object value) {
+        return (Time) value;
+    }
+
+    public Timestamp conveSqlTimestampToSqlTimestamp(Object value) {
+        return (Timestamp) value;
     }
 
     /**

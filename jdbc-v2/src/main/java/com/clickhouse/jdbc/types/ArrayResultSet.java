@@ -30,6 +30,7 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
@@ -49,8 +50,8 @@ public class ArrayResultSet implements ResultSet {
     private int fetchDirection = ResultSet.FETCH_FORWARD;
     private int fetchSize = 0;
     private boolean wasNull = false;
-    private Map<Class<?>, Function<Object, Object>> converterMap;
-
+    private final Map<Class<?>, Function<Object, Object>> converterMap;
+    private final Map<Class<?>, Function<Object, Object>> indexConverterMap;
     private final ClickHouseDataType componentDataType;
     private final Class<?> defaultClass;
     private final ClickHouseColumn column;
@@ -68,8 +69,9 @@ public class ArrayResultSet implements ResultSet {
                 , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.componentDataType = valueColumn.getDataType();
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
+        ValueConverters converters = new ValueConverters();
+        indexConverterMap = converters.getConvertersForType(Integer.class);
         if (this.length > 1) {
-            ValueConverters converters = new ValueConverters();
             Class<?> itemClass = array.getClass().getComponentType();
             if (itemClass == null) {
                 itemClass = java.lang.reflect.Array.get(array, 0).getClass();
@@ -105,17 +107,23 @@ public class ArrayResultSet implements ResultSet {
     private Object getValueAsObject(int columnIndex, Class<?> type, Object defaultValue) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
+
+        Object value;
+        Map<Class<?>, Function<Object, Object>> valueConverterMap;
         if (columnIndex == 1) {
-            return pos;
+            value = pos + 1;
+            valueConverterMap = indexConverterMap;
+        } else {
+            value = java.lang.reflect.Array.get(array, pos);
+            valueConverterMap = converterMap;
         }
 
-        Object value = java.lang.reflect.Array.get(array, pos);
-        if (value != null && type == Array.class) {
+        if (columnIndex != 1 && value != null && type == Array.class) {
             ClickHouseColumn nestedColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : column.getNestedColumns().get(0);
             return new com.clickhouse.jdbc.types.Array(nestedColumn, JdbcUtils.arrayToObjectArray(value));
         } else if (value != null && type != Object.class) {
             // if there is something to convert. type == Object.class means no conversion
-            Function<Object, Object> converter = converterMap.get(type);
+            Function<Object, Object> converter = valueConverterMap.get(type);
             if (converter != null) {
                 value = converter.apply(value);
             } else {
@@ -238,16 +246,12 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        checkColumnIndex(columnIndex);
-        checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getTime");
         return (Time) getValueAsObject(columnIndex, Time.class, null);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        checkColumnIndex(columnIndex);
-        checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getTimestamp");
         return (Timestamp) getValueAsObject(columnIndex, Timestamp.class, null);
     }
@@ -389,7 +393,8 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return getObject(columnIndex, defaultClass);
+        Class<?> targetType = columnIndex == 1 ? Integer.class : defaultClass;
+        return getObject(columnIndex, targetType);
     }
 
     @Override
@@ -832,8 +837,6 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Array getArray(int columnIndex) throws SQLException {
-        checkColumnIndex(columnIndex);
-        checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getArray");
         return (Array) getValueAsObject(columnIndex, Array.class, null);
     }
@@ -891,8 +894,6 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        checkColumnIndex(columnIndex);
-        checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getTimestamp");
         return (Timestamp) getValueAsObject(columnIndex, Timestamp.class, null);
     }
@@ -1216,16 +1217,6 @@ public class ArrayResultSet implements ResultSet {
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
-        if (columnIndex == 1) {
-            if (Number.class.isAssignableFrom(type)) {
-                return (T) pos;
-            } else if (String.class.isAssignableFrom(type)) {
-                return (T) String.valueOf(pos);
-            } else {
-                throw new SQLException("INDEX column cannot be converted to non-number value");
-            }
-        }
-
         return (T) getValueAsObject(columnIndex, type, null);
     }
 

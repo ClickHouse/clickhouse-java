@@ -412,4 +412,21 @@ public class ArrayResultSetTest {
             Assert.assertThrows(SQLException.class, op);
         }
     }
+
+    @Test
+    void testIndexColumn() throws Exception {
+        Integer[] array = {1, null, 3, 4, 5};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
+
+        final String indexColumn = rs.getMetaData().getColumnName(1);
+        Assert.assertEquals(indexColumn, "INDEX");
+        rs.next();
+        assertEquals(rs.getObject(indexColumn), 1);
+        assertEquals(rs.getObject(indexColumn, String.class), "1");
+        assertEquals(rs.getObject(indexColumn, Long.class), 1L);
+        assertEquals(rs.getObject(indexColumn, Integer.class), 1);
+        assertEquals(rs.getObject(indexColumn, Short.class), (short) 1);
+        assertEquals(rs.getObject(indexColumn, Byte.class), (byte) 1);
+
+    }
 }
