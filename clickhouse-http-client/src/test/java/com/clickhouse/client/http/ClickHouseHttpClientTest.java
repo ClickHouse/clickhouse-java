@@ -48,7 +48,7 @@ import com.clickhouse.data.value.ClickHouseStringValue;
 import eu.rekawek.toxiproxy.ToxiproxyClient;
 
 import org.testcontainers.containers.ToxiproxyContainer;
-import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
