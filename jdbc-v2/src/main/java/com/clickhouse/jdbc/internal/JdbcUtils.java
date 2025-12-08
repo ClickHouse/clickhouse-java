@@ -1,18 +1,13 @@
 package com.clickhouse.jdbc.internal;
 
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
-import com.clickhouse.data.format.BinaryStreamUtils;
-import com.clickhouse.jdbc.PreparedStatementImpl;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
 
-import java.awt.*;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -22,12 +17,13 @@ import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
 import java.sql.Time;
-import java.sql.Types;
-import java.time.*;
-import java.time.chrono.ChronoZonedDateTime;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -37,7 +33,6 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -299,10 +294,10 @@ public class JdbcUtils {
             return new Array(column, arrayValue.getArrayOfObjects());
         }
 
-        return convertObject(value, type, column);
+        return convertObject(value, type);
     }
 
-    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
+    public static Object convertObject(Object value, Class<?> type) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
