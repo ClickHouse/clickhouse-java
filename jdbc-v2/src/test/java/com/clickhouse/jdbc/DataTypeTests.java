@@ -659,7 +659,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertThrows(SQLException.class, () -> rs.getTimestamp(col));
                     assertThrows(SQLException.class, () -> rs.getObject(col, Date.class));
                     assertThrows(SQLException.class, () -> rs.getObject(col, Timestamp.class));
-                    // LocalTime requires ZoneId and date part
+                    // LocalTime conversion is not supported
                     assertThrows(SQLException.class, () -> rs.getObject(col, LocalTime.class));
                 }
                 assertFalse(rs.next());
