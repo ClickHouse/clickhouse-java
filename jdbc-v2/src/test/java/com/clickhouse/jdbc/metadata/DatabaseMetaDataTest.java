@@ -10,7 +10,6 @@ import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -18,7 +17,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -172,8 +170,8 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertEquals(dbmd.supportsColumnAliasing(), true);
             assertEquals(dbmd.supportsConvert(), false);
             assertEquals(dbmd.supportsTableCorrelationNames(), true);
-            assertEquals(dbmd.supportsDifferentTableCorrelationNames(), true);
-            assertEquals(dbmd.supportsExpressionsInOrderBy(), false);
+            assertEquals(dbmd.supportsDifferentTableCorrelationNames(), false);
+            assertEquals(dbmd.supportsExpressionsInOrderBy(), true);
             assertEquals(dbmd.supportsOrderByUnrelated(), true);
             assertEquals(dbmd.supportsGroupBy(), true);
             assertEquals(dbmd.supportsGroupByUnrelated(), true);
@@ -285,7 +283,6 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertEquals(dbmd.supportsResultSetType(ResultSet.TYPE_FORWARD_ONLY), true);
 
             for (int type : new int[] {ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.TYPE_SCROLL_SENSITIVE} ) {
-                assertFalse(dbmd.supportsResultSetType(type));
                 assertFalse(dbmd.supportsResultSetType(type));
                 assertFalse(dbmd.ownUpdatesAreVisible(type));
                 assertFalse(dbmd.ownDeletesAreVisible(type));

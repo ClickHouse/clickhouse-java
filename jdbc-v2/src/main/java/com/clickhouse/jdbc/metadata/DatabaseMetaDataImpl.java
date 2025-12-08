@@ -312,12 +312,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsDifferentTableCorrelationNames() throws SQLException {
-        return true; // no support
+        return false; // can be the same as table name `select * from numbers numbers limit 10`
     }
 
     @Override
     public boolean supportsExpressionsInOrderBy() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -687,7 +687,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
-        return ConnectionImpl.TRANSACTION_NONE == level; // no transaction support
+        return Connection.TRANSACTION_NONE == level; // no transaction support
     }
 
     @Override
