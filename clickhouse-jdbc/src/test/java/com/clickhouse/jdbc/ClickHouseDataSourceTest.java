@@ -7,9 +7,7 @@ import java.sql.Statement;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseServerForTest;
-import junit.runner.Version;
 import org.testng.Assert;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;

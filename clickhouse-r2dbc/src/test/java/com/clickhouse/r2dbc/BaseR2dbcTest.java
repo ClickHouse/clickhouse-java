@@ -1,7 +1,5 @@
 package com.clickhouse.r2dbc;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -20,13 +18,11 @@ public abstract class BaseR2dbcTest extends BaseIntegrationTest {
             && !"HTTP".equals(CUSTOM_PROTOCOL_NAME) ? "http_connection_provider=" + CUSTOM_PROTOCOL_NAME : "";
 
     @BeforeAll
-    @BeforeClass
     public static void beforeSuite() throws Exception {
         ClickHouseServerForTest.beforeSuite();
     }
 
     @AfterAll
-    @AfterClass
     public static void afterSuite() throws Exception {
         ClickHouseServerForTest.afterSuite();
     }
