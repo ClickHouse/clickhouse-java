@@ -32,14 +32,17 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -635,18 +638,30 @@ public class DataTypeTests extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_time64")) {
                 assertTrue(rs.next());
                 assertEquals(rs.getInt("order"), 1);
-//                assertEquals(rs.getInt("time"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
-//                assertEquals(rs.getInt("time64"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                assertEquals(rs.getInt("time"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                assertEquals(rs.getLong("time64"), -((TimeUnit.HOURS.toNanos(999) + TimeUnit.MINUTES.toNanos(59) + TimeUnit.SECONDS.toNanos(59)) + 999999999));
 
                 assertTrue(rs.next());
                 assertEquals(rs.getInt("order"), 2);
                 assertEquals(rs.getInt("time"), (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
                 assertEquals(rs.getLong("time64"), (TimeUnit.HOURS.toNanos(999) + TimeUnit.MINUTES.toNanos(59) + TimeUnit.SECONDS.toNanos(59)) + 999999999);
 
-                assertThrows(SQLException.class, () -> rs.getTime("time"));
-                assertThrows(SQLException.class, () -> rs.getDate("time"));
-                assertThrows(SQLException.class, () -> rs.getTimestamp("time"));
+                Time time = rs.getTime("time");
+                assertEquals(time.getTime(), rs.getInt("time") * 1000L); // time is in seconds
+                assertEquals(time.getTime(), rs.getObject("time", Time.class).getTime());
+                Time time64 = rs.getTime("time64");
+                assertEquals(time64.getTime(), rs.getLong("time64") / 1_000_000); // time64 is in nanoseconds
+                assertEquals(time64, rs.getObject("time64", Time.class));
 
+                // time has no date part and cannot be converted to Date or Timestamp
+                for (String col : Arrays.asList("time", "time64")) {
+                    assertThrows(SQLException.class, () -> rs.getDate(col));
+                    assertThrows(SQLException.class, () -> rs.getTimestamp(col));
+                    assertThrows(SQLException.class, () -> rs.getObject(col, Date.class));
+                    assertThrows(SQLException.class, () -> rs.getObject(col, Timestamp.class));
+                    // LocalTime requires ZoneId and date part
+                    assertThrows(SQLException.class, () -> rs.getObject(col, LocalTime.class));
+                }
                 assertFalse(rs.next());
             }
         }

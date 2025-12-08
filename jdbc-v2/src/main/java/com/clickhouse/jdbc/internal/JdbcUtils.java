@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
 import com.clickhouse.data.ClickHouseColumn;
@@ -20,6 +21,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
+import java.sql.Time;
 import java.sql.Types;
 import java.time.*;
 import java.time.chrono.ChronoZonedDateTime;
@@ -297,10 +299,10 @@ public class JdbcUtils {
             return new Array(column, arrayValue.getArrayOfObjects());
         }
 
-        return convertObject(value, type);
+        return convertObject(value, type, column);
     }
 
-    public static Object convertObject(Object value, Class<?> type) throws SQLException {
+    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -343,6 +345,10 @@ public class JdbcUtils {
                 } else if (type == java.sql.Time.class) {
                     return java.sql.Time.valueOf(LocalTime.from(temporalValue));
                 }
+            } else if (type == Time.class && value instanceof Integer) { // Time
+                return new Time((Integer) value * 1000L);
+            } else if (type == Time.class && value instanceof Long) { // Time64
+                return new Time((Long) value / 1_000_000);
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return InetAddressConverter.convertToIpv4((InetAddress) value);
