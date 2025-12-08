@@ -33,6 +33,7 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collections;
@@ -1035,18 +1036,37 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-        try {
-            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
-            if (zdt == null) {
-                wasNull = true;
-                return null;
-            }
-            wasNull = false;
 
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.clear();
-            c.set(1970, Calendar.JANUARY, 1, zdt.getHour(), zdt.getMinute(), zdt.getSecond());
-            return new Time(c.getTimeInMillis());
+        try {
+            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
+            switch (column.getDataType()) {
+                case Time:
+                case Time64:
+                    Instant instant = reader.getInstant(columnLabel);
+                    if (instant == null) {
+                        wasNull = true;
+                        return null;
+                    }
+                    wasNull = false;
+                    return new Time(instant.getEpochSecond() * 1000L + instant.getNano() / 1_000_000);
+                case DateTime:
+                case DateTime32:
+                case DateTime64:
+                    ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+                    if (zdt == null) {
+                        wasNull = true;
+                        return null;
+                    }
+                    wasNull = false;
+
+                    Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+                    c.clear();
+                    c.set(1970, Calendar.JANUARY, 1, zdt.getHour(), zdt.getMinute(), zdt.getSecond());
+                    return new Time(c.getTimeInMillis());
+                default:
+                    throw new SQLException("Column \"" + columnLabel + "\" is not a time type.");
+            }
+
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
