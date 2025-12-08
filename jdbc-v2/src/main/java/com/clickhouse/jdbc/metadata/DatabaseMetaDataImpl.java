@@ -31,8 +31,32 @@ import java.util.function.Consumer;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
+
+    public enum TableType {
+        DICTIONARY("DICTIONARY"),
+        LOG_TABLE("LOG TABLE"),
+        MEMORY_TABLE("MEMORY TABLE"),
+        REMOTE_TABLE("REMOTE TABLE"),
+        TABLE("TABLE"),
+        VIEW("VIEW"),
+        SYSTEM_TABLE("SYSTEM TABLE"),
+        TEMPORARY_TABLE("TEMPORARY TABLE");
+
+        private final String typeName;
+
+        TableType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+    }
     public static final String[] TABLE_TYPES = new String[] { "DICTIONARY", "LOG TABLE", "MEMORY TABLE",
             "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
+
+    private static final String DATABASE_PRODUCT_NAME = "ClickHouse";
+    private static final String DRIVER_NAME = DATABASE_PRODUCT_NAME + " JDBC Driver";
 
     ConnectionImpl connection;
 
@@ -95,7 +119,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean nullsAreSortedLow() throws SQLException {
-        return !nullsAreSortedHigh(); // opposite of nullsAreSortedHigh
+        return true; // opposite of nullsAreSortedHigh
     }
 
     @Override
@@ -106,12 +130,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean nullsAreSortedAtEnd() throws SQLException {
-        return false;
+        return true; // by default NULLS LAST https://clickhouse.com/docs/sql-reference/statements/select/order-by
     }
 
     @Override
     public String getDatabaseProductName() throws SQLException {
-        return "ClickHouse";
+        return DATABASE_PRODUCT_NAME;
     }
 
     @Override
@@ -125,7 +149,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public String getDriverName() throws SQLException {
-        return "ClickHouse JDBC Driver";
+        return DRIVER_NAME;
     }
 
     @Override
@@ -165,17 +189,17 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean storesLowerCaseIdentifiers() throws SQLException {
-        return false;
+        return true; // identifiers are case-insensitive https://clickhouse.com/docs/sql-reference/syntax#identifiers
     }
 
     @Override
     public boolean storesMixedCaseIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsMixedCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false; // https://clickhouse.com/docs/sql-reference/syntax#identifiers
     }
 
     @Override
@@ -185,12 +209,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean storesLowerCaseQuotedIdentifiers() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean storesMixedCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -239,7 +263,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public String getSearchStringEscape() throws SQLException {
-        return "\\";
+        return "\\"; // https://clickhouse.com/docs/sql-reference/functions/string-search-functions#like
     }
 
     @Override
@@ -269,22 +293,26 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsConvert() throws SQLException {
+        // TODO select { fn CONVERT({ts '2021-01-01 12:12:12'}, TIMESTAMP) }
+        // select cast('2021-01-01 12:12:12' as DateTime)
         return false;
     }
 
     @Override
     public boolean supportsConvert(int fromType, int toType) throws SQLException {
+        // TODO select { fn CONVERT({ts '2021-01-01 12:12:12'}, TIMESTAMP) }
+        // select cast('2021-01-01 12:12:12' as DateTime)
         return false;
     }
 
     @Override
     public boolean supportsTableCorrelationNames() throws SQLException {
-        return true;
+        return true; // support aliases
     }
 
     @Override
     public boolean supportsDifferentTableCorrelationNames() throws SQLException {
-        return false;
+        return false; // can be the same as table name `select * from numbers numbers limit 10`
     }
 
     @Override
@@ -319,12 +347,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsMultipleResultSets() throws SQLException {
-        return false;
+        return false; // only one statement per `execute`
     }
 
     @Override
     public boolean supportsMultipleTransactions() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
@@ -334,17 +362,17 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsMinimumSQLGrammar() throws SQLException {
-        return true;
+        return true; // https://www.nv5geospatialsoftware.com/docs/odbcconformance.html
     }
 
     @Override
     public boolean supportsCoreSQLGrammar() throws SQLException {
-        return true;
+        return true; // https://www.nv5geospatialsoftware.com/docs/odbcconformance.html
     }
 
     @Override
     public boolean supportsExtendedSQLGrammar() throws SQLException {
-        return false;
+        return true; // https://www.nv5geospatialsoftware.com/docs/odbcconformance.html
     }
 
     @Override
@@ -374,12 +402,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsFullOuterJoins() throws SQLException {
-        return true;
+        return true; // https://clickhouse.com/docs/sql-reference/statements/select/join
     }
 
     @Override
     public boolean supportsLimitedOuterJoins() throws SQLException {
-        return true;
+        return supportsFullOuterJoins(); // https://clickhouse.com/docs/sql-reference/statements/select/join
     }
 
     /**
@@ -409,7 +437,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean isCatalogAtStart() throws SQLException {
-        return true;
+        return true; // we do not support catalogs yet but it will appear at start in the future
     }
 
     @Override
@@ -444,47 +472,47 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsCatalogsInDataManipulation() throws SQLException {
-        return false;
+        return false; // do not support catalogs yet
     }
 
     @Override
     public boolean supportsCatalogsInProcedureCalls() throws SQLException {
-        return false;
+        return false; // no catalogs
     }
 
     @Override
     public boolean supportsCatalogsInTableDefinitions() throws SQLException {
-        return false;
+        return false; // no catalogs
     }
 
     @Override
     public boolean supportsCatalogsInIndexDefinitions() throws SQLException {
-        return false;
+        return false; // no catalogs
     }
 
     @Override
     public boolean supportsCatalogsInPrivilegeDefinitions() throws SQLException {
-        return false;
+        return false; // no catalogs
     }
 
     @Override
     public boolean supportsPositionedDelete() throws SQLException {
-        return false;
+        return false; // no full support of deletes
     }
 
     @Override
     public boolean supportsPositionedUpdate() throws SQLException {
-        return false;
+        return false; // no full support of updates
     }
 
     @Override
     public boolean supportsSelectForUpdate() throws SQLException {
-        return false;
+        return false; // https://clickhouse.com/docs/sql-reference/statements/alter/update
     }
 
     @Override
     public boolean supportsStoredProcedures() throws SQLException {
-        return false;
+        return false; // no support
     }
 
     @Override
@@ -544,150 +572,142 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public int getMaxBinaryLiteralLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxCharLiteralLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxColumnNameLength() throws SQLException {
-        return 0;
+        return Short.MAX_VALUE;
     }
 
     @Override
     public int getMaxColumnsInGroupBy() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInIndex() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInOrderBy() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInSelect() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxColumnsInTable() throws SQLException {
-        return 0;
+        return 1000;
     }
 
     @Override
     public int getMaxConnections() throws SQLException {
-        return 0;
+        return 150; // no limit in theory but 150 is too many from one client
     }
 
     @Override
     public int getMaxCursorNameLength() throws SQLException {
-        return 0;
+        return 0; // no cursor - no limit
     }
 
     @Override
     public int getMaxIndexLength() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxSchemaNameLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxProcedureNameLength() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxCatalogNameLength() throws SQLException {
-        return 0;
+        return 0; // no catalog - no limit
     }
 
     @Override
     public int getMaxRowSize() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public boolean doesMaxRowSizeIncludeBlobs() throws SQLException {
-        return true;
+        return true; // blobs sent as String as part of row data and not accessible from somehow else
     }
 
     @Override
     public int getMaxStatementLength() throws SQLException {
-        return 0;
+        return 0; // there is configurable limit in ClickHouse but at this point we treat it as unknown.
     }
 
     @Override
     public int getMaxStatements() throws SQLException {
-        return 0;
+        return getMaxConnections(); // as much as connections
     }
 
     @Override
     public int getMaxTableNameLength() throws SQLException {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public int getMaxTablesInSelect() throws SQLException {
-        return 0;
+        return 0; // no limit
     }
 
     @Override
     public int getMaxUserNameLength() throws SQLException {
-        return 0;
+        return 0; // unknown
     }
 
     @Override
     public int getDefaultTransactionIsolation() throws SQLException {
-        try {
-            return connection.getTransactionIsolation();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return Connection.TRANSACTION_NONE;
     }
 
     @Override
     public boolean supportsTransactions() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
     public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
-        try {
-            return level == connection.getTransactionIsolation();
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(e);
-        }
+        return Connection.TRANSACTION_NONE == level; // no transaction support
     }
 
     @Override
     public boolean supportsDataDefinitionAndDataManipulationTransactions() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
     public boolean supportsDataManipulationTransactionsOnly() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
     public boolean dataDefinitionCausesTransactionCommit() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
     public boolean dataDefinitionIgnoredInTransactions() throws SQLException {
-        return false;
+        return false; // no transaction support
     }
 
     @Override
@@ -1191,52 +1211,52 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsResultSetConcurrency(int type, int concurrency) throws SQLException {
-        return false;
+        return ResultSet.TYPE_FORWARD_ONLY == type && ResultSet.CONCUR_READ_ONLY == concurrency;
     }
 
     @Override
     public boolean ownUpdatesAreVisible(int type) throws SQLException {
-        return false;
+        return false; // do not support updates in ResultSet
     }
 
     @Override
     public boolean ownDeletesAreVisible(int type) throws SQLException {
-        return false;
+        return false; // do not support deletes in ResultSet
     }
 
     @Override
     public boolean ownInsertsAreVisible(int type) throws SQLException {
-        return false;
+        return false; // do not support inserts in ResultSet
     }
 
     @Override
     public boolean othersUpdatesAreVisible(int type) throws SQLException {
-        return false;
+        return false; // no
     }
 
     @Override
     public boolean othersDeletesAreVisible(int type) throws SQLException {
-        return false;
+        return false; // no
     }
 
     @Override
     public boolean othersInsertsAreVisible(int type) throws SQLException {
-        return false;
+        return false; // no
     }
 
     @Override
     public boolean updatesAreDetected(int type) throws SQLException {
-        return false;
+        return false; // no updates supported in ResultSets
     }
 
     @Override
     public boolean deletesAreDetected(int type) throws SQLException {
-        return false;
+        return false; // no updates supported in ResultSets
     }
 
     @Override
     public boolean insertsAreDetected(int type) throws SQLException {
-        return false;
+        return false; // no updates supported in ResultSets
     }
 
     @Override
@@ -1274,20 +1294,17 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean supportsNamedParameters() throws SQLException {
-        // TODO: it should be true
-        return false;
+        return false; // no callable statements
     }
 
     @Override
     public boolean supportsMultipleOpenResults() throws SQLException {
-        // TODO: should be explained
-        return false;
+        return false; // no callable object support
     }
 
     @Override
     public boolean supportsGetGeneratedKeys() throws SQLException {
-        // TODO: update when implemented in ClickHouse
-        return false;
+        return false; // no generated keys are not returned
     }
 
     @Override
@@ -1404,12 +1421,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public boolean locatorsUpdateCopy() throws SQLException {
-        return false;
+        return false; // no - we do not support LOB locators
     }
 
     @Override
     public boolean supportsStatementPooling() throws SQLException {
-        return false;
+        return false; // TODO ?
     }
 
     @Override
@@ -1541,11 +1558,11 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public long getMaxLogicalLobSize() throws SQLException {
-        return 0;
+        return 0; // no limits - mainly stored as strings
     }
 
     @Override
     public boolean supportsRefCursors() throws SQLException {
-        return false;
+        return false; // no ref cursors
     }
 }

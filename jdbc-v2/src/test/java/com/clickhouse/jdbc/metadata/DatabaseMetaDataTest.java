@@ -19,12 +19,12 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.sql.RowIdLifetime.ROWID_UNSUPPORTED;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotEquals;
@@ -141,6 +141,165 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
                 assertFalse(rs.getBoolean("NULLABLE"));
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSupportFlags() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+
+            assertEquals(dbmd.getMaxConnections(), 150);
+            assertEquals(dbmd.isReadOnly(), false);
+            assertEquals(dbmd.getDriverName(), "ClickHouse JDBC Driver");
+            assertEquals(dbmd.getSchemaTerm(), "schema");
+            assertEquals(dbmd.getDatabaseProductName(), "ClickHouse");
+            assertEquals(dbmd.supportsMixedCaseIdentifiers(), true);
+            assertEquals(dbmd.supportsMixedCaseQuotedIdentifiers(), false);
+            assertEquals(dbmd.getIdentifierQuoteString(), "`");
+            assertEquals(dbmd.getSQLKeywords(), "APPLY,ASOF,ATTACH,CLUSTER,DATABASE,DATABASES,DETACH,DICTIONARY,DICTIONARIES,ILIKE,INF,LIMIT,LIVE,KILL,MATERIALIZED,NAN,OFFSET,OPTIMIZE,OUTFILE,POLICY,PREWHERE,PROFILE,QUARTER,QUOTA,RENAME,REPLACE,SAMPLE,SETTINGS,SHOW,TABLES,TIES,TOP,TOTALS,TRUNCATE,USE,WATCH,WEEK");
+            assertEquals(dbmd.getNumericFunctions(), "abs,acos,acosh,asin,asinh,atan,atan2,atanh,cbrt,cos,cosh,divide,e,erf,erfc,exp,exp10,exp2,gcd,hypot,intDiv,intDivOrZero,intExp10,intExp2,lcm,lgamma,ln,log,log10,log1p,log2,minus,modulo,moduloOrZero,multiply,negate,pi,plus,pow,power,sign,sin,sinh,sqrt,tan,tgamma");
+            assertEquals(dbmd.getStringFunctions(), "appendTrailingCharIfAbsent,base64Decode,base64Encode,char_length,CHAR_LENGTH,character_length,CHARACTER_LENGTH,concat,concatAssumeInjective,convertCharset,countMatches,countSubstrings,countSubstringsCaseInsensitive,countSubstringsCaseInsensitiveUTF8,CRC32,CRC32IEEE,CRC64,decodeXMLComponent,empty,encodeXMLComponent,endsWith,extract,extractAll,extractAllGroupsHorizontal,extractAllGroupsVertical,extractTextFromHTML ,format,ilike,isValidUTF8,lcase,leftPad,leftPadUTF8,length,lengthUTF8,like,locate,lower,lowerUTF8,match,mid,multiFuzzyMatchAllIndices,multiFuzzyMatchAny,multiFuzzyMatchAnyIndex,multiMatchAllIndices,multiMatchAny,multiMatchAnyIndex,multiSearchAllPositions,multiSearchAllPositionsUTF8,multiSearchAny,multiSearchFirstIndex,multiSearchFirstPosition,ngramDistance,ngramSearch,normalizedQueryHash,normalizeQuery,notEmpty,notLike,position,positionCaseInsensitive,positionCaseInsensitiveUTF8,positionUTF8,regexpQuoteMeta,repeat,replace,replaceAll,replaceOne,replaceRegexpAll,replaceRegexpOne,reverse,reverseUTF8,rightPad,rightPadUTF8,startsWith,substr,substring,substringUTF8,tokens,toValidUTF8,trim,trimBoth,trimLeft,trimRight,tryBase64Decode,ucase,upper,upperUTF8");
+            assertEquals(dbmd.getSystemFunctions(), "bar,basename,blockNumber,blockSerializedSize,blockSize,buildId,byteSize,countDigits,currentDatabase,currentProfiles,currentRoles,currentUser,defaultProfiles,defaultRoles,defaultValueOfArgumentType,defaultValueOfTypeName,dumpColumnStructure,enabledProfiles,enabledRoles,errorCodeToName,filesystemAvailable,filesystemCapacity,filesystemFree,finalizeAggregation,formatReadableQuantity,formatReadableSize,formatReadableTimeDelta,FQDN,getMacro,getServerPort,getSetting,getSizeOfEnumType,greatest,hasColumnInTable,hostName,identity,ifNotFinite,ignore,indexHint,initializeAggregation,initialQueryID,isConstant,isDecimalOverflow,isFinite,isInfinite,isNaN,joinGet,least,MACNumToString,MACStringToNum,MACStringToOUI,materialize,modelEvaluate,neighbor,queryID,randomFixedString,randomPrintableASCII,randomString,randomStringUTF8,replicate,rowNumberInAllBlocks,rowNumberInBlock,runningAccumulate,runningConcurrency,runningDifference,runningDifferenceStartingWithFirstValue,shardCount ,shardNum,sleep,sleepEachRow,tcpPort,throwIf,toColumnTypeName,toTypeName,transform,uptime,version,visibleWidth");
+            assertEquals(dbmd.getTimeDateFunctions(), "addDays,addHours,addMinutes,addMonths,addQuarters,addSeconds,addWeeks,addYears,date_add,date_diff,date_sub,date_trunc,dateName,formatDateTime,FROM_UNIXTIME,fromModifiedJulianDay,fromModifiedJulianDayOrNull,now,subtractDays,subtractHours,subtractMinutes,subtractMonths,subtractQuarters,subtractSeconds,subtractWeeks,subtractYears,timeSlot,timeSlots,timestamp_add,timestamp_sub,timeZone,timeZoneOf,timeZoneOffset,today,toDayOfMonth,toDayOfWeek,toDayOfYear,toHour,toISOWeek,toISOYear,toMinute,toModifiedJulianDay,toModifiedJulianDayOrNull,toMonday,toMonth,toQuarter,toRelativeDayNum,toRelativeHourNum,toRelativeMinuteNum,toRelativeMonthNum,toRelativeQuarterNum,toRelativeSecondNum,toRelativeWeekNum,toRelativeYearNum,toSecond,toStartOfDay,toStartOfFifteenMinutes,toStartOfFiveMinute,toStartOfHour,toStartOfInterval,toStartOfISOYear,toStartOfMinute,toStartOfMonth,toStartOfQuarter,toStartOfSecond,toStartOfTenMinutes,toStartOfWeek,toStartOfYear,toTime,toTimeZone,toUnixTimestamp,toWeek,toYear,toYearWeek,toYYYYMM,toYYYYMMDD,toYYYYMMDDhhmmss,yesterday");
+            assertEquals(dbmd.getSearchStringEscape(), "\\");
+                    assertEquals(dbmd.getExtraNameCharacters(), "");
+            assertEquals(dbmd.supportsAlterTableWithAddColumn(), true);
+            assertEquals(dbmd.supportsAlterTableWithDropColumn(), true);
+            assertEquals(dbmd.supportsColumnAliasing(), true);
+            assertEquals(dbmd.supportsConvert(), false);
+            assertEquals(dbmd.supportsTableCorrelationNames(), true);
+            assertEquals(dbmd.supportsDifferentTableCorrelationNames(), false);
+            assertEquals(dbmd.supportsExpressionsInOrderBy(), true);
+            assertEquals(dbmd.supportsOrderByUnrelated(), true);
+            assertEquals(dbmd.supportsGroupBy(), true);
+            assertEquals(dbmd.supportsGroupByUnrelated(), true);
+            assertEquals(dbmd.supportsGroupByBeyondSelect(), true);
+            assertEquals(dbmd.supportsLikeEscapeClause(), true);
+            assertEquals(dbmd.supportsMultipleResultSets(), false);
+            assertEquals(dbmd.supportsMultipleTransactions(), false);
+            assertEquals(dbmd.supportsNonNullableColumns(), true);
+            assertEquals(dbmd.supportsMinimumSQLGrammar(), true);
+            assertEquals(dbmd.supportsCoreSQLGrammar(), true);
+            assertEquals(dbmd.supportsExtendedSQLGrammar(), true);
+            assertEquals(dbmd.supportsANSI92EntryLevelSQL(), true);
+            assertEquals(dbmd.supportsANSI92IntermediateSQL(), false);
+            assertEquals(dbmd.supportsANSI92FullSQL(), false);
+            assertEquals(dbmd.supportsIntegrityEnhancementFacility(), false);
+            assertEquals(dbmd.supportsOuterJoins(), true);
+            assertEquals(dbmd.supportsFullOuterJoins(), true);
+            assertEquals(dbmd.supportsLimitedOuterJoins(), true);
+            assertEquals(dbmd.getProcedureTerm(), "function");
+            assertEquals(dbmd.getCatalogTerm(), "cluster");
+            assertEquals(dbmd.isCatalogAtStart(), true);
+            assertEquals(dbmd.getCatalogSeparator(), ".");
+            assertEquals(dbmd.supportsSchemasInDataManipulation(), true);
+            assertEquals(dbmd.supportsSchemasInProcedureCalls(), false);
+            assertEquals(dbmd.supportsSchemasInTableDefinitions(), true);
+            assertEquals(dbmd.supportsSchemasInIndexDefinitions(), true);
+            assertEquals(dbmd.supportsSchemasInPrivilegeDefinitions(), true);
+            assertEquals(dbmd.supportsCatalogsInDataManipulation(), false);
+            assertEquals(dbmd.supportsCatalogsInProcedureCalls(), false);
+            assertEquals(dbmd.supportsCatalogsInTableDefinitions(), false);
+            assertEquals(dbmd.supportsCatalogsInIndexDefinitions(), false);
+            assertEquals(dbmd.supportsCatalogsInPrivilegeDefinitions(), false);
+            assertEquals(dbmd.supportsPositionedDelete(), false);
+            assertEquals(dbmd.supportsPositionedUpdate(), false);
+            assertEquals(dbmd.supportsSelectForUpdate(), false);
+            assertEquals(dbmd.supportsStoredProcedures(), false);
+            assertEquals(dbmd.supportsSubqueriesInComparisons(), true);
+            assertEquals(dbmd.supportsSubqueriesInExists(), false);
+            assertEquals(dbmd.supportsSubqueriesInIns(), true);
+            assertEquals(dbmd.supportsSubqueriesInQuantifieds(), true);
+            assertEquals(dbmd.supportsCorrelatedSubqueries(), true);
+            assertEquals(dbmd.supportsUnion(), true);
+            assertEquals(dbmd.supportsUnionAll(), true);
+            assertEquals(dbmd.supportsOpenCursorsAcrossCommit(), false);
+            assertEquals(dbmd.supportsOpenCursorsAcrossRollback(), false);
+            assertEquals(dbmd.supportsOpenStatementsAcrossCommit(), false);
+            assertEquals(dbmd.supportsOpenStatementsAcrossRollback(), false);
+            assertEquals(dbmd.getMaxBinaryLiteralLength(), Integer.MAX_VALUE);
+            assertEquals(dbmd.getMaxCharLiteralLength(), Integer.MAX_VALUE);
+            assertEquals(dbmd.getMaxColumnNameLength(), Short.MAX_VALUE);
+            assertEquals(dbmd.getMaxColumnsInGroupBy(), 0);
+            assertEquals(dbmd.getMaxColumnsInIndex(), 0);
+            assertEquals(dbmd.getMaxColumnsInOrderBy(), 0);
+            assertEquals(dbmd.getMaxColumnsInSelect(), 0);
+            assertEquals(dbmd.getMaxColumnsInTable(), 1000);
+            assertEquals(dbmd.getMaxCursorNameLength(), 0);
+            assertEquals(dbmd.getMaxIndexLength(), 0);
+            assertEquals(dbmd.getMaxSchemaNameLength(), Integer.MAX_VALUE);
+            assertEquals(dbmd.getMaxProcedureNameLength(), 0);
+            assertEquals(dbmd.getMaxCatalogNameLength(), 0);
+            assertEquals(dbmd.getMaxRowSize(), 0);
+            assertEquals(dbmd.getMaxStatementLength(), 0);
+            assertEquals(dbmd.getMaxStatements(), 150);
+            assertEquals(dbmd.getMaxTableNameLength(), Integer.MAX_VALUE);
+            assertEquals(dbmd.getMaxTablesInSelect(), 0);
+            assertEquals(dbmd.getMaxUserNameLength(), 0);
+            assertEquals(dbmd.getDefaultTransactionIsolation(), 0);
+            assertEquals(dbmd.supportsTransactions(), false);
+            assertEquals(dbmd.supportsDataDefinitionAndDataManipulationTransactions(), false);
+            assertEquals(dbmd.supportsDataManipulationTransactionsOnly(), false);
+            assertEquals(dbmd.supportsBatchUpdates(), true);
+            assertEquals(dbmd.supportsSavepoints(), false);
+            assertEquals(dbmd.supportsNamedParameters(), false);
+            assertEquals(dbmd.supportsMultipleOpenResults(), false);
+            assertEquals(dbmd.supportsGetGeneratedKeys(), false);
+            assertEquals(dbmd.getResultSetHoldability(), 1);
+            assertEquals(dbmd.getJDBCMajorVersion(), 9);
+            assertEquals(dbmd.getJDBCMinorVersion(), 4);
+            assertEquals(dbmd.getSQLStateType(), 2);
+            assertEquals(dbmd.supportsStatementPooling(), false);
+            assertEquals(dbmd.getRowIdLifetime(), ROWID_UNSUPPORTED);
+            assertEquals(dbmd.supportsStoredFunctionsUsingCallSyntax(), false);
+            assertEquals(dbmd.getMaxLogicalLobSize(), 0);
+            assertEquals(dbmd.supportsRefCursors(), false);
+            assertEquals(dbmd.supportsSharding(), false);
+            assertEquals(dbmd.allProceduresAreCallable(), true);
+            assertEquals(dbmd.allTablesAreSelectable(), true);
+            assertEquals(dbmd.nullsAreSortedHigh(), false);
+            assertEquals(dbmd.nullsAreSortedLow(), true);
+            assertEquals(dbmd.nullsAreSortedAtStart(), false);
+            assertEquals(dbmd.nullsAreSortedAtEnd(), true);
+            assertEquals(dbmd.usesLocalFiles(), false);
+            assertEquals(dbmd.usesLocalFilePerTable(), false);
+            assertEquals(dbmd.storesUpperCaseIdentifiers(), false);
+            assertEquals(dbmd.storesLowerCaseIdentifiers(), true);
+            assertEquals(dbmd.storesMixedCaseIdentifiers(), false);
+            assertEquals(dbmd.storesUpperCaseQuotedIdentifiers(), false);
+            assertEquals(dbmd.storesMixedCaseQuotedIdentifiers(), false);
+            assertEquals(dbmd.nullPlusNonNullIsNull(), true);
+            assertEquals(dbmd.supportsConvert(), false);
+
+            assertEquals(dbmd.getDefaultTransactionIsolation(), Connection.TRANSACTION_NONE);
+            assertEquals(dbmd.supportsTransactionIsolationLevel(Connection.TRANSACTION_NONE), true);
+            for (int type : new int[] {Connection.TRANSACTION_SERIALIZABLE, Connection.TRANSACTION_READ_COMMITTED, Connection.TRANSACTION_READ_UNCOMMITTED, Connection.TRANSACTION_REPEATABLE_READ} ) {
+                assertFalse(dbmd.supportsTransactionIsolationLevel(type));
+            }
+            assertEquals(dbmd.dataDefinitionCausesTransactionCommit(), false);
+            assertEquals(dbmd.dataDefinitionIgnoredInTransactions(), false);
+            assertEquals(dbmd.supportsResultSetType(ResultSet.TYPE_FORWARD_ONLY), true);
+
+            for (int type : new int[] {ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.TYPE_SCROLL_SENSITIVE} ) {
+                assertFalse(dbmd.supportsResultSetType(type));
+                assertFalse(dbmd.ownUpdatesAreVisible(type));
+                assertFalse(dbmd.ownDeletesAreVisible(type));
+                assertFalse(dbmd.ownInsertsAreVisible(type));
+                assertFalse(dbmd.othersUpdatesAreVisible(type));
+                assertFalse(dbmd.othersDeletesAreVisible(type));
+                assertFalse(dbmd.othersInsertsAreVisible(type));
+                assertFalse(dbmd.updatesAreDetected(type));
+                assertFalse(dbmd.deletesAreDetected(type));
+                assertFalse(dbmd.insertsAreDetected(type));
+
+                for (int concurType : new int[] {ResultSet.CONCUR_UPDATABLE, ResultSet.CONCUR_READ_ONLY}) {
+                    assertFalse(dbmd.supportsResultSetConcurrency(type, concurType));
+                }
+            }
+
+            assertFalse(dbmd.generatedKeyAlwaysReturned());
         }
     }
 
@@ -330,6 +489,29 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             }
 
             assertFalse(rs.next());
+        }
+    }
+
+    @Test
+    public void testGetTablesReturnKnownTableTypes() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+            try (ResultSet rs = dbmd.getTables(null, "system", "numbers", null)) {
+                assertTrue(rs.next());
+                String tableType = rs.getString("TABLE_TYPE");
+                Assert.assertEquals(tableType, DatabaseMetaDataImpl.TableType.SYSTEM_TABLE.getTypeName(), "table was " + rs.getString("TABLE_NAME"));
+
+            }
+            try (Statement stmt = conn.createStatement()){
+                stmt.executeUpdate("CREATE TABLE test_db_metadata_type_memory (v Int32) ENGINE Memory");
+            }
+            try (ResultSet rs = dbmd.getTables(null, "default", "test_db_metadata_type_memory", null)) {
+                while (rs.next()) {
+                    String tableType = rs.getString("TABLE_TYPE");
+                    Assert.assertEquals(tableType, DatabaseMetaDataImpl.TableType.MEMORY_TABLE.getTypeName());
+                }
+            }
         }
     }
 
