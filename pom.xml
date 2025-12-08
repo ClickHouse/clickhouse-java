@@ -99,7 +99,8 @@
         <snappy.version>1.1.10.4</snappy.version>
         <xz.version>1.9</xz.version>
         <zstd-jni.version>1.5.5-5</zstd-jni.version>
-        <testcontainers.version>1.21.0</testcontainers.version>
+        <testcontainers.version>2.0.2</testcontainers.version>
+        <testcontainers.toxiproxy.version>1.21.3</testcontainers.toxiproxy.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5.1</testng.version>
 
@@ -360,7 +361,7 @@
             <dependency>
                 <groupId>org.testcontainers</groupId>
                 <artifactId>toxiproxy</artifactId>
-                <version>${testcontainers.version}</version>
+                <version>${testcontainers.toxiproxy.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>

@@ -11,7 +11,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.UUID;
-import org.junit.Assert;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.data.BaseClickHouseValueTest;
 import com.clickhouse.data.ClickHouseDataType;
