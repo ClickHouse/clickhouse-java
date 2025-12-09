@@ -283,7 +283,22 @@ public class ArrayResultSetTest {
     @Test
     void testEmptyArray() throws SQLException {
         ArrayResultSet rs = new ArrayResultSet(new Object[0], ClickHouseColumn.parse("v Array(Int32)").get(0));
+
+        Assert.assertTrue(rs.isBeforeFirst());
+        Assert.assertFalse(rs.isAfterLast());
+        Assert.assertFalse(rs.isLast());
+        Assert.assertFalse(rs.isFirst());
+
         assertFalse(rs.next());
+
+        Assert.assertTrue(rs.isBeforeFirst());
+        Assert.assertFalse(rs.isAfterLast());
+        Assert.assertFalse(rs.isLast());
+        Assert.assertFalse(rs.isFirst());
+
+        Assert.assertThrows(SQLException.class, () -> rs.getString("col1"));
+        Assert.assertThrows(SQLException.class, () -> rs.getObject("col1"));
+        Assert.assertThrows(SQLException.class, () -> rs.getInt("col1"));
     }
 
     @Test

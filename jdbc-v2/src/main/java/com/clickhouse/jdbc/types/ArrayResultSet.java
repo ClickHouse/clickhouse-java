@@ -458,7 +458,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public boolean isLast() throws SQLException {
-        return pos == length - 1;
+        return length > 0 && pos == length - 1;
     }
 
     @Override
