@@ -505,4 +505,19 @@ public class ArrayResultSetTest {
         assertEquals(rs.getString(stringColumn), rs.getObject(stringColumn, String.class));
         assertEquals(rs.getURL(stringColumn), rs.getObject(stringColumn, URL.class));
     }
+
+    @Test
+    void testInvalidStringConverts() throws Exception {
+        String[] array = {"abc"};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(String)").get(0));
+
+        final String stringColumn = rs.getMetaData().getColumnName(2);
+        rs.next();
+        Assert.assertThrows(SQLException.class, () -> rs.getByte(stringColumn));
+        Assert.assertThrows(SQLException.class, () -> rs.getShort(stringColumn));
+        Assert.assertThrows(SQLException.class, () -> rs.getInt(stringColumn));
+        Assert.assertThrows(SQLException.class, () -> rs.getLong(stringColumn));
+        Assert.assertThrows(SQLException.class, () -> rs.getFloat(stringColumn));
+        Assert.assertThrows(SQLException.class, () -> rs.getDouble(stringColumn));
+    }
 }

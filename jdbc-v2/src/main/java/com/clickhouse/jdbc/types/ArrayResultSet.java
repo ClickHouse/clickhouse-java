@@ -47,6 +47,8 @@ public class ArrayResultSet implements ResultSet {
 
     private static final ClickHouseColumn INDEX_COLUMN = ClickHouseColumn.of("INDEX", ClickHouseDataType.UInt32, false, 0, 0);
     private static final String VALUE_COLUMN = "VALUE";
+    private static final ValueConverters defaultValueConverters = new ValueConverters();
+
     private int fetchDirection = ResultSet.FETCH_FORWARD;
     private int fetchSize = 0;
     private boolean wasNull = false;
@@ -71,14 +73,13 @@ public class ArrayResultSet implements ResultSet {
                 , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP);
         this.componentDataType = valueColumn.getDataType();
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
-        ValueConverters converters = new ValueConverters();
-        indexConverterMap = converters.getConvertersForType(Integer.class);
+        indexConverterMap = defaultValueConverters.getConvertersForType(Integer.class);
         if (this.length > 0) {
             Class<?> itemClass = array.getClass().getComponentType();
             if (itemClass == null) {
                 itemClass = java.lang.reflect.Array.get(array, 0).getClass();
             }
-            converterMap = converters.getConvertersForType(itemClass);
+            converterMap = defaultValueConverters.getConvertersForType(itemClass);
         } else {
             // empty array - no values to convert
             converterMap = null;
@@ -127,7 +128,12 @@ public class ArrayResultSet implements ResultSet {
             // if there is something to convert. type == Object.class means no conversion
             Function<Object, Object> converter = valueConverterMap.get(type);
             if (converter != null) {
-                value = converter.apply(value);
+                try {
+                    value = converter.apply(value);
+                } catch (Exception e) {
+                    throw new SQLException("Failed to convert value of " + value.getClass() + " to " + type,
+                            ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
+                }
             } else {
                 throw new SQLException("Value of " + value.getClass() + " cannot be converted to " + type);
             }
