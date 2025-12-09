@@ -120,7 +120,7 @@ public final class ValueConverters {
     }
 
     public Number convertBooleanToNumber(Object value) {
-        return ((Number) (((Boolean)value) ? 1 : 0)).longValue();
+        return ((Boolean) value) ? 1L : 0L;
     }
 
     public String convertBooleanToString(Object value) {
@@ -227,15 +227,15 @@ public final class ValueConverters {
     }
 
     public String convertDateToString(Object value) {
-        return ((Date)value).toString();
+        return value.toString();
     }
 
     public String convertTimeToString(Object value) {
-        return ((Time) value).toString();
+        return value.toString();
     }
 
     public String convertTimestampToString(Object value) {
-        return  ((Timestamp) value).toString();
+        return  value.toString();
     }
 
     /**

@@ -159,9 +159,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        boolean tmp = wasNull;
-        wasNull = false;
-        return tmp;
+        return wasNull;
     }
 
     @Override

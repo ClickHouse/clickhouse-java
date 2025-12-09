@@ -141,10 +141,12 @@ public class ArrayResultSetTest {
         assertFalse(rs.wasNull());
         assertEquals(rs.getInt(2), array[0]);
         assertFalse(rs.wasNull());
+        assertFalse(rs.wasNull());
 
         rs.next();
         assertFalse(rs.wasNull());
         assertEquals(rs.getInt(2), 0);
+        assertTrue(rs.wasNull());
         assertTrue(rs.wasNull());
     }
 
