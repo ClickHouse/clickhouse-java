@@ -4,10 +4,11 @@ import com.google.common.collect.ImmutableMap;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,11 +101,15 @@ public final class ValueConverters {
         stringMapBuilder.put(Boolean.class, this::convertStringToBoolean);
         stringMapBuilder.put(String.class, this::convertStringToString);
         stringMapBuilder.put(byte[].class, this::convertStringToBytes);
+        stringMapBuilder.put(URL.class, this::convertStringToURL);
         mapBuilder.put(String.class, stringMapBuilder.build());
 
-        mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::conveSqlDateToSqlDate));
-        mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::conveSqlTimeToSqlTime));
-        mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::conveSqlTimestampToSqlTimestamp));
+        mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::conveSqlDateToSqlDate,
+                String.class, this::convertDateToString));
+        mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::conveSqlTimeToSqlTime,
+                String.class, this::convertTimeToString));
+        mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::conveSqlTimestampToSqlTimestamp,
+                String.class, this::convertTimestampToString));
 
         classConverters = mapBuilder.build();
     }
@@ -159,6 +164,14 @@ public final class ValueConverters {
         return Double.parseDouble((String) value);
     }
 
+    public URL convertStringToURL(Object value) {
+        try {
+            return new URL((String) value);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // Number to any
     public String convertNumberToString(Object value) {
         return String.valueOf(value);
@@ -201,26 +214,6 @@ public final class ValueConverters {
     }
 
     // Date & Time converters
-
-    public java.sql.Date convertZonedDateTimeToSqlDate(Object value) {
-        // Date is stored without time zone information and should be treated as UTC
-        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-        Date date = Date.valueOf(zonedDateTime.toLocalDate());
-        return date;
-    }
-
-    public Time convertZonedDateTimeToSqlTime(Object value) {
-        // Time is stored without time zone information and should be treated as UTC
-        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-        Time time = Time.valueOf(zonedDateTime.toLocalTime());
-        return time;
-    }
-
-    public Timestamp convertZonedDateTimeToSqlTimestamp(Object value) {
-        ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-        return Timestamp.valueOf(zonedDateTime.toLocalDateTime());
-    }
-
     public java.sql.Date conveSqlDateToSqlDate(Object value) {
         return (java.sql.Date) value;
     }
@@ -231,6 +224,18 @@ public final class ValueConverters {
 
     public Timestamp conveSqlTimestampToSqlTimestamp(Object value) {
         return (Timestamp) value;
+    }
+
+    public String convertDateToString(Object value) {
+        return ((Date)value).toString();
+    }
+
+    public String convertTimeToString(Object value) {
+        return ((Time) value).toString();
+    }
+
+    public String convertTimestampToString(Object value) {
+        return  ((Timestamp) value).toString();
     }
 
     /**

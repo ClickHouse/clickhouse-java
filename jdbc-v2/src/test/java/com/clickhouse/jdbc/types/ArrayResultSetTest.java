@@ -10,6 +10,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.net.URL;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
@@ -21,6 +22,7 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.GregorianCalendar;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -427,6 +429,80 @@ public class ArrayResultSetTest {
         assertEquals(rs.getObject(indexColumn, Integer.class), 1);
         assertEquals(rs.getObject(indexColumn, Short.class), (short) 1);
         assertEquals(rs.getObject(indexColumn, Byte.class), (byte) 1);
+    }
 
+    @Test
+    void testDateColumn() throws Exception {
+        Date[] array = {Date.valueOf("2020-01-01"), null, Date.valueOf("2020-01-02")};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Date)").get(0));
+
+        final String dateColumn = rs.getMetaData().getColumnName(2);
+        Assert.assertEquals(dateColumn, "VALUE");
+        rs.next();
+        assertEquals(rs.getObject(dateColumn), Date.valueOf("2020-01-01"));
+        assertEquals(rs.getObject(dateColumn, String.class), "2020-01-01");
+        assertEquals(rs.getDate(dateColumn), rs.getObject(dateColumn, Date.class));
+        assertEquals(rs.getDate(dateColumn, new GregorianCalendar()), rs.getObject(dateColumn, Date.class));
+    }
+
+    @Test
+    void testTimeColumn() throws Exception {
+        Time[] array = {Time.valueOf("12:34:56"), null, Time.valueOf("12:34:57")};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Time)").get(0));
+
+        final String timeColumn = rs.getMetaData().getColumnName(2);
+        Assert.assertEquals(timeColumn, "VALUE");
+        rs.next();
+        assertEquals(rs.getObject(timeColumn), Time.valueOf("12:34:56"));
+        assertEquals(rs.getObject(timeColumn, String.class), "12:34:56");
+        assertEquals(rs.getTime(timeColumn), rs.getObject(timeColumn, Time.class));
+        assertEquals(rs.getTime(timeColumn, new GregorianCalendar()), rs.getObject(timeColumn, Time.class));
+    }
+
+    @Test
+    void testTimestampColumn() throws Exception {
+        Timestamp[] array = {Timestamp.valueOf("2020-01-01 12:34:56.789123"), null, Timestamp.valueOf("2020-01-01 12:34:56.789124")};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Timestamp)").get(0));
+
+        final String timestampColumn = rs.getMetaData().getColumnName(2);
+        Assert.assertEquals(timestampColumn, "VALUE");
+        rs.next();
+        assertEquals(rs.getObject(timestampColumn), Timestamp.valueOf("2020-01-01 12:34:56.789123"));
+        assertEquals(rs.getObject(timestampColumn, String.class), "2020-01-01 12:34:56.789123");
+        assertEquals(rs.getTimestamp(timestampColumn), rs.getObject(timestampColumn, Timestamp.class));
+        assertEquals(rs.getTimestamp(timestampColumn, new GregorianCalendar()), rs.getObject(timestampColumn, Timestamp.class));
+    }
+
+    @Test
+    void testStringColumn() throws Exception {
+        String[] array = {"123", null, "456"};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(String)").get(0));
+
+        final String stringColumn = rs.getMetaData().getColumnName(2);
+        Assert.assertEquals(stringColumn, "VALUE");
+        rs.next();
+        assertEquals(rs.getObject(stringColumn), "123");
+        assertEquals(rs.getObject(stringColumn, String.class), "123");
+        assertEquals(rs.getString(stringColumn), rs.getObject(stringColumn, String.class));
+        assertEquals(rs.getByte(stringColumn), 123);
+        assertEquals(rs.getShort(stringColumn), (short) 123);
+        assertEquals(rs.getInt(stringColumn), 123);
+        assertEquals(rs.getLong(stringColumn), 123L);
+        assertEquals(rs.getFloat(stringColumn), 123.0f);
+        assertEquals(rs.getDouble(stringColumn), 123.0);
+    }
+
+    @Test
+    void testStringToURL() throws Exception {
+        String[] array = {"http://test.com", null, "https://test.com"};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(String)").get(0));
+
+        final String stringColumn = rs.getMetaData().getColumnName(2);
+        Assert.assertEquals(stringColumn, "VALUE");
+        rs.next();
+        assertEquals(rs.getObject(stringColumn), "http://test.com");
+        assertEquals(rs.getObject(stringColumn, String.class), "http://test.com");
+        assertEquals(rs.getString(stringColumn), rs.getObject(stringColumn, String.class));
+        assertEquals(rs.getURL(stringColumn), rs.getObject(stringColumn, URL.class));
     }
 }

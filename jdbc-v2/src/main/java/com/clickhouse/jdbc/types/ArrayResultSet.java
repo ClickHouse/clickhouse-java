@@ -871,7 +871,7 @@ public class ArrayResultSet implements ResultSet {
         checkColumnIndex(columnIndex);
         checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getDate");
-        return null;
+        return getDate(columnIndex);
     }
 
     @Override
@@ -884,7 +884,7 @@ public class ArrayResultSet implements ResultSet {
         checkColumnIndex(columnIndex);
         checkRowPosition();
         throwUnsupportedIndexOperation(columnIndex, "getTime");
-        return null;
+        return getTime(columnIndex);
     }
 
     @Override
