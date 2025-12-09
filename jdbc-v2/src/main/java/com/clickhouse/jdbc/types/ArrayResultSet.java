@@ -10,7 +10,6 @@ import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Array;
@@ -30,7 +29,6 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
@@ -52,7 +50,7 @@ public class ArrayResultSet implements ResultSet {
     private int fetchDirection = ResultSet.FETCH_FORWARD;
     private int fetchSize = 0;
     private boolean wasNull = false;
-    private final Map<Class<?>, Function<Object, Object>> converterMap;
+    private Map<Class<?>, Function<Object, Object>> converterMap;
     private final Map<Class<?>, Function<Object, Object>> indexConverterMap;
     private final ClickHouseDataType componentDataType;
     private final Class<?> defaultClass;
@@ -74,16 +72,6 @@ public class ArrayResultSet implements ResultSet {
         this.componentDataType = valueColumn.getDataType();
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
         indexConverterMap = defaultValueConverters.getConvertersForType(Integer.class);
-        if (this.length > 0) {
-            Class<?> itemClass = array.getClass().getComponentType();
-            if (itemClass == null) {
-                itemClass = java.lang.reflect.Array.get(array, 0).getClass();
-            }
-            converterMap = defaultValueConverters.getConvertersForType(itemClass);
-        } else {
-            // empty array - no values to convert
-            converterMap = null;
-        }
     }
 
     @Override
@@ -107,39 +95,58 @@ public class ArrayResultSet implements ResultSet {
         }
     }
 
+    private Map<Class<?>, Function<Object, Object>> initValueConverterMapIfNeeded(Object nonNullValue) {
+        if (converterMap == null) {
+            if (array.getClass().getComponentType() == Object.class) {
+                converterMap = defaultValueConverters.getConvertersForType(nonNullValue.getClass());
+            } else {
+                converterMap = defaultValueConverters.getConvertersForType(array.getClass().getComponentType());
+            }
+        }
+        return converterMap;
+    }
+
+    private Object convertValue(Object value, Class<?> targetType, Map<Class<?>, Function<Object, Object>> valueConverterMap) throws SQLException {
+        if (value == null || targetType == value.getClass() || targetType == Object.class) {
+            return value;
+        }
+
+        Function<Object, Object> converter = valueConverterMap.get(targetType);
+        if (converter != null) {
+            try {
+                return converter.apply(value);
+            } catch (Exception e) {
+                throw new SQLException("Failed to convert value of " + value.getClass() + " to " + targetType,
+                        ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
+            }
+        } else {
+            throw new SQLException("Value of " + value.getClass() + " cannot be converted to " + targetType);
+        }
+    }
+
     private Object getValueAsObject(int columnIndex, Class<?> type, Object defaultValue) throws SQLException {
         checkColumnIndex(columnIndex);
         checkRowPosition();
 
-        Object value;
-        Map<Class<?>, Function<Object, Object>> valueConverterMap;
         if (columnIndex == 1) {
-            value = pos + 1;
-            valueConverterMap = indexConverterMap;
+            Integer value = pos + 1;
+            return convertValue(value, type, indexConverterMap);
         } else {
-            value = java.lang.reflect.Array.get(array, pos);
-            valueConverterMap = converterMap;
-        }
+            Object value = java.lang.reflect.Array.get(array, pos);
+            wasNull = value == null;
+            if (value == null) {
+                return defaultValue;
+            }
 
-        if (columnIndex != 1 && value != null && type == Array.class) {
-            ClickHouseColumn nestedColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : column.getNestedColumns().get(0);
-            return new com.clickhouse.jdbc.types.Array(nestedColumn, JdbcUtils.arrayToObjectArray(value));
-        } else if (value != null && type != Object.class) {
-            // if there is something to convert. type == Object.class means no conversion
-            Function<Object, Object> converter = valueConverterMap.get(type);
-            if (converter != null) {
-                try {
-                    value = converter.apply(value);
-                } catch (Exception e) {
-                    throw new SQLException("Failed to convert value of " + value.getClass() + " to " + type,
-                            ExceptionUtils.SQL_STATE_DATA_EXCEPTION, e);
-                }
+            if (type == Array.class) {
+                ClickHouseColumn nestedColumn =
+                        column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : column.getNestedColumns().get(0);
+                return new com.clickhouse.jdbc.types.Array(nestedColumn, JdbcUtils.arrayToObjectArray(value));
             } else {
-                throw new SQLException("Value of " + value.getClass() + " cannot be converted to " + type);
+                Map<Class<?>, Function<Object, Object>> valueConverterMap = initValueConverterMapIfNeeded(value);
+                return convertValue(value, type, valueConverterMap);
             }
         }
-        wasNull = value == null;
-        return value == null ? defaultValue : value;
     }
 
     private void throwReadOnlyException() throws SQLException {

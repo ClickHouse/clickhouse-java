@@ -134,12 +134,17 @@ public class ArrayResultSetTest {
 
     @Test
     void testNullValues() throws SQLException {
-        Integer[] array = {1, null, 3, 4, 5};
+        Integer[] array = {null, 1, null, 3, 4, 5};
         ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
 
         rs.next();
-        assertFalse(rs.wasNull());
-        assertEquals(rs.getInt(2), array[0]);
+        assertEquals(rs.getInt(2), 0);
+        assertTrue(rs.wasNull());
+        assertTrue(rs.wasNull());
+
+        rs.next();
+        assertTrue(rs.wasNull());
+        assertEquals(rs.getInt(2), array[1]);
         assertFalse(rs.wasNull());
         assertFalse(rs.wasNull());
 
@@ -536,5 +541,21 @@ public class ArrayResultSetTest {
         Assert.assertThrows(SQLException.class, () -> rs.getLong(stringColumn));
         Assert.assertThrows(SQLException.class, () -> rs.getFloat(stringColumn));
         Assert.assertThrows(SQLException.class, () -> rs.getDouble(stringColumn));
+    }
+
+    @Test
+    void testArrayOfObjects() throws Exception {
+        Object[] array = {null, 2, 3};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Nullable(UInt32))").get(0));
+
+        final String valueColumn = rs.getMetaData().getColumnName(2);
+        rs.next();
+        assertEquals(rs.getObject(valueColumn), null);
+        assertTrue(rs.wasNull());
+
+        rs.next();
+        assertEquals(rs.getInt(valueColumn), 2);
+        assertEquals(rs.getObject(valueColumn, String.class), "2");
+        assertEquals(rs.getString(valueColumn), rs.getObject(valueColumn, String.class));
     }
 }
