@@ -39,7 +39,7 @@ public class ArrayResultSet implements ResultSet {
 
     private final Object array;
     private final int length;
-    private Integer pos;
+    private int pos;
     private boolean closed;
     private ResultSetMetaDataImpl metadata;
 
@@ -184,10 +184,10 @@ public class ArrayResultSet implements ResultSet {
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         if (columnIndex == 1) {
-            if (pos < Byte.MAX_VALUE) {
+            if (pos + 1 < Byte.MAX_VALUE) {
                 return (byte) getRow();
             } else {
-                throw new SQLException("INDEX column value too big and cannot be get as byte");
+                throw new SQLException("INDEX column value too big and cannot be retrieved as byte");
             }
         }
         return ((Number) getValueAsObject(columnIndex, Byte.class, 0)).byteValue();
@@ -196,10 +196,10 @@ public class ArrayResultSet implements ResultSet {
     @Override
     public short getShort(int columnIndex) throws SQLException {
         if (columnIndex == 1) {
-            if (pos < Short.MAX_VALUE) {
+            if (pos + 1 < Short.MAX_VALUE) {
                 return (short) getRow();
             } else {
-                throw new SQLException("INDEX column value too big and cannot be get as short");
+                throw new SQLException("INDEX column value too big and cannot be retrieved as short");
             }
         }
         return ((Number) getValueAsObject(columnIndex, Short.class, 0)).shortValue();
