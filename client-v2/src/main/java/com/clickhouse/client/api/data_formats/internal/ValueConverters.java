@@ -104,11 +104,11 @@ public final class ValueConverters {
         stringMapBuilder.put(URL.class, this::convertStringToURL);
         mapBuilder.put(String.class, stringMapBuilder.build());
 
-        mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::conveSqlDateToSqlDate,
+        mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::convertSqlDateToSqlDate,
                 String.class, this::convertDateToString));
-        mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::conveSqlTimeToSqlTime,
+        mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::convertSqlTimeToSqlTime,
                 String.class, this::convertTimeToString));
-        mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::conveSqlTimestampToSqlTimestamp,
+        mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::convertSqlTimestampToSqlTimestamp,
                 String.class, this::convertTimestampToString));
 
         classConverters = mapBuilder.build();
@@ -214,15 +214,15 @@ public final class ValueConverters {
     }
 
     // Date & Time converters
-    public java.sql.Date conveSqlDateToSqlDate(Object value) {
+    public java.sql.Date convertSqlDateToSqlDate(Object value) {
         return (java.sql.Date) value;
     }
 
-    public Time conveSqlTimeToSqlTime(Object value) {
+    public Time convertSqlTimeToSqlTime(Object value) {
         return (Time) value;
     }
 
-    public Timestamp conveSqlTimestampToSqlTimestamp(Object value) {
+    public Timestamp convertSqlTimestampToSqlTimestamp(Object value) {
         return (Timestamp) value;
     }
 

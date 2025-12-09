@@ -55,12 +55,14 @@ public class ArrayResultSet implements ResultSet {
     private final ClickHouseDataType componentDataType;
     private final Class<?> defaultClass;
     private final ClickHouseColumn column;
+    private final int columnCount;
 
     public ArrayResultSet(Object array, ClickHouseColumn column) {
         this.array = array;
         this.length = java.lang.reflect.Array.getLength(array);
         this.pos = -1;
         this.column = column;
+        this.columnCount = 2; // INDEX, VALUE
 
         List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
         ClickHouseColumn valueColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
@@ -71,7 +73,7 @@ public class ArrayResultSet implements ResultSet {
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
         ValueConverters converters = new ValueConverters();
         indexConverterMap = converters.getConvertersForType(Integer.class);
-        if (this.length > 1) {
+        if (this.length > 0) {
             Class<?> itemClass = array.getClass().getComponentType();
             if (itemClass == null) {
                 itemClass = java.lang.reflect.Array.get(array, 0).getClass();
@@ -93,7 +95,7 @@ public class ArrayResultSet implements ResultSet {
     }
 
     private void checkColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < 1 || columnIndex > length) {
+        if (columnIndex < 1 || columnIndex > columnCount) {
             throw new SQLException("Invalid column index: " + columnIndex);
         }
     }
