@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -55,6 +57,17 @@ public class JdbcConfiguration {
 
     public boolean isIgnoreUnsupportedRequests() {
         return isIgnoreUnsupportedRequests;
+    }
+
+    private static final Set<String> DRIVER_PROP_KEYS;
+    static {
+
+        ImmutableSet.Builder<String> driverPropertiesMapBuidler = ImmutableSet.builder();
+        for (DriverProperties prop : DriverProperties.values()) {
+            driverPropertiesMapBuidler.add(prop.getKey());
+        }
+
+        DRIVER_PROP_KEYS = driverPropertiesMapBuidler.build();
     }
 
     /**
@@ -251,7 +264,10 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
             propertyInfo.description = "(User Defined)";
             propertyInfos.put(prop.getKey(), propertyInfo);
-            clientProperties.put(prop.getKey(), prop.getValue());
+            if (!DRIVER_PROP_KEYS.contains(prop.getKey())) {
+                // filter out driver properties
+                clientProperties.put(prop.getKey(), prop.getValue());
+            }
         }
 
         // Fill list of client properties information, add not specified properties (doesn't affect client properties)

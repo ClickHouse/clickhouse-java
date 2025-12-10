@@ -1,17 +1,22 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ServerException;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import static org.testng.Assert.assertEquals;
 import static org.testng.AssertJUnit.assertTrue;
 
 
@@ -62,16 +67,16 @@ public class DriverTest extends JdbcIntegrationTest {
             for (DriverPropertyInfo property : properties) {
                 Object expectedValue = checkPropertiesCopy.remove(property.name);
                 if (expectedValue != null) {
-                    Assert.assertEquals(property.value, expectedValue);
+                    assertEquals(property.value, expectedValue);
                 } else {
                     for (DriverProperties driverProp : DriverProperties.values()) {
                         if (driverProp.getKey().equalsIgnoreCase(property.name)) {
-                            Assert.assertEquals(property.value, driverProp.getDefaultValue());
+                            assertEquals(property.value, driverProp.getDefaultValue());
                         }
                     }
                     for (ClientConfigProperties clientProp : ClientConfigProperties.values()) {
                         if (clientProp.getKey().equalsIgnoreCase(property.name)) {
-                            Assert.assertEquals(property.value, clientProp.getDefaultValue());
+                            assertEquals(property.value, clientProp.getDefaultValue());
                         }
                     }
                 }
@@ -107,7 +112,7 @@ public class DriverTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"}, dataProvider = "testParsingDriverVersionDP")
     public void testParsingDriverVersion(String version, int expectedMajor, int expectedMinor) {
         int[] versions = Driver.parseVersion(version);
-        Assert.assertEquals(versions, new int[] { expectedMajor, expectedMinor });
+        assertEquals(versions, new int[] { expectedMajor, expectedMinor });
     }
 
     @DataProvider(name = "testParsingDriverVersionDP")
@@ -139,7 +144,55 @@ public class DriverTest extends JdbcIntegrationTest {
             driver.getParentLogger();
             Assert.fail("Should not reach here");
         } catch (SQLException e) {
-            Assert.assertEquals(e.getMessage(), "Method not supported");
+            assertEquals(e.getMessage(), "Method not supported");
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUnknownSettings() throws Exception {
+        Driver driver = new Driver();
+        try {
+            driver.connect(getEndpointString() + "?unknown_setting=1", new Properties());
+            Assert.fail("Exception expected");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientMisconfigurationException);
+            Assert.assertTrue(e.getCause().getMessage().contains("unknown_setting"));
+        }
+
+        try {
+            Properties properties = new Properties();
+            properties.put("unknown_setting1", "1");
+            driver.connect(getEndpointString(), properties).close();
+            Assert.fail("Exception expected");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getCause() instanceof ClientMisconfigurationException);
+            Assert.assertTrue(e.getCause().getMessage().contains("unknown_setting1"));
+        }
+
+        {
+            Properties properties = new Properties();
+            properties.put(DriverProperties.serverSetting("unknown_setting2"), "1");
+            try (Connection connection = getJdbcConnection(properties)) {
+                try {
+                    connection.createStatement().execute("SELECT 1");
+                    Assert.fail("Exception expected");
+                } catch (SQLException e) {
+                    Assert.assertTrue(e.getCause() instanceof ServerException);
+                    assertEquals(((ServerException) e.getCause()).getCode(), ServerException.UNKNOWN_SETTING);
+                }
+            }
+        }
+
+        {
+            Properties properties = new Properties();
+            properties.put(DriverProperties.SECURE_CONNECTION.getKey(), "true");
+            properties.put(DriverProperties.SCHEMA_TERM.getKey(), "catalog");
+            try (Connection connection = getJdbcConnection(properties);
+                 Statement stmt = connection.createStatement()) {
+                //
+            }
+        }
+
+        driver.connect(getEndpointString() + "?unknown_setting=1&" + ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG + "=1", new Properties()).close();
     }
 }
