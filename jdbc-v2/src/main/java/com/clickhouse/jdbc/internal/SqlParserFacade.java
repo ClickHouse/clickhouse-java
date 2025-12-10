@@ -7,6 +7,7 @@ import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlParser;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
 import com.clickhouse.jdbc.internal.parser.javacc.JdbcParseHandler;
 import com.clickhouse.jdbc.internal.parser.javacc.StatementType;
 import org.antlr.v4.runtime.BaseErrorListener;
@@ -24,6 +25,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class SqlParserFacade {
 
@@ -136,6 +138,14 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParsedPreparedStatementListener(stmt));
+            
+            // Combine database and table like JavaCC does
+            String tableName = stmt.getTable();
+            if (stmt.getDatabase() != null && stmt.getTable() != null) {
+                tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
+            }
+            stmt.setTable(tableName);
+            
             parseParameters(sql, stmt);
             return stmt;
         }
@@ -264,11 +274,10 @@ public abstract class SqlParserFacade {
                 parsedStatement.setAssignValuesListStopPosition(ctx.getStop().getStopIndex());
             }
 
-
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
                 if (ctx.tableIdentifier() != null) {
-                    parsedStatement.setTable(SQLUtils.unquoteIdentifier(ctx.tableIdentifier().getText()));
+                    extractAndSetDatabaseAndTable(ctx.tableIdentifier());
                 }
             }
 
@@ -276,7 +285,7 @@ public abstract class SqlParserFacade {
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
-                    parsedStatement.setTable(SQLUtils.unquoteIdentifier(tableId.getText()));
+                    extractAndSetDatabaseAndTable(tableId);
                 }
 
                 ClickHouseParser.ColumnsClauseContext columns = ctx.columnsClause();
@@ -290,6 +299,35 @@ public abstract class SqlParserFacade {
                 }
 
                 parsedStatement.setInsert(true);
+            }
+
+            /**
+             * Extracts database and table from parse tree using grammar structure.
+             * Grammar: tableIdentifier = (databaseIdentifier DOT)? identifier
+             * The grammar itself defines what's database vs table!
+             * 
+             * Examples:
+             *   table -> databaseIdentifier=null, identifier="table"
+             *   db.table -> databaseIdentifier="db", identifier="table"  
+             *   a.b.c -> databaseIdentifier="a.b", identifier="c"
+             */
+            private void extractAndSetDatabaseAndTable(ClickHouseParser.TableIdentifierContext tableId) {
+                if (tableId == null) {
+                    return;
+                }
+                
+                // Table is always the standalone identifier (last part)
+                if (tableId.identifier() != null) {
+                    parsedStatement.setTable(ClickHouseSqlUtils.unescape(tableId.identifier().getText()));
+                }
+                
+                // Database is the databaseIdentifier part (if present)
+                if (tableId.databaseIdentifier() != null) {
+                    String database = tableId.databaseIdentifier().identifier().stream()
+                        .map(id -> ClickHouseSqlUtils.unescape(id.getText()))
+                        .collect(Collectors.joining("."));
+                    parsedStatement.setDatabase(database);
+                }
             }
 
             @Override
@@ -315,6 +353,14 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParseStatementAndParamsListener(stmt));
+            
+            // Combine database and table like JavaCC does
+            String tableName = stmt.getTable();
+            if (stmt.getDatabase() != null && stmt.getTable() != null) {
+                tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
+            }
+            stmt.setTable(tableName);
+            
             return stmt;
         }
 
