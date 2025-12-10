@@ -182,6 +182,13 @@ public enum ClientConfigProperties {
      * SNI SSL parameter that will be set for each outbound SSL socket.
      */
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
+
+    /**
+     *  Prefix for custom settings. Should be aligned with server configuration.
+     *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
+     */
+    CUSTOM_SETTINGS_PREFIX("clickhouse_setting_", String.class, "custom_"),
+
     ;
 
     public static final String NO_THROW_ON_UNKNOWN_CONFIG = "no_throw_on_unknown_config";
@@ -223,8 +230,6 @@ public enum ClientConfigProperties {
     public static final String HTTP_HEADER_PREFIX = "http_header_";
 
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
-
-    public static final String CUSTOM_SETTING_PREFIX = "custom_";
 
     // Key used to identify default value in configuration map
     public static final String DEFAULT_KEY = "_default_";
@@ -338,10 +343,12 @@ public enum ClientConfigProperties {
             }
         }
 
+        final String customSettingsPrefix = configMap.getOrDefault(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(),
+                CUSTOM_SETTINGS_PREFIX.getDefaultValue());
         for (String key : new HashSet<>(tmpMap.keySet())) {
             if (key.startsWith(HTTP_HEADER_PREFIX) || key.startsWith(SERVER_SETTING_PREFIX)) {
                 parsedConfig.put(key, tmpMap.remove(key));
-            } else if (key.startsWith(CUSTOM_SETTING_PREFIX)) {
+            } else if (key.startsWith(customSettingsPrefix)) {
                 parsedConfig.put(serverSetting(key), tmpMap.remove(key));
             }
         }

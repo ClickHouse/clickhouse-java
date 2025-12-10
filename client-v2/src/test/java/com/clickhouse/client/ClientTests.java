@@ -109,6 +109,8 @@ public class ClientTests extends BaseIntegrationTest {
     public void testRawSettings() {
         Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
+                .setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), isCloud()? "SQL_" :
+                        ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getDefaultValue())
                 .build();
 
         client.execute("SELECT 1");
