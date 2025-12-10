@@ -4,7 +4,9 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -27,6 +29,7 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.util.Strings;
+import wiremock.org.eclipse.jetty.server.Server;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
@@ -440,6 +443,33 @@ public class ClientTests extends BaseIntegrationTest {
             String settings = record.getString(record.getSchema().nameToColumnIndex("Settings"));
             Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1"));
 //            Assert.assertTrue(settings.contains(ServerSettings.WAIT_ASYNC_INSERT + "=1")); // uncomment after server fix 
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUnknownClientSettings() throws Exception {
+        try (Client client = newClient().setOption("unknown_setting", "value").build()) {
+            Assert.fail("Exception expected");
+        } catch (Exception ex) {
+            Assert.assertTrue(ex instanceof ClientMisconfigurationException);
+            Assert.assertTrue(ex.getMessage().contains("unknown_setting"));
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG, "what ever").setOption("unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.SERVER_SETTING_PREFIX + "unknown_setting", "value").build()) {
+            try {
+                client.execute("SELECT 1");
+                Assert.fail("Exception expected");
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), ServerException.UNKNOWN_SETTING);
+            }
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.HTTP_HEADER_PREFIX + "unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
         }
     }
 

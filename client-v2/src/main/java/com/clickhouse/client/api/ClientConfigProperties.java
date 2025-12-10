@@ -184,6 +184,8 @@ public enum ClientConfigProperties {
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
     ;
 
+    public static final String NO_THROW_ON_UNKNOWN_CONFIG = "no_throw_on_unknown_config";
+
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
 
     private final String key;
@@ -341,7 +343,12 @@ public enum ClientConfigProperties {
         }
 
         if (!tmpMap.isEmpty()) {
-            LOG.warn("Unknown and unmapped config properties: {}", tmpMap);
+            String msg = "Unknown and unmapped config properties: " + tmpMap.keySet();
+            if (configMap.containsKey(NO_THROW_ON_UNKNOWN_CONFIG)) {
+                LOG.warn(msg);
+            } else {
+                throw new ClientMisconfigurationException(msg);
+            }
         }
 
         return parsedConfig;
@@ -400,8 +407,6 @@ public enum ClientConfigProperties {
 
         return Collections.unmodifiableMap(map);
     }
-
-
 
     public static String mapToString(Map<?,?> map, Function<Object, String> valueConverter) {
         StringBuilder sb = new StringBuilder();
