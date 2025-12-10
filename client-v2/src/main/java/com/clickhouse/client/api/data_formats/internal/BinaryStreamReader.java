@@ -624,7 +624,7 @@ public class BinaryStreamReader {
 
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
         ArrayValue array;
-        if (itemTypeColumn.isNullable()) {
+        if (itemTypeColumn.isNullable() || itemTypeColumn.getDataType() == ClickHouseDataType.Variant) {
             array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
                 array.set(i, readValue(itemTypeColumn));

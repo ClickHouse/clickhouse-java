@@ -348,6 +348,18 @@ public class DataTypeTests extends BaseIntegrationTest {
                         "[[a, b], [c, d]]",
                         "[[e, f], [j, h]]",
                 });
+
+        testVariantWith("arrays", new String[]{"field Array(Variant(String, Int32))"},
+                new Object[]{
+                        new Object[]{1, 2},
+                        new Object[]{"a", 3},
+                        new Object[]{3, "d"}
+                },
+                new String[]{
+                        "[1, 2]",
+                        "[a, 3]",
+                        "[3, d]",
+                });
     }
 
     @Test(groups = {"integration"})
