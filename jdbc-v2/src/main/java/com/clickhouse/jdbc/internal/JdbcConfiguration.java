@@ -240,6 +240,12 @@ public class JdbcConfiguration {
 
         // Copy provided properties
         Map<String, String> props = new HashMap<>();
+        // Set driver properties defaults (client will do the same)
+        for (DriverProperties prop : DriverProperties.values()) {
+            if (prop.getDefaultValue() != null) {
+                props.put(prop.getKey(), prop.getDefaultValue());
+            }
+        }
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
                 props.put((String) entry.getKey(), (String) entry.getValue());
@@ -264,8 +270,10 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
             propertyInfo.description = "(User Defined)";
             propertyInfos.put(prop.getKey(), propertyInfo);
-            if (!DRIVER_PROP_KEYS.contains(prop.getKey())) {
-                // filter out driver properties
+
+            if (DRIVER_PROP_KEYS.contains(prop.getKey())) {
+                driverProperties.put(prop.getKey(), prop.getValue());
+            } else {
                 clientProperties.put(prop.getKey(), prop.getValue());
             }
         }
@@ -287,11 +295,6 @@ public class JdbcConfiguration {
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
-            }
-
-            String value = clientProperties.get(driverProp.getKey());
-            if (value != null) {
-                driverProperties.put(driverProp.getKey(), value);
             }
         }
 

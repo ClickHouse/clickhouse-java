@@ -224,6 +224,8 @@ public enum ClientConfigProperties {
 
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
 
+    public static final String CUSTOM_SETTING_PREFIX = "custom_";
+
     // Key used to identify default value in configuration map
     public static final String DEFAULT_KEY = "_default_";
 
@@ -339,6 +341,8 @@ public enum ClientConfigProperties {
         for (String key : new HashSet<>(tmpMap.keySet())) {
             if (key.startsWith(HTTP_HEADER_PREFIX) || key.startsWith(SERVER_SETTING_PREFIX)) {
                 parsedConfig.put(key, tmpMap.remove(key));
+            } else if (key.startsWith(CUSTOM_SETTING_PREFIX)) {
+                parsedConfig.put(serverSetting(key), tmpMap.remove(key));
             }
         }
 
