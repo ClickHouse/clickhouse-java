@@ -17,30 +17,35 @@ import static org.testng.Assert.assertTrue;
  */
 public class CustomURLPathTest {
 
+    /**
+     * Helper method to build URI with custom path, simulating the logic from HttpAPIClientHelper.
+     */
+    private URI buildURIWithCustomPath(String baseURL, String customPath) throws URISyntaxException {
+        Map<String, Object> requestConfig = new HashMap<>();
+        if (customPath != null) {
+            requestConfig.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), customPath);
+        }
+        
+        URIBuilder uriBuilder = new URIBuilder(baseURL);
+        
+        // Add custom URL path if configured
+        String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
+        if (configuredPath != null && !configuredPath.isEmpty()) {
+            String existingPath = uriBuilder.getPath();
+            if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
+                uriBuilder.setPath(configuredPath);
+            } else {
+                uriBuilder.setPath(existingPath + configuredPath);
+            }
+        }
+        
+        return uriBuilder.normalizeSyntax().build();
+    }
+
     @Test(groups = {"unit"})
     public void testCustomURLPathConfiguration() {
-        String customPath = "/sales/db";
-        
-        // Simulate the URL building logic from HttpAPIClientHelper
-        String baseURL = "http://localhost:8123";
-        Map<String, Object> requestConfig = new HashMap<>();
-        requestConfig.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), customPath);
-        
         try {
-            URIBuilder uriBuilder = new URIBuilder(baseURL);
-            
-            // Add custom URL path if configured
-            String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
-            if (configuredPath != null && !configuredPath.isEmpty()) {
-                String existingPath = uriBuilder.getPath();
-                if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
-                    uriBuilder.setPath(configuredPath);
-                } else {
-                    uriBuilder.setPath(existingPath + configuredPath);
-                }
-            }
-            
-            URI uri = uriBuilder.normalizeSyntax().build();
+            URI uri = buildURIWithCustomPath("http://localhost:8123", "/sales/db");
             
             assertEquals(uri.toString(), "http://localhost:8123/sales/db");
             assertEquals(uri.getPath(), "/sales/db");
@@ -51,28 +56,8 @@ public class CustomURLPathTest {
 
     @Test(groups = {"unit"})
     public void testCustomURLPathWithExistingPath() {
-        String customPath = "/app/db";
-        
-        // Test with base URL that already has a path
-        String baseURL = "http://localhost:8123/api";
-        Map<String, Object> requestConfig = new HashMap<>();
-        requestConfig.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), customPath);
-        
         try {
-            URIBuilder uriBuilder = new URIBuilder(baseURL);
-            
-            // Add custom URL path if configured
-            String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
-            if (configuredPath != null && !configuredPath.isEmpty()) {
-                String existingPath = uriBuilder.getPath();
-                if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
-                    uriBuilder.setPath(configuredPath);
-                } else {
-                    uriBuilder.setPath(existingPath + configuredPath);
-                }
-            }
-            
-            URI uri = uriBuilder.normalizeSyntax().build();
+            URI uri = buildURIWithCustomPath("http://localhost:8123/api", "/app/db");
             
             assertEquals(uri.toString(), "http://localhost:8123/api/app/db");
             assertEquals(uri.getPath(), "/api/app/db");
@@ -83,26 +68,8 @@ public class CustomURLPathTest {
 
     @Test(groups = {"unit"})
     public void testEmptyCustomURLPath() {
-        // Test with empty custom path
-        String baseURL = "http://localhost:8123";
-        Map<String, Object> requestConfig = new HashMap<>();
-        requestConfig.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), "");
-        
         try {
-            URIBuilder uriBuilder = new URIBuilder(baseURL);
-            
-            // Add custom URL path if configured
-            String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
-            if (configuredPath != null && !configuredPath.isEmpty()) {
-                String existingPath = uriBuilder.getPath();
-                if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
-                    uriBuilder.setPath(configuredPath);
-                } else {
-                    uriBuilder.setPath(existingPath + configuredPath);
-                }
-            }
-            
-            URI uri = uriBuilder.normalizeSyntax().build();
+            URI uri = buildURIWithCustomPath("http://localhost:8123", "");
             
             // Empty path should not modify the URL
             assertEquals(uri.toString(), "http://localhost:8123");
@@ -113,25 +80,8 @@ public class CustomURLPathTest {
 
     @Test(groups = {"unit"})
     public void testNoCustomURLPath() {
-        // Test without custom path configured
-        String baseURL = "http://localhost:8123";
-        Map<String, Object> requestConfig = new HashMap<>();
-        
         try {
-            URIBuilder uriBuilder = new URIBuilder(baseURL);
-            
-            // Add custom URL path if configured
-            String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
-            if (configuredPath != null && !configuredPath.isEmpty()) {
-                String existingPath = uriBuilder.getPath();
-                if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
-                    uriBuilder.setPath(configuredPath);
-                } else {
-                    uriBuilder.setPath(existingPath + configuredPath);
-                }
-            }
-            
-            URI uri = uriBuilder.normalizeSyntax().build();
+            URI uri = buildURIWithCustomPath("http://localhost:8123", null);
             
             // No custom path should keep URL unchanged
             assertEquals(uri.toString(), "http://localhost:8123");
