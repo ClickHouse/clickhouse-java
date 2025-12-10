@@ -423,6 +423,18 @@ public class HttpAPIClientHelper {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
+            
+            // Add custom URL path if configured
+            String customPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
+            if (customPath != null && !customPath.isEmpty()) {
+                String existingPath = uriBuilder.getPath();
+                if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
+                    uriBuilder.setPath(customPath);
+                } else {
+                    uriBuilder.setPath(existingPath + customPath);
+                }
+            }
+            
             addQueryParams(uriBuilder, requestConfig);
             uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
