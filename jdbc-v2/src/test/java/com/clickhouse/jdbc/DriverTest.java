@@ -189,7 +189,7 @@ public class DriverTest extends JdbcIntegrationTest {
             properties.put(DriverProperties.SCHEMA_TERM.getKey(), "catalog");
             try (Connection connection = getJdbcConnection(properties);
                  Statement stmt = connection.createStatement()) {
-                //
+                // Verifies that creating a connection and statement with SECURE_CONNECTION and SCHEMA_TERM properties does not throw any exceptions.
             }
         }
 

@@ -62,12 +62,12 @@ public class JdbcConfiguration {
     private static final Set<String> DRIVER_PROP_KEYS;
     static {
 
-        ImmutableSet.Builder<String> driverPropertiesMapBuidler = ImmutableSet.builder();
+        ImmutableSet.Builder<String> driverPropertiesMapBuilder = ImmutableSet.builder();
         for (DriverProperties prop : DriverProperties.values()) {
-            driverPropertiesMapBuidler.add(prop.getKey());
+            driverPropertiesMapBuilder.add(prop.getKey());
         }
 
-        DRIVER_PROP_KEYS = driverPropertiesMapBuidler.build();
+        DRIVER_PROP_KEYS = driverPropertiesMapBuilder.build();
     }
 
     /**

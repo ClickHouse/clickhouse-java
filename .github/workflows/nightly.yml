@@ -59,9 +59,6 @@ jobs:
           EOF
       - name: Update Configuration
         run: |
-          # find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \
-          #   -e 's|^\(    <version>\).*\(</version>\)$|\1${{ env.CHC_VERSION }}-SNAPSHOT\2|' \
-          #   -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Snapshot
         uses: samuelmeuli/action-maven-publish@v1
@@ -78,7 +75,7 @@ jobs:
         with:
           directory: clickhouse-r2dbc
           maven_profiles: release
-          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }}
+          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }} -Dspotless.skip=true
           server_id: central
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
