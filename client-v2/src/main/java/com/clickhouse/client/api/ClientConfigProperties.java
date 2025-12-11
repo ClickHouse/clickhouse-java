@@ -353,8 +353,8 @@ public enum ClientConfigProperties {
             }
         }
 
+        tmpMap.remove(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG);
         if (!tmpMap.isEmpty()) {
-            tmpMap.remove(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG);
             String msg = "Unknown and unmapped config properties: " + tmpMap.keySet();
             if (configMap.containsKey(NO_THROW_ON_UNKNOWN_CONFIG)) {
                 LOG.warn(msg);
