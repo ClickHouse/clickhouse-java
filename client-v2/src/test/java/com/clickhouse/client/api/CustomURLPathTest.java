@@ -1,98 +1,55 @@
 package com.clickhouse.client.api;
 
-import org.apache.hc.core5.net.URIBuilder;
 import org.testng.annotations.Test;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.assertNotNull;
 
 /**
  * Unit tests for custom URL path configuration feature.
- * Tests that custom paths are correctly appended to endpoint URLs.
+ * Tests that the configuration property and builder method work correctly.
  */
 public class CustomURLPathTest {
 
-    /**
-     * Helper method to build URI with custom path, simulating the logic from HttpAPIClientHelper.
-     */
-    private URI buildURIWithCustomPath(String baseURL, String customPath) throws URISyntaxException {
-        Map<String, Object> requestConfig = new HashMap<>();
-        if (customPath != null) {
-            requestConfig.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), customPath);
-        }
-        
-        URIBuilder uriBuilder = new URIBuilder(baseURL);
-        
-        // Add custom URL path if configured
-        String configuredPath = (String) requestConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
-        if (configuredPath != null && !configuredPath.isEmpty()) {
-            String existingPath = uriBuilder.getPath();
-            if (existingPath == null || existingPath.isEmpty() || existingPath.equals("/")) {
-                uriBuilder.setPath(configuredPath);
-            } else {
-                uriBuilder.setPath(existingPath + configuredPath);
+    @Test(groups = {"unit"})
+    public void testClientConfigPropertiesHasCustomURLPath() {
+        // Test that CUSTOM_URL_PATH property exists and has correct key
+        assertEquals(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), "custom_url_path");
+        assertEquals(ClientConfigProperties.CUSTOM_URL_PATH.getDefaultValue(), "");
+    }
+
+    @Test(groups = {"unit"})
+    public void testClientBuilderCustomURLPathMethod() {
+        // Test that the builder method exists and sets configuration correctly
+        // We create a minimal client configuration to test the builder method
+        try {
+            Client.Builder builder = new Client.Builder()
+                    .addEndpoint("http://localhost:8123")
+                    .setUsername("default")
+                    .setPassword("")
+                    .customURLPath("/sales/db");
+            
+            // Build client to verify configuration is set
+            Client client = builder.build();
+            try {
+                // Verify configuration was set correctly
+                Map<String, String> config = client.getConfiguration();
+                assertNotNull(config);
+                assertEquals(config.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey()), "/sales/db");
+            } finally {
+                client.close();
             }
-        }
-        
-        return uriBuilder.normalizeSyntax().build();
-    }
-
-    @Test(groups = {"unit"})
-    public void testCustomURLPathConfiguration() {
-        try {
-            URI uri = buildURIWithCustomPath("http://localhost:8123", "/sales/db");
-            
-            assertEquals(uri.toString(), "http://localhost:8123/sales/db");
-            assertEquals(uri.getPath(), "/sales/db");
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to test customURLPath builder method", e);
         }
     }
 
     @Test(groups = {"unit"})
-    public void testCustomURLPathWithExistingPath() {
-        try {
-            URI uri = buildURIWithCustomPath("http://localhost:8123/api", "/app/db");
-            
-            assertEquals(uri.toString(), "http://localhost:8123/api/app/db");
-            assertEquals(uri.getPath(), "/api/app/db");
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Test(groups = {"unit"})
-    public void testEmptyCustomURLPath() {
-        try {
-            URI uri = buildURIWithCustomPath("http://localhost:8123", "");
-            
-            // Empty path should not modify the URL
-            assertEquals(uri.toString(), "http://localhost:8123");
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Test(groups = {"unit"})
-    public void testNoCustomURLPath() {
-        try {
-            URI uri = buildURIWithCustomPath("http://localhost:8123", null);
-            
-            // No custom path should keep URL unchanged
-            assertEquals(uri.toString(), "http://localhost:8123");
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Test(groups = {"unit"})
-    public void testClientBuilderCustomURLPath() {
-        // Test that the builder method sets the configuration correctly
+    public void testClientConfigPropertyParsing() {
+        // Test that the configuration property can be parsed correctly
         Map<String, String> config = new HashMap<>();
         config.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), "/sales/db");
         
@@ -100,5 +57,55 @@ public class CustomURLPathTest {
         
         String customPath = (String) parsedConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
         assertEquals(customPath, "/sales/db");
+    }
+
+    @Test(groups = {"unit"})
+    public void testEmptyCustomURLPath() {
+        // Test with empty custom path
+        Map<String, String> config = new HashMap<>();
+        config.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), "");
+        
+        Map<String, Object> parsedConfig = ClientConfigProperties.parseConfigMap(config);
+        
+        String customPath = (String) parsedConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
+        assertEquals(customPath, "");
+    }
+
+    @Test(groups = {"unit"})
+    public void testNoCustomURLPathConfiguration() {
+        // Test without custom path configured - should use default
+        Map<String, String> config = new HashMap<>();
+        // Don't set CUSTOM_URL_PATH
+        
+        Map<String, Object> parsedConfig = ClientConfigProperties.parseConfigMap(config);
+        
+        // Should not be in parsed config if not provided
+        Object customPath = parsedConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
+        // Either null or empty string is acceptable for unset value
+        if (customPath != null) {
+            assertEquals(customPath, "");
+        }
+    }
+
+    @Test(groups = {"unit"})
+    public void testCustomURLPathWithDifferentPaths() {
+        // Test various path formats
+        String[] testPaths = {
+            "/sales/db",
+            "/app/db",
+            "/custom",
+            "/a/b/c/d",
+            "/123/456"
+        };
+        
+        for (String testPath : testPaths) {
+            Map<String, String> config = new HashMap<>();
+            config.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), testPath);
+            
+            Map<String, Object> parsedConfig = ClientConfigProperties.parseConfigMap(config);
+            
+            String customPath = (String) parsedConfig.get(ClientConfigProperties.CUSTOM_URL_PATH.getKey());
+            assertEquals(customPath, testPath, "Failed for path: " + testPath);
+        }
     }
 }
