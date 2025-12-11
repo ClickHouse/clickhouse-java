@@ -125,6 +125,14 @@ public class Records implements Iterable<GenericRecord>, AutoCloseable {
         return response.getMetrics().getMetric(ServerMetrics.RESULT_ROWS).getLong();
     }
 
+    /**
+     * Returns response query id
+     * @return query id of the request
+     */
+    public String getQueryId() {
+        return response.getQueryId();
+    }
+
     @Override
     public void close() throws Exception {
         response.close();
