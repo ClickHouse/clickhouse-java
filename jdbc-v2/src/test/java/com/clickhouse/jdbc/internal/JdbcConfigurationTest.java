@@ -2,7 +2,6 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-
 import com.clickhouse.jdbc.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
