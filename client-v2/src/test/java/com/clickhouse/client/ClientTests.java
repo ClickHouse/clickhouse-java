@@ -103,10 +103,10 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testRawSettings() {
+        final String customPrefix = isCloud() ? "SQL_" : "custom_";
         Client client = newClient()
-                .setOption("custom_setting_1", "value_1")
-                .setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), isCloud()? "SQL_" :
-                        ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getDefaultValue())
+                .setOption(customPrefix + "setting_1", "value_1")
+                .setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), customPrefix)
                 .build();
 
         client.execute("SELECT 1");
