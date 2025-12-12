@@ -56,7 +56,7 @@ jobs:
             21
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs -Dspotless.skip=true install
       - name: Copy Artifacts to Build dir
         run: |
           mkdir clickhouse-jdbc-artifacts
@@ -135,7 +135,7 @@ jobs:
           java-version: "21"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build native image
-        run: mvn --batch-mode --no-transfer-progress -Pnative -Dj8 -DskipTests install
+        run: mvn --batch-mode --no-transfer-progress -Pnative -Dj8 -DskipTests -Dspotless.skip=true install
       - name: Test native image
         run: ./clickhouse-jdbc/target/clickhouse-jdbc-bin
       - name: Compress binary
@@ -194,10 +194,10 @@ jobs:
           </toolchains>
           EOF
       - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipTests=true -Dmaven.javadoc.skip=true install
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipTests=true -Dmaven.javadoc.skip=true -Dspotless.skip=true install
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dmaven.javadoc.skip=true verify
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dmaven.javadoc.skip=true -Dspotless.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -257,14 +257,14 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true install
+        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true -Dspotless.skip=true install
       - name: Test http client
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
           CLIENT_JWT: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http -Dmaven.javadoc.skip=true verify
+          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http -Dmaven.javadoc.skip=true -Dspotless.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -321,13 +321,13 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests=true -Dmaven.javadoc.skip=true install
+        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests=true -Dmaven.javadoc.skip=true -Dspotless.skip=true install
       - name: Test JDBC driver
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true -Dspotless.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -384,11 +384,11 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests=true -Dmaven.javadoc.skip=true install
+        run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests=true -Dmaven.javadoc.skip=true -Dspotless.skip=true install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=${{ matrix.clickhouse }} \
-            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
+            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true -Dspotless.skip=true  verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()

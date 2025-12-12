@@ -140,6 +140,7 @@
         <guava.version>33.4.6-jre</guava.version>
         <sonar.publish-pluing.version>0.8.0</sonar.publish-pluing.version>
         <jackson.version>2.17.2</jackson.version>
+        <spotless.version>2.43.0</spotless.version>
 
         <minTargetJdk>17</minTargetJdk>
         <minSourceJdk>17</minSourceJdk>
@@ -601,6 +602,11 @@
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>${resource-plugin.version}</version>
                 </plugin>
+                <plugin>
+                    <groupId>com.diffplug.spotless</groupId>
+                    <artifactId>spotless-maven-plugin</artifactId>
+                    <version>${spotless.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
@@ -686,6 +692,39 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <configuration>
+                    <ratchetFrom>origin/main</ratchetFrom>
+                    <java>
+<!--                        <eclipse>-->
+<!--                            &lt;!&ndash; Optional: Specify the Eclipse JDT version to use. &ndash;&gt;-->
+<!--                            <version>4.26</version>-->
+<!--                            &lt;!&ndash; Optional: Specify a file which contains all formatting options. &ndash;&gt;-->
+<!--                            <file>${maven.multiModuleProjectDirectory}/.spotless/formatter.xml</file>-->
+<!--                        </eclipse>-->
+
+                        <importOrder>
+                            <wildcardsLast>false</wildcardsLast>
+                            <order>,java,javax,\#</order>
+                            <semanticSort>true</semanticSort>
+                        </importOrder>
+
+                        <removeUnusedImports>
+                            <engine>google-java-format</engine>
+                        </removeUnusedImports>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>apply</goal>
+                        </goals>
+                        <phase>compile</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
