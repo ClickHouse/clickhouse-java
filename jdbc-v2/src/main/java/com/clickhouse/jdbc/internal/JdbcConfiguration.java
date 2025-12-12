@@ -204,17 +204,19 @@ public class JdbcConfiguration {
             int lastSlashIndex = pathWithoutLeadingSlash.lastIndexOf('/');
 
             if (lastSlashIndex > 0) {
-                // Path has multiple segments: everything before last slash is HTTP path
+                // Path contains a slash (not at position 0), so it has at least two segments.
+                // Everything before the last slash becomes HTTP path, the last segment is the database.
+                // Example: "sales/db" -> httpPath="/sales", database="db"
+                // Example: "api/v1/clickhouse/mydb" -> httpPath="/api/v1/clickhouse", database="mydb"
                 httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
-                // Decode the database name
                 try {
                     database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8.name());
                 } catch (UnsupportedEncodingException e) {
                     throw new SQLException("Failed to decode database name", e);
                 }
             } else {
-                // Single segment: it's the database name, no HTTP path
-                // Decode the database name
+                // No slash found (lastSlashIndex == -1), so it's a single segment representing the database name.
+                // Example: "mydb" -> httpPath="", database="mydb"
                 try {
                     database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8.name());
                 } catch (UnsupportedEncodingException e) {
