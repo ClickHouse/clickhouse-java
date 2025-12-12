@@ -288,21 +288,33 @@ public class Client implements AutoCloseable {
          * <ul>
          *     <li>{@code http://localhost:8123}</li>
          *     <li>{@code https://localhost:8443}</li>
+         *     <li>{@code http://localhost:8123/clickhouse} (with path for reverse proxy scenarios)</li>
          * </ul>
          *
-         * @param endpoint - URL formatted string with protocol, host and port.
+         * @param endpoint - URL formatted string with protocol, host, port, and optional path.
          */
         public Builder addEndpoint(String endpoint) {
             try {
                 URL endpointURL = new URL(endpoint);
 
-                if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
-                } else if (endpointURL.getProtocol().equalsIgnoreCase("http")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), false);
-                } else {
+                if (!endpointURL.getProtocol().equalsIgnoreCase("https") &&
+                    !endpointURL.getProtocol().equalsIgnoreCase("http")) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
+
+                // Build endpoint URL preserving the path but ignoring query parameters
+                StringBuilder sb = new StringBuilder();
+                sb.append(endpointURL.getProtocol().toLowerCase());
+                sb.append("://");
+                sb.append(endpointURL.getHost());
+                if (endpointURL.getPort() > 0) {
+                    sb.append(":").append(endpointURL.getPort());
+                }
+                String path = endpointURL.getPath();
+                if (path != null && !path.isEmpty()) {
+                    sb.append(path);
+                }
+                this.endpoints.add(sb.toString());
             } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
