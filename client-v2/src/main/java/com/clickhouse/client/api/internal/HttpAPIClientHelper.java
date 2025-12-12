@@ -50,6 +50,8 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import java.io.ByteArrayOutputStream;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
@@ -432,12 +434,45 @@ public class HttpAPIClientHelper {
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, requestConfig);
 
-
-        // setting entity. wrapping if compression is enabled
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                lz4Factory,
-                requestConfig));
+        // Check if statement params exist - if so, send as multipart
+        boolean hasStatementParams = requestConfig.containsKey(KEY_STATEMENT_PARAMS);
+        Map<?, ?> statementParams = hasStatementParams ? 
+            (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS) : null;
+        
+        HttpEntity requestEntity;
+        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? 
+            req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        
+        if (hasStatementParams && statementParams != null && !statementParams.isEmpty()) {
+            // Create multipart entity with query body and statement params
+            MultipartEntityBuilder multipartBuilder = MultipartEntityBuilder.create();
+            
+            // Add query/body data as binary body
+            if (writeCallback != null) {
+                // Write callback output to buffer, then add as binary body
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                writeCallback.execute(buffer);
+                byte[] queryData = buffer.toByteArray();
+                multipartBuilder.addBinaryBody("query", queryData, CONTENT_TYPE, null);
+            }
+            
+            // Add statement params as multipart parts
+            for (Map.Entry<?, ?> entry : statementParams.entrySet()) {
+                String paramName = "param_" + entry.getKey().toString();
+                String paramValue = String.valueOf(entry.getValue());
+                multipartBuilder.addTextBody(paramName, paramValue);
+            }
+            
+            requestEntity = multipartBuilder.build();
+            // Update content type header for multipart
+            req.setHeader(HttpHeaders.CONTENT_TYPE, requestEntity.getContentType());
+        } else {
+            // No statement params - use regular entity template
+            requestEntity = new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback);
+        }
+        
+        // Wrap entity with compression if enabled
+        req.setEntity(wrapRequestEntity(requestEntity, lz4Factory, requestConfig));
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -595,10 +630,7 @@ public class HttpAPIClientHelper {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
-        }
+        // Statement params are now sent as multipart, not query params
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);

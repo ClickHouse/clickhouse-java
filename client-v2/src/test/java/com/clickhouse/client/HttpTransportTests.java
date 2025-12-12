@@ -43,7 +43,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -1099,6 +1101,55 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
         } finally {
             faultyServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testStatementParamsSentAsMultipart() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            // Configure WireMock to capture multipart requests
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader(HttpHeaders.CONTENT_TYPE, WireMock.matching("multipart/form-data.*"))
+                    .withRequestBody(WireMock.containing("param_testParam"))
+                    .withRequestBody(WireMock.containing("testValue"))
+                    .withRequestBody(WireMock.containing("param_anotherParam"))
+                    .withRequestBody(WireMock.containing("123"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("1\n")).build());
+
+            try (Client client = new Client.Builder()
+                    .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressClientRequest(false)
+                    .build()) {
+
+                // Create query with statement parameters
+                Map<String, Object> queryParams = new HashMap<>();
+                queryParams.put("testParam", "testValue");
+                queryParams.put("anotherParam", 123);
+
+                QueryResponse response = client.query(
+                        "SELECT {testParam:String} as col1, {anotherParam:Int32} as col2",
+                        queryParams).get(10, TimeUnit.SECONDS);
+
+                // Verify the request was made (WireMock will throw if expectations not met)
+                Assert.assertNotNull(response);
+                response.close();
+            }
+        } finally {
+            mockServer.stop();
         }
     }
 

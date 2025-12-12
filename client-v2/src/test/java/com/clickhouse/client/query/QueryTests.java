@@ -138,6 +138,7 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    
     @Test(groups = {"integration"})
     public void testSimpleQueryWithTSV() {
         prepareSimpleDataSet();
