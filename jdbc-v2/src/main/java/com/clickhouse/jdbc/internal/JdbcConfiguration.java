@@ -188,17 +188,53 @@ public class JdbcConfiguration {
         if (uri.getAuthority().contains(",")) {
             throw new SQLException("Multiple endpoints not supported");
         }
-        properties.put(PARSE_URL_CONN_URL_PROP, uri.getScheme() + "://"
-            + uri.getRawAuthority()); // will be parsed again later
 
-        if (uri.getPath() != null
-            && !uri.getPath().trim().isEmpty()
-            && !"/".equals(uri.getPath()))
-        {
-            properties.put(
-                ClientConfigProperties.DATABASE.getKey(),
-                uri.getPath().substring(1));
+        // Parse path: last segment is database name, everything before is HTTP path
+        // Example: /proxy/path/mydb -> httpPath=/proxy/path, database=mydb
+        // Example: /mydb -> httpPath=empty, database=mydb
+        // Example: /sales/db -> httpPath=/sales, database=db
+        // Use raw path for splitting to avoid issues with URL-encoded slashes (e.g., %2F)
+        String rawPath = uri.getRawPath();
+        String httpPath = "";
+        String database = null;
+
+        if (rawPath != null && !rawPath.trim().isEmpty() && !"/".equals(rawPath)) {
+            // Remove leading slash for processing
+            String pathWithoutLeadingSlash = rawPath.startsWith("/") ? rawPath.substring(1) : rawPath;
+            int lastSlashIndex = pathWithoutLeadingSlash.lastIndexOf('/');
+
+            if (lastSlashIndex > 0) {
+                // Path has multiple segments: everything before last slash is HTTP path
+                httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
+                // Decode the database name
+                try {
+                    database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8.name());
+                } catch (UnsupportedEncodingException e) {
+                    throw new SQLException("Failed to decode database name", e);
+                }
+            } else {
+                // Single segment: it's the database name, no HTTP path
+                // Decode the database name
+                try {
+                    database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8.name());
+                } catch (UnsupportedEncodingException e) {
+                    throw new SQLException("Failed to decode database name", e);
+                }
+            }
         }
+
+        // Build connection URL with HTTP path preserved
+        StringBuilder connectionUrl = new StringBuilder();
+        connectionUrl.append(uri.getScheme()).append("://").append(uri.getRawAuthority());
+        if (!httpPath.isEmpty()) {
+            connectionUrl.append(httpPath);
+        }
+        properties.put(PARSE_URL_CONN_URL_PROP, connectionUrl.toString());
+
+        if (database != null && !database.trim().isEmpty()) {
+            properties.put(ClientConfigProperties.DATABASE.getKey(), database);
+        }
+
         if (uri.getQuery() != null && !uri.getQuery().trim().isEmpty()) {
             for (String pair : uri.getRawQuery().split("&")) {
                 try {

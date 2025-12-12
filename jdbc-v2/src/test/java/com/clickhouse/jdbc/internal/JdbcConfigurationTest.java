@@ -123,8 +123,8 @@ public class JdbcConfigurationTest {
             throws Exception
     {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcURL, properties);
-        assertEquals(configuration.getConnectionUrl(), connectionURL);
-        assertEquals(configuration.clientProperties, expectedClientProps);
+        assertEquals(configuration.getConnectionUrl(), connectionURL, "URL: " + jdbcURL);
+        assertEquals(configuration.clientProperties, expectedClientProps, "URL: " + jdbcURL);
         Client.Builder bob = new Client.Builder();
         configuration.applyClientProperties(bob);
         Client client = bob.build();
@@ -144,7 +144,7 @@ public class JdbcConfigurationTest {
 
     @Test(dataProvider = "validURLs")
     public void testAcceptsURLValid(String url) throws Exception {
-        Assert.assertTrue(JdbcConfiguration.acceptsURL(url));
+        Assert.assertTrue(JdbcConfiguration.acceptsURL(url), "URL: " + url);
     }
 
     @Test
