@@ -209,19 +209,11 @@ public class JdbcConfiguration {
                 // Example: "sales/db" -> httpPath="/sales", database="db"
                 // Example: "api/v1/clickhouse/mydb" -> httpPath="/api/v1/clickhouse", database="mydb"
                 httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
-                try {
-                    database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8.name());
-                } catch (UnsupportedEncodingException e) {
-                    throw new SQLException("Failed to decode database name", e);
-                }
+                database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
             } else {
                 // No slash found (lastSlashIndex == -1), so it's a single segment representing the database name.
                 // Example: "mydb" -> httpPath="", database="mydb"
-                try {
-                    database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8.name());
-                } catch (UnsupportedEncodingException e) {
-                    throw new SQLException("Failed to decode database name", e);
-                }
+                database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8);
             }
         }
 
