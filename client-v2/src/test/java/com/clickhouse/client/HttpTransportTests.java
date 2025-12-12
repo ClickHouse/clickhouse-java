@@ -1111,7 +1111,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
 
         WireMockServer mockServer = new WireMockServer(WireMockConfiguration
-                .options().port(9090).notifier(new ConsoleNotifier(false)));
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
         mockServer.start();
 
         try {

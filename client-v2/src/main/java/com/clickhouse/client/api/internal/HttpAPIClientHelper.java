@@ -51,7 +51,7 @@ import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
-import java.io.ByteArrayOutputStream;
+import org.apache.hc.client5.http.entity.mime.ContentBody;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
@@ -447,13 +447,11 @@ public class HttpAPIClientHelper {
             // Create multipart entity with query body and statement params
             MultipartEntityBuilder multipartBuilder = MultipartEntityBuilder.create();
             
-            // Add query/body data as binary body
+            // Add query/body data as streaming binary body
             if (writeCallback != null) {
-                // Write callback output to buffer, then add as binary body
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                writeCallback.execute(buffer);
-                byte[] queryData = buffer.toByteArray();
-                multipartBuilder.addBinaryBody("query", queryData, CONTENT_TYPE, null);
+                // Use streaming ContentBody to avoid buffering large queries in memory
+                StreamingContentBody queryBody = new StreamingContentBody(writeCallback, CONTENT_TYPE);
+                multipartBuilder.addPart("query", queryBody);
             }
             
             // Add statement params as multipart parts
@@ -465,6 +463,8 @@ public class HttpAPIClientHelper {
             
             requestEntity = multipartBuilder.build();
             // Update content type header for multipart
+            // Note: Content-Encoding is a separate header and will be preserved
+            // The multipart entity's Content-Type includes the boundary which is required
             req.setHeader(HttpHeaders.CONTENT_TYPE, requestEntity.getContentType());
         } else {
             // No statement params - use regular entity template
@@ -472,7 +472,16 @@ public class HttpAPIClientHelper {
         }
         
         // Wrap entity with compression if enabled
-        req.setEntity(wrapRequestEntity(requestEntity, lz4Factory, requestConfig));
+        // This will set Content-Encoding header if compression is enabled
+        HttpEntity wrappedEntity = wrapRequestEntity(requestEntity, lz4Factory, requestConfig);
+        
+        // Ensure Content-Encoding header is set on request if entity has it
+        // This preserves compression settings even after setting multipart Content-Type
+        if (wrappedEntity.getContentEncoding() != null) {
+            req.setHeader(HttpHeaders.CONTENT_ENCODING, wrappedEntity.getContentEncoding());
+        }
+        
+        req.setEntity(wrappedEntity);
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -942,6 +951,94 @@ public class HttpAPIClientHelper {
                 sslParams.setServerNames(Collections.singletonList(defaultSNI));
                 socket.setSSLParameters(sslParams);
             }
+        }
+    }
+
+    /**
+     * Streaming ContentBody implementation that writes data from an IOCallback without buffering.
+     * This avoids OutOfMemoryError for large queries by streaming data directly to the output stream.
+     */
+    private static class StreamingContentBody implements ContentBody {
+        private final IOCallback<OutputStream> writeCallback;
+        private final ContentType contentType;
+
+        StreamingContentBody(IOCallback<OutputStream> writeCallback, ContentType contentType) {
+            this.writeCallback = writeCallback;
+            this.contentType = contentType;
+        }
+
+        @Override
+        public String getFilename() {
+            return null;
+        }
+
+        @Override
+        public String getMimeType() {
+            return contentType != null ? contentType.getMimeType() : null;
+        }
+
+        @Override
+        public String getCharset() {
+            return contentType != null && contentType.getCharset() != null ? 
+                contentType.getCharset().name() : null;
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1; // Unknown length - streaming
+        }
+
+        @Override
+        public void writeTo(OutputStream outStream) throws IOException {
+            // Wrap the stream to prevent premature closure
+            // Multipart entities may call writeTo() multiple times, so we must not close the stream
+            OutputStream nonClosingStream = new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    outStream.write(b);
+                }
+
+                @Override
+                public void write(byte[] b) throws IOException {
+                    outStream.write(b);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    outStream.write(b, off, len);
+                }
+
+                @Override
+                public void flush() throws IOException {
+                    outStream.flush();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    // Do not close - let the caller (multipart entity) handle stream closure
+                    // This prevents "Stream already closed" errors when writeTo() is called multiple times
+                    flush();
+                }
+            };
+            writeCallback.execute(nonClosingStream);
+        }
+
+        @Override
+        public String getMediaType() {
+            String mimeType = getMimeType();
+            if (mimeType != null && mimeType.contains("/")) {
+                return mimeType.substring(0, mimeType.indexOf('/'));
+            }
+            return null;
+        }
+
+        @Override
+        public String getSubType() {
+            String mimeType = getMimeType();
+            if (mimeType != null && mimeType.contains("/")) {
+                return mimeType.substring(mimeType.indexOf('/') + 1);
+            }
+            return null;
         }
     }
 }
