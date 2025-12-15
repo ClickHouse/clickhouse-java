@@ -403,9 +403,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 DriverProperties.OBJECT_ENCODE_STRATEGY.getDefaultValue());
         if ("CAST".equalsIgnoreCase(strategyName)) {
             preparedStatement.setEncodeStrategy(preparedStatement.new CastEncodeStrategy());
-        } else {
+        } else if ("CONVERSION".equalsIgnoreCase(strategyName)) {
             // Default to CONVERSION strategy
             preparedStatement.setEncodeStrategy(preparedStatement.new ObjectConversionEncodeStrategy());
+        } else {
+            throw new SQLException("Invalid object encode strategy: " + strategyName + ". Valid strategies are CAST and CONVERSION.", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
         
         return preparedStatement;
