@@ -396,7 +396,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }
         }
-        return new PreparedStatementImpl(this, sql, parsedStatement);
+        PreparedStatementImpl preparedStatement = new PreparedStatementImpl(this, sql, parsedStatement);
+        
+        // Set object encode strategy based on configuration
+        String strategyName = config.getDriverProperty(DriverProperties.OBJECT_ENCODE_STRATEGY.getKey(),
+                DriverProperties.OBJECT_ENCODE_STRATEGY.getDefaultValue());
+        if ("CAST".equalsIgnoreCase(strategyName)) {
+            preparedStatement.setEncodeStrategy(preparedStatement.new CastEncodeStrategy());
+        } else {
+            // Default to CONVERSION strategy
+            preparedStatement.setEncodeStrategy(preparedStatement.new ObjectConversionEncodeStrategy());
+        }
+        
+        return preparedStatement;
     }
 
     @Override

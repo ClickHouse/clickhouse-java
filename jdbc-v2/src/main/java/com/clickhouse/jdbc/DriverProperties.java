@@ -68,6 +68,15 @@ public enum DriverProperties {
      * </ul>
      */
     SQL_PARSER("jdbc_sql_parser", "JAVACC", Arrays.asList("ANTLR4", "ANTLR4_PARAMS_PARSER", "JAVACC")),
+
+    /**
+     * Configures what object encoding strategy will be used for PreparedStatement. Choices:
+     * <ul>
+     *     <li>CAST - uses CAST to convert objects to the target ClickHouse data type (when target type is specified).</li>
+     *     <li>CONVERSION - performs direct object conversion without CAST.</li>
+     * </ul>
+     */
+    OBJECT_ENCODE_STRATEGY("jdbc_object_encode_strategy", "CONVERSION", Arrays.asList("CAST", "CONVERSION")),
     ;
 
 

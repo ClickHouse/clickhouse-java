@@ -1408,7 +1408,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "testTypeCastsDP")
     public void testTypeCastsWithoutArgument(Object value, SQLType targetType, ClickHouseDataType expectedType) throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.OBJECT_ENCODE_STRATEGY.getKey(), "CAST");
+        try (Connection conn = getJdbcConnection(props)) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
                stmt.setObject(1, value, targetType);
                stmt.setObject(2, value, targetType);
@@ -1448,7 +1450,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "testJDBCTypeCastDP")
     public void testJDBCTypeCast(Object value, int targetType, ClickHouseDataType expectedType) throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.OBJECT_ENCODE_STRATEGY.getKey(), "CAST");
+        try (Connection conn = getJdbcConnection(props)) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
                 stmt.setObject(1, value, targetType);
                 stmt.setObject(2, value, targetType);
@@ -1480,7 +1484,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTypesInvalidForCast() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.OBJECT_ENCODE_STRATEGY.getKey(), "CAST");
+        try (Connection conn = getJdbcConnection(props)) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
                 for (ClickHouseDataType type : JdbcUtils.INVALID_TARGET_TYPES) {
                     expectThrows(SQLException.class, ()->stmt.setObject(1, "", type));
@@ -1495,7 +1501,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"}, dataProvider = "testTypeCastWithScaleOrLengthDP")
     public void testTypeCastWithScaleOrLength(Object value, SQLType targetType, Integer scaleOrLength, String expectedValue,
                                               String expectedType) throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.OBJECT_ENCODE_STRATEGY.getKey(), "CAST");
+        try (Connection conn = getJdbcConnection(props)) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
                 stmt.setObject(1, value, targetType, scaleOrLength);
                 stmt.setObject(2, value, targetType, scaleOrLength);
@@ -1515,6 +1523,77 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {"hello", ClickHouseDataType.FixedString, 5, "hello", "FixedString(5)"},
                 {"2017-10-02 10:20:30.333333", ClickHouseDataType.DateTime64, 3, "2017-10-02 10:20:30.333", "DateTime64(3)"}
         };
+    }
+
+    @Test(groups = {"integration"})
+    public void testDateTimeWithClickHouseFunctionUsingConversionStrategy() throws Exception {
+        // Test that datetime values can be passed to ClickHouse functions like parseDateTimeBestEffort
+        // using the default CONVERSION strategy (no CAST)
+        try (Connection conn = getJdbcConnection()) {
+            // Use default CONVERSION strategy (no properties set)
+            String datetimeStr = "2017-10-02 10:20:30";
+            Timestamp timestamp = Timestamp.valueOf(LocalDateTime.of(2017, 10, 2, 10, 20, 30));
+            
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT parseDateTimeBestEffort(?) as dt")) {
+                // Test with string
+                stmt.setString(1, datetimeStr);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertNotNull(rs.getTimestamp("dt"));
+                }
+                
+                // Test with Timestamp object
+                stmt.setTimestamp(1, timestamp);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertNotNull(rs.getTimestamp("dt"));
+                }
+                
+                // Test with setObject using Timestamp
+                stmt.setObject(1, timestamp);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertNotNull(rs.getTimestamp("dt"));
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testNumberDefaultTypeUsingConversionStrategy() throws Exception {
+        // Test that numbers have default UInt64 type when using the default CONVERSION strategy
+        try (Connection conn = getJdbcConnection()) {
+            // Use default CONVERSION strategy (no properties set)
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?, toTypeName(?) as type_name")) {
+                long testValue = 100L;
+                stmt.setLong(1, testValue);
+                stmt.setLong(2, testValue);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getLong(1), testValue);
+                    // With CONVERSION strategy, numbers should default to UInt64
+                    String typeName = rs.getString("type_name");
+                    assertTrue(typeName.contains("UInt64"), 
+                        "Expected UInt64, but got: " + typeName);
+                }
+            }
+            
+            // Test with setObject using Long
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?, toTypeName(?) as type_name")) {
+                Long testValue = 42L;
+                stmt.setObject(1, testValue);
+                stmt.setObject(2, testValue);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getLong(1), testValue.longValue());
+                    String typeName = rs.getString("type_name");
+                    assertTrue(typeName.contains("UInt64"), 
+                        "Expected UInt64, but got: " + typeName);
+                }
+            }
+        }
     }
 
     @Test(groups = {"integration"})

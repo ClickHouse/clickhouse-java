@@ -3,8 +3,14 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
@@ -138,5 +144,110 @@ public class DataTypeUtils {
         }
 
         return Instant.ofEpochSecond(value, nanoSeconds);
+    }
+
+    /**
+     * Formats a {@link Date} object to ClickHouse date format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     *
+     * @param date the Java Date object to format
+     * @return a date string in format "yyyy-MM-dd"
+     * @throws NullPointerException if {@code date} is null
+     */
+    public static String formatDate(Date date) {
+        Objects.requireNonNull(date, "Date required for formatDate");
+        return DATE_FORMATTER.format(date.toLocalDate());
+    }
+
+    /**
+     * Formats a {@link Time} object to ClickHouse time format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     *
+     * @param time the Java Time object to format
+     * @return a time string in format "HH:mm:ss"
+     * @throws NullPointerException if {@code time} is null
+     */
+    public static String formatTime(Time time) {
+        Objects.requireNonNull(time, "Time required for formatTime");
+        return TIME_FORMATTER.format(time.toLocalTime());
+    }
+
+    /**
+     * Formats a {@link Timestamp} object to ClickHouse datetime format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     *
+     * @param timestamp the Java Timestamp object to format
+     * @return a datetime string in format "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd HH:mm:ss.nnnnnnnnn" if nanoseconds are present
+     * @throws NullPointerException if {@code timestamp} is null
+     */
+    public static String formatTimestamp(Timestamp timestamp) {
+        Objects.requireNonNull(timestamp, "Timestamp required for formatTimestamp");
+        LocalDateTime ldt = timestamp.toLocalDateTime();
+        if (timestamp.getNanos() % 1_000_000_000 == 0) {
+            return DATETIME_FORMATTER.format(ldt);
+        } else {
+            return DATETIME_WITH_NANOS_FORMATTER.format(ldt);
+        }
+    }
+
+    /**
+     * Formats an {@link Instant} object to ClickHouse datetime format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     * Uses UTC timezone for formatting.
+     *
+     * @param instant the Java Instant object to format
+     * @return a datetime string in format "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd HH:mm:ss.nnnnnnnnn" if nanoseconds are present
+     * @throws NullPointerException if {@code instant} is null
+     */
+    public static String formatInstantToDateTime(Instant instant) {
+        Objects.requireNonNull(instant, "Instant required for formatInstantToDateTime");
+        LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.of("UTC"));
+        if (instant.getNano() % 1_000_000_000 == 0) {
+            return DATETIME_FORMATTER.format(ldt);
+        } else {
+            return DATETIME_WITH_NANOS_FORMATTER.format(ldt);
+        }
+    }
+
+    /**
+     * Formats an {@link OffsetDateTime} object to ClickHouse datetime format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     *
+     * @param offsetDateTime the Java OffsetDateTime object to format
+     * @return a datetime string in format "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd HH:mm:ss.nnnnnnnnn" if nanoseconds are present
+     * @throws NullPointerException if {@code offsetDateTime} is null
+     */
+    public static String formatOffsetDateTime(OffsetDateTime offsetDateTime) {
+        Objects.requireNonNull(offsetDateTime, "OffsetDateTime required for formatOffsetDateTime");
+        LocalDateTime ldt = offsetDateTime.toLocalDateTime();
+        if (offsetDateTime.getNano() % 1_000_000_000 == 0) {
+            return DATETIME_FORMATTER.format(ldt);
+        } else {
+            return DATETIME_WITH_NANOS_FORMATTER.format(ldt);
+        }
+    }
+
+    /**
+     * Formats a {@link ZonedDateTime} object to ClickHouse datetime format string.
+     * The result can be used in SQL statements or with functions like parseDateTimeBestEffort.
+     * Uses the local time component from the ZonedDateTime, which may be normalized by Java
+     * if the original offset didn't match the zone's actual offset at that time.
+     *
+     * @param zonedDateTime the Java ZonedDateTime object to format
+     * @return a datetime string in format "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd HH:mm:ss.nnnnnnnnn" if nanoseconds are present
+     * @throws NullPointerException if {@code zonedDateTime} is null
+     */
+    public static String formatZonedDateTime(ZonedDateTime zonedDateTime) {
+        Objects.requireNonNull(zonedDateTime, "ZonedDateTime required for formatZonedDateTime");
+        // Java normalizes ZonedDateTime when the explicit offset in the parse string doesn't match
+        // the zone's actual offset at that time. We use the normalized local time, which is what
+        // Java provides after normalization. If you need to preserve the exact offset, use
+        // OffsetDateTime instead of ZonedDateTime.
+        LocalDateTime ldt = zonedDateTime.toLocalDateTime();
+        if (zonedDateTime.getNano() % 1_000_000_000 == 0) {
+            return DATETIME_FORMATTER.format(ldt);
+        } else {
+            return DATETIME_WITH_NANOS_FORMATTER.format(ldt);
+        }
     }
 }

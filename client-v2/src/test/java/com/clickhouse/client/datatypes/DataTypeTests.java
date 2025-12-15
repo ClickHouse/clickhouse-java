@@ -33,9 +33,14 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
@@ -1085,5 +1090,156 @@ public class DataTypeTests extends BaseIntegrationTest {
     private boolean isVersionMatch(String versionExpression) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
+
+    // Constants for UTC time moments using notable past dates
+    public static final Instant INSTANT_MOON_LANDING = Instant.parse("1969-07-20T20:17:40Z"); // Apollo 11 moon landing
+    public static final Instant INSTANT_BERLIN_WALL_FALL = Instant.parse("1989-11-09T18:53:00Z"); // Fall of Berlin Wall
+    public static final Timestamp TIMESTAMP_MOON_LANDING = Timestamp.from(INSTANT_MOON_LANDING);
+    public static final Timestamp TIMESTAMP_BERLIN_WALL_FALL = Timestamp.from(INSTANT_BERLIN_WALL_FALL);
+    public static final LocalDateTime LOCALDATETIME_MOON_LANDING = LocalDateTime.ofInstant(INSTANT_MOON_LANDING, java.time.ZoneOffset.UTC);
+    public static final LocalDateTime LOCALDATETIME_BERLIN_WALL_FALL = LocalDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL, java.time.ZoneOffset.UTC);
+    // Precise UTC time constants for test consistency (same "moments" as above, but with explicit millis/nanos)
+    public static final Instant INSTANT_MOON_LANDING_PRECISE = Instant.parse("1969-07-20T20:17:40.123456789Z");
+    public static final Instant INSTANT_BERLIN_WALL_FALL_PRECISE = Instant.parse("1989-11-09T18:53:00.987654321Z");
+    public static final Timestamp TIMESTAMP_MOON_LANDING_PRECISE = Timestamp.from(INSTANT_MOON_LANDING_PRECISE);
+    public static final Timestamp TIMESTAMP_BERLIN_WALL_FALL_PRECISE = Timestamp.from(INSTANT_BERLIN_WALL_FALL_PRECISE);
+    public static final LocalDateTime LOCALDATETIME_MOON_LANDING_PRECISE = LocalDateTime.ofInstant(INSTANT_MOON_LANDING_PRECISE, java.time.ZoneOffset.UTC);
+    public static final LocalDateTime LOCALDATETIME_BERLIN_WALL_FALL_PRECISE = LocalDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL_PRECISE, java.time.ZoneOffset.UTC);
+
+
+    
+    @Test(groups = {"integration"})
+    public void testFormatDate() throws Exception {
+        // Use the date part of the moon landing constant
+        Date date = Date.valueOf(TIMESTAMP_MOON_LANDING.toLocalDateTime().toLocalDate());
+        String formatted = DataTypeUtils.formatDate(date);
+        Assert.assertEquals(formatted, "1969-07-20");
+        
+        // Verify it can be used with ClickHouse functions
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + formatted + "') as dt");
+        Assert.assertNotNull(result.get(0).getInstant("dt"));
+        Assert.assertEquals(result.get(0).getInstant("dt").getEpochSecond(), INSTANT_MOON_LANDING.getEpochSecond() - INSTANT_MOON_LANDING.atZone(java.time.ZoneOffset.UTC).getHour() * 3600 - INSTANT_MOON_LANDING.atZone(java.time.ZoneOffset.UTC).getMinute() * 60 - INSTANT_MOON_LANDING.atZone(java.time.ZoneOffset.UTC).getSecond() + 0 * 3600);
+        Assert.assertEquals(result.get(0).getInstant("dt").getNano(), 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatTime() throws Exception {
+        // Use time part of the moon landing constant
+        Time time = Time.valueOf(TIMESTAMP_MOON_LANDING.toLocalDateTime().toLocalTime());
+        String formatted = DataTypeUtils.formatTime(time);
+        Assert.assertEquals(formatted, "20:17:40");
+        
+        // Use the moon landing date for the query to get the full instant
+        String dateStr = TIMESTAMP_MOON_LANDING.toLocalDateTime().toLocalDate().toString();
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + dateStr + " " + formatted + "') as dt");
+        Assert.assertNotNull(result.get(0).getInstant("dt"));
+        Assert.assertEquals(result.get(0).getInstant("dt").getEpochSecond(), INSTANT_MOON_LANDING.getEpochSecond());
+        Assert.assertEquals(result.get(0).getInstant("dt").getNano(), 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatTimestamp() throws Exception {
+        // Use the exact moon landing timestamp constant
+        Timestamp timestamp = TIMESTAMP_MOON_LANDING;
+        String formatted = DataTypeUtils.formatTimestamp(timestamp);
+        Assert.assertEquals(formatted, "1969-07-20 20:17:40");
+        
+        // Verify it can be used with ClickHouse functions
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + formatted + "') as dt");
+        Assert.assertNotNull(result.get(0).getInstant("dt"));
+        Assert.assertEquals(result.get(0).getInstant("dt").getEpochSecond(), INSTANT_MOON_LANDING.getEpochSecond());
+        Assert.assertEquals(result.get(0).getInstant("dt").getNano(), 0);
+        
+        // Test with nanoseconds, using the moon landing precise timestamp constant
+        Timestamp timestampWithNanos = TIMESTAMP_MOON_LANDING_PRECISE;
+        String formattedWithNanos = DataTypeUtils.formatTimestamp(timestampWithNanos);
+        Assert.assertTrue(formattedWithNanos.contains("1969-07-20 20:17:40"));
+        Assert.assertTrue(formattedWithNanos.contains("123456789"));
+        
+        List<GenericRecord> result2 = client.queryAll("SELECT parseDateTimeBestEffort('" + formattedWithNanos + "') as dt");
+        Assert.assertNotNull(result2.get(0).getInstant("dt"));
+        Assert.assertEquals(result2.get(0).getInstant("dt").getEpochSecond(), INSTANT_MOON_LANDING_PRECISE.getEpochSecond());
+        Assert.assertEquals(result2.get(0).getInstant("dt").getNano(), INSTANT_MOON_LANDING_PRECISE.getNano());
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatInstantToDateTime() throws Exception {
+        // Use moon landing instant
+        Instant instant = INSTANT_MOON_LANDING;
+        String formatted = DataTypeUtils.formatInstantToDateTime(instant);
+        Assert.assertEquals(formatted, "1969-07-20 20:17:40");
+        
+        // Verify it can be used with ClickHouse functions
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + formatted + "') as dt");
+        Assert.assertNotNull(result);
+        Assert.assertFalse(result.isEmpty());
+        
+        // Test with nanoseconds, using the moon landing precise instant constant
+        Instant instantWithNanos = INSTANT_MOON_LANDING_PRECISE;
+        String formattedWithNanos = DataTypeUtils.formatInstantToDateTime(instantWithNanos);
+        Assert.assertTrue(formattedWithNanos.contains("1969-07-20 20:17:40"));
+        Assert.assertTrue(formattedWithNanos.contains("123456789"));
+        
+        List<GenericRecord> result2 = client.queryAll("SELECT parseDateTimeBestEffort('" + formattedWithNanos + "') as dt");
+        Assert.assertNotNull(result2.get(0).getInstant("dt"));
+        Assert.assertEquals(result2.get(0).getInstant("dt").getEpochSecond(), INSTANT_MOON_LANDING_PRECISE.getEpochSecond());
+        Assert.assertEquals(result2.get(0).getInstant("dt").getNano(), INSTANT_MOON_LANDING_PRECISE.getNano());
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatOffsetDateTime() throws Exception {
+        // Pick the Berlin Wall fall as an offset datetime in Berlin time (+01:00) for historicity
+        OffsetDateTime offsetDateTime = OffsetDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL, java.time.ZoneOffset.ofHours(1));
+        String formatted = DataTypeUtils.formatOffsetDateTime(offsetDateTime);
+        // The formatted string is local date time (in +01:00 zone), which is 1989-11-09 19:53:00
+        Assert.assertEquals(formatted, "1989-11-09 19:53:00");
+        
+        // Verify it can be used with ClickHouse functions
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + formatted + "') as dt");
+        Assert.assertNotNull(result);
+        Assert.assertFalse(result.isEmpty());
+        
+        // Test with nanoseconds
+        OffsetDateTime offsetDateTimeWithNanos = OffsetDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL_PRECISE, java.time.ZoneOffset.ofHours(1));
+        String formattedWithNanos = DataTypeUtils.formatOffsetDateTime(offsetDateTimeWithNanos);
+        Assert.assertTrue(formattedWithNanos.contains("1989-11-09 19:53:00"));
+        Assert.assertTrue(formattedWithNanos.contains("987654321"));
+        
+        List<GenericRecord> result2 = client.queryAll("SELECT parseDateTimeBestEffort('" + formattedWithNanos + "') as dt");
+        Assert.assertNotNull(result2.get(0).getInstant("dt"));
+        Assert.assertEquals(result2.get(0).getInstant("dt").getEpochSecond(), offsetDateTimeWithNanos.toInstant().getEpochSecond());
+        Assert.assertEquals(result2.get(0).getInstant("dt").getNano(), offsetDateTimeWithNanos.getNano());
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatZonedDateTime() throws Exception {
+        // Use Berlin Wall fall with Europe/Berlin TZ (in 1989-11-09, Berlin is +01:00 "Europe/Berlin")
+        ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL, java.time.ZoneId.of("Europe/Berlin"));
+        String formatted = DataTypeUtils.formatZonedDateTime(zonedDateTime);
+        // The formatted string is in the local Europe/Berlin time zone (which matches the epoch for INSTANT_BERLIN_WALL_FALL)
+        Assert.assertEquals(formatted, "1989-11-09 19:53:00");
+        
+        // Verify it can be used with ClickHouse functions
+        List<GenericRecord> result = client.queryAll("SELECT parseDateTimeBestEffort('" + formatted + "') as dt");
+        Assert.assertNotNull(result);
+        Assert.assertFalse(result.isEmpty());
+        
+        // Test with nanoseconds
+        ZonedDateTime zonedDateTimeWithNanos = ZonedDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL_PRECISE, java.time.ZoneId.of("Europe/Berlin"));
+        String formattedWithNanos = DataTypeUtils.formatZonedDateTime(zonedDateTimeWithNanos);
+        Assert.assertTrue(formattedWithNanos.contains("1989-11-09 19:53:00"));
+        Assert.assertTrue(formattedWithNanos.contains("987654321"));
+        
+        List<GenericRecord> result2 = client.queryAll("SELECT parseDateTimeBestEffort('" + formattedWithNanos + "') as dt");
+        Assert.assertNotNull(result2.get(0).getInstant("dt"));
+        Assert.assertEquals(result2.get(0).getInstant("dt").getEpochSecond(), zonedDateTimeWithNanos.toInstant().getEpochSecond());
+        Assert.assertEquals(result2.get(0).getInstant("dt").getNano(), zonedDateTimeWithNanos.getNano());
+        
+        // Test with a case that gets normalized - pick Paris as a zone (which will do zone normalization)
+        ZonedDateTime normalizedZdt = ZonedDateTime.ofInstant(INSTANT_BERLIN_WALL_FALL, java.time.ZoneId.of("Europe/Paris"));
+        String normalizedFormatted = DataTypeUtils.formatZonedDateTime(normalizedZdt);
+        // Paris was at same offset as Berlin during November 1989, so time will match above: 19:53:00
+        Assert.assertEquals(normalizedFormatted, "1989-11-09 19:53:00");
     }
 }
