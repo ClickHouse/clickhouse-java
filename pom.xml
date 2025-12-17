@@ -83,7 +83,7 @@
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.12.0</brotli4j.version>
         <caffeine.version>3.1.7</caffeine.version>
-        <compress.version>1.28.1</compress.version>
+        <compress.version>1.28.0</compress.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <dnsjava.version>3.6.0</dnsjava.version>
         <fastutil.version>8.5.12</fastutil.version>
