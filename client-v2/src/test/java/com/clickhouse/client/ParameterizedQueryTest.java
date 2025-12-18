@@ -240,7 +240,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
             "SELECT " + column + " FROM " + table + " WHERE " + column + "='" + paramValue + "'").get();
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(r))
         {
-            reader.next();
+            Assert.assertNotNull(reader.next(), "No records were returned.");
             Assert.assertEquals(reader.getString(1), paramValue);
         }
         try (QueryResponse r = client.query(

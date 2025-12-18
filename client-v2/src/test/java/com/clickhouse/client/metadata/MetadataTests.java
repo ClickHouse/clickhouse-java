@@ -121,6 +121,9 @@ public class MetadataTests extends BaseIntegrationTest {
         excludedTypes.add("LowCardinality"); // LowCardinality is a wrapper, not a base type
         excludedTypes.add("Enum"); // Enum is a base type, use Enum8 or Enum16 instead
         excludedTypes.add("Object"); // Deprecated and not used for while
+        if (isCloud()) {
+            excludedTypes.add("QBit"); // Due to env specific
+        }
         
         // Build column definitions
         StringBuilder createTableSql = new StringBuilder();
@@ -175,7 +178,7 @@ public class MetadataTests extends BaseIntegrationTest {
             if (isVersionMatch("[25.5,)")) {
                 commandSettings.serverSetting("enable_time_time64_type", "1");
             }
-            if (isVersionMatch("[25.10,)")) {
+            if (isVersionMatch("[25.10,)") && !isCloud()) {
                 commandSettings.serverSetting("allow_experimental_qbit_type", "1");
             }
         } catch (Exception e) {
