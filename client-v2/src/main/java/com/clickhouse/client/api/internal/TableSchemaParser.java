@@ -1,13 +1,12 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.StringReader;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -23,7 +22,14 @@ public class TableSchemaParser {
                 p.clear();
                 if (!line.trim().isEmpty()) {
                     p.load(new StringReader(line.replaceAll("\t", "\n")));
-                    ClickHouseColumn column = ClickHouseColumn.of(p.getProperty("name"), p.getProperty("type"));
+                    final String columnName = p.getProperty("name");
+                    final String columnType = p.getProperty("type");
+                    ClickHouseColumn column;
+                    try {
+                        column = ClickHouseColumn.of(columnName, p.getProperty("type"));
+                    } catch (IllegalArgumentException e) {
+                        throw new ClientException("Failed parse column `"+ columnName + "` definition of type '" + columnType + "'", e);
+                    }
                     String defaultType = p.getProperty("default_type");
                     String defaultExpression = p.getProperty("default_expression");
                     column.setHasDefault(defaultType != null && !defaultType.isEmpty());
