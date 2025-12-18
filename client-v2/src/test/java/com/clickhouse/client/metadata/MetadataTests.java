@@ -120,6 +120,7 @@ public class MetadataTests extends BaseIntegrationTest {
         excludedTypes.add("Nullable"); // Nullable is a wrapper, not a base type
         excludedTypes.add("LowCardinality"); // LowCardinality is a wrapper, not a base type
         excludedTypes.add("Enum"); // Enum is a base type, use Enum8 or Enum16 instead
+        excludedTypes.add("Object"); // Deprecated and not used for while
         
         // Build column definitions
         StringBuilder createTableSql = new StringBuilder();
@@ -161,17 +162,21 @@ public class MetadataTests extends BaseIntegrationTest {
         CommandSettings commandSettings = new CommandSettings();
         // Allow Geometry type which may have variant ambiguity
         commandSettings.serverSetting("allow_suspicious_variant_types", "1");
-        // Allow QBit experimental type
-        commandSettings.serverSetting("allow_experimental_qbit_type", "1");
         try {
             // Try to enable experimental types if version supports them
-            if (isVersionMatch("[24.8,)")) {
-                commandSettings.serverSetting("allow_experimental_variant_type", "1")
-                        .serverSetting("allow_experimental_dynamic_type", "1")
-                        .serverSetting("allow_experimental_json_type", "1");
+            if (isVersionMatch("[24.1,)")) {
+                commandSettings.serverSetting("allow_experimental_variant_type", "1");
             }
-            if (isVersionMatch("[25.8,)")) {
+            if (isVersionMatch("[24.8,)")) {
+                commandSettings
+                        .serverSetting("allow_experimental_json_type", "1")
+                        .serverSetting("allow_experimental_dynamic_type", "1");
+            }
+            if (isVersionMatch("[25.5,)")) {
                 commandSettings.serverSetting("enable_time_time64_type", "1");
+            }
+            if (isVersionMatch("[25.10,)")) {
+                commandSettings.serverSetting("allow_experimental_qbit_type", "1");
             }
         } catch (Exception e) {
             // If version check fails, continue without experimental settings
@@ -179,6 +184,7 @@ public class MetadataTests extends BaseIntegrationTest {
         
         try {
             client.execute("DROP TABLE IF EXISTS " + tableName).get().close();
+            System.out.println(createTableSql);
             client.execute(createTableSql.toString(), commandSettings).get().close();
             
             // Verify the schema
