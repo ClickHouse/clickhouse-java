@@ -1,25 +1,19 @@
 package com.clickhouse.client.metadata;
 
 import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
@@ -28,7 +22,6 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -251,36 +244,6 @@ public class MetadataTests extends BaseIntegrationTest {
                 return "Object('json' String)";
             case "Variant":
                 return "Variant(String, Int32)";
-            case "Dynamic":
-                return "Dynamic";
-            case "JSON":
-                return "JSON";
-            case "IntervalYear":
-                return "IntervalYear";
-            case "IntervalQuarter":
-                return "IntervalQuarter";
-            case "IntervalMonth":
-                return "IntervalMonth";
-            case "IntervalWeek":
-                return "IntervalWeek";
-            case "IntervalDay":
-                return "IntervalDay";
-            case "IntervalHour":
-                return "IntervalHour";
-            case "IntervalMinute":
-                return "IntervalMinute";
-            case "IntervalSecond":
-                return "IntervalSecond";
-            case "IntervalMicrosecond":
-                return "IntervalMicrosecond";
-            case "IntervalMillisecond":
-                return "IntervalMillisecond";
-            case "IntervalNanosecond":
-                return "IntervalNanosecond";
-            case "Time":
-                return "Time";
-            case "Time64":
-                return "Time64";
             case "QBit":
                 // QBit requires two parameters: element type and number of elements
                 return "QBit(Float32, 4)";

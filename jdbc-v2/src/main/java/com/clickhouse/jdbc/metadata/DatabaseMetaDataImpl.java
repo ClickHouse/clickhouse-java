@@ -1127,7 +1127,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
             } catch (IllegalArgumentException e) {
                 log.error("Unknown type: " + typeName + ". Please check for a new version of the client.");
-                type = JDBCType.OTHER; // In case of error, return SQL type 0
+                type = JDBCType.OTHER;
             } catch (Exception e) {
                 log.error("Failed to get SQL type for type: " + typeName, e);
                 type = JDBCType.OTHER;
