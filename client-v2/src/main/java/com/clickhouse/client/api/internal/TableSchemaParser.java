@@ -30,7 +30,7 @@ public class TableSchemaParser {
                     try {
                         column = ClickHouseColumn.of(columnName, columnType);
                     } catch (IllegalArgumentException e) {
-                        throw new ClientException("Failed parse column `"+ columnName + "` defined by type '" + columnType + "'", e);
+                        throw new ClientException("Failed to parse column `"+ columnName + "` defined by type '" + columnType + "'", e);
                     }
                     String defaultType = p.getProperty("default_type");
                     String defaultExpression = p.getProperty("default_expression");
