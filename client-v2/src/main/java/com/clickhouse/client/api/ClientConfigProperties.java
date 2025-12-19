@@ -182,6 +182,12 @@ public enum ClientConfigProperties {
      * SNI SSL parameter that will be set for each outbound SSL socket.
      */
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
+
+    /**
+     * Custom URL path to be appended to the base URL for routing requests.
+     * For example: "/sales/db" or "/app/db"
+     */
+    CUSTOM_URL_PATH("custom_url_path", String.class, ""),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);

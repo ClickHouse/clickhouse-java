@@ -1048,6 +1048,20 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets a custom URL path to be appended to the base URL for routing requests.
+         * This is useful when multiple database instances are behind a load balancer and routing
+         * is configured by path. For example: "/sales/db" or "/app/db".
+         * The path will be appended to the base endpoint URL as-is.
+         *
+         * @param path - custom URL path (e.g., "/sales/db")
+         * @return this builder instance
+         */
+        public Builder customURLPath(String path) {
+            this.configuration.put(ClientConfigProperties.CUSTOM_URL_PATH.getKey(), path);
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
