@@ -4,8 +4,9 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
@@ -16,8 +17,6 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.query.QueryTests;
-import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -104,8 +103,10 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testRawSettings() {
+        final String customPrefix = isCloud() ? "SQL_" : "custom_";
         Client client = newClient()
-                .setOption("custom_setting_1", "value_1")
+                .setOption(customPrefix + "setting_1", "value_1")
+                .setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), customPrefix)
                 .build();
 
         client.execute("SELECT 1");
@@ -221,7 +222,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 32); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -254,7 +255,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -321,7 +322,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 32); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
         }
     }
 
@@ -440,6 +441,33 @@ public class ClientTests extends BaseIntegrationTest {
             String settings = record.getString(record.getSchema().nameToColumnIndex("Settings"));
             Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1"));
 //            Assert.assertTrue(settings.contains(ServerSettings.WAIT_ASYNC_INSERT + "=1")); // uncomment after server fix 
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUnknownClientSettings() throws Exception {
+        try (Client client = newClient().setOption("unknown_setting", "value").build()) {
+            Assert.fail("Exception expected");
+        } catch (Exception ex) {
+            Assert.assertTrue(ex instanceof ClientMisconfigurationException);
+            Assert.assertTrue(ex.getMessage().contains("unknown_setting"));
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG, "what ever").setOption("unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.SERVER_SETTING_PREFIX + "unknown_setting", "value").build()) {
+            try {
+                client.execute("SELECT 1");
+                Assert.fail("Exception expected");
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), ServerException.UNKNOWN_SETTING);
+            }
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.HTTP_HEADER_PREFIX + "unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
         }
     }
 
