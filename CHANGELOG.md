@@ -1,7 +1,18 @@
 ## 0.9.5
 
 ### New Features
-- [client-v2] Log durations in ISO-8601 duration format
+- [client-v2] Log durations in ISO-8601 duration format (https://github.com/ClickHouse/clickhouse-java/pull/2660)
+- [jdbc-v2] Added support for `getResultSet()` method in Array data types. (https://github.com/ClickHouse/clickhouse-java/issues/1545, https://github.com/ClickHouse/clickhouse-java/issues/2683)
+- [jdbc-v2] Added handling for `Time` and `Time64` data types in JDBC. (https://github.com/ClickHouse/clickhouse-java/issues/2682)
+
+### Bug Fixes
+- [client-v2] Fixed reading columns of `Array` with component type `Variant`. For example, `Array(Variant(String, Int32))`. (https://github.com/ClickHouse/clickhouse-java/issues/2602) 
+- [jdbc-v2] Fixed backward compatibility for `getPrimaryKeys()` method. (https://github.com/ClickHouse/clickhouse-java/issues/2654)
+- [jdbc-v2] Fixed array conversion issues with multidimensional arrays and nested arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2457)
+- [jdbc-v2] Fixed backward compatibility issues with older ClickHouse versions by replacing `::` cast operator with `CAST` function in prepared statements. Fixed issue with reading database version on older versions. (https://github.com/ClickHouse/clickhouse-java/issues/2654, https://github.com/ClickHouse/clickhouse-java/issues/2227)
+- [jdbc-v2] Reviewed and fixed database metadata support flags and return values. (https://github.com/ClickHouse/clickhouse-java/issues/2520, https://github.com/ClickHouse/clickhouse-java/issues/778, https://github.com/ClickHouse/clickhouse-java/issues/2519)
+- [jdbc-v2] Added verification tests for issues #1999, #1015, #2155 (https://github.com/ClickHouse/clickhouse-java/pull/2659)
+
 
 ## 0.9.4 
 
