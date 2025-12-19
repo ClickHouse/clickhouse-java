@@ -50,6 +50,8 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.entity.mime.ContentBody;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
@@ -432,12 +434,54 @@ public class HttpAPIClientHelper {
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
         addHeaders(req, requestConfig);
 
-
-        // setting entity. wrapping if compression is enabled
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                lz4Factory,
-                requestConfig));
+        // Check if statement params exist - if so, send as multipart
+        boolean hasStatementParams = requestConfig.containsKey(KEY_STATEMENT_PARAMS);
+        Map<?, ?> statementParams = hasStatementParams ? 
+            (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS) : null;
+        
+        HttpEntity requestEntity;
+        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? 
+            req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        
+        if (hasStatementParams && statementParams != null && !statementParams.isEmpty()) {
+            // Create multipart entity with query body and statement params
+            MultipartEntityBuilder multipartBuilder = MultipartEntityBuilder.create();
+            
+            // Add query/body data as streaming binary body
+            if (writeCallback != null) {
+                // Use streaming ContentBody to avoid buffering large queries in memory
+                StreamingContentBody queryBody = new StreamingContentBody(writeCallback, CONTENT_TYPE);
+                multipartBuilder.addPart("query", queryBody);
+            }
+            
+            // Add statement params as multipart parts
+            for (Map.Entry<?, ?> entry : statementParams.entrySet()) {
+                String paramName = "param_" + entry.getKey().toString();
+                String paramValue = String.valueOf(entry.getValue());
+                multipartBuilder.addTextBody(paramName, paramValue);
+            }
+            
+            requestEntity = multipartBuilder.build();
+            // Update content type header for multipart
+            // Note: Content-Encoding is a separate header and will be preserved
+            // The multipart entity's Content-Type includes the boundary which is required
+            req.setHeader(HttpHeaders.CONTENT_TYPE, requestEntity.getContentType());
+        } else {
+            // No statement params - use regular entity template
+            requestEntity = new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback);
+        }
+        
+        // Wrap entity with compression if enabled
+        // This will set Content-Encoding header if compression is enabled
+        HttpEntity wrappedEntity = wrapRequestEntity(requestEntity, lz4Factory, requestConfig);
+        
+        // Ensure Content-Encoding header is set on request if entity has it
+        // This preserves compression settings even after setting multipart Content-Type
+        if (wrappedEntity.getContentEncoding() != null) {
+            req.setHeader(HttpHeaders.CONTENT_ENCODING, wrappedEntity.getContentEncoding());
+        }
+        
+        req.setEntity(wrappedEntity);
 
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
@@ -595,10 +639,7 @@ public class HttpAPIClientHelper {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
-        }
+        // Statement params are now sent as multipart, not query params
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
@@ -910,6 +951,94 @@ public class HttpAPIClientHelper {
                 sslParams.setServerNames(Collections.singletonList(defaultSNI));
                 socket.setSSLParameters(sslParams);
             }
+        }
+    }
+
+    /**
+     * Streaming ContentBody implementation that writes data from an IOCallback without buffering.
+     * This avoids OutOfMemoryError for large queries by streaming data directly to the output stream.
+     */
+    private static class StreamingContentBody implements ContentBody {
+        private final IOCallback<OutputStream> writeCallback;
+        private final ContentType contentType;
+
+        StreamingContentBody(IOCallback<OutputStream> writeCallback, ContentType contentType) {
+            this.writeCallback = writeCallback;
+            this.contentType = contentType;
+        }
+
+        @Override
+        public String getFilename() {
+            return null;
+        }
+
+        @Override
+        public String getMimeType() {
+            return contentType != null ? contentType.getMimeType() : null;
+        }
+
+        @Override
+        public String getCharset() {
+            return contentType != null && contentType.getCharset() != null ? 
+                contentType.getCharset().name() : null;
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1; // Unknown length - streaming
+        }
+
+        @Override
+        public void writeTo(OutputStream outStream) throws IOException {
+            // Wrap the stream to prevent premature closure
+            // Multipart entities may call writeTo() multiple times, so we must not close the stream
+            OutputStream nonClosingStream = new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    outStream.write(b);
+                }
+
+                @Override
+                public void write(byte[] b) throws IOException {
+                    outStream.write(b);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    outStream.write(b, off, len);
+                }
+
+                @Override
+                public void flush() throws IOException {
+                    outStream.flush();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    // Do not close - let the caller (multipart entity) handle stream closure
+                    // This prevents "Stream already closed" errors when writeTo() is called multiple times
+                    flush();
+                }
+            };
+            writeCallback.execute(nonClosingStream);
+        }
+
+        @Override
+        public String getMediaType() {
+            String mimeType = getMimeType();
+            if (mimeType != null && mimeType.contains("/")) {
+                return mimeType.substring(0, mimeType.indexOf('/'));
+            }
+            return null;
+        }
+
+        @Override
+        public String getSubType() {
+            String mimeType = getMimeType();
+            if (mimeType != null && mimeType.contains("/")) {
+                return mimeType.substring(mimeType.indexOf('/') + 1);
+            }
+            return null;
         }
     }
 }
