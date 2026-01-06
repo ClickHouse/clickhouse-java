@@ -48,18 +48,6 @@
             <version>${revision}</version>
         </dependency>
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
         </dependency>
@@ -233,10 +221,6 @@
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
                                     <shadedPattern>${shade.base}.jpountz</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>okio</pattern>
-                                    <shadedPattern>${shade.base}.okio</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.apache</pattern>
