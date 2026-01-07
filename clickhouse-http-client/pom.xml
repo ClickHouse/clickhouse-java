@@ -44,11 +44,6 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-pure-java</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>org.tukaani</groupId>
             <artifactId>xz</artifactId>
             <optional>true</optional>
@@ -95,6 +90,12 @@
             <version>3.13.0</version>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>at.yawk.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 
     <build>
@@ -119,7 +120,7 @@
                                 <includes>
                                     <include>com.clickhouse:clickhouse-data</include>
                                     <include>com.clickhouse:clickhouse-client</include>
-                                    <include>org.lz4:lz4-pure-java</include>
+                                    <include>at.yawk.lz4:lz4-java</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
