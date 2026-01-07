@@ -90,7 +90,7 @@
         <jctools.version>4.0.1</jctools.version>
         <opencensus.version>0.31.1</opencensus.version>
         <protobuf.version>3.23.4</protobuf.version>
-        <lz4.version>1.8.0</lz4.version>
+        <lz4.version>1.10.2</lz4.version>
         <msgpack.version>0.9.5</msgpack.version>
         <roaring-bitmap.version>1.0.6</roaring-bitmap.version>
         <slf4j.version>2.0.7</slf4j.version>
@@ -182,15 +182,9 @@
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
             </dependency>
-
             <dependency>
-                <groupId>org.lz4</groupId>
+                <groupId>at.yawk.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
-                <version>${lz4.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.lz4</groupId>
-                <artifactId>lz4-pure-java</artifactId>
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
