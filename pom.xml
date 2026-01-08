@@ -49,7 +49,6 @@
         <module>jdbc-v2</module>
         <module>clickhouse-r2dbc</module>
         <module>packages/clickhouse-jdbc-all</module>
-        <!--<module>performance</module> -->
     </modules>
 
     <scm>
@@ -93,7 +92,7 @@
         <protobuf.version>3.23.4</protobuf.version>
         <lz4.version>1.10.2</lz4.version>
         <msgpack.version>0.9.5</msgpack.version>
-        <roaring-bitmap.version>0.9.47</roaring-bitmap.version>
+        <roaring-bitmap.version>1.0.6</roaring-bitmap.version>
         <slf4j.version>2.0.7</slf4j.version>
         <antlr4.version>4.13.2</antlr4.version>
         <snappy.version>1.1.10.4</snappy.version>
@@ -173,12 +172,6 @@
             </dependency>
 
             <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>org.apache.commons.compress</artifactId>
-                <version>${repackaged.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
                 <version>${compress.version}</version>
@@ -201,14 +194,6 @@
             </dependency>
 
             <!-- extras for V1 -->
-            <dependency>
-                <!-- for aggregate functions -->
-                <groupId>${project.groupId}</groupId>
-                <artifactId>org.roaringbitmap</artifactId>
-                <version>${repackaged.version}</version>
-            </dependency>
-
-
             <dependency>
                 <groupId>com.aayushatharva.brotli4j</groupId>
                 <artifactId>brotli4j</artifactId>
@@ -258,45 +243,6 @@
                 <version>${gson.version}</version>
             </dependency>
 
-<!--            remove -->
-<!--            <dependency>-->
-<!--                <groupId>io.opencensus</groupId>-->
-<!--                <artifactId>opencensus-api</artifactId>-->
-<!--                <version>${opencensus.version}</version>-->
-<!--            </dependency>-->
-<!--            <dependency>-->
-<!--                <groupId>io.opencensus</groupId>-->
-<!--                <artifactId>opencensus-impl</artifactId>-->
-<!--                <version>${opencensus.version}</version>-->
-<!--            </dependency>-->
-
-<!--            remove -->
-<!--            <dependency>-->
-<!--                <groupId>it.unimi.dsi</groupId>-->
-<!--                <artifactId>fastutil</artifactId>-->
-<!--                <version>${fastutil.version}</version>-->
-<!--            </dependency>-->
-
-<!--            remove -->
-<!--            <dependency>-->
-<!--                <groupId>org.apache.arrow</groupId>-->
-<!--                <artifactId>arrow-memory</artifactId>-->
-<!--                <type>pom</type>-->
-<!--                <version>${arrow.version}</version>-->
-<!--            </dependency>-->
-<!--            <dependency>-->
-<!--                <groupId>org.apache.arrow</groupId>-->
-<!--                <artifactId>arrow-vector</artifactId>-->
-<!--                <version>${arrow.version}</version>-->
-<!--            </dependency>-->
-
-<!--            remove -->
-<!--            <dependency>-->
-<!--                <groupId>org.apache.avro</groupId>-->
-<!--                <artifactId>avro</artifactId>-->
-<!--                <version>${avro.version}</version>-->
-<!--            </dependency>-->
-
             <dependency>
                 <groupId>org.apache.tomcat</groupId>
                 <artifactId>annotations-api</artifactId>
@@ -312,12 +258,6 @@
                 <artifactId>jctools-core</artifactId>
                 <version>${jctools.version}</version>
             </dependency>
-
-<!--            <dependency>-->
-<!--                <groupId>org.msgpack</groupId>-->
-<!--                <artifactId>msgpack-core</artifactId>-->
-<!--                <version>${msgpack.version}</version>-->
-<!--            </dependency>-->
 
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
@@ -719,30 +659,7 @@
                                     <destFile>${project.build.directory}/coverage-reports/jacoco-it.exec</destFile>
                                 </configuration>
                             </execution>
-<!--                            <execution>-->
-<!--                                <id>jacoco-ut</id>-->
-<!--                                <goals>-->
-<!--                                    <goal>prepare-agent</goal>-->
-<!--                                </goals>-->
-<!--                                <configuration>-->
-<!--                                    <skip>${skipUTs}</skip>-->
-<!--                                    <destFile>${project.build.directory}/coverage-reports/jacoco-ut.exec</destFile>-->
-<!--                                    <propertyName>surefireArgLine</propertyName>-->
-<!--                                    <append>true</append>-->
-<!--                                </configuration>-->
-<!--                            </execution>-->
-<!--                            <execution>-->
-<!--                                <id>jacoco-it</id>-->
-<!--                                <goals>-->
-<!--                                    <goal>prepare-agent-integration</goal>-->
-<!--                                </goals>-->
-<!--                                <configuration>-->
-<!--                                    <skip>${skipITs}</skip>-->
-<!--                                    <destFile>${project.build.directory}/coverage-reports/jacoco-it.exec</destFile>-->
-<!--                                    <propertyName>failsafeArgLine</propertyName>-->
-<!--                                    <append>true</append>-->
-<!--                                </configuration>-->
-<!--                            </execution>-->
+
                             <execution>
                                 <id>jacoco-it-report</id>
                                 <phase>post-integration-test</phase>
