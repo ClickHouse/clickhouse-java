@@ -17,5 +17,6 @@ public class ArticleViewEvent {
     private Double postId;
     private LocalDateTime viewTime;
     private String clientId;
+    private Address address;  // Nested custom object - demonstrates Tuple serialization issue
 
 }

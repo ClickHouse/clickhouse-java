@@ -1,5 +1,6 @@
 package com.clickhouse.examples.client_v2;
 
+import com.clickhouse.examples.client_v2.data.Address;
 import com.clickhouse.examples.client_v2.data.ArticleViewEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,7 +55,8 @@ public class Main {
         POJO2DbWriter pojoWriter = new POJO2DbWriter(endpoint, user, password, database);
         pojoWriter.resetTable();
         for (int i = 0; i < 10; i++) {
-            pojoWriter.submit(new ArticleViewEvent(11132929d, LocalDateTime.now(), UUID.randomUUID().toString()));
+            Address address = new Address("123 Main St", "San Francisco");
+            pojoWriter.submit(new ArticleViewEvent(11132929d, LocalDateTime.now(), UUID.randomUUID().toString(), address));
         }
 
         pojoWriter.printLastEvents();
