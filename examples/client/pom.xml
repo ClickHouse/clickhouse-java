@@ -40,9 +40,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.9.5-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.9.6-SNAPSHOT</clickhouse-java.version>
         <!-- Nightly snapshot version from https://central.sonatype.com/repository/maven-snapshots/or latest from local -->
-<!--        <clickhouse-java.version>0.9.5-SNAPSHOT</clickhouse-java.version>-->
+<!--        <clickhouse-java.version>0.9.6-SNAPSHOT</clickhouse-java.version>-->
 
         <apache-httpclient.version>5.2.1</apache-httpclient.version>
 

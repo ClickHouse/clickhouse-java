@@ -69,8 +69,8 @@
     </ciManagement>
     
     <properties>
-        <revision>0.9.5-SNAPSHOT</revision>
-        <project.current.year>2025</project.current.year>
+        <revision>0.9.6-SNAPSHOT</revision>
+        <project.current.year>2026</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
