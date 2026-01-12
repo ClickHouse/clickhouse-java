@@ -1,7 +1,28 @@
+## 0.9.6
+Release is aimed to address potential security risk in one of the dependencies (see below). We strongly recommend to upgrade. 
+
+### Dependencies
+- [repo] - upgraded `lz4-java` to `1.10.2`. Previously used version had a vulnerability https://www.cve.org/CVERecord?id=CVE-2025-66566. (https://github.com/ClickHouse/clickhouse-java/pull/2706)
+- [repo] - upgraded `commons-lang3` to `3.20.0`. Previously used version had a vulnerability https://www.cve.org/CVERecord?id=CVE-2025-48924. (https://github.com/ClickHouse/clickhouse-java/pull/2696)
+
+### New Features
+- [jdbc-v2] - support of dot notation for table names without quotes. (https://github.com/ClickHouse/clickhouse-java/issues/2650)
+
 ## 0.9.5
 
 ### New Features
-- [client-v2] Log durations in ISO-8601 duration format
+- [client-v2] Log durations in ISO-8601 duration format (https://github.com/ClickHouse/clickhouse-java/pull/2660)
+- [jdbc-v2] Added support for `getResultSet()` method in Array data types. (https://github.com/ClickHouse/clickhouse-java/issues/1545, https://github.com/ClickHouse/clickhouse-java/issues/2683)
+- [jdbc-v2] Added handling for `Time` and `Time64` data types in JDBC. (https://github.com/ClickHouse/clickhouse-java/issues/2682)
+
+### Bug Fixes
+- [client-v2] Fixed reading columns of `Array` with component type `Variant`. For example, `Array(Variant(String, Int32))`. (https://github.com/ClickHouse/clickhouse-java/issues/2602) 
+- [jdbc-v2] Fixed backward compatibility for `getPrimaryKeys()` method. (https://github.com/ClickHouse/clickhouse-java/issues/2654)
+- [jdbc-v2] Fixed array conversion issues with multidimensional arrays and nested arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2457)
+- [jdbc-v2] Fixed backward compatibility issues with older ClickHouse versions by replacing `::` cast operator with `CAST` function in prepared statements. Fixed issue with reading database version on older versions. (https://github.com/ClickHouse/clickhouse-java/issues/2654, https://github.com/ClickHouse/clickhouse-java/issues/2227)
+- [jdbc-v2] Reviewed and fixed database metadata support flags and return values. (https://github.com/ClickHouse/clickhouse-java/issues/2520, https://github.com/ClickHouse/clickhouse-java/issues/778, https://github.com/ClickHouse/clickhouse-java/issues/2519)
+- [jdbc-v2] Added verification tests for issues #1999, #1015, #2155 (https://github.com/ClickHouse/clickhouse-java/pull/2659)
+
 
 ## 0.9.4 
 
@@ -738,7 +759,7 @@ By default, connection is validated after being in the pool for 5 seconds. (http
 - refactored data processor(for serialization and deserialization) and added new classes for unsigned types. [#1124](https://github.com/ClickHouse/clickhouse-java/pull/1124)
 - refactored ClickHouseRequest/ClickHouseInputStream/ClickHouseOutputStream to better support compression. [#1174](https://github.com/ClickHouse/clickhouse-java/pull/1174), [#1189](https://github.com/ClickHouse/clickhouse-java/pull/1189)
 - extracted `clickhouse-data` from `clickhouse-client` along with new packages. [#1197](https://github.com/ClickHouse/clickhouse-java/pull/1197)
-  ```java
+  ```
   com.clickhouse.config  // generic configuration
   com.clickhouse.data    // data processing utilities
   com.clickhouse.logging // generic logging utility

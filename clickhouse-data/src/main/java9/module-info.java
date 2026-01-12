@@ -16,7 +16,7 @@ module com.clickhouse.data {
     requires static com.github.benmanes.caffeine;
     requires static org.lz4.java;
     requires static org.slf4j;
-    requires static org.roaringbitmap;
+    requires static roaringbitmap;
 
     uses com.clickhouse.data.ClickHouseDataStreamFactory;
     uses com.clickhouse.logging.LoggerFactory;
