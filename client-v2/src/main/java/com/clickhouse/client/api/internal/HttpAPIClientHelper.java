@@ -11,8 +11,14 @@ import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
@@ -50,6 +56,7 @@ import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
@@ -92,15 +99,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-public class HttpAPIClientHelper {
-
-    public static final String KEY_STATEMENT_PARAMS = "statement_params";
+public class HttpAPIClientHelper implements ProtocolClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpAPIClientHelper.class);
 
@@ -120,11 +127,21 @@ public class HttpAPIClientHelper {
     private final String defaultUserAgent;
     private final Object metricsRegistry;
 
+    private final ExecutorService requestExecutor;
+    private final LZ4Factory lz4Factory;
+
     ConnPoolControl<?> poolControl;
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext) {
+    List<Endpoint> endpoints;
+
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, ExecutorService requestExecutor,
+                               LZ4Factory lz4Factory, List<Endpoint> endpoints) {
         this.metricsRegistry = metricsRegistry;
+        this.endpoints = endpoints;
         this.httpClient = createHttpClient(initSslContext, configuration);
+        this.requestExecutor = requestExecutor;
+        this.lz4Factory = lz4Factory;
+
 
         boolean usingClientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(configuration);
         boolean usingServerCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration);
@@ -436,25 +453,15 @@ public class HttpAPIClientHelper {
         // setting entity. wrapping if compression is enabled
         String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
         req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                lz4Factory,
                 requestConfig));
 
-        HttpClientContext context = HttpClientContext.create();
-        Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
-        Number connectionReqTimeout =  ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
-        RequestConfig reqHttpConf = RequestConfig.custom()
-                .setResponseTimeout(responseTimeout.longValue(),  TimeUnit.MILLISECONDS)
-                .setConnectionRequestTimeout(connectionReqTimeout.longValue(),  TimeUnit.MILLISECONDS)
-                .build();
-        context.setRequestConfig(reqHttpConf);
-
+        HttpContext context = createRequestContext(requestConfig);
         ClassicHttpResponse httpResponse = null;
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
 
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
                     httpResponse.getCode(),
-                    lz4Factory,
                     requestConfig));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
@@ -595,8 +602,8 @@ public class HttpAPIClientHelper {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+        if (requestConfig.containsKey(ClickHouseHttpProto.KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(ClickHouseHttpProto.KEY_STATEMENT_PARAMS);
             params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
         }
 
@@ -633,7 +640,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, Map<String, Object> requestConfig) {
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
@@ -654,7 +661,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
@@ -835,6 +842,244 @@ public class HttpAPIClientHelper {
             } catch (UnsupportedEncodingException e) {
                 throw new ClientException("Failed to convert string to UTF8" , e);
             }
+        }
+    }
+
+    // -- Protocol Client implementation
+
+    void poolControlCloseExpired() {
+        if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
+            timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
+            poolControl.closeExpired();
+        }
+    }
+
+    synchronized Endpoint getActiveEndpoint() {
+        return endpoints.get(0);
+    }
+
+
+    HttpContext createRequestContext(Map<String, Object> requestConfig)  {
+        HttpClientContext context = HttpClientContext.create();
+        Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
+        Number connectionReqTimeout =  ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
+        RequestConfig reqHttpConf = RequestConfig.custom()
+                .setResponseTimeout(responseTimeout.longValue(),  TimeUnit.MILLISECONDS)
+                .setConnectionRequestTimeout(connectionReqTimeout.longValue(),  TimeUnit.MILLISECONDS)
+                .build();
+        context.setRequestConfig(reqHttpConf);
+        return context;
+    }
+
+
+
+    @Override
+    public CompletableFuture<QueryResponse> doQueryRequest(String statement, QuerySettings settings) {
+        OperationMetrics metrics = new OperationMetrics(new ClientStatisticsHolder());
+
+        poolControlCloseExpired();
+
+        return CompletableFuture.completedFuture(
+                new ProtocolRequest<String, QuerySettings, ClassicHttpResponse>(statement, settings, metrics))
+                .thenApply(this::prepareQueryRequest)
+                .thenApply(this::executeQueryRequest)
+                .thenCompose(this::composeQueryRetry)
+                .handle(this::handleQueryResponse);
+    }
+
+    @Override
+    public CompletableFuture<InsertResponse> doInsertRequest(String insertStatement, InsertSettings settings) {
+        return null;
+    }
+
+    private ProtocolRequest<String, QuerySettings, ClassicHttpResponse> prepareQueryRequest(ProtocolRequest<String, QuerySettings, ClassicHttpResponse> request) {
+        QuerySettings settings = request.getSettings();
+
+        URI uri;
+        try {
+
+            URIBuilder uriBuilder = new URIBuilder(getActiveEndpoint().getBaseURL());
+            addQueryParams(uriBuilder, settings.getAllSettings());
+            uri = uriBuilder.optimize().build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+
+        HttpPost req = new HttpPost(uri);
+        String host = uri.getHost();
+
+        req.setUri(uri);
+//        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // TODO: make configurable to disable chunk encoding
+        addHeaders(req, settings.getAllSettings());
+
+
+        // setting entity. wrapping if compression is enabled
+//        Header contentEncodingHeader = req.getFirstHeader(HttpHeaders.CONTENT_ENCODING);
+//        String contentEncoding = contentEncodingHeader == null? null : contentEncodingHeader.getValue();
+
+        req.setEntity(wrapRequestEntity(new StringEntity(request.getBody(), StandardCharsets.UTF_8), settings.getAllSettings()));
+
+        HttpContext context = createRequestContext(settings.getAllSettings());
+        request.setHttpRequest(req);
+        request.setHttpContext(context);
+
+        return request;
+    }
+
+    private ProtocolRequest<String, QuerySettings, ClassicHttpResponse> executeQueryRequest(ProtocolRequest<String, QuerySettings, ClassicHttpResponse> request) {
+
+        String host = request.getHttpRequest().getAuthority().getHostName();
+        ClassicHttpResponse httpResponse = null;
+        try {
+            httpResponse = httpClient.executeOpen(null, request.getHttpRequest(), request.getHttpContext());
+
+            httpResponse.setEntity(
+                    wrapResponseEntity(httpResponse.getEntity(), httpResponse.getCode(), request.getSettings().getAllSettings()));
+
+            if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
+                throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
+            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
+                httpResponse.close();
+                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
+                try {
+                    throw readError(httpResponse);
+                } finally {
+                    httpResponse.close();
+                }
+            }
+
+            request.getMetrics().operationComplete();
+            request.setHttpResponse(httpResponse);
+
+        } catch (UnknownHostException e) {
+            closeQuietly(httpResponse);
+            LOG.warn("Host '{}' unknown", host);
+            request.fail(e);
+        } catch (ConnectException | NoRouteToHostException e) {
+            closeQuietly(httpResponse);
+            LOG.warn("Failed to connect to '{}': {}", host, e.getMessage());
+            request.fail(e);
+        } catch (Exception e) {
+            closeQuietly(httpResponse);
+            LOG.debug("Failed to execute request to '{}': {}", host, e.getMessage(), e);
+            request.fail(e);
+        }
+        return request;
+
+    }
+
+    private CompletableFuture<ProtocolRequest<String, QuerySettings, ClassicHttpResponse>> composeQueryRetry(ProtocolRequest<String, QuerySettings, ClassicHttpResponse> request) {
+        if (request.shouldRetry()) {
+            return CompletableFuture.completedFuture(request)
+                    .thenApply(this::executeQueryRequest)
+                    .thenCompose(this::composeQueryRetry);
+        } else {
+            return CompletableFuture.completedFuture(request);
+        }
+    }
+
+    QueryResponse handleQueryResponse(ProtocolRequest<String, QuerySettings, ClassicHttpResponse> completeRequest, Throwable error) {
+        if (error != null ) {
+            error.printStackTrace();
+            throw new RuntimeException(error);
+        }
+        ClassicHttpResponse httpResponse = completeRequest.getHttpResponse();
+        QuerySettings querySettings = completeRequest.getSettings();
+        OperationMetrics metrics = completeRequest.getMetrics();
+
+        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
+                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+        ProcessParser.parseSummary(summary, metrics);
+        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
+                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), querySettings.getQueryId());
+        metrics.setQueryId(queryId);
+        metrics.operationComplete();
+        Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
+        ClickHouseFormat responseFormat = querySettings.getFormat();
+        if (formatHeader != null) {
+            responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
+        }
+
+        return new QueryResponse(httpResponse, responseFormat, querySettings, metrics);
+    }
+
+    private static class ProtocolRequest<TBody, TSettings, THttpResponse> {
+
+        final TBody body;
+
+        final TSettings settings;
+
+        final OperationMetrics metrics;
+
+        boolean failed;
+
+        Exception exception;
+
+        THttpResponse httpResponse;
+        private HttpPost httpRequest;
+        private HttpContext httpContext;
+
+        int leftAttempts = 1;
+
+        ProtocolRequest(TBody body, TSettings settings, OperationMetrics operationMetrics) {
+            this.body = body;
+            this.settings = settings;
+            this.metrics = operationMetrics;
+        }
+
+        public TBody getBody() {
+            return body;
+        }
+
+        public TSettings getSettings() {
+            return settings;
+        }
+
+        public OperationMetrics getMetrics() {
+            return metrics;
+        }
+
+        public void setHttpResponse(THttpResponse httpResponse) {
+            this.httpResponse = httpResponse;
+        }
+
+        public THttpResponse getHttpResponse() {
+            return httpResponse;
+        }
+
+        public void setHttpRequest(HttpPost httpRequest) {
+            this.httpRequest = httpRequest;
+        }
+
+        public HttpPost getHttpRequest() {
+            return httpRequest;
+        }
+
+        public void setHttpContext(HttpContext httpContext) {
+            this.httpContext = httpContext;
+        }
+
+        public HttpContext getHttpContext() {
+            return httpContext;
+        }
+
+        public boolean isFailed() {
+            return failed;
+        }
+
+        public boolean shouldRetry() {
+            return failed && this.leftAttempts >= 0;
+        }
+
+        public Exception getException() {
+            return exception;
+        }
+
+        public void fail(Exception e ) {
+            this.failed = true;
+            this.exception = e;
+            this.leftAttempts--;
         }
     }
 

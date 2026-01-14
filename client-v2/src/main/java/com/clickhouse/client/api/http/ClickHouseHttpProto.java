@@ -67,4 +67,10 @@ public class ClickHouseHttpProto {
     public static final int DEFAULT_HTTP_PORT = 8123;
 
     public static final int DEFAULT_HTTPS_PORT = 8443;
+
+    /**
+     * Request parameter to pass statement parameters.
+     */
+    public static final String KEY_STATEMENT_PARAMS = "statement_params";
+
 }

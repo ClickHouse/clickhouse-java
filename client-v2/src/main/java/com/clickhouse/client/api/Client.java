@@ -185,7 +185,8 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, sharedOperationExecutor,
+                lz4Factory, this.endpoints);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -1581,67 +1582,11 @@ public class Client implements AutoCloseable {
         }
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
+        if (queryParams != null) {
+            requestSettings.setOption(ClickHouseHttpProto.KEY_STATEMENT_PARAMS, queryParams);
+        }
 
-        Supplier<QueryResponse> responseSupplier;
-
-            if (queryParams != null) {
-                requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
-            }
-            responseSupplier = () -> {
-                long startTime = System.nanoTime();
-                // Selecting some node
-                Endpoint selectedEndpoint = getNextAliveNode();
-                RuntimeException lastException = null;
-                for (int i = 0; i <= retries; i++) {
-                    ClassicHttpResponse httpResponse = null;
-                    try {
-                        httpResponse =
-                                httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
-                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.close();
-                                });
-
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                            selectedEndpoint = getNextAliveNode();
-                            HttpAPIClientHelper.closeQuietly(httpResponse);
-                            continue;
-                        }
-
-                        OperationMetrics metrics = new OperationMetrics(clientStats);
-                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                        ProcessParser.parseSummary(summary, metrics);
-                        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId());
-                        metrics.setQueryId(queryId);
-                        metrics.operationComplete();
-                        Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
-                        ClickHouseFormat responseFormat = requestSettings.getFormat();
-                        if (formatHeader != null) {
-                            responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
-                        }
-
-                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics);
-
-                    } catch (Exception e) {
-                        HttpAPIClientHelper.closeQuietly(httpResponse);
-                        lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                                (i + 1), (retries + 1), durationSince(startTime)), e);
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = getNextAliveNode();
-                        } else {
-                            throw lastException;
-                        }
-                    }
-                }
-                LOG.warn("Query request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-                throw (lastException == null ? new ClientException("Failed to complete query") : lastException);
-            };
-
-        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
+        return httpClientHelper.doQueryRequest(sqlQuery, requestSettings);
     }
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
         return query(sqlQuery, queryParams, null);
