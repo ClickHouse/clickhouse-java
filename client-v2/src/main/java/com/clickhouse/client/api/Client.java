@@ -330,15 +330,27 @@ public class Client implements AutoCloseable {
          * @param port - Endpoint port
          */
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure) {
+            return addEndpoint(protocol, host, port, secure, "/");
+        }
+
+        public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
+            StringBuilder endpointBuilder = new StringBuilder();
+            endpointBuilder.append(protocol.toString().toLowerCase());
             if (secure) {
-                // TODO: if secure init SSL context
+                endpointBuilder.append("s");
             }
-            String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
-            this.endpoints.add(endpoint);
+            endpointBuilder.append("://");
+            endpointBuilder.append(host);
+            endpointBuilder.append(":");
+            endpointBuilder.append(port);
+            endpointBuilder.append(basePath);
+
+            this.endpoints.add(endpointBuilder.toString());
             return this;
+
         }
 
 
