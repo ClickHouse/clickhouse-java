@@ -46,45 +46,15 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>com.google.code.gson</groupId>-->
-<!--            <artifactId>gson</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
+
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>jdbc-v2</artifactId>
             <version>${revision}</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>io.opencensus</groupId>-->
-<!--            <artifactId>opencensus-impl</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
+
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.apache.commons.compress</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.lz4</groupId>
+            <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <version>${lz4.version}</version>
         </dependency>
@@ -98,7 +68,11 @@
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+            <version>${roaring-bitmap.version}</version>
+        </dependency>
         <!-- Test Dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>

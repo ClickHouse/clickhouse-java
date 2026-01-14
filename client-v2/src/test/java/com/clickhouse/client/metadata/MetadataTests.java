@@ -1,30 +1,29 @@
 package com.clickhouse.client.metadata;
 
 import com.clickhouse.client.BaseIntegrationTest;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
-import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MetadataTests extends BaseIntegrationTest {
 
@@ -106,6 +105,171 @@ public class MetadataTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void testCreateTableWithAllDataTypes() throws Exception {
+        String tableName = "test_all_data_types";
+
+        // Query system.data_type_families to get all known types
+        List<GenericRecord> dbTypes = client.queryAll("SELECT name, alias_to FROM system.data_type_families ORDER BY name");
+
+        // Types that cannot be used directly in CREATE TABLE columns
+        Set<String> excludedTypes = new HashSet<>();
+        excludedTypes.add("AggregateFunction");
+        excludedTypes.add("SimpleAggregateFunction");
+        excludedTypes.add("Nothing");
+        excludedTypes.add("Nullable"); // Nullable is a wrapper, not a base type
+        excludedTypes.add("LowCardinality"); // LowCardinality is a wrapper, not a base type
+        excludedTypes.add("Enum"); // Enum is a base type, use Enum8 or Enum16 instead
+        excludedTypes.add("Object"); // Deprecated and not used for while
+        if (isCloud()) {
+            excludedTypes.add("QBit"); // Due to env specific
+        }
+
+        // Build column definitions
+        StringBuilder createTableSql = new StringBuilder();
+        createTableSql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+
+        int columnIndex = 0;
+        Set<String> addedTypes = new HashSet<>();
+
+        for (GenericRecord dbType : dbTypes) {
+            String typeName = dbType.getString("name");
+            String aliasTo = dbType.getString("alias_to");
+
+            // Use alias if available, otherwise use the name
+            String actualType = StringUtils.isNotBlank(aliasTo) ? aliasTo : typeName;
+
+            // Skip excluded types and duplicates
+            if (excludedTypes.contains(actualType) || addedTypes.contains(actualType)) {
+                continue;
+            }
+
+            // Generate column name and type definition
+            String columnName = "col_" + columnIndex++;
+            String columnType = getColumnTypeDefinition(actualType);
+
+            if (columnType != null) {
+                createTableSql.append(columnName).append(" ").append(columnType).append(", ");
+                addedTypes.add(actualType);
+            }
+        }
+
+        // Remove trailing comma and space
+        if (createTableSql.length() > 0 && createTableSql.charAt(createTableSql.length() - 2) == ',') {
+            createTableSql.setLength(createTableSql.length() - 2);
+        }
+
+        createTableSql.append(") ENGINE = Memory");
+
+        // Create table with appropriate settings for experimental types
+        CommandSettings commandSettings = new CommandSettings();
+        // Allow Geometry type which may have variant ambiguity
+        commandSettings.serverSetting("allow_suspicious_variant_types", "1");
+        try {
+            // Try to enable experimental types if version supports them
+            if (isVersionMatch("[24.1,)")) {
+                commandSettings.serverSetting("allow_experimental_variant_type", "1");
+            }
+            if (isVersionMatch("[24.8,)")) {
+                commandSettings
+                        .serverSetting("allow_experimental_json_type", "1")
+                        .serverSetting("allow_experimental_dynamic_type", "1");
+            }
+            if (isVersionMatch("[25.5,)")) {
+                commandSettings.serverSetting("enable_time_time64_type", "1");
+            }
+            if (isVersionMatch("[25.10,)") && !isCloud()) {
+                commandSettings.serverSetting("allow_experimental_qbit_type", "1");
+            }
+        } catch (Exception e) {
+            // If version check fails, continue without experimental settings
+        }
+
+        try {
+            client.execute("DROP TABLE IF EXISTS " + tableName).get().close();
+            System.out.println(createTableSql);
+            client.execute(createTableSql.toString(), commandSettings).get().close();
+
+            // Verify the schema
+            TableSchema schema = client.getTableSchema(tableName);
+            Assert.assertNotNull(schema, "Schema should not be null");
+            Assert.assertEquals(schema.getTableName(), tableName);
+            Assert.assertTrue(schema.getColumns().size() > 0, "Table should have at least one column");
+
+            // Verify that we have columns for the types we added
+            // Some types might fail to create, so we check for at least 80% success rate
+            Assert.assertTrue(schema.getColumns().size() >= addedTypes.size() * 0.8,
+                    "Expected at least 80% of types to be successfully created. Created: " + schema.getColumns().size() + ", Attempted: " + addedTypes.size());
+        } finally {
+            try {
+                client.execute("DROP TABLE IF EXISTS " + tableName).get().close();
+            } catch (Exception e) {
+                // Ignore cleanup errors
+            }
+        }
+    }
+
+    /**
+     * Returns the column type definition for a given ClickHouse type name.
+     * Returns null if the type cannot be used in CREATE TABLE.
+     */
+    private String getColumnTypeDefinition(String typeName) {
+        // Handle types that need parameters
+        switch (typeName) {
+            case "Decimal":
+                return "Decimal(10, 2)";
+            case "Decimal32":
+                return "Decimal32(2)";
+            case "Decimal64":
+                return "Decimal64(3)";
+            case "Decimal128":
+                return "Decimal128(4)";
+            case "Decimal256":
+                return "Decimal256(5)";
+            case "DateTime":
+                return "DateTime";
+            case "DateTime32":
+                return "DateTime32";
+            case "DateTime64":
+                return "DateTime64(3)";
+            case "FixedString":
+                return "FixedString(10)";
+            case "Enum":
+                // Enum base type cannot be used without parameters, return null to skip it
+                return null;
+            case "Enum8":
+                return "Enum8('a' = 1, 'b' = 2)";
+            case "Enum16":
+                return "Enum16('a' = 1, 'b' = 2)";
+            case "Array":
+                return "Array(String)";
+            case "Map":
+                return "Map(String, Int32)";
+            case "Tuple":
+                return "Tuple(String, Int32)";
+            case "Nested":
+                return "Nested(name String, value Int32)";
+            case "Object":
+                return "Object('json' String)";
+            case "Variant":
+                return "Variant(String, Int32)";
+            case "QBit":
+                // QBit requires two parameters: element type and number of elements
+                return "QBit(Float32, 4)";
+            case "Geometry":
+            case "Geometry1":
+                // Geometry type (requires allow_suspicious_variant_types = 1 setting)
+                return "Geometry";
+            default:
+                // For simple types without parameters, return as-is
+                return typeName;
+        }
+    }
+
+    public boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();

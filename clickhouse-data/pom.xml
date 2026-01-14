@@ -17,17 +17,6 @@
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-data</url>
 
     <dependencies>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
 
         <!-- Compression -->
         <dependency>
@@ -67,7 +56,7 @@
         </dependency>
 
         <dependency>
-            <groupId>org.lz4</groupId>
+            <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <optional>true</optional>
         </dependency>
@@ -103,6 +92,11 @@
             <optional>true</optional>
         </dependency>
 
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+            <scope>provided</scope>
+        </dependency>
 <!--        Test containers -->
 
         <dependency>
