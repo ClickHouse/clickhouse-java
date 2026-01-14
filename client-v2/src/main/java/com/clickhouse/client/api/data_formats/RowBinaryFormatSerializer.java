@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Map;
 
 /**
  * This class is intended to be used for very precise data serializations.
@@ -46,6 +47,15 @@ public class RowBinaryFormatSerializer {
     public RowBinaryFormatSerializer(OutputStream out, boolean supportDefaults) {
         this.out = out;
         this.supportDefaults = supportDefaults;
+    }
+
+    /**
+     * Returns the output stream used by this serializer.
+     *
+     * @return the output stream
+     */
+    public OutputStream getOutputStream() {
+        return out;
     }
 
     public void writeNull() throws IOException {
