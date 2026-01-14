@@ -180,7 +180,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
         try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema.getColumns(), format);
             for (Field[] row : rows) {
                 for (Field field : row) {
                     w.setValue(schema.nameToColumnIndex(field.name), field.value);

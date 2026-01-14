@@ -573,7 +573,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
         try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema.getColumns(), format);
             for (Object[] row : rows) {
                 for (int i = 0; i < row.length; i++) {
                     w.setValue(i + 1, row[i]);
@@ -621,7 +621,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
         try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema.getColumns(), format);
             for (Object[] row : rows) {
                 for (int i = 0; i < row.length; i++) {
                     w.setValue(i + 1, row[i]);

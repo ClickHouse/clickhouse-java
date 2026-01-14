@@ -26,8 +26,26 @@ public class RowBinaryFormatSerializer {
 
     private OutputStream out;
 
+    private boolean supportDefaults;
+
+    /**
+     * Creates instance of serializer. This instance has no supportDefault = false.
+     *
+     * @param out - output stream to write data to.
+     */
     public RowBinaryFormatSerializer(OutputStream out) {
+        this(out, false);
+    }
+
+    /**
+     * Creates instance of serializer with output stream and awareness of defaults.
+     *
+     * @param out - output stream to write data to.
+     * @param supportDefaults - if output stream in a format that supports defaults.
+     */
+    public RowBinaryFormatSerializer(OutputStream out, boolean supportDefaults) {
         this.out = out;
+        this.supportDefaults = supportDefaults;
     }
 
     public void writeNull() throws IOException {
@@ -182,6 +200,21 @@ public class RowBinaryFormatSerializer {
 
     public void writeIPV6Address(Inet6Address value) throws IOException {
         BinaryStreamUtils.writeInet6Address(out, value);
+    }
+
+    /**
+     * Instance method that aware of supportDefaults.
+     *
+     * @param value - actual value
+     * @param isNullable - if target column type is nullable
+     * @param hasDefault - if target column defines default values
+     * @param dataType - target column data type
+     * @param column - column name
+     * @return - true if values should be written
+     * @throws IOException - any IO exception while writing to output stream
+     */
+    public boolean writeValuePreamble(Object value, boolean isNullable, boolean hasDefault, ClickHouseDataType dataType, String column) throws IOException {
+        return writeValuePreamble(out, supportDefaults, value, isNullable, dataType, hasDefault, column );
     }
 
     public static boolean writeValuePreamble(OutputStream out, boolean defaultsSupport, ClickHouseColumn column, Object value) throws IOException {

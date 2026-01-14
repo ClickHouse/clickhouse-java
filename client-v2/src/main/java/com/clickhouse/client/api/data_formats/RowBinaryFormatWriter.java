@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
+import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -30,7 +32,9 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
 
     private final OutputStream out;
 
-    private final TableSchema tableSchema;
+    private final List<ClickHouseColumn> columns;
+
+    private final Map<String, Integer> columnNameToIndex;
 
     private final Object[] row;
 
@@ -40,15 +44,33 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
 
     private boolean rowStarted = false; // indicates if at least one value was written to a row
 
+
     public RowBinaryFormatWriter(OutputStream out, TableSchema tableSchema, ClickHouseFormat format) {
+        this(out, tableSchema.getColumns(), format);
+    }
+
+    public RowBinaryFormatWriter(OutputStream out, List<ClickHouseColumn> columns, ClickHouseFormat format) {
         if (format != ClickHouseFormat.RowBinary && format != ClickHouseFormat.RowBinaryWithDefaults) {
             throw new IllegalArgumentException("Only RowBinary and RowBinaryWithDefaults are supported");
         }
 
+        if (columns == null || columns.isEmpty()) {
+            throw new IllegalArgumentException("Columns list cannot be null or empty");
+        }
+
         this.out = out;
-        this.tableSchema = tableSchema;
-        this.row = new Object[tableSchema.getColumns().size()];
+        this.columns = columns;
+        this.row = new Object[columns.size()];
         this.defaultSupport = format == ClickHouseFormat.RowBinaryWithDefaults;
+        
+        // Create mapping of column name to index (1-based index to match existing API)
+        ImmutableMap.Builder<String, Integer> columnNameIndexBuilder = ImmutableMap.builder();
+        for (int i = 0; i < columns.size(); i++) {
+            ClickHouseColumn column = columns.get(i);
+            // If duplicate column names exist, keep the last one (matching TableSchema behavior)
+            columnNameIndexBuilder.put(column.getColumnName(), i + 1);
+        }
+        this.columnNameToIndex = columnNameIndexBuilder.build();
     }
 
     @Override
@@ -74,7 +96,11 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
 
     @Override
     public void setValue(String column, Object value) {
-        setValue(tableSchema.nameToColumnIndex(column), value);
+        Integer colIndex = columnNameToIndex.get(column);
+        if (colIndex == null) {
+            throw new IllegalArgumentException("Column '" + column + "' not found in schema");
+        }
+        setValue(colIndex, value);
     }
 
     @Override
@@ -88,9 +114,8 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     @Override
     public void commitRow() throws IOException {
         if (rowStarted) {
-            List<ClickHouseColumn> columnList = tableSchema.getColumns();
             for (int i = 0; i < row.length; i++) {
-                ClickHouseColumn column = columnList.get(i);
+                ClickHouseColumn column = columns.get(i);
                 // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
                 if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
                     continue;

@@ -76,7 +76,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         }
 
         out = new ByteArrayOutputStream();
-        writer = new RowBinaryFormatWriter(out, tableSchema, tableSchema.hasDefaults() ?
+        writer = new RowBinaryFormatWriter(out, tableSchema.getColumns(), tableSchema.hasDefaults() ?
                 ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary);
     }
 
