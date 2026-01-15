@@ -1073,6 +1073,18 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Make sending statement parameters as HTTP Form data (in the body of a request).
+         * Works only for query methods and with disabled client request compression.
+         *
+         * @param enable - if feature enabled
+         * @return this builder instance
+         */
+        public Builder useHttpFormDataForQuery(boolean enable) {
+            this.configuration.put(ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getKey(), String.valueOf(enable));
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1619,10 +1631,15 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
-                                requestSettings.getAllSettings(),
-                                sqlQuery);
-
+                        boolean  useMultipart = ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getOrDefault(requestSettings.getAllSettings());
+                        if (queryParams != null && useMultipart) {
+                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(), sqlQuery);
+                        } else {
+                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(),
+                                    sqlQuery);
+                        }
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));

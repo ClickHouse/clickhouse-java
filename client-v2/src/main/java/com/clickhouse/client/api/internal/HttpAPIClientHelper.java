@@ -21,6 +21,8 @@ import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
@@ -51,7 +53,6 @@ import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
-import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
@@ -97,6 +98,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -436,12 +438,17 @@ public class HttpAPIClientHelper {
         return context;
     }
 
-    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig) {
+    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean addParameters) {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getURI());
-            addQueryParams(uriBuilder, requestConfig);
-            uri = uriBuilder.normalizeSyntax().build();
+            addRequestParams(requestConfig, uriBuilder::addParameter);
+
+            if (addParameters) {
+                addStatementParams(requestConfig, uriBuilder::addParameter);
+            }
+
+            uri = uriBuilder.optimize().build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -461,7 +468,7 @@ public class HttpAPIClientHelper {
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
-        final URI uri = createRequestURI(server, requestConfig);
+        final URI uri = createRequestURI(server, requestConfig, true);
         final HttpPost req = createPostRequest(uri, requestConfig);
         final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
 
@@ -471,13 +478,39 @@ public class HttpAPIClientHelper {
         return doPostRequest(requestConfig, req);
     }
 
+    public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
+
+        if (requestConfig == null) {
+            requestConfig = Collections.emptyMap();
+        }
+        if (ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig)) {
+            throw new ClientException("Compression of client request with statement parameters is not supported yet");
+        }
+
+        final URI uri = createRequestURI(server, requestConfig, false);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+
+        MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+        addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
+        multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlQuery);
+
+
+        HttpEntity httpEntity = multipartEntityBuilder.build();
+        req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
+        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+
+        return doPostRequest(requestConfig, req);
+
+
+    }
+
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
                                               IOCallback<OutputStream> writeCallback) throws Exception {
 
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
-        final URI uri = createRequestURI(server, requestConfig);
+        final URI uri = createRequestURI(server, requestConfig, true);
         final HttpPost req = createPostRequest(uri, requestConfig);
         String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
         req.setEntity(wrapRequestEntity(
@@ -634,13 +667,9 @@ public class HttpAPIClientHelper {
         correctUserAgentHeader(req, requestConfig);
     }
 
-    private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
+    private void addRequestParams(Map<String, Object> requestConfig, BiConsumer<String, String> consumer) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-            req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
-        }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
+            consumer.accept(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -651,28 +680,35 @@ public class HttpAPIClientHelper {
             // enable_http_compression make server react on http header
             // for client side compression Content-Encoding should be set
             // for server side compression Accept-Encoding should be set
-            req.addParameter("enable_http_compression", "1");
+            consumer.accept("enable_http_compression", "1");
         } else {
             if (serverCompression) {
-                req.addParameter("compress", "1");
+                consumer.accept("compress", "1");
             }
             if (clientCompression) {
-                req.addParameter("decompress", "1");
+                consumer.accept("decompress", "1");
             }
         }
 
         Collection<String> sessionRoles = ClientConfigProperties.SESSION_DB_ROLES.getOrDefault(requestConfig);
         if (!(sessionRoles == null || sessionRoles.isEmpty())) {
-            sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
+            sessionRoles.forEach(r -> consumer.accept(ClickHouseHttpProto.QPARAM_ROLE, r));
         }
 
         for (String key : requestConfig.keySet()) {
             if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
                 Object val = requestConfig.get(key);
                 if (val != null) {
-                    req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
+                    consumer.accept(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
                 }
             }
+        }
+    }
+
+    private void addStatementParams(Map<String, Object> requestConfig, BiConsumer<String, String> consumer) {
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> consumer.accept("param_" + k, String.valueOf(v)));
         }
     }
 
