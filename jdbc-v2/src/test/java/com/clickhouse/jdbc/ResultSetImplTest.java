@@ -1,5 +1,7 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -28,6 +30,7 @@ import java.util.Properties;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
+@Test(groups = "integration")
 public class ResultSetImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
@@ -357,6 +360,124 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(metaData.getColumnType(v2ColumnIndex), Types.VARCHAR);
                 Assert.assertEquals(metaData.getColumnTypeName(v1ColumnIndex), "Int32");
                 Assert.assertEquals(metaData.getColumnTypeName(v2ColumnIndex), "String");
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetResultSetFromArray() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("select [1, 2, null, 4]::Array(Nullable(UInt16)) as v")) {
+                assertTrue(rs.next());
+
+                Array array = rs.getArray("v");
+                Assert.assertNotNull(array);
+                Assert.assertEquals(array.getBaseType(), Types.INTEGER);
+                Assert.assertEquals(array.getBaseTypeName(), "Nullable(UInt16)");
+
+                Integer[] array2 = (Integer[]) array.getArray();
+
+                ResultSet rs2 = array.getResultSet();
+                Assert.assertTrue(rs2.isBeforeFirst());
+                Assert.assertFalse(rs2.isAfterLast());
+                String valueColumn = rs2.getMetaData().getColumnName(2);
+                for (int i = 0; i < array2.length; i++) {
+                    rs2.next();
+                    if (i == 2 ) {
+                        rs2.getInt(valueColumn);
+                        Assert.assertTrue(rs2.wasNull());
+                    } else {
+                        Assert.assertEquals(rs2.getInt(valueColumn), array2[i]);
+                        Assert.assertFalse(rs2.wasNull());
+                    }
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetResultSetFromArrayDate() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            // date array
+            try (ResultSet rs = stmt.executeQuery("select [toDate('2020-01-01'), toDate('2020-01-02')] as v")) {
+
+                assertTrue(rs.next());
+                Array array = rs.getArray("v");
+                Assert.assertNotNull(array);
+                Assert.assertEquals(array.getBaseType(), Types.DATE);
+                Assert.assertEquals(array.getBaseTypeName(), "Date");
+
+                Object[] resultArray = (Object[]) array.getArray();
+                Assert.assertEquals(resultArray.length, 2);
+                Assert.assertEquals(resultArray[0], Date.valueOf("2020-01-01"));
+                Assert.assertEquals(resultArray[1], Date.valueOf("2020-01-02"));
+
+                ResultSet rs2 = array.getResultSet();
+                final String valueColumn = rs2.getMetaData().getColumnName(2);
+                for (int i = 0; i < resultArray.length; i++) {
+                    rs2.next();
+                    Assert.assertEquals(rs2.getDate(valueColumn), resultArray[i]);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, enabled = false)
+    public void testGetResultSetFromArrayTime() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check("(,25.5]")) {
+            return; // Time64 introduced in 25.6
+        }
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            // time array
+            try (ResultSet rs = stmt.executeQuery("select ['14:30:25'::Time, '17:30:25'::Time] as v")) {
+
+                assertTrue(rs.next());
+                Array array = rs.getArray("v");
+                Assert.assertNotNull(array);
+                Assert.assertEquals(array.getBaseType(), Types.TIME);
+                Assert.assertEquals(array.getBaseTypeName(), "Time");
+
+                Object[] resultArray = (Object[]) array.getArray();
+                Assert.assertEquals(resultArray.length, 2);
+                Assert.assertEquals(resultArray[0], Time.valueOf("14:30:25"));
+                Assert.assertEquals(resultArray[1], Time.valueOf("17:30:25"));
+
+                ResultSet rs2 = array.getResultSet();
+                final String valueColumn = rs2.getMetaData().getColumnName(2);
+                for (int i = 0; i < resultArray.length; i++) {
+                    rs2.next();
+                    Assert.assertEquals(rs2.getTime(valueColumn), resultArray[i]);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetResultSetFromArrayTimestamp() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            // timestamp array
+            try (ResultSet rs = stmt.executeQuery("select [toDateTime('2020-01-01 00:00:00'), toDateTime('2020-01-01 00:00:01')] as v")) {
+
+                assertTrue(rs.next());
+                Array array = rs.getArray("v");
+                Assert.assertNotNull(array);
+                Assert.assertEquals(array.getBaseType(), Types.TIMESTAMP);
+                Assert.assertEquals(array.getBaseTypeName(), "DateTime");
+
+                Object[] resultArray = (Object[]) array.getArray();
+                Assert.assertEquals(resultArray.length, 2);
+                Assert.assertEquals(resultArray[0], Timestamp.valueOf("2020-01-01 00:00:00"));
+                Assert.assertEquals(resultArray[1], Timestamp.valueOf("2020-01-01 00:00:01"));
+
+                ResultSet rs2 = array.getResultSet();
+                final String valueColumn = rs2.getMetaData().getColumnName(2);
+                for (int i = 0; i < resultArray.length; i++) {
+                    rs2.next();
+                    Assert.assertEquals(rs2.getTimestamp(valueColumn), resultArray[i]);
+                }
             }
         }
     }

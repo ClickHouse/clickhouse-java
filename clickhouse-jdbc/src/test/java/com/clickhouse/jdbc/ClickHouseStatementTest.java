@@ -801,12 +801,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement();) {
             stmt.execute("drop table if exists test_simple_agg_func; "
-                    + "CREATE TABLE test_simple_agg_func (x SimpleAggregateFunction(max, UInt64)) ENGINE=AggregatingMergeTree ORDER BY tuple(); "
-                    + "INSERT INTO test_simple_agg_func VALUES(1)");
+                    + "CREATE TABLE test_simple_agg_func (id UInt64, x SimpleAggregateFunction(max, UInt64)) ENGINE=AggregatingMergeTree ORDER BY tuple(id); "
+                    + "INSERT INTO test_simple_agg_func VALUES(1, 1)");
 
             try (ResultSet rs = stmt.executeQuery("select * from test_simple_agg_func")) {
                 Assert.assertTrue(rs.next(), "Should have one row");
                 Assert.assertEquals(rs.getLong(1), 1L);
+                Assert.assertEquals(rs.getLong(2), 1L);
                 Assert.assertFalse(rs.next(), "Should have only one row");
             }
         }

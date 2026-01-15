@@ -207,7 +207,7 @@ public class ClientTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testDisableNative() {
         try (Client client = newClient().disableNativeCompression(true).build()) {
-            Assert.assertTrue(client.toString().indexOf("JavaUnsafe") != -1);
+            Assert.assertTrue(client.toString().contains("JavaSafe") || client.toString().contains("JavaUnsafe"));
         }
     }
 

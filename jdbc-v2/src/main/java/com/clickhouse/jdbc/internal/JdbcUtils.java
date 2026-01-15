@@ -77,6 +77,8 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.Time, JDBCType.TIME);
+        map.put(ClickHouseDataType.Time64, JDBCType.TIME);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
@@ -106,7 +108,7 @@ public class JdbcUtils {
         map.put(JDBCType.INTEGER, Integer.class);
         map.put(JDBCType.BIGINT, Long.class);
         map.put(JDBCType.REAL, Float.class);
-        map.put(JDBCType.FLOAT, Double.class);
+        map.put(JDBCType.FLOAT, Float.class);
         map.put(JDBCType.DOUBLE, Double.class);
         map.put(JDBCType.BINARY, byte[].class);
         map.put(JDBCType.VARBINARY, byte[].class);
@@ -457,7 +459,7 @@ public class JdbcUtils {
         }
     }
 
-    private static Object[] arrayToObjectArray(Object array) {
+    public static Object[] arrayToObjectArray(Object array) {
         if (array == null) {
             return null;
         }
