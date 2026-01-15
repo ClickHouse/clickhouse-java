@@ -1,212 +1,163 @@
 package com.clickhouse.client.api.transport;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
-import java.net.URI;
-import java.net.URL;
 
 public class HttpEndpointTest {
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_Http() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/clickhouse");
-        
-        Assert.assertEquals(endpoint.getHost(), "localhost");
-        Assert.assertEquals(endpoint.getPort(), 8123);
-        Assert.assertFalse(endpoint.isSecure());
-        Assert.assertEquals(endpoint.getPath(), "/clickhouse");
-        Assert.assertTrue(endpoint.getBaseURL().contains("http://localhost:8123"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("/clickhouse"));
+    @DataProvider(name = "basicEndpointConfigs")
+    public Object[][] basicEndpointConfigs() {
+        return new Object[][]{
+                // host, port, secure, basePath, expectedHost, expectedPort, expectedSecure, expectedPath
+                {"localhost", 8123, false, "/clickhouse", "localhost", 8123, false, "/clickhouse"},
+                {"example.com", 8443, true, "/api", "example.com", 8443, true, "/api"},
+                {"localhost", 80, false, null, "localhost", 80, false, "/"},
+                {"example.com", 443, true, null, "example.com", 443, true, "/"},
+                {"localhost", 8123, false, "", "localhost", 8123, false, "/"},
+                {"localhost", 8123, false, "clickhouse", "localhost", 8123, false, "/clickhouse"},
+                {"example.com", 8443, true, "/sales/db", "example.com", 8443, true, "/sales/db"},
+        };
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_Https() {
-        HttpEndpoint endpoint = new HttpEndpoint("example.com", 8443, true, "/api");
-        
-        Assert.assertEquals(endpoint.getHost(), "example.com");
-        Assert.assertEquals(endpoint.getPort(), 8443);
-        Assert.assertTrue(endpoint.isSecure());
-        Assert.assertEquals(endpoint.getPath(), "/api");
-        Assert.assertTrue(endpoint.getBaseURL().contains("https://example.com:8443"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("/api"));
+    @DataProvider(name = "pathsWithSpaces")
+    public Object[][] pathsWithSpaces() {
+        return new Object[][]{
+                // host, port, secure, basePath, expectedPath, shouldContainEncodedSpaces
+                {"localhost", 8123, false, "/my path with spaces", "/my path with spaces", true},
+                {"localhost", 8123, false, "my path with spaces", "/my path with spaces", true},
+                {"example.com", 8443, true, "/api/v1/my resource name", "/api/v1/my resource name", true},
+        };
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_DefaultPortHttp() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 80, false, null);
-        
-        Assert.assertEquals(endpoint.getHost(), "localhost");
-        Assert.assertEquals(endpoint.getPort(), 80);
-        Assert.assertFalse(endpoint.isSecure());
-        Assert.assertEquals(endpoint.getPath(), "/");
+    @DataProvider(name = "ipv6Addresses")
+    public Object[][] ipv6Addresses() {
+        return new Object[][]{
+                // host, port, secure, basePath, expectedHost, expectedPort, expectedSecure, expectedPath
+                {"[::1]", 8123, false, null, "[::1]", 8123, false, "/"},
+                {"[2001:db8::1]", 8443, true, "/clickhouse", "[2001:db8::1]", 8443, true, "/clickhouse"},
+        };
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_DefaultPortHttps() {
-        HttpEndpoint endpoint = new HttpEndpoint("example.com", 443, true, null);
-        
-        Assert.assertEquals(endpoint.getHost(), "example.com");
-        Assert.assertEquals(endpoint.getPort(), 443);
-        Assert.assertTrue(endpoint.isSecure());
-        Assert.assertEquals(endpoint.getPath(), "/");
+    @DataProvider(name = "baseUrlConfigs")
+    public Object[][] baseUrlConfigs() {
+        return new Object[][]{
+                // host, port, secure, basePath, expectedBaseUrl
+                {"localhost", 8123, false, null, "http://localhost:8123/"},
+                {"localhost", 8123, false, "/", "http://localhost:8123/"},
+                {"localhost", 8123, false, "/clickhouse", "http://localhost:8123/clickhouse"},
+                {"example.com", 8443, true, "/api", "https://example.com:8443/api"},
+                {"example.com", 443, true, "/sales/db", "https://example.com:443/sales/db"},
+                {"localhost", 80, false, "path", "http://localhost:80/path"},
+        };
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_NullPath() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, null);
-        
-        Assert.assertEquals(endpoint.getPath(), "/");
-        Assert.assertTrue(endpoint.getBaseURL().contains("http://localhost:8123"));
+    @Test(dataProvider = "basicEndpointConfigs")
+    public void testBasicEndpointCreation(String host, int port, boolean secure, String basePath,
+                                          String expectedHost, int expectedPort, boolean expectedSecure, String expectedPath) {
+        HttpEndpoint endpoint = new HttpEndpoint(host, port, secure, basePath);
+
+        Assert.assertEquals(endpoint.getHost(), expectedHost, "Host mismatch");
+        Assert.assertEquals(endpoint.getPort(), expectedPort, "Port mismatch");
+        Assert.assertEquals(endpoint.isSecure(), expectedSecure, "Secure flag mismatch");
+        Assert.assertEquals(endpoint.getPath(), expectedPath, "Path mismatch");
+        Assert.assertNotNull(endpoint.getURI(), "URI should not be null");
+        Assert.assertNotNull(endpoint.toString(), "toString should not be null");
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_EmptyPath() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "");
-        
-        Assert.assertEquals(endpoint.getPath(), "/");
-        Assert.assertTrue(endpoint.getBaseURL().contains("http://localhost:8123"));
+    @Test(dataProvider = "pathsWithSpaces")
+    public void testPathsWithSpaces(String host, int port, boolean secure, String basePath,
+                                    String expectedPath, boolean shouldContainEncodedSpaces) {
+        HttpEndpoint endpoint = new HttpEndpoint(host, port, secure, basePath);
+
+        Assert.assertEquals(endpoint.getPath(), expectedPath, "Path mismatch");
+
+        // The URI/URL should properly encode spaces
+        String uriString = endpoint.getURI().toString();
+        if (shouldContainEncodedSpaces) {
+            Assert.assertTrue(uriString.contains("%20"), "URI should contain encoded spaces: " + uriString);
+        }
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_PathWithoutLeadingSlash() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "clickhouse");
-        
-        Assert.assertEquals(endpoint.getPath(), "/clickhouse");
-        Assert.assertTrue(endpoint.getBaseURL().contains("/clickhouse"));
+    @Test(dataProvider = "ipv6Addresses")
+    public void testIpv6Addresses(String host, int port, boolean secure, String basePath,
+                                  String expectedHost, int expectedPort, boolean expectedSecure, String expectedPath) {
+        HttpEndpoint endpoint = new HttpEndpoint(host, port, secure, basePath);
+
+        Assert.assertEquals(endpoint.getHost(), expectedHost, "Host mismatch");
+        Assert.assertEquals(endpoint.getPort(), expectedPort, "Port mismatch");
+        Assert.assertEquals(endpoint.isSecure(), expectedSecure, "Secure flag mismatch");
+        Assert.assertEquals(endpoint.getPath(), expectedPath, "Path mismatch");
+        Assert.assertNotNull(endpoint.getURI(), "URI should not be null");
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_PathWithLeadingSlash() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/clickhouse");
-        
-        Assert.assertEquals(endpoint.getPath(), "/clickhouse");
-        Assert.assertTrue(endpoint.getBaseURL().contains("/clickhouse"));
+    @Test(dataProvider = "baseUrlConfigs")
+    public void testBaseUrl(String host, int port, boolean secure, String basePath, String expectedBaseUrl) {
+        HttpEndpoint endpoint = new HttpEndpoint(host, port, secure, basePath);
+
+        Assert.assertEquals(endpoint.toString(), expectedBaseUrl, "toString should match baseURL");
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_ComplexPath() {
-        HttpEndpoint endpoint = new HttpEndpoint("example.com", 8443, true, "/sales/db");
-        
-        Assert.assertEquals(endpoint.getPath(), "/sales/db");
-        Assert.assertTrue(endpoint.getBaseURL().contains("/sales/db"));
+    @Test
+    public void testSecureVsInsecureScheme() {
+        HttpEndpoint insecureEndpoint = new HttpEndpoint("localhost", 8123, false, null);
+        HttpEndpoint secureEndpoint = new HttpEndpoint("localhost", 8443, true, null);
+
+        Assert.assertEquals(insecureEndpoint.getURI().getScheme(), "http", "Insecure endpoint should use http://");
+        Assert.assertFalse(insecureEndpoint.isSecure(), "Insecure endpoint should return false for isSecure()");
+
+        Assert.assertEquals(secureEndpoint.getURI().getScheme(), "https", "Insecure endpoint should not use https://");
+        Assert.assertTrue(secureEndpoint.isSecure(), "Secure endpoint should return true for isSecure()");
     }
 
-    @Test(groups = {"unit"})
-    public void testGetURL() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/clickhouse");
-        
-        URL url = endpoint.getURL();
-        Assert.assertNotNull(url);
-        Assert.assertEquals(url.getHost(), "localhost");
-        Assert.assertEquals(url.getPort(), 8123);
-        Assert.assertTrue(url.getPath().contains("clickhouse"));
+    @Test
+    public void testSpecialCharactersInPath() {
+        // Test various special characters that need encoding
+        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/path/with/special?chars#and&more");
+
+        Assert.assertNotNull(endpoint.getURI(), "URI should be created despite special characters");
+
+        // The path should be stored as provided (normalized with leading slash)
+        Assert.assertEquals(endpoint.getPath(), "/path/with/special?chars#and&more");
     }
 
-    @Test(groups = {"unit"})
-    public void testGetURI() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/clickhouse");
-        
-        URI uri = endpoint.getURI();
-        Assert.assertNotNull(uri);
-        Assert.assertEquals(uri.getHost(), "localhost");
-        Assert.assertEquals(uri.getPort(), 8123);
-        Assert.assertTrue(uri.getPath().contains("clickhouse"));
+    @Test
+    public void testEmptyAndNullBasePath() {
+        HttpEndpoint nullPath = new HttpEndpoint("localhost", 8123, false, null);
+        HttpEndpoint emptyPath = new HttpEndpoint("localhost", 8123, false, "");
+
+        Assert.assertEquals(nullPath.getPath(), "/", "Null basePath should result in /");
+        Assert.assertEquals(emptyPath.getPath(), "/", "Empty basePath should result in /");
+
+        Assert.assertEquals(nullPath.getURI().toString(), "http://localhost:8123/");
+        Assert.assertEquals(emptyPath.getURI().toString(), "http://localhost:8123/");
     }
 
-    @Test(groups = {"unit"})
-    public void testToString() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/clickhouse");
-        
-        String str = endpoint.toString();
-        Assert.assertNotNull(str);
-        Assert.assertTrue(str.contains("localhost"));
-        Assert.assertTrue(str.contains("8123"));
-        Assert.assertTrue(str.contains("clickhouse"));
+    @Test
+    public void testPathNormalization() {
+        // Path without leading slash should get one added
+        HttpEndpoint withoutSlash = new HttpEndpoint("localhost", 8123, false, "api/v1");
+        HttpEndpoint withSlash = new HttpEndpoint("localhost", 8123, false, "/api/v1");
+
+        Assert.assertEquals(withoutSlash.getPath(), "/api/v1", "Path should be normalized with leading slash");
+        Assert.assertEquals(withSlash.getPath(), "/api/v1", "Path with slash should remain unchanged");
     }
 
-    @Test(groups = {"unit"})
-    public void testImplementsEndpoint() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, null);
-        
-        Assert.assertTrue(endpoint instanceof Endpoint);
-        Endpoint endpointInterface = endpoint;
-        Assert.assertEquals(endpointInterface.getHost(), "localhost");
-        Assert.assertEquals(endpointInterface.getPort(), 8123);
-        Assert.assertTrue(endpointInterface.getBaseURL().contains("localhost"));
-        Assert.assertTrue(endpointInterface.getBaseURL().contains("8123"));
+    @Test
+    public void testMultiplePathSegments() {
+        HttpEndpoint endpoint = new HttpEndpoint("example.com", 8443, true, "/api/v1/resources/items");
+
+        Assert.assertEquals(endpoint.getPath(), "/api/v1/resources/items");
+        Assert.assertEquals(endpoint.getURI().toString(), "https://example.com:8443/api/v1/resources/items");
     }
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_PathWithSpaces() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/my path with spaces");
-        
-        Assert.assertEquals(endpoint.getHost(), "localhost");
-        Assert.assertEquals(endpoint.getPort(), 8123);
-        Assert.assertFalse(endpoint.isSecure());
-        // Path should be stored as-is (decoded)
-        Assert.assertEquals(endpoint.getPath(), "/my path with spaces");
-        // baseURL should have encoded spaces (%20)
-        Assert.assertTrue(endpoint.getBaseURL().contains("%20"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("my"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("path"));
-    }
+    @Test
+    public void testUtf8CharactersInPath() {
 
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_PathWithSpacesWithoutLeadingSlash() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "my path with spaces");
-        
-        Assert.assertEquals(endpoint.getHost(), "localhost");
-        Assert.assertEquals(endpoint.getPort(), 8123);
-        // Path should have leading slash added
-        Assert.assertEquals(endpoint.getPath(), "/my path with spaces");
-        // baseURL should have encoded spaces
-        Assert.assertTrue(endpoint.getBaseURL().contains("%20"));
-    }
-
-    @Test(groups = {"unit"})
-    public void testConstructorWithHostPortSecurePath_PathWithMultipleSpaces() {
-        HttpEndpoint endpoint = new HttpEndpoint("example.com", 8443, true, "/api/v1/my resource name");
-        
-        Assert.assertEquals(endpoint.getHost(), "example.com");
-        Assert.assertEquals(endpoint.getPort(), 8443);
-        Assert.assertTrue(endpoint.isSecure());
-        // Path should be stored as-is (decoded)
-        Assert.assertEquals(endpoint.getPath(), "/api/v1/my resource name");
-        // baseURL should have encoded spaces
-        Assert.assertTrue(endpoint.getBaseURL().contains("%20"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("api"));
-        Assert.assertTrue(endpoint.getBaseURL().contains("v1"));
-    }
-
-    @Test(groups = {"unit"})
-    public void testGetURI_PathWithSpaces() {
-        HttpEndpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/my path");
-        
-        URI uri = endpoint.getURI();
-        Assert.assertNotNull(uri);
-        // URI.getPath() decodes spaces
-        Assert.assertTrue(uri.getPath().contains("my"));
-        Assert.assertTrue(uri.getPath().contains("path"));
-        Assert.assertEquals(endpoint.getPath(), "/my path");
-    }
-
-    @Test(groups = {"unit"})
-    public void testIPv6Address() {
-        HttpEndpoint endpoint = new HttpEndpoint("[::1]", 8123, false, null);
-        
-        Assert.assertEquals(endpoint.getHost(), "[::1]");
-        Assert.assertEquals(endpoint.getPort(), 8123);
-        Assert.assertEquals(endpoint.getPath(), "/");
-    }
-
-    @Test(groups = {"unit"})
-    public void testIPv6AddressWithPath() {
-        HttpEndpoint endpoint = new HttpEndpoint("[2001:db8::1]", 8443, true, "/clickhouse");
-        
-        Assert.assertEquals(endpoint.getHost(), "[2001:db8::1]");
-        Assert.assertEquals(endpoint.getPort(), 8443);
-        Assert.assertTrue(endpoint.isSecure());
-        Assert.assertEquals(endpoint.getPath(), "/clickhouse");
+        String cyrillicPath = "/база/данных";
+        HttpEndpoint cyrillicEndpoint = new HttpEndpoint("localhost", 8123, false, cyrillicPath);
+        Assert.assertEquals(cyrillicEndpoint.getPath(), cyrillicPath, "Cyrillic path should be preserved");
+        Assert.assertTrue(cyrillicEndpoint.getURI().toASCIIString().contains("%"),
+                "Cyrillic path should be percent-encoded in ASCII representation");
     }
 }

@@ -422,7 +422,7 @@ public class HttpAPIClientHelper {
         }
         URI uri;
         try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
+            URIBuilder uriBuilder = new URIBuilder(server.getURI());
             addQueryParams(uriBuilder, requestConfig);
             uri = uriBuilder.normalizeSyntax().build();
         } catch (URISyntaxException e) {
@@ -473,15 +473,15 @@ public class HttpAPIClientHelper {
 
         } catch (UnknownHostException e) {
             closeQuietly(httpResponse);
-            LOG.warn("Host '{}' unknown", server.getBaseURL());
+            LOG.warn("Host '{}' unknown", server);
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
             closeQuietly(httpResponse);
-            LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
+            LOG.warn("Failed to connect to '{}': {}", server, e.getMessage());
             throw e;
         } catch (Exception e) {
             closeQuietly(httpResponse);
-            LOG.debug("Failed to execute request to '{}': {}", server.getBaseURL(), e.getMessage(), e);
+            LOG.debug("Failed to execute request to '{}': {}", server, e.getMessage(), e);
             throw e;
         }
     }

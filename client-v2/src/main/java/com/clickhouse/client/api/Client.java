@@ -2064,7 +2064,7 @@ public class Client implements AutoCloseable {
      */
     @Deprecated
     public Set<String> getEndpoints() {
-        return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
+        return endpoints.stream().map(endpoint -> endpoint.getURI().toString()).collect(Collectors.toSet());
     }
 
     public String getUser() {

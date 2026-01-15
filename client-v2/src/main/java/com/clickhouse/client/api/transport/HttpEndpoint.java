@@ -7,11 +7,7 @@ import java.net.URL;
 
 public class HttpEndpoint implements Endpoint {
 
-    private final URI uri; // contains complete connection URL + parameters
-
-    private final URL url; // only communication part
-
-    private final String baseURL;
+    private final URI uri; // only communication part
 
     private final String info;
 
@@ -23,31 +19,30 @@ public class HttpEndpoint implements Endpoint {
 
     private final String path;
 
-    public HttpEndpoint(String host, int port, boolean secure, String basePath){
+    public HttpEndpoint(String host, int port, boolean secure, String path){
         this.host = host;
         this.port = port;
         this.secure = secure;
-        if (basePath != null && !basePath.isEmpty()) {
+        if (path != null && !path.isEmpty()) {
             // Ensure basePath starts with /
-            this.path = basePath.startsWith("/") ? basePath : "/" + basePath;
+            this.path = path.startsWith("/") ? path : "/" + path;
         } else {
             this.path = "/";
         }
         
         // Use URI constructor to properly handle encoding of path segments
+        // Encode path segments separately to preserve slashes
         try {
-            this.uri = new URI(secure ? "https" : "http", null, host, port, path, null, null);
-            this.url = this.uri.toURL();
+            this.uri = new URI(secure ? "https" : "http", null, host, port, this.path, null, null);
         } catch (Exception e) {
             throw new ClientMisconfigurationException("Failed to create endpoint URL", e);
         }
-        this.baseURL = uri.toString();
-        this.info = baseURL;
+        this.info = uri.toString();
     }
 
     @Override
-    public String getBaseURL() {
-        return baseURL;
+    public URI getURI() {
+        return uri;
     }
 
     @Override
@@ -62,14 +57,6 @@ public class HttpEndpoint implements Endpoint {
 
     public String getPath() {
         return path;
-    }
-
-    public URL getURL() {
-        return url;
-    }
-
-    public URI getURI() {
-        return uri;
     }
 
     public boolean isSecure() {
