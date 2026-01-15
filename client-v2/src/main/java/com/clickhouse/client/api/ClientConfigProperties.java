@@ -345,6 +345,9 @@ public enum ClientConfigProperties {
 
         final String customSettingsPrefix = configMap.getOrDefault(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(),
                 CUSTOM_SETTINGS_PREFIX.getDefaultValue());
+        if (customSettingsPrefix == null || customSettingsPrefix.isEmpty()) {
+            throw new ClientException(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey() + " must be not-blank");
+        }
         for (String key : new HashSet<>(tmpMap.keySet())) {
             if (key.startsWith(HTTP_HEADER_PREFIX) || key.startsWith(SERVER_SETTING_PREFIX)) {
                 parsedConfig.put(key, tmpMap.remove(key));

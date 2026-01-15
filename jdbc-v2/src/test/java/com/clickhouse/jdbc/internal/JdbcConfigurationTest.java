@@ -109,7 +109,6 @@ public class JdbcConfigurationTest {
                     Map.of(
                         "database", "default",
                         "http_header_roles", "\"role 1,3,4\",'val2',val3"
-                            // ssl should not be passed to client
                     ))
     };
 

@@ -471,6 +471,16 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testInvalidConfig() {
+        try {
+            newClient().setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), "").build();
+            Assert.fail("exception expected");
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getMessage().contains(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey()));
+        }
+    }
+
     public boolean isVersionMatch(String versionExpression, Client client) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
