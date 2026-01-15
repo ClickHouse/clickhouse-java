@@ -188,17 +188,39 @@ public class JdbcConfiguration {
         if (uri.getAuthority().contains(",")) {
             throw new SQLException("Multiple endpoints not supported");
         }
-        properties.put(PARSE_URL_CONN_URL_PROP, uri.getScheme() + "://"
-            + uri.getRawAuthority()); // will be parsed again later
 
-        if (uri.getPath() != null
-            && !uri.getPath().trim().isEmpty()
-            && !"/".equals(uri.getPath()))
-        {
-            properties.put(
-                ClientConfigProperties.DATABASE.getKey(),
-                uri.getPath().substring(1));
+
+        String rawPath = uri.getRawPath();
+        String httpPath = "";
+        String database = null;
+
+        if (rawPath != null && !rawPath.trim().isEmpty() && !"/".equals(rawPath)) {
+            // Remove leading slash for processing
+            String pathWithoutLeadingSlash = rawPath.startsWith("/") ? rawPath.substring(1) : rawPath;
+            int lastSlashIndex = pathWithoutLeadingSlash.lastIndexOf('/');
+
+            if (lastSlashIndex > 0) {
+                httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
+                database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
+            } else {
+                // No slash found (lastSlashIndex == -1), so it's a single segment representing the database name.
+                // Example: "mydb" -> httpPath="", database="mydb"
+                database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8);
+            }
         }
+
+        // Build connection URL with HTTP path preserved
+        StringBuilder connectionUrl = new StringBuilder();
+        connectionUrl.append(uri.getScheme()).append("://").append(uri.getRawAuthority());
+        if (!httpPath.isEmpty()) {
+            connectionUrl.append(httpPath);
+        }
+        properties.put(PARSE_URL_CONN_URL_PROP, connectionUrl.toString());
+
+        if (database != null && !database.trim().isEmpty()) {
+            properties.put(ClientConfigProperties.DATABASE.getKey(), database);
+        }
+
         if (uri.getQuery() != null && !uri.getQuery().trim().isEmpty()) {
             for (String pair : uri.getRawQuery().split("&")) {
                 try {

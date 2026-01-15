@@ -40,6 +40,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -142,12 +143,12 @@ public class Client implements AutoCloseable {
     private int retries;
     private LZ4Factory lz4Factory = null;
 
-    private Client(Set<String> endpoints, Map<String,String> configuration,
+    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
     }
 
-    private Client(Set<String> endpoints, Map<String,String> configuration,
+    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         // Simple initialization
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
@@ -171,16 +172,16 @@ public class Client implements AutoCloseable {
         // Transport
         ImmutableList.Builder<Endpoint> tmpEndpoints = ImmutableList.builder();
         boolean initSslContext = false;
-        for (String ep : endpoints) {
-            try {
-                HttpEndpoint endpoint = new HttpEndpoint(ep);
-                if (endpoint.isSecure()) {
+        for (Endpoint ep : endpoints) {
+            if (ep instanceof HttpEndpoint) {
+                HttpEndpoint httpEndpoint = (HttpEndpoint) ep;
+                if (httpEndpoint.isSecure()) {
                     initSslContext = true;
                 }
-                LOG.debug("Adding endpoint: {}", endpoint);
-                tmpEndpoints.add(endpoint);
-            } catch (Exception e) {
-                throw new ClientException("Failed to add endpoint " + ep, e);
+                LOG.debug("Adding endpoint: {}", httpEndpoint);
+                tmpEndpoints.add(httpEndpoint);
+            } else {
+                throw new ClientException("Unsupported endpoint type: " + ep.getClass().getName());
             }
         }
 
@@ -259,7 +260,7 @@ public class Client implements AutoCloseable {
 
 
     public static class Builder {
-        private Set<String> endpoints;
+        private Set<Endpoint> endpoints;
 
         // Read-only configuration
         private Map<String, String> configuration;
@@ -288,25 +289,41 @@ public class Client implements AutoCloseable {
          * <ul>
          *     <li>{@code http://localhost:8123}</li>
          *     <li>{@code https://localhost:8443}</li>
+         *     <li>{@code http://localhost:8123/clickhouse} (with path for reverse proxy scenarios)</li>
          * </ul>
          *
-         * @param endpoint - URL formatted string with protocol, host and port.
+         * @param endpoint - URL formatted string with protocol, host, port, and optional path.
          */
         public Builder addEndpoint(String endpoint) {
             try {
                 URL endpointURL = new URL(endpoint);
 
-                if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
-                } else if (endpointURL.getProtocol().equalsIgnoreCase("http")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), false);
-                } else {
+                String protocolStr = endpointURL.getProtocol();
+                if (!protocolStr.equalsIgnoreCase("https") &&
+                    !protocolStr.equalsIgnoreCase("http")) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
+
+                boolean secure = protocolStr.equalsIgnoreCase("https");
+                String host = endpointURL.getHost();
+                if (host == null || host.isEmpty()) {
+                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
+                }
+
+                int port = endpointURL.getPort();
+                if (port <= 0) {
+                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
+                }
+
+                String path = endpointURL.getPath();
+                if (path == null || path.isEmpty()) {
+                    path = "/";
+                }
+
+                return addEndpoint(Protocol.HTTP, host, port, secure, path);
             } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
-            return this;
         }
 
         /**
@@ -318,15 +335,23 @@ public class Client implements AutoCloseable {
          * @param port - Endpoint port
          */
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure) {
+            return addEndpoint(protocol, host, port, secure, "/");
+        }
+
+        public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
-            if (secure) {
-                // TODO: if secure init SSL context
+            ValidationUtils.checkNotNull(basePath, "basePath");
+
+            if (protocol == Protocol.HTTP) {
+                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
+                this.endpoints.add(httpEndpoint);
+            } else {
+                throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-            String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
-            this.endpoints.add(endpoint);
             return this;
+
         }
 
 
@@ -2040,7 +2065,7 @@ public class Client implements AutoCloseable {
      */
     @Deprecated
     public Set<String> getEndpoints() {
-        return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
+        return endpoints.stream().map(endpoint -> endpoint.getURI().toString()).collect(Collectors.toSet());
     }
 
     public String getUser() {

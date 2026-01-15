@@ -1120,6 +1120,71 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testEndpointUrlPathIsPreserved() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort)
+                .notifier(new Slf4jNotifier(true)));
+        mockServer.start();
+
+        try {
+            // Setup stubs for two virtual ClickHouse instances behind a reverse proxy
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/sales/db"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"100\", \"read_rows\": \"10\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/billing/db"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"200\", \"read_rows\": \"20\"}")).build());
+
+            // Test sales virtual instance
+            try (Client salesClient = new Client.Builder()
+                    .addEndpoint("http://localhost:" + serverPort + "/sales/db")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try (QueryResponse response = salesClient.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 100);
+                }
+            }
+
+            // Test billing virtual instance - also verify query parameters in URL are ignored
+            try (Client billingClient = new Client.Builder()
+                    .addEndpoint("http://localhost:" + serverPort + "/billing/db?ignored_param=value")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try (QueryResponse response = billingClient.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 200);
+                }
+
+                // Verify that ignored_param is not in the request URL
+                mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/billing/db"))
+                        .withoutQueryParam("ignored_param"));
+            }
+
+            // Verify requests were made to the correct paths
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/sales/db")));
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/billing/db")));
+
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
