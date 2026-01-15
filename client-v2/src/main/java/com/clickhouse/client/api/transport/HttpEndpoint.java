@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.transport;
 
-import java.net.MalformedURLException;
+import com.clickhouse.client.api.ClientMisconfigurationException;
+
 import java.net.URI;
 import java.net.URL;
 
@@ -22,18 +23,7 @@ public class HttpEndpoint implements Endpoint {
 
     private final String path;
 
-    public HttpEndpoint(String uri) throws MalformedURLException {
-        this.uri = URI.create(uri);
-        this.url = this.uri.toURL();
-        this.baseURL = url.toString();
-        this.info = baseURL;
-        this.secure = this.uri.getScheme().equalsIgnoreCase("https");
-        this.host = this.url.getHost();
-        this.port = this.url.getPort() != -1 ? this.url.getPort() : (this.secure ? 443 : 80);
-        this.path = this.uri.getPath() != null && !this.uri.getPath().isEmpty() ? this.uri.getPath() : "/";
-    }
-
-    public HttpEndpoint(String host, int port, boolean secure, String basePath) throws MalformedURLException {
+    public HttpEndpoint(String host, int port, boolean secure, String basePath){
         this.host = host;
         this.port = port;
         this.secure = secure;
@@ -44,18 +34,14 @@ public class HttpEndpoint implements Endpoint {
             this.path = "/";
         }
         
-        StringBuilder uriBuilder = new StringBuilder();
-        uriBuilder.append(secure ? "https" : "http");
-        uriBuilder.append("://");
-        uriBuilder.append(host);
-        uriBuilder.append(":");
-        uriBuilder.append(port);
-        uriBuilder.append(this.path);
-        
-        String uriString = uriBuilder.toString();
-        this.uri = URI.create(uriString);
-        this.url = this.uri.toURL();
-        this.baseURL = url.toString();
+        // Use URI constructor to properly handle encoding of path segments
+        try {
+            this.uri = new URI(secure ? "https" : "http", null, host, port, path, null, null);
+            this.url = this.uri.toURL();
+        } catch (Exception e) {
+            throw new ClientMisconfigurationException("Failed to create endpoint URL", e);
+        }
+        this.baseURL = uri.toString();
         this.info = baseURL;
     }
 

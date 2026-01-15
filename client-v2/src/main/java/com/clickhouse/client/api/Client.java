@@ -344,12 +344,8 @@ public class Client implements AutoCloseable {
             ValidationUtils.checkNotNull(basePath, "basePath");
 
             if (protocol == Protocol.HTTP) {
-                try {
-                    HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
-                    this.endpoints.add(httpEndpoint);
-                } catch (MalformedURLException e) {
-                    throw new IllegalArgumentException("Failed to create HttpEndpoint", e);
-                }
+                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
+                this.endpoints.add(httpEndpoint);
             } else {
                 throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
