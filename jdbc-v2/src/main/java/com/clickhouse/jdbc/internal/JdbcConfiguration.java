@@ -189,11 +189,7 @@ public class JdbcConfiguration {
             throw new SQLException("Multiple endpoints not supported");
         }
 
-        // Parse path: last segment is database name, everything before is HTTP path
-        // Example: /proxy/path/mydb -> httpPath=/proxy/path, database=mydb
-        // Example: /mydb -> httpPath=empty, database=mydb
-        // Example: /sales/db -> httpPath=/sales, database=db
-        // Use raw path for splitting to avoid issues with URL-encoded slashes (e.g., %2F)
+
         String rawPath = uri.getRawPath();
         String httpPath = "";
         String database = null;
@@ -204,10 +200,6 @@ public class JdbcConfiguration {
             int lastSlashIndex = pathWithoutLeadingSlash.lastIndexOf('/');
 
             if (lastSlashIndex > 0) {
-                // Path contains a slash (not at position 0), so it has at least two segments.
-                // Everything before the last slash becomes HTTP path, the last segment is the database.
-                // Example: "sales/db" -> httpPath="/sales", database="db"
-                // Example: "api/v1/clickhouse/mydb" -> httpPath="/api/v1/clickhouse", database="mydb"
                 httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
                 database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
             } else {

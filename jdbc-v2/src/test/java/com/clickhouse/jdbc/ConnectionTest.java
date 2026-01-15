@@ -777,6 +777,45 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testConnectionWithSingleSegmentUrl() throws Exception {
+        if (isCloud()) {
+            return; // no need to test in cloud
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        
+        // Create database db1
+        Connection connCreate = this.getJdbcConnection();
+        connCreate.createStatement().executeUpdate("CREATE DATABASE `db1`");
+        
+        try {
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.USER.getKey(), "default");
+            properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
+
+            // Test URL with single segment "/db1" - should be parsed as database name
+            String jdbcUrl = "jdbc:clickhouse://" + server.getHost() + ":" + server.getPort() + "/db1";
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT database()")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "db1");
+            }
+
+            // Verify that queries work correctly
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+        } finally {
+            // Clean up: drop database db1
+            connCreate.createStatement().executeUpdate("DROP DATABASE `db1`");
+            connCreate.close();
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testUnwrapping() throws Exception {
         Connection conn = getJdbcConnection();
         Assert.assertTrue(conn.isWrapperFor(Connection.class));
@@ -980,7 +1019,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
         try {
             // From wireshark dump as C Array - response for SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1
-            char selectServerInfo[] = {
+            char[] selectServerInfo = {
                     0x03, 0x04, 0x75, 0x73, 0x65, 0x72, 0x08, 0x74,
                     0x69, 0x6d, 0x65, 0x7a, 0x6f, 0x6e, 0x65, 0x07,
                     0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x06,
@@ -991,7 +1030,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                     0x0b, 0x32, 0x34, 0x2e, 0x33, 0x2e, 0x31, 0x2e,
                     0x32, 0x36, 0x37, 0x32};
 
-            char select1Res[] = {
+            char[] select1Res = {
                     0x01, 0x01, 0x31, 0x05, 0x55, 0x49, 0x6e, 0x74,
                     0x38, 0x01};
 

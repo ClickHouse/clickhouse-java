@@ -63,7 +63,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,12 +141,12 @@ public class Client implements AutoCloseable {
     private int retries;
     private LZ4Factory lz4Factory = null;
 
-    private Client(Set<String> endpoints, Map<String,String> configuration,
+    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
         this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
     }
 
-    private Client(Set<String> endpoints, Map<String,String> configuration,
+    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
         // Simple initialization
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
@@ -171,16 +170,16 @@ public class Client implements AutoCloseable {
         // Transport
         ImmutableList.Builder<Endpoint> tmpEndpoints = ImmutableList.builder();
         boolean initSslContext = false;
-        for (String ep : endpoints) {
-            try {
-                HttpEndpoint endpoint = new HttpEndpoint(ep);
-                if (endpoint.isSecure()) {
+        for (Endpoint ep : endpoints) {
+            if (ep instanceof HttpEndpoint) {
+                HttpEndpoint httpEndpoint = (HttpEndpoint) ep;
+                if (httpEndpoint.isSecure()) {
                     initSslContext = true;
                 }
-                LOG.debug("Adding endpoint: {}", endpoint);
-                tmpEndpoints.add(endpoint);
-            } catch (Exception e) {
-                throw new ClientException("Failed to add endpoint " + ep, e);
+                LOG.debug("Adding endpoint: {}", httpEndpoint);
+                tmpEndpoints.add(httpEndpoint);
+            } else {
+                throw new ClientException("Unsupported endpoint type: " + ep.getClass().getName());
             }
         }
 
@@ -259,7 +258,7 @@ public class Client implements AutoCloseable {
 
 
     public static class Builder {
-        private Set<String> endpoints;
+        private List<Endpoint> endpoints;
 
         // Read-only configuration
         private Map<String, String> configuration;
@@ -268,7 +267,7 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         public Builder() {
-            this.endpoints = new HashSet<>();
+            this.endpoints = new ArrayList<>();
             this.configuration = new HashMap<>();
 
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
@@ -297,28 +296,33 @@ public class Client implements AutoCloseable {
             try {
                 URL endpointURL = new URL(endpoint);
 
-                if (!endpointURL.getProtocol().equalsIgnoreCase("https") &&
-                    !endpointURL.getProtocol().equalsIgnoreCase("http")) {
+                String protocolStr = endpointURL.getProtocol();
+                if (!protocolStr.equalsIgnoreCase("https") &&
+                    !protocolStr.equalsIgnoreCase("http")) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
 
-                // Build endpoint URL preserving the path but ignoring query parameters
-                StringBuilder sb = new StringBuilder();
-                sb.append(endpointURL.getProtocol().toLowerCase());
-                sb.append("://");
-                sb.append(endpointURL.getHost());
-                if (endpointURL.getPort() > 0) {
-                    sb.append(":").append(endpointURL.getPort());
+                boolean secure = protocolStr.equalsIgnoreCase("https");
+                String host = endpointURL.getHost();
+                if (host == null || host.isEmpty()) {
+                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
                 }
+
+                int port = endpointURL.getPort();
+                if (port == -1) {
+                    // Default ports if not specified
+                    port = secure ? 443 : 80;
+                }
+
                 String path = endpointURL.getPath();
-                if (path != null && !path.isEmpty()) {
-                    sb.append(path);
+                if (path == null || path.isEmpty()) {
+                    path = "/";
                 }
-                this.endpoints.add(sb.toString());
+
+                return addEndpoint(Protocol.HTTP, host, port, secure, path);
             } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
-            return this;
         }
 
         /**
@@ -337,18 +341,18 @@ public class Client implements AutoCloseable {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
-            StringBuilder endpointBuilder = new StringBuilder();
-            endpointBuilder.append(protocol.toString().toLowerCase());
-            if (secure) {
-                endpointBuilder.append("s");
-            }
-            endpointBuilder.append("://");
-            endpointBuilder.append(host);
-            endpointBuilder.append(":");
-            endpointBuilder.append(port);
-            endpointBuilder.append(basePath);
+            ValidationUtils.checkNotNull(basePath, "basePath");
 
-            this.endpoints.add(endpointBuilder.toString());
+            if (protocol == Protocol.HTTP) {
+                try {
+                    HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
+                    this.endpoints.add(httpEndpoint);
+                } catch (MalformedURLException e) {
+                    throw new IllegalArgumentException("Failed to create HttpEndpoint", e);
+                }
+            } else {
+                throw new IllegalArgumentException("Unsupported protocol: " + protocol);
+            }
             return this;
 
         }

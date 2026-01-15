@@ -8,4 +8,8 @@ public interface Endpoint {
 
     String getBaseURL();
 
+    String getHost();
+
+    int getPort();
+
 }
