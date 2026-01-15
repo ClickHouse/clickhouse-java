@@ -40,6 +40,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -63,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -258,7 +260,7 @@ public class Client implements AutoCloseable {
 
 
     public static class Builder {
-        private List<Endpoint> endpoints;
+        private Set<Endpoint> endpoints;
 
         // Read-only configuration
         private Map<String, String> configuration;
@@ -267,7 +269,7 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         public Builder() {
-            this.endpoints = new ArrayList<>();
+            this.endpoints = new HashSet<>();
             this.configuration = new HashMap<>();
 
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
