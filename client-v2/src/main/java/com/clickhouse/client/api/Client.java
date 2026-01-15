@@ -311,9 +311,8 @@ public class Client implements AutoCloseable {
                 }
 
                 int port = endpointURL.getPort();
-                if (port == -1) {
-                    // Default ports if not specified
-                    port = secure ? 443 : 80;
+                if (port <= 0) {
+                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
                 }
 
                 String path = endpointURL.getPath();
