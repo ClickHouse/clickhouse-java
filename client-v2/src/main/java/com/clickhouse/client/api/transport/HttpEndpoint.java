@@ -67,4 +67,14 @@ public class HttpEndpoint implements Endpoint {
     public String toString() {
         return info;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof HttpEndpoint && uri.equals(((HttpEndpoint)obj).uri);
+    }
+
+    @Override
+    public int hashCode() {
+        return uri.hashCode();
+    }
 }
