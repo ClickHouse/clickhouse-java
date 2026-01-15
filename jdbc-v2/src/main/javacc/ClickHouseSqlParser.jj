@@ -903,17 +903,39 @@ void nestedIdentifier(): {} {
     (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
 }
 
-void tableIdentifier(boolean record): { Token t; } {
+void tableIdentifier(boolean record): { } {
     (
-        (LOOKAHEAD(2) databaseIdentifier(record) <DOT>)? t = anyIdentifier()
-        (LOOKAHEAD(2)
-            <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
-            anyExprList()
-            <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, token); }
-        )?
-    )
+        // Match all identifiers followed by DOT as database parts
+        LOOKAHEAD(anyIdentifier() <DOT>) databasePart(record) <DOT>
+    )*
+    // Last identifier is the table
+    tablePart(record)
+    // Optional column list
+    (LOOKAHEAD(2)
+        <LPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START, token); }
+        anyExprList()
+        <RPAREN> { token_source.addCustomKeywordPosition(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, token); }
+    )?
+}
+
+void databasePart(boolean record): { Token t; } {
+    t = anyIdentifier()
     {
-        if (record && t != null && token_source.table == null) {
+        if (record && token_source.table == null) {
+            String part = ClickHouseSqlUtils.unescape(t.image);
+            if (token_source.database == null) {
+                token_source.database = part;
+            } else {
+                token_source.database = token_source.database + "." + part;
+            }
+        }
+    }
+}
+
+void tablePart(boolean record): { Token t; } {
+    t = anyIdentifier()
+    {
+        if (record && token_source.table == null) {
             token_source.table = ClickHouseSqlUtils.unescape(t.image);
         }
     }

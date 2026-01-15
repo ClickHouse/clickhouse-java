@@ -160,6 +160,90 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertFalse(stmt.isHasErrors());
     }
 
+    @Test
+    public void testMultiDotNotation() {
+        // Test with three parts: a.b.c where a.b is database and c is table
+        String sql1 = "SELECT * FROM a.b.c WHERE id = ?";
+        ParsedPreparedStatement stmt1 = parser.parsePreparedStatement(sql1);
+        Assert.assertEquals(stmt1.getArgCount(), 1);
+        Assert.assertFalse(stmt1.isHasErrors());
+        Assert.assertEquals(stmt1.getTable(), "a.b.c");
+        
+        // Test with quoted identifiers
+        String sql2 = "SELECT * FROM `db.part1`.`table` WHERE id = ?";
+        ParsedPreparedStatement stmt2 = parser.parsePreparedStatement(sql2);
+        Assert.assertEquals(stmt2.getArgCount(), 1);
+        Assert.assertFalse(stmt2.isHasErrors());
+        Assert.assertEquals(stmt2.getTable(), "db.part1.table");
+        
+        // Test INSERT with multi-dot notation
+        String sql3 = "INSERT INTO a.b.c (col1, col2) VALUES (?, ?)";
+        ParsedPreparedStatement stmt3 = parser.parsePreparedStatement(sql3);
+        Assert.assertEquals(stmt3.getArgCount(), 2);
+        Assert.assertFalse(stmt3.isHasErrors());
+        Assert.assertTrue(stmt3.isInsert());
+        Assert.assertEquals(stmt3.getTable(), "a.b.c");
+    }
+
+    @Test
+    public void testQuotedIdentifiersWithDots() {
+        /*
+         * Comprehensive test for quoted identifiers containing dots.
+         * These cases are all valid in ClickHouse with MySQL-style backtick quoting.
+         */
+
+        // Case 1: Unquoted database + unquoted table
+        testCase("SELECT * FROM db.table WHERE id = ?", "db.table");
+
+        // Case 2: Quoted database + quoted table
+        testCase("SELECT * FROM `db`.`table` WHERE id = ?", "db.table");
+
+        // Case 3: Dots inside quoted table name
+        testCase("SELECT * FROM db.`table.name` WHERE id = ?", "db.table.name");
+
+        // Case 4: Dots inside quoted database name
+        testCase("SELECT * FROM `db.part1`.`table` WHERE id = ?", "db.part1.table");
+
+        // Case 5: Mixed quoted/unquoted identifiers
+        testCase("SELECT * FROM db.`table.name` WHERE id = ?", "db.table.name");
+
+        // Case 6: Mixed quoted/unquoted (reverse)
+        testCase("SELECT * FROM `db.part1`.table WHERE id = ?", "db.part1.table");
+
+        // Case 7: Escaped backticks inside quoted identifier
+        testCase("SELECT * FROM db.`tab``le` WHERE id = ?", "db.tab`le");
+
+        // Case 8: Weird characters inside quoted identifiers (spaces, symbols)
+        testCase("SELECT * FROM `my db`.`table name!@#` WHERE id = ?", "my db.table name!@#");
+
+        // Case 9: Alias on table identifier
+        testCase("SELECT * FROM `db.part1`.`table.name` AS t WHERE id = ?", "db.part1.table.name");
+
+        // Case 10: Quoted table name containing multiple dots
+        testCase("SELECT * FROM db.`a.b.c.d` WHERE id = ?", "db.a.b.c.d");
+
+        // Case 11: Quoted database name containing multiple dots
+        testCase("SELECT * FROM `db.part1.part2`.`table` WHERE id = ?", "db.part1.part2.table");
+
+        // Case 12: Multi-part unquoted chain (3-part identifier)
+        testCase("SELECT * FROM db.part1.table2 WHERE id = ?", "db.part1.table2");
+
+        // Case 13: Multi-part quoted chain
+        testCase("SELECT * FROM `db.part1`.`part2`.`table` WHERE id = ?", "db.part1.part2.table");
+
+        // Case 14: Mixed multi-part unquoted + quoted
+        testCase("SELECT * FROM db.part1.`table.name` WHERE id = ?", "db.part1.table.name");
+
+        // Case 15: Mixed multi-part quoted + unquoted
+        testCase("SELECT * FROM `db.part1`.part2.table3 WHERE id = ?", "db.part1.part2.table3");
+    }
+
+    private void testCase(String sql, String expectedTableName) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
+    }
+
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);

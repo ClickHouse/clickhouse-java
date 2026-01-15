@@ -2,9 +2,7 @@ package com.clickhouse.r2dbc.connection;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Assert;
-import org.junit.Test;
-
+import org.junit.jupiter.api.Assertions;
 import com.clickhouse.r2dbc.BaseR2dbcTest;
 
 import io.r2dbc.spi.ConnectionFactory;
@@ -24,8 +22,8 @@ public class ClickHouseConnectionTest extends BaseR2dbcTest {
                 .then()
                 .block();
 
-        Assert.assertNull("Should not run into error", error.get());
-        Assert.assertEquals(expectedStringResults, builder.toString());
+        Assertions.assertNull(error.get(), "Should not run into error");
+        Assertions.assertEquals(expectedStringResults, builder.toString());
     }
 
     // @Test

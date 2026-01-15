@@ -1,17 +1,14 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
-import com.clickhouse.data.format.BinaryStreamUtils;
-import com.clickhouse.jdbc.PreparedStatementImpl;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
 
-import java.awt.*;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -20,12 +17,14 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
-import java.sql.Types;
-import java.time.*;
-import java.time.chrono.ChronoZonedDateTime;
+import java.sql.Time;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -35,7 +34,6 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class JdbcUtils {
     //Define a map to store the mapping between ClickHouse data types and SQL data types
@@ -79,6 +77,8 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.DateTime, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime32, JDBCType.TIMESTAMP);
         map.put(ClickHouseDataType.DateTime64, JDBCType.TIMESTAMP);
+        map.put(ClickHouseDataType.Time, JDBCType.TIME);
+        map.put(ClickHouseDataType.Time64, JDBCType.TIME);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
@@ -108,7 +108,7 @@ public class JdbcUtils {
         map.put(JDBCType.INTEGER, Integer.class);
         map.put(JDBCType.BIGINT, Long.class);
         map.put(JDBCType.REAL, Float.class);
-        map.put(JDBCType.FLOAT, Double.class);
+        map.put(JDBCType.FLOAT, Float.class);
         map.put(JDBCType.DOUBLE, Double.class);
         map.put(JDBCType.BINARY, byte[].class);
         map.put(JDBCType.VARBINARY, byte[].class);
@@ -297,10 +297,10 @@ public class JdbcUtils {
             return new Array(column, arrayValue.getArrayOfObjects());
         }
 
-        return convertObject(value, type);
+        return convertObject(value, type, column);
     }
 
-    public static Object convertObject(Object value, Class<?> type) throws SQLException {
+    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -343,6 +343,11 @@ public class JdbcUtils {
                 } else if (type == java.sql.Time.class) {
                     return java.sql.Time.valueOf(LocalTime.from(temporalValue));
                 }
+            } else if (type == Time.class && value instanceof Integer) { // Time
+                return new Time((Integer) value * 1000L);
+            } else if (type == Time.class && value instanceof Long) { // Time64
+                Instant instant = DataTypeUtils.instantFromTime64Integer(column.getScale(), (Long) value);
+                return new Time(instant.getEpochSecond() * 1000L + instant.getNano() / 1_000_000);
             } else if (type == Inet4Address.class && value instanceof Inet6Address) {
                 // Convert Inet6Address to Inet4Address
                 return InetAddressConverter.convertToIpv4((InetAddress) value);
@@ -454,7 +459,7 @@ public class JdbcUtils {
         }
     }
 
-    private static Object[] arrayToObjectArray(Object array) {
+    public static Object[] arrayToObjectArray(Object array) {
         if (array == null) {
             return null;
         }
