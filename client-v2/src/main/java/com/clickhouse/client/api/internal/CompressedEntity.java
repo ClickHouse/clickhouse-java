@@ -51,8 +51,8 @@ public class CompressedEntity implements HttpEntity {
             throw new UnsupportedOperationException("Unsupported: writing compressed response to elsewhere");
         }
 
-        try {
-            httpEntity.writeTo(compressorStreamFactory.createCompressorOutputStream(compressionAlgo, outStream));
+        try (OutputStream compressingStream = compressorStreamFactory.createCompressorOutputStream(compressionAlgo, outStream)){
+            httpEntity.writeTo(compressingStream);
         } catch (CompressorException e) {
             throw new IOException("Failed to create compressing output stream", e);
         }
@@ -75,7 +75,8 @@ public class CompressedEntity implements HttpEntity {
 
     @Override
     public long getContentLength() {
-        return httpEntity.getContentLength();
+        // compressed request length is unknown event if it is a byte[]
+        return isResponse ? httpEntity.getContentLength() : -1;
     }
 
     @Override

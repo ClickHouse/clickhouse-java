@@ -186,7 +186,6 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -197,6 +196,7 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -1279,7 +1279,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1496,7 +1496,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1607,12 +1607,11 @@ public class Client implements AutoCloseable {
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
 
-        Supplier<QueryResponse> responseSupplier;
+        if (queryParams != null) {
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+        }
 
-            if (queryParams != null) {
-                requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
-            }
-            responseSupplier = () -> {
+        Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
                 Endpoint selectedEndpoint = getNextAliveNode();
@@ -1620,11 +1619,9 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        httpResponse =
-                                httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
-                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.close();
-                                });
+                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                                requestSettings.getAllSettings(),
+                                sqlQuery);
 
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
