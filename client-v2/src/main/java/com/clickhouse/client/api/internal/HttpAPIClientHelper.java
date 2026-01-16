@@ -465,9 +465,6 @@ public class HttpAPIClientHelper {
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
                                               String body) throws Exception {
 
-        if (requestConfig == null) {
-            requestConfig = Collections.emptyMap();
-        }
         final URI uri = createRequestURI(server, requestConfig, true);
         final HttpPost req = createPostRequest(uri, requestConfig);
         final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
@@ -480,9 +477,6 @@ public class HttpAPIClientHelper {
 
     public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
 
-        if (requestConfig == null) {
-            requestConfig = Collections.emptyMap();
-        }
         requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
 
         final URI uri = createRequestURI(server, requestConfig, false);
@@ -505,9 +499,6 @@ public class HttpAPIClientHelper {
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
                                               IOCallback<OutputStream> writeCallback) throws Exception {
 
-        if (requestConfig == null) {
-            requestConfig = Collections.emptyMap();
-        }
         final URI uri = createRequestURI(server, requestConfig, true);
         final HttpPost req = createPostRequest(uri, requestConfig);
         String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
