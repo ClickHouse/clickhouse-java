@@ -31,6 +31,8 @@ import org.testng.util.Strings;
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -119,27 +121,49 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testRawSettings() {
-        Client client = newClient()
+        try (Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
-                .build();
+                .build()) {
 
-        client.execute("SELECT 1");
+            client.execute("SELECT 1");
 
-        QuerySettings querySettings = new QuerySettings();
-        querySettings.serverSetting("session_timezone", "Europe/Zurich");
+            QuerySettings querySettings = new QuerySettings();
+            querySettings.serverSetting("session_timezone", "Europe/Zurich");
 
-        try (Records response =
-                     client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
+            try (Records response =
+                         client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
 
-            response.forEach(record -> {
-                System.out.println(record.getString(1) + " " + record.getString(2));
-                Assert.assertEquals("Europe/Zurich", record.getString(1));
-                Assert.assertEquals("UTC", record.getString(2));
-            });
-        } catch (Exception e) {
-            Assert.fail(e.getMessage());
-        } finally {
-            client.close();
+                response.forEach(record -> {
+                    System.out.println(record.getString(1) + " " + record.getString(2));
+                    Assert.assertEquals("Europe/Zurich", record.getString(1));
+                    Assert.assertEquals("UTC", record.getString(2));
+                });
+            } catch (Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void testCustomSettings() {
+        if (!isCloud()) {
+            return; // no custom parameters on cloud instance
+        }
+        final String CLIENT_OPTION = "custom_client_option"; // prefix should be known from server config
+        try (Client client = newClient().serverSetting(CLIENT_OPTION, "opt1").build()) {
+
+            final List<GenericRecord> clientOption = client.queryAll("SELECT getSetting({option_name:String})",
+                    Collections.singletonMap("option_name", CLIENT_OPTION));
+
+            Assert.assertEquals(clientOption.get(0).getString(1), "opt1");
+
+            QuerySettings querySettings = new QuerySettings();
+            querySettings.serverSetting(CLIENT_OPTION, "opt2");
+
+            final List<GenericRecord> requestOption = client.queryAll("SELECT getSetting({option_name:String})",
+                    Collections.singletonMap("option_name", CLIENT_OPTION), querySettings);
+
+            Assert.assertEquals(requestOption.get(0).getString(1), "opt2");
         }
     }
 

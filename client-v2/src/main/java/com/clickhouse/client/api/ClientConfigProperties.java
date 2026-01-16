@@ -187,7 +187,7 @@ public enum ClientConfigProperties {
      *  Prefix for custom settings. Should be aligned with server configuration.
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
-    CUSTOM_SETTINGS_PREFIX("clickhouse_setting_", String.class, "custom_"),
+    CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
