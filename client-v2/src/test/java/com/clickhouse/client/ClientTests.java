@@ -10,6 +10,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -45,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.SECONDS;
+import static org.testng.AssertJUnit.fail;
 
 public class ClientTests extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientTests.class);
@@ -440,6 +442,17 @@ public class ClientTests extends BaseIntegrationTest {
             String settings = record.getString(record.getSchema().nameToColumnIndex("Settings"));
             Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1"));
 //            Assert.assertTrue(settings.contains(ServerSettings.WAIT_ASYNC_INSERT + "=1")); // uncomment after server fix 
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testInvalidEndpoint() {
+
+        try {
+            new Client.Builder().addEndpoint("http://localhost/default");
+            fail("Exception expected");
+        } catch (ValidationUtils.SettingsValidationException e) {
+            Assert.assertTrue(e.getMessage().contains("port"));
         }
     }
 

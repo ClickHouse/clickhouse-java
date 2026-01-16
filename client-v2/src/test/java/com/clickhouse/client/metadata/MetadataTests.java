@@ -108,10 +108,10 @@ public class MetadataTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testCreateTableWithAllDataTypes() throws Exception {
         String tableName = "test_all_data_types";
-        
+
         // Query system.data_type_families to get all known types
         List<GenericRecord> dbTypes = client.queryAll("SELECT name, alias_to FROM system.data_type_families ORDER BY name");
-        
+
         // Types that cannot be used directly in CREATE TABLE columns
         Set<String> excludedTypes = new HashSet<>();
         excludedTypes.add("AggregateFunction");
@@ -124,43 +124,43 @@ public class MetadataTests extends BaseIntegrationTest {
         if (isCloud()) {
             excludedTypes.add("QBit"); // Due to env specific
         }
-        
+
         // Build column definitions
         StringBuilder createTableSql = new StringBuilder();
         createTableSql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
-        
+
         int columnIndex = 0;
         Set<String> addedTypes = new HashSet<>();
-        
+
         for (GenericRecord dbType : dbTypes) {
             String typeName = dbType.getString("name");
             String aliasTo = dbType.getString("alias_to");
-            
+
             // Use alias if available, otherwise use the name
             String actualType = StringUtils.isNotBlank(aliasTo) ? aliasTo : typeName;
-            
+
             // Skip excluded types and duplicates
             if (excludedTypes.contains(actualType) || addedTypes.contains(actualType)) {
                 continue;
             }
-            
+
             // Generate column name and type definition
             String columnName = "col_" + columnIndex++;
             String columnType = getColumnTypeDefinition(actualType);
-            
+
             if (columnType != null) {
                 createTableSql.append(columnName).append(" ").append(columnType).append(", ");
                 addedTypes.add(actualType);
             }
         }
-        
+
         // Remove trailing comma and space
         if (createTableSql.length() > 0 && createTableSql.charAt(createTableSql.length() - 2) == ',') {
             createTableSql.setLength(createTableSql.length() - 2);
         }
-        
+
         createTableSql.append(") ENGINE = Memory");
-        
+
         // Create table with appropriate settings for experimental types
         CommandSettings commandSettings = new CommandSettings();
         // Allow Geometry type which may have variant ambiguity
@@ -184,21 +184,21 @@ public class MetadataTests extends BaseIntegrationTest {
         } catch (Exception e) {
             // If version check fails, continue without experimental settings
         }
-        
+
         try {
             client.execute("DROP TABLE IF EXISTS " + tableName).get().close();
             System.out.println(createTableSql);
             client.execute(createTableSql.toString(), commandSettings).get().close();
-            
+
             // Verify the schema
             TableSchema schema = client.getTableSchema(tableName);
             Assert.assertNotNull(schema, "Schema should not be null");
             Assert.assertEquals(schema.getTableName(), tableName);
             Assert.assertTrue(schema.getColumns().size() > 0, "Table should have at least one column");
-            
+
             // Verify that we have columns for the types we added
             // Some types might fail to create, so we check for at least 80% success rate
-            Assert.assertTrue(schema.getColumns().size() >= addedTypes.size() * 0.8, 
+            Assert.assertTrue(schema.getColumns().size() >= addedTypes.size() * 0.8,
                     "Expected at least 80% of types to be successfully created. Created: " + schema.getColumns().size() + ", Attempted: " + addedTypes.size());
         } finally {
             try {
@@ -208,7 +208,7 @@ public class MetadataTests extends BaseIntegrationTest {
             }
         }
     }
-    
+
     /**
      * Returns the column type definition for a given ClickHouse type name.
      * Returns null if the type cannot be used in CREATE TABLE.
