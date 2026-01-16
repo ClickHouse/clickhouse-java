@@ -77,12 +77,17 @@ class LZ4Entity implements HttpEntity {
             throw new UnsupportedOperationException("Unsupported: writing compressed response to elsewhere");
         } else if (clientCompression) {
             // called by client to send data
+            OutputStream compressingStream;
             if (useHttpCompression) {
-                httpEntity.writeTo(new FramedLZ4CompressorOutputStream(outStream));
+                compressingStream = new FramedLZ4CompressorOutputStream(outStream);
             } else {
+                compressingStream = new ClickHouseLZ4OutputStream(outStream, lz4Factory.fastCompressor(), bufferSize);
+            }
 
-                httpEntity.writeTo(new ClickHouseLZ4OutputStream(outStream, lz4Factory.fastCompressor(),
-                        bufferSize));
+            try {
+                httpEntity.writeTo(compressingStream);
+            } finally {
+                compressingStream.close();
             }
         } else {
             httpEntity.writeTo(outStream);
@@ -106,7 +111,8 @@ class LZ4Entity implements HttpEntity {
 
     @Override
     public long getContentLength() {
-        return httpEntity.getContentLength();
+        // compressed request length is unknown event if it is a byte[]
+        return isResponse ? httpEntity.getContentLength() : -1;
     }
 
     @Override
