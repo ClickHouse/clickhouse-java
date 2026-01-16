@@ -100,7 +100,7 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
                 .map(Duration::toMillis).orElse(0L));
 
         ZoneId zoneId = ZoneId.systemDefault();
-        source.addDataSourceProperty("serverTimezone", TimeZone.getTimeZone(zoneId).getID());
+        source.addDataSourceProperty("server_time_zone", TimeZone.getTimeZone(zoneId).getID());
 
         return new JdbcTemplate(source);
     }

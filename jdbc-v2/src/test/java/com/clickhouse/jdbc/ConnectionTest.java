@@ -1092,4 +1092,21 @@ public class ConnectionTest extends JdbcIntegrationTest {
             mockServer.stop();
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testCustomParameters() throws Exception {
+        if (isCloud()) {
+            return; // no custom settings on cloud instance
+        }
+        Properties properties = new Properties();
+        properties.put(DriverProperties.serverSetting("custom_option"), "opt1");
+
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery("SELECT getSetting('custom_option')")){
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "opt1");
+            }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 
 import java.util.Arrays;
@@ -97,5 +98,14 @@ public enum DriverProperties {
 
     public List<String> getChoices() {
         return choices;
+    }
+
+
+    public static String serverSetting(String key) {
+        return ClientConfigProperties.serverSetting(key);
+    }
+
+    public static String httpHeader(String key) {
+        return ClientConfigProperties.httpHeader(key);
     }
 }
