@@ -10,15 +10,14 @@ public class ServerException extends ClickHouseException {
 
     private final int transportProtocolCode;
 
-    public ServerException(int code, String message) {
-        this(code, message, 500);
-    }
+    private final String queryId;
 
-    public ServerException(int code, String message, int transportProtocolCode) {
+    public ServerException(int code, String message, int transportProtocolCode, String queryId) {
         super(message);
         this.code = code;
         this.transportProtocolCode = transportProtocolCode;
         this.isRetryable = discoverIsRetryable(code, message, transportProtocolCode);
+        this.queryId = queryId;
     }
 
     /**
@@ -39,8 +38,12 @@ public class ServerException extends ClickHouseException {
         return transportProtocolCode;
     }
 
-    public boolean isRetryable() {
-        return isRetryable;
+    /**
+     * Returns query ID that is returned by server in {@link com.clickhouse.client.api.http.ClickHouseHttpProto#HEADER_QUERY_ID}
+     * @return query id non-null string
+     */
+    public String getQueryId() {
+        return queryId;
     }
 
     private boolean discoverIsRetryable(int code, String message, int transportProtocolCode) {
