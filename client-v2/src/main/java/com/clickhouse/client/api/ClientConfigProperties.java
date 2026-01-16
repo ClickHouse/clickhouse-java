@@ -185,9 +185,10 @@ public enum ClientConfigProperties {
 
     /**
      * If parameters should be sent in request body.
-     * Note: work only with HTTP Compression
+     * Note: work only with Server side compression. If compression is enabled on client level it will be disabled
+     * for query requests with parameters.
      */
-    USE_HTTP_FORM_REQUEST_FOR_QUERY("client.http.use_form_request_for_query", Boolean.class, "false"),
+    HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
 
     ;
 

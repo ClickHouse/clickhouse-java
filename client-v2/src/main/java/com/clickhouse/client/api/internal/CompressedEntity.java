@@ -75,7 +75,7 @@ public class CompressedEntity implements HttpEntity {
 
     @Override
     public long getContentLength() {
-        // compressed request length is unknown event if it is a byte[]
+        // compressed request length is unknown even if it is a byte[]
         return isResponse ? httpEntity.getContentLength() : -1;
     }
 

@@ -483,9 +483,7 @@ public class HttpAPIClientHelper {
         if (requestConfig == null) {
             requestConfig = Collections.emptyMap();
         }
-        if (ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig)) {
-            throw new ClientException("Compression of client request with statement parameters is not supported yet");
-        }
+        requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
 
         final URI uri = createRequestURI(server, requestConfig, false);
         final HttpPost req = createPostRequest(uri, requestConfig);

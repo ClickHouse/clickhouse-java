@@ -1196,7 +1196,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 DataTypeConverter.INSTANCE.arrayToString(Arrays.asList("COLLATIONS", "ENGINES"), "Array(String)"));
 
         // Use http compression
-        try (Client client = newClient().useHttpCompression(true).setOption(ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getKey(), "true").build()) {
+        try (Client client = newClient().useHttpCompression(true).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
             List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
                     params);
 
@@ -1205,7 +1205,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
 
         // Use http compression
-        try (Client client = newClient().useHttpCompression(false).setOption(ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getKey(), "true").build()) {
+        try (Client client = newClient().useHttpCompression(false).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
             List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
                     params);
 
@@ -1216,13 +1216,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
         // compress request
         try (Client client = newClient()
                 .compressClientRequest(true)
-                .setOption(ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getKey(), "true")
+                .setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true")
                 .useHttpCompression(true).build()) {
-            client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
                     params);
-            fail("exception expected");
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
         }
     }
 

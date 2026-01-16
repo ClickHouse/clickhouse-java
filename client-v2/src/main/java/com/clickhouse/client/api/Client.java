@@ -40,7 +40,6 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -56,7 +55,6 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -1075,13 +1073,15 @@ public class Client implements AutoCloseable {
 
         /**
          * Make sending statement parameters as HTTP Form data (in the body of a request).
-         * Works only for query methods and with disabled client request compression.
+         * Note: work only with Server side compression. If client compression is enabled it will be disabled
+         * for query requests with parameters. It is because each parameter is sent as part of multipart content
+         * what would require compressions of them separately.
          *
          * @param enable - if feature enabled
          * @return this builder instance
          */
         public Builder useHttpFormDataForQuery(boolean enable) {
-            this.configuration.put(ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getKey(), String.valueOf(enable));
+            this.configuration.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), String.valueOf(enable));
             return this;
         }
 
@@ -1631,7 +1631,7 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        boolean  useMultipart = ClientConfigProperties.USE_HTTP_FORM_REQUEST_FOR_QUERY.getOrDefault(requestSettings.getAllSettings());
+                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
                         if (queryParams != null && useMultipart) {
                             httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
                                     requestSettings.getAllSettings(), sqlQuery);
