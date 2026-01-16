@@ -139,18 +139,14 @@ public class Client implements AutoCloseable {
     // Server context
     private String dbUser;
     private String serverVersion;
-    private Object metricsRegistry;
+    private final Object metricsRegistry;
     private final int retries;
     private LZ4Factory lz4Factory = null;
     private final Supplier<String> queryIdGenerator;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricRegistry, Supplier<String> queryIdGenerator) {
-        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null, metricRegistry, queryIdGenerator);
-    }
-
-    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry, Object metricRegistry, Supplier<String> queryIdGenerator) {
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
+                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
@@ -187,7 +183,7 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, this.metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -1605,7 +1601,7 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru {@code settings} or in SQL query.</li>
+     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
      * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
      * </ul>
      *

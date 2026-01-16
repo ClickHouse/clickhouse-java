@@ -90,6 +90,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -333,6 +334,7 @@ public class HttpAPIClientHelper {
 //    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
+
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -340,6 +342,8 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
+        final Header qIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final String queryId = qIdHeader == null ? "" : qIdHeader.getValue();
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         InputStream body = null;
         try {
@@ -400,10 +404,11 @@ public class HttpAPIClientHelper {
             if (msg.trim().isEmpty()) {
                 msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             }
-            return new ServerException(serverCode, "Code: " + msg, httpResponse.getCode());
+            return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
+            String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
     }
 
