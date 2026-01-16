@@ -736,7 +736,7 @@ public class HttpAPIClientHelper {
 
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
-    public RuntimeException wrapException(String message, Exception cause) {
+    public RuntimeException wrapException(String message, Exception cause, String queryId) {
         if (cause instanceof ClientException || cause instanceof ServerException) {
             return (RuntimeException) cause;
         }
@@ -747,14 +747,18 @@ public class HttpAPIClientHelper {
                 cause instanceof ConnectException ||
                 cause instanceof UnknownHostException ||
                 cause instanceof NoRouteToHostException) {
-            return new ConnectionInitiationException(message, cause);
+            ConnectionInitiationException ex = new ConnectionInitiationException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
 
         if (cause instanceof SocketTimeoutException || cause instanceof IOException) {
-            return new DataTransferException(message, cause);
+            DataTransferException ex =  new DataTransferException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
         // if we can not identify the exception explicitly we catch as our base exception ClickHouseException
-        return new ClickHouseException(message, cause);
+        return new ClickHouseException(message, cause, queryId);
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {

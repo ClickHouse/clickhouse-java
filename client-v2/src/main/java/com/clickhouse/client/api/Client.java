@@ -1328,8 +1328,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (maxRetries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1338,8 +1338,10 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + durationSince(startTime), lastException);
-        };
+
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
 
@@ -1533,8 +1535,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (retries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1551,8 +1553,9 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            LOG.warn("Insert request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-            throw (lastException == null ? new ClientException("Failed to complete insert operation") : lastException);
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1670,8 +1673,8 @@ public class Client implements AutoCloseable {
 
                     } catch (Exception e) {
                         HttpAPIClientHelper.closeQuietly(httpResponse);
-                        lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                                (i + 1), (retries + 1), durationSince(startTime)), e);
+                        String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
@@ -1680,8 +1683,9 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-                LOG.warn("Query request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-                throw (lastException == null ? new ClientException("Failed to complete query") : lastException);
+                String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -2158,5 +2162,9 @@ public class Client implements AutoCloseable {
 
     private Duration durationSince(long sinceNanos) {
         return Duration.ofNanos(System.nanoTime() - sinceNanos);
+    }
+
+    private String requestExMsg(String operation, int attempt, long operationDuration, String queryId) {
+        return operation + " request failed (attempt: " + attempt +", duration: " + operationDuration + "ms, queryId: " + queryId + ")";
     }
 }
