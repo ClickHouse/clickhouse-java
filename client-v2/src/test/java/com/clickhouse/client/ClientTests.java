@@ -146,7 +146,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test
     public void testCustomSettings() {
-        if (!isCloud()) {
+        if (isCloud()) {
             return; // no custom parameters on cloud instance
         }
         final String CLIENT_OPTION = "custom_client_option"; // prefix should be known from server config
