@@ -64,7 +64,7 @@ public final class ExceptionUtils {
         } else if (cause instanceof ConnectionInitiationException) {
             return new SQLException(exceptionMessage, SQL_STATE_CONNECTION_EXCEPTION, cause);
         } else if (cause instanceof ServerException) {
-            return new SQLException(exceptionMessage, SQL_STATE_DATA_EXCEPTION, cause);
+            return new SQLException(exceptionMessage, SQL_STATE_DATA_EXCEPTION, ((ServerException) cause).getCode(), cause);
         } else if (cause instanceof ClientException) {
             return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);
         } else if (cause instanceof MalformedURLException) {
