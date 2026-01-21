@@ -5,6 +5,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -34,8 +35,11 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
@@ -1083,6 +1087,84 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void testDates() throws Exception {
+        LocalDate date = LocalDate.of(2024, 1, 15);
+
+        String sql = "SELECT toDate('" + date + "') AS d, toDate32('" + date + "') AS d32";
+        ZoneId laZone = ZoneId.of("America/Los_Angeles");
+        ZoneId tokyoZone = ZoneId.of("Asia/Tokyo");
+        ZoneId utcZone = ZoneId.of("UTC");
+
+        // Los Angeles
+        LocalDate laDate;
+        LocalDate laDate32;
+        QuerySettings laSettings = new QuerySettings()
+                .setUseServerTimeZone(true)
+                .serverSetting("session_timezone", laZone.getId());
+        try (QueryResponse response = client.query(sql, laSettings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+
+            laDate = reader.getLocalDate("d");
+            laDate32 = reader.getLocalDate("d32");
+
+            Assert.assertThrows(ClientException.class, () -> reader.getZonedDateTime("d"));
+            Assert.assertThrows(ClientException.class, () -> reader.getZonedDateTime("d32"));
+
+        }
+
+        // Tokyo
+        LocalDate tokyoDate;
+        LocalDate tokyoDate32;
+        QuerySettings tokyoSettings = new QuerySettings()
+                .setUseServerTimeZone(true)
+                .serverSetting("session_timezone", tokyoZone.getId());
+        try (QueryResponse response = client.query(sql, tokyoSettings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            reader.next();
+            tokyoDate = reader.getLocalDate("d");
+            tokyoDate32 = reader.getLocalDate("d32");
+        }
+
+
+        // Check dates - should be equal
+        Assert.assertEquals(laDate, date);
+        Assert.assertEquals(laDate32, date);
+        Assert.assertEquals(tokyoDate, date);
+        Assert.assertEquals(tokyoDate32, date);
+
+
+        // Verify with session time differ from use timezone - no effect on date
+        try (Client tzClient = newClient()
+                .useTimeZone(utcZone.getId())
+                .build()) {
+            QuerySettings tzSettings = new QuerySettings()
+                    .serverSetting("session_timezone", laZone.getId());
+            try (QueryResponse response = tzClient.query(sql, tzSettings).get()) {
+                ClickHouseBinaryFormatReader reader = tzClient.newBinaryFormatReader(response);
+                reader.next();
+                Assert.assertEquals(reader.getLocalDate("d"), date);
+                Assert.assertEquals(reader.getLocalDate("d32"), date);
+            }
+
+            LocalDate minDate = LocalDate.of(1970, 1, 1);
+            LocalDate maxDate = LocalDate.of(2149, 6, 6);
+            LocalDate minDate32 = LocalDate.of(1900, 1, 1);
+            LocalDate maxDate32 = LocalDate.of(2299, 12, 31);
+            String extremesSql = "SELECT toDate('" + minDate + "') AS d_min, toDate('" + maxDate + "') AS d_max, "
+                    + "toDate32('" + minDate32 + "') AS d32_min, toDate32('" + maxDate32 + "') AS d32_max";
+            try (QueryResponse response = tzClient.query(extremesSql, tzSettings).get()) {
+                ClickHouseBinaryFormatReader reader = tzClient.newBinaryFormatReader(response);
+                reader.next();
+                Assert.assertEquals(reader.getLocalDate("d_min"), minDate);
+                Assert.assertEquals(reader.getLocalDate("d_max"), maxDate);
+                Assert.assertEquals(reader.getLocalDate("d32_min"), minDate32);
+                Assert.assertEquals(reader.getLocalDate("d32_max"), maxDate32);
+            }
+        }
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE " + table + " ( ");
@@ -1097,5 +1179,15 @@ public class DataTypeTests extends BaseIntegrationTest {
     private boolean isVersionMatch(String versionExpression) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
+
+    private Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(useClientCompression)
+                .useHttpCompression(useHttpCompression);
     }
 }

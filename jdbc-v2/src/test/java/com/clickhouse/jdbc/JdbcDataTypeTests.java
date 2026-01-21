@@ -42,7 +42,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,8 +62,8 @@ import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 @Test(groups = { "integration" })
-public class DataTypeTests extends JdbcIntegrationTest {
-    private static final Logger log = LoggerFactory.getLogger(DataTypeTests.class);
+public class JdbcDataTypeTests extends JdbcIntegrationTest {
+    private static final Logger log = LoggerFactory.getLogger(JdbcDataTypeTests.class);
 
     @BeforeClass(groups = { "integration" })
     public static void setUp() throws SQLException {
@@ -439,28 +438,25 @@ public class DataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testDateTypes() throws SQLException {
-        runQuery("CREATE TABLE test_dates (order Int8, "
-                + "date Date, date32 Date32, " +
+    public void testDateTimeTypes() throws SQLException {
+        runQuery("CREATE TABLE test_datetimes (order Int8, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
                 "dateTime643 DateTime64(3), dateTime646 DateTime64(6), dateTime649 DateTime64(9)"
                 + ") ENGINE = MergeTree ORDER BY ()");
 
         // Insert minimum values
-        insertData("INSERT INTO test_dates VALUES ( 1, '1970-01-01', '1970-01-01', " +
+        insertData("INSERT INTO test_datetimes VALUES ( 1, " +
                 "'1970-01-01 00:00:00', '1970-01-01 00:00:00', " +
                 "'1970-01-01 00:00:00.000', '1970-01-01 00:00:00.000000', '1970-01-01 00:00:00.000000000' )");
 
         // Insert maximum values
-        insertData("INSERT INTO test_dates VALUES ( 2, '2149-06-06', '2299-12-31', " +
+        insertData("INSERT INTO test_datetimes VALUES ( 2," +
                 "'2106-02-07 06:28:15', '2106-02-07 06:28:15', " +
                 "'2261-12-31 23:59:59.999', '2261-12-31 23:59:59.999999', '2261-12-31 23:59:59.999999999' )");
 
         // Insert random (valid) values
         final ZoneId zoneId = ZoneId.of("America/Los_Angeles");
         final LocalDateTime now = LocalDateTime.now(zoneId);
-        final Date date = Date.valueOf(now.toLocalDate());
-        final Date date32 = Date.valueOf(now.toLocalDate());
         final java.sql.Timestamp dateTime = Timestamp.valueOf(now);
         dateTime.setNanos(0);
         final java.sql.Timestamp dateTime32 = Timestamp.valueOf(now);
@@ -473,14 +469,12 @@ public class DataTypeTests extends JdbcIntegrationTest {
         dateTime649.setNanos(333333333);
 
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_dates VALUES ( 4, ?, ?, ?, ?, ?, ?, ?)")) {
-                stmt.setDate(1, date);
-                stmt.setDate(2, date32);
-                stmt.setTimestamp(3, dateTime);
-                stmt.setTimestamp(4, dateTime32);
-                stmt.setTimestamp(5, dateTime643);
-                stmt.setTimestamp(6, dateTime646);
-                stmt.setTimestamp(7, dateTime649);
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_datetimes VALUES ( 4, ?, ?, ?, ?, ?)")) {
+                stmt.setTimestamp(1, dateTime);
+                stmt.setTimestamp(2, dateTime32);
+                stmt.setTimestamp(3, dateTime643);
+                stmt.setTimestamp(4, dateTime646);
+                stmt.setTimestamp(5, dateTime649);
                 stmt.executeUpdate();
             }
         }
@@ -488,10 +482,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
         // Check the results
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_datetimes ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date"), Date.valueOf("1970-01-01"));
-                    assertEquals(rs.getDate("date32"), Date.valueOf("1970-01-01"));
                     assertEquals(rs.getTimestamp("dateTime").toString(), "1970-01-01 00:00:00.0");
                     assertEquals(rs.getTimestamp("dateTime32").toString(), "1970-01-01 00:00:00.0");
                     assertEquals(rs.getTimestamp("dateTime643").toString(), "1970-01-01 00:00:00.0");
@@ -499,8 +491,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getTimestamp("dateTime649").toString(), "1970-01-01 00:00:00.0");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date"), Date.valueOf("2149-06-06"));
-                    assertEquals(rs.getDate("date32"), Date.valueOf("2299-12-31"));
                     assertEquals(rs.getTimestamp("dateTime").toString(), "2106-02-07 06:28:15.0");
                     assertEquals(rs.getTimestamp("dateTime32").toString(), "2106-02-07 06:28:15.0");
                     assertEquals(rs.getTimestamp("dateTime643").toString(), "2261-12-31 23:59:59.999");
@@ -508,8 +498,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getTimestamp("dateTime649").toString(), "2261-12-31 23:59:59.999999999");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getDate("date").toString(), date.toString());
-                    assertEquals(rs.getDate("date32").toString(), date32.toString());
                     assertEquals(rs.getTimestamp("dateTime").toString(), Timestamp.valueOf(dateTime.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
                     assertEquals(rs.getTimestamp("dateTime32").toString(), Timestamp.valueOf(dateTime32.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
                     assertEquals(rs.getTimestamp("dateTime643").toString(), Timestamp.valueOf(dateTime643.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
@@ -530,10 +518,8 @@ public class DataTypeTests extends JdbcIntegrationTest {
         // Check the results
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_datetimes ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("date"), Date.valueOf("1970-01-01"));
-                    assertEquals(rs.getObject("date32"), Date.valueOf("1970-01-01"));
                     assertEquals(rs.getObject("dateTime").toString(), "1970-01-01 00:00:00.0");
                     assertEquals(rs.getObject("dateTime32").toString(), "1970-01-01 00:00:00.0");
                     assertEquals(rs.getObject("dateTime643").toString(), "1970-01-01 00:00:00.0");
@@ -541,8 +527,7 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("dateTime649").toString(), "1970-01-01 00:00:00.0");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("date"), Date.valueOf("2149-06-06"));
-                    assertEquals(rs.getObject("date32"), Date.valueOf("2299-12-31"));
+
                     assertEquals(rs.getObject("dateTime").toString(), "2106-02-07 06:28:15.0");
                     assertEquals(rs.getObject("dateTime32").toString(), "2106-02-07 06:28:15.0");
                     assertEquals(rs.getObject("dateTime643").toString(), "2261-12-31 23:59:59.999");
@@ -550,8 +535,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject("dateTime649").toString(), "2261-12-31 23:59:59.999999999");
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("date").toString(), date.toString());
-                    assertEquals(rs.getObject("date32").toString(), date32.toString());
 
                     assertEquals(rs.getObject("dateTime").toString(), Timestamp.valueOf(dateTime.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
                     assertEquals(rs.getObject("dateTime32").toString(), Timestamp.valueOf(dateTime32.toInstant().atZone(ZoneId.of("UTC")).toLocalDateTime()).toString());
@@ -566,11 +549,10 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection();
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order"))
+            ResultSet rs = stmt.executeQuery("SELECT * FROM test_datetimes ORDER BY order"))
         {
             assertTrue(rs.next());
-            assertEquals(rs.getString("date"), "1970-01-01");
-            assertEquals(rs.getString("date32"), "1970-01-01");
+
             assertEquals(rs.getString("dateTime"), "1970-01-01 00:00:00");
             assertEquals(rs.getString("dateTime32"), "1970-01-01 00:00:00");
             assertEquals(rs.getString("dateTime643"), "1970-01-01 00:00:00");
@@ -578,8 +560,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
             assertEquals(rs.getString("dateTime649"), "1970-01-01 00:00:00");
 
             assertTrue(rs.next());
-            assertEquals(rs.getString("date"), "2149-06-06");
-            assertEquals(rs.getString("date32"), "2299-12-31");
             assertEquals(rs.getString("dateTime"), "2106-02-07 06:28:15");
             assertEquals(rs.getString("dateTime32"), "2106-02-07 06:28:15");
             assertEquals(rs.getString("dateTime643"), "2261-12-31 23:59:59.999");
@@ -588,12 +568,6 @@ public class DataTypeTests extends JdbcIntegrationTest {
 
             ZoneId tzServer = ZoneId.of(((ConnectionImpl) conn).getClient().getServerTimeZone());
             assertTrue(rs.next());
-            assertEquals(
-                rs.getString("date"),
-                Instant.ofEpochMilli(date.getTime()).atZone(tzServer).toLocalDate().toString());
-            assertEquals(
-                rs.getString("date32"),
-                Instant.ofEpochMilli(date32.getTime()).atZone(tzServer).toLocalDate().toString());
             assertEquals(
                 rs.getString("dateTime"),
                 DataTypeUtils.DATETIME_FORMATTER.format(
@@ -611,6 +585,99 @@ public class DataTypeTests extends JdbcIntegrationTest {
             assertEquals(
                 rs.getString("dateTime649"),
                 DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER.format(dateTime649.toInstant().atZone(tzServer)));
+
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testDateTypes() throws SQLException {
+        runQuery("CREATE TABLE test_dates (order Int8, "
+                + "date Date, date32 Date32"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        // Insert minimum values
+        insertData("INSERT INTO test_dates VALUES ( 1, '1970-01-01', '1970-01-01')");
+
+        // Insert maximum values
+        insertData("INSERT INTO test_dates VALUES ( 2, '2149-06-06', '2299-12-31')");
+
+        // Insert random (valid) values
+        final ZoneId zoneId = ZoneId.of("America/Los_Angeles");
+        final LocalDateTime now = LocalDateTime.now(zoneId);
+        final Date date = Date.valueOf(now.toLocalDate());
+        final Date date32 = Date.valueOf(now.toLocalDate());
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_dates VALUES ( 3, ?, ?)")) {
+                stmt.setDate(1, date);
+                stmt.setDate(2, date32);
+                stmt.executeUpdate();
+            }
+        }
+
+        // Check the results
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate("date"), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getDate("date32"), Date.valueOf("1970-01-01"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate("date"), Date.valueOf("2149-06-06"));
+                    assertEquals(rs.getDate("date32"), Date.valueOf("2299-12-31"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate("date").toString(), date.toString());
+                    assertEquals(rs.getDate("date32").toString(), date32.toString());
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        // Check the results
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date"), Date.valueOf("1970-01-01"));
+                    assertEquals(rs.getObject("date32"), Date.valueOf("1970-01-01"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date"), Date.valueOf("2149-06-06"));
+                    assertEquals(rs.getObject("date32"), Date.valueOf("2299-12-31"));
+
+                    assertTrue(rs.next());
+                    assertEquals(rs.getObject("date").toString(), date.toString());
+                    assertEquals(rs.getObject("date32").toString(), date32.toString());
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_dates ORDER BY order"))
+        {
+            assertTrue(rs.next());
+            assertEquals(rs.getString("date"), "1970-01-01");
+            assertEquals(rs.getString("date32"), "1970-01-01");
+
+            assertTrue(rs.next());
+            assertEquals(rs.getString("date"), "2149-06-06");
+            assertEquals(rs.getString("date32"), "2299-12-31");
+
+            ZoneId tzServer = ZoneId.of(((ConnectionImpl) conn).getClient().getServerTimeZone());
+            assertTrue(rs.next());
+            assertEquals(
+                    rs.getString("date"),
+                    Instant.ofEpochMilli(date.getTime()).atZone(tzServer).toLocalDate().toString());
+            assertEquals(
+                    rs.getString("date32"),
+                    Instant.ofEpochMilli(date32.getTime()).atZone(tzServer).toLocalDate().toString());
 
             assertFalse(rs.next());
         }

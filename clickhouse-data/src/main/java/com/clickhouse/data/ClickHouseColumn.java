@@ -1175,6 +1175,21 @@ public final class ClickHouseColumn implements Serializable {
         return value;
     }
 
+
+    /**
+     * Returns column effective data type. In case of SimpleAggregateFunction
+     * returns type of the first column.
+     *
+     * @return ClickHouseDataType
+     */
+    public ClickHouseDataType getEffectiveDataType() {
+        ClickHouseDataType columnDataType = getDataType();
+        if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
+            columnDataType = getNestedColumns().get(0).getDataType();
+        }
+        return  columnDataType;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;

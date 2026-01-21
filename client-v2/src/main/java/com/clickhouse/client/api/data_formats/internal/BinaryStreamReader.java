@@ -179,9 +179,9 @@ public class BinaryStreamReader {
                     return (T) new EnumValue(name == null ? "<unknown>" : name, enum16Val);
                 }
                 case Date:
-                    return convertDateTime(readDate(timezone), typeHint);
+                    return (T) (Integer) readUnsignedShortLE(); // days since Unix Epoch
                 case Date32:
-                    return convertDateTime(readDate32(timezone), typeHint);
+                    return (T) (Integer) readIntLE(); // days, 0 - Unix Epoch, -1 -before, +1 - after
                 case DateTime:
                     return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:

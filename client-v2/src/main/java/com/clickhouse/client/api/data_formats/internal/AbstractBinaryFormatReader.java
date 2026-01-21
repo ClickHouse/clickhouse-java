@@ -309,6 +309,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Enum16:
                 case Variant:
                 case Dynamic:
+                case Date:
+                case Date32:
                 case Time:
                 case Time64:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
@@ -442,8 +444,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         switch (columnDataType) {
             case DateTime:
             case DateTime64:
-            case Date:
-            case Date32:
+            case DateTime32:
                 return readValue(colName);
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
@@ -803,17 +804,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public LocalDate getLocalDate(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDate();
-        }
-        return (LocalDate) value;
-
+        return getLocalDate(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public LocalDate getLocalDate(int index) {
-       return getLocalDate(schema.columnIndexToName(index));
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch(column.getEffectiveDataType()) {
+            case Date:
+            case Date32:
+                return LocalDate.ofEpochDay(getLong(index));
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                ZonedDateTime zdt = readValue(index);
+                return zdt.toLocalDate();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
+        }
     }
 
     @Override
