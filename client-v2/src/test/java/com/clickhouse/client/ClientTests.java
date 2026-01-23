@@ -30,20 +30,24 @@ import org.testng.util.Strings;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -529,11 +533,46 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testQueryIdGenerator() throws Exception {
+        final String queryId = UUID.randomUUID().toString();
+        Supplier<String> constantQueryIdSupplier = () -> queryId;
+
+        // check getting same UUID
+        for (int i = 0; i < 3; i++ ) {
+            try (Client client = newClient().queryIdGenerator(constantQueryIdSupplier).build()) {
+                client.execute("SELECT * FROM unknown_table").get().close();
+            } catch (ServerException ex) {
+                Assert.assertEquals(ex.getCode(), ServerException.ErrorCodes.TABLE_NOT_FOUND.getCode());
+                Assert.assertEquals(ex.getQueryId(), queryId);
+            }
+        }
+
+        final Queue<String> queryIds = new ConcurrentLinkedQueue<>(); // non-blocking
+        final Supplier<String> queryIdGen = () -> {
+            String id = UUID.randomUUID().toString();
+            queryIds.add(id);
+            return id;
+        };
+        int requests = 3;
+        final Queue<String> actualIds = new ConcurrentLinkedQueue<>();
+        for (int i = 0; i < requests; i++ ) {
+            try (Client client = newClient().queryIdGenerator(queryIdGen).build()) {
+                client.execute("SELECT * FROM unknown_table").get().close();
+            } catch (ServerException ex) {
+                Assert.assertEquals(ex.getCode(), ServerException.ErrorCodes.TABLE_NOT_FOUND.getCode());
+                actualIds.add(ex.getQueryId());
+            }
+        }
+
+        Assert.assertEquals(queryIds.size(), requests);
+        Assert.assertEquals(actualIds, new ArrayList<>(queryIds));
+    }
+
     public boolean isVersionMatch(String versionExpression, Client client) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
-
 
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -69,6 +70,7 @@ public class JdbcConfiguration {
         DRIVER_PROP_KEYS = driverPropertiesMapBuilder.build();
     }
 
+    private final Supplier<String> queryIdGenerator;
 
     /**
      * Parses URL to get property and target host.
@@ -81,6 +83,7 @@ public class JdbcConfiguration {
         this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
+        this.queryIdGenerator = (Supplier<String>) props.remove(DriverProperties.QUERY_ID_GENERATOR.getKey());;
 
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
@@ -335,6 +338,10 @@ public class JdbcConfiguration {
         return driverProperties.getOrDefault(key, defaultValue);
     }
 
+    public Supplier<String> getQueryIdGenerator() {
+        return queryIdGenerator;
+    }
+
     public Boolean isSet(DriverProperties driverProp) {
         String v = driverProperties.getOrDefault(driverProp.getKey(), driverProp.getDefaultValue());
         return Boolean.parseBoolean(v);
@@ -344,6 +351,9 @@ public class JdbcConfiguration {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties)
                 .typeHintMapping(defaultTypeHintMapping());
+        if (queryIdGenerator != null) {
+            builder.queryIdGenerator(null);
+        }
         return builder;
     }
 

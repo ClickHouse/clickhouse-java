@@ -71,4 +71,27 @@ public class ServerException extends ClickHouseException {
         };
         return false;
     }
+
+    /**
+     * Not every server code is listed - only most common
+     */
+    public enum ErrorCodes {
+
+        UNKNOWN(0),
+        TABLE_NOT_FOUND(60),
+        DATABASE_NOT_FOUND(81),
+        UNKNOWN_SETTING(115),
+
+        ;
+
+        private int code;
+
+        ErrorCodes(int code) {
+            this.code = code;
+        }
+
+        public int getCode() {
+            return code;
+        }
+    }
 }
