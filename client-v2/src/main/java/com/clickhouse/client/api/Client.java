@@ -40,7 +40,6 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -56,7 +55,6 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -183,7 +181,6 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, this.metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -194,6 +191,7 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -1073,6 +1071,20 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Make sending statement parameters as HTTP Form data (in the body of a request).
+         * Note: work only with Server side compression. If client compression is enabled it will be disabled
+         * for query requests with parameters. It is because each parameter is sent as part of multipart content
+         * what would require compressions of them separately.
+         *
+         * @param enable - if feature enabled
+         * @return this builder instance
+         */
+        public Builder useHttpFormDataForQuery(boolean enable) {
+            this.configuration.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), String.valueOf(enable));
+            return this;
+        }
+
+        /**
          * Sets query id generator. Will be used when operation settings (InsertSettings, QuerySettings) do not have query id set.
          * @param supplier
          * @return
@@ -1291,7 +1303,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1513,7 +1525,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1625,15 +1637,15 @@ public class Client implements AutoCloseable {
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
 
-        Supplier<QueryResponse> responseSupplier;
+        if (queryParams != null) {
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+        }
 
-            if (queryParams != null) {
-                requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
-            }
-            if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
-                requestSettings.setQueryId(queryIdGenerator.get());
-            }
-            responseSupplier = () -> {
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
+
+        Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
                 Endpoint selectedEndpoint = getNextAliveNode();
@@ -1641,12 +1653,15 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        httpResponse =
-                                httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
-                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.close();
-                                });
-
+                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
+                        if (queryParams != null && useMultipart) {
+                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(), sqlQuery);
+                        } else {
+                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(),
+                                    sqlQuery);
+                        }
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));

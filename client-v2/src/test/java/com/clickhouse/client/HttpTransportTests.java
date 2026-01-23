@@ -12,6 +12,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -43,7 +44,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -1182,6 +1185,44 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         } finally {
             mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testMultiPartRequest() {
+        final Map<String, Object> params = new HashMap<>();
+        params.put("database_name", "system");
+        params.put("table_names",
+                DataTypeConverter.INSTANCE.arrayToString(Arrays.asList("COLLATIONS", "ENGINES"), "Array(String)"));
+
+        // Use http compression
+        try (Client client = newClient().useHttpCompression(true).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+        }
+
+        // Use http compression
+        try (Client client = newClient().useHttpCompression(false).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+        }
+
+        // compress request
+        try (Client client = newClient()
+                .compressClientRequest(true)
+                .setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true")
+                .useHttpCompression(true).build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
         }
     }
 
