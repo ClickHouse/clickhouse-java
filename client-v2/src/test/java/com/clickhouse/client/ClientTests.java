@@ -4,8 +4,9 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.command.CommandResponse;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
@@ -17,8 +18,6 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.query.QueryTests;
-import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -32,6 +31,8 @@ import org.testng.util.Strings;
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -76,57 +77,92 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @DataProvider
+    @DataProvider(name = "secureClientProvider")
     public static Object[][] secureClientProvider() throws Exception {
         ClickHouseNode node = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP,
                 true, ClickHouseNode.builder()
                                 .addOption(ClickHouseClientOption.SSL_MODE.getKey(), "none")
                         .addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
+
+        Client client1;
+        Client client2;
+        try {
+            client1 = new Client.Builder()
+                    .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                    .build();
+
+            client2 =                         new Client.Builder()
+                    .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                    .setClientKey("some_user.key")
+                    .setClientCertificate("some_user.crt")
+                    .build();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+
+
         return new Client[][]{
                 {
-                        new Client.Builder()
-                                .addEndpoint("https://" + node.getHost() + ":" + node.getPort())
-                                .setUsername("default")
-                                .setPassword("")
-                                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                                .build()
+                     client1
                 },
                 {
-                        new Client.Builder()
-                                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), true)
-                                .setUsername("default")
-                                .setPassword("")
-                                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                                .setClientKey("user.key")
-                                .setClientCertificate("user.crt")
-                                .build()
+                    client2
                 }
         };
     }
 
     @Test(groups = {"integration"})
     public void testRawSettings() {
-        Client client = newClient()
+        try (Client client = newClient()
                 .setOption("custom_setting_1", "value_1")
-                .build();
+                .build()) {
 
-        client.execute("SELECT 1");
+            client.execute("SELECT 1");
 
-        QuerySettings querySettings = new QuerySettings();
-        querySettings.serverSetting("session_timezone", "Europe/Zurich");
+            QuerySettings querySettings = new QuerySettings();
+            querySettings.serverSetting("session_timezone", "Europe/Zurich");
 
-        try (Records response =
-                     client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
+            try (Records response =
+                         client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
 
-            response.forEach(record -> {
-                System.out.println(record.getString(1) + " " + record.getString(2));
-                Assert.assertEquals("Europe/Zurich", record.getString(1));
-                Assert.assertEquals("UTC", record.getString(2));
-            });
-        } catch (Exception e) {
-            Assert.fail(e.getMessage());
-        } finally {
-            client.close();
+                response.forEach(record -> {
+                    Assert.assertEquals("Europe/Zurich", record.getString(1));
+                    Assert.assertEquals("UTC", record.getString(2));
+                });
+            } catch (Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCustomSettings() {
+        if (isCloud()) {
+            return; // no custom parameters on cloud instance
+        }
+        final String CLIENT_OPTION = "custom_client_option"; // prefix should be known from server config
+        try (Client client = newClient().serverSetting(CLIENT_OPTION, "opt1").build()) {
+
+            final List<GenericRecord> clientOption = client.queryAll("SELECT getSetting({option_name:String})",
+                    Collections.singletonMap("option_name", CLIENT_OPTION));
+
+            Assert.assertEquals(clientOption.get(0).getString(1), "opt1");
+
+            QuerySettings querySettings = new QuerySettings();
+            querySettings.serverSetting(CLIENT_OPTION, "opt2");
+
+            final List<GenericRecord> requestOption = client.queryAll("SELECT getSetting({option_name:String})",
+                    Collections.singletonMap("option_name", CLIENT_OPTION), querySettings);
+
+            Assert.assertEquals(requestOption.get(0).getString(1), "opt2");
         }
     }
 
@@ -223,7 +259,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -256,7 +292,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -323,7 +359,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
         }
     }
 
@@ -453,6 +489,43 @@ public class ClientTests extends BaseIntegrationTest {
             fail("Exception expected");
         } catch (ValidationUtils.SettingsValidationException e) {
             Assert.assertTrue(e.getMessage().contains("port"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUnknownClientSettings() throws Exception {
+        try (Client client = newClient().setOption("unknown_setting", "value").build()) {
+            Assert.fail("Exception expected");
+        } catch (Exception ex) {
+            Assert.assertTrue(ex instanceof ClientMisconfigurationException);
+            Assert.assertTrue(ex.getMessage().contains("unknown_setting"));
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG, "what ever").setOption("unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.SERVER_SETTING_PREFIX + "unknown_setting", "value").build()) {
+            try {
+                client.execute("SELECT 1");
+                Assert.fail("Exception expected");
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), ServerException.UNKNOWN_SETTING);
+            }
+        }
+
+        try (Client client = newClient().setOption(ClientConfigProperties.HTTP_HEADER_PREFIX + "unknown_setting", "value").build()) {
+            Assert.assertTrue(client.ping());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testInvalidConfig() {
+        try {
+            newClient().setOption(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(), "").build();
+            Assert.fail("exception expected");
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getMessage().contains(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey()));
         }
     }
 

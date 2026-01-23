@@ -6,6 +6,8 @@ public class ServerException extends ClickHouseException {
 
     public static final int TABLE_NOT_FOUND = 60;
 
+    public static final int UNKNOWN_SETTING = 115;
+
     private final int code;
 
     private final int transportProtocolCode;
