@@ -83,6 +83,8 @@ public class JdbcConfiguration {
         this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
+
+        // queryID generator should not be set in client because query ID is used in StatementImpl to know the last one
         this.queryIdGenerator = (Supplier<String>) props.remove(DriverProperties.QUERY_ID_GENERATOR.getKey());;
 
         Map<String, String> urlProperties = parseUrl(url);
@@ -351,9 +353,6 @@ public class JdbcConfiguration {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties)
                 .typeHintMapping(defaultTypeHintMapping());
-        if (queryIdGenerator != null) {
-            builder.queryIdGenerator(null);
-        }
         return builder;
     }
 

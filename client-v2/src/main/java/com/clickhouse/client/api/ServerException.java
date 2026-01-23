@@ -40,6 +40,11 @@ public class ServerException extends ClickHouseException {
         return transportProtocolCode;
     }
 
+    @Override
+    public boolean isRetryable() {
+        return super.isRetryable();
+    }
+
     /**
      * Returns query ID that is returned by server in {@link com.clickhouse.client.api.http.ClickHouseHttpProto#HEADER_QUERY_ID}
      * @return query id non-null string
