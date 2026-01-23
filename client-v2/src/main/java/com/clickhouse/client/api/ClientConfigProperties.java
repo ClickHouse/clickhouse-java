@@ -184,6 +184,14 @@ public enum ClientConfigProperties {
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
 
     /**
+     * If parameters should be sent in request body.
+     * Note: work only with Server side compression. If compression is enabled on client level it will be disabled
+     * for query requests with parameters.
+     */
+    HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
+
+
+    /**
      *  Prefix for custom settings. Should be aligned with server configuration.
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
