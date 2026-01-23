@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -136,36 +137,35 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public Instant getInstant(String colName) {
         ClickHouseColumn column =  schema.getColumnByName(colName);
-        switch (column.getDataType()) {
+        int colIndex = column.getColumnIndex();
+        switch (column.getEffectiveDataType()) {
             case Date:
             case Date32:
-                LocalDate data = readValue(colName);
-                return data.atStartOfDay().toInstant(ZoneOffset.UTC);
+                LocalDate date = getLocalDate(colIndex);
+                return Instant.from(date);
+            case Time:
+            case Time64:
+                LocalDateTime time = getLocalDateTime(colName);
+                return time.toInstant(ZoneOffset.UTC);
             case DateTime:
             case DateTime64:
-                LocalDateTime dateTime = readValue(colName);
-                return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-            case Time:
-                return Instant.ofEpochSecond(getLong(colName));
-            case Time64:
-                return DataTypeUtils.instantFromTime64Integer(column.getScale(), getLong(colName));
-
+                return getZonedDateTime(colName).toInstant();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
         ClickHouseColumn column = schema.getColumnByName(colName);
-        switch (column.getDataType()) {
+        switch (column.getEffectiveDataType()) {
             case DateTime:
             case DateTime64:
-            case Date:
-            case Date32:
-                return readValue(colName);
+                Object colValue = readValue(column.getColumnIndex());
+                return (ZonedDateTime) colValue;
         }
 
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
     }
 
     @Override
@@ -468,21 +468,85 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public LocalDate getLocalDate(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDate();
+        ClickHouseColumn column = schema.getColumnByName(colName);
+        switch(column.getEffectiveDataType()) {
+            case Date:
+            case Date32:
+                return (LocalDate) getObject(colName);
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                LocalDateTime dt = getLocalDateTime(colName);
+                return dt.toLocalDate();
+            case Dynamic:
+            case Variant:
+                Object value = getObject(colName);
+                if (value instanceof LocalDate) {
+                    return (LocalDate) value;
+                } else {
+                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalDate");
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
         }
-        return (LocalDate) value;
+    }
 
+    @Override
+    public LocalTime getLocalTime(String colName) {
+        ClickHouseColumn column = schema.getColumnByName(colName);
+        switch(column.getEffectiveDataType()) {
+            case Time:
+            case Time64:
+                return ((LocalDateTime) getObject(colName)).toLocalTime();
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                LocalDateTime dt = getLocalDateTime(colName);
+                return dt.toLocalTime();
+            case Dynamic:
+            case Variant:
+                Object value = getObject(colName);
+                if (value instanceof LocalDateTime) {
+                    return ((LocalDateTime) value).toLocalTime();
+                } else {
+                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalTime");
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalTime");
+        }
+    }
+
+    @Override
+    public LocalTime getLocalTime(int index) {
+        return getLocalTime(schema.columnIndexToName(index));
     }
 
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDateTime();
+        ClickHouseColumn column = schema.getColumnByName(colName);
+        switch(column.getEffectiveDataType()) {
+            case Time:
+            case Time64:
+                // Types present wide range of value so LocalDateTime let to access to actual value
+                return (LocalDateTime) getObject(colName);
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                return ((ZonedDateTime)readValue(colName)).toLocalDateTime();
+            case Dynamic:
+            case Variant:
+                Object value = getObject(colName);
+                if (value instanceof LocalDateTime) {
+                    return (LocalDateTime) value;
+                } else if (value instanceof ZonedDateTime) {
+                    return ((ZonedDateTime)value).toLocalDateTime();
+                } else {
+                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalDateTime");
+
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDateTime");
         }
-        return (LocalDateTime) value;
     }
 
     @Override
@@ -492,11 +556,17 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public OffsetDateTime getOffsetDateTime(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toOffsetDateTime();
+        ClickHouseColumn column = schema.getColumnByName(colName);
+        switch(column.getEffectiveDataType()) {
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+            case Dynamic:
+            case Variant:
+                return getZonedDateTime(colName).toOffsetDateTime();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to OffsetDataTime");
         }
-        return (OffsetDateTime) value;
     }
 
     @Override

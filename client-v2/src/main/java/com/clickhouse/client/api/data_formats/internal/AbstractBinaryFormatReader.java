@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -332,12 +333,32 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public String getString(String colName) {
-        return dataTypeConverter.convertToString(readValue(colName), schema.getColumnByName(colName));
+        return getString(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public String getString(int index) {
-        return getString(schema.columnIndexToName(index));
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        Object value;
+        switch (column.getEffectiveDataType()) {
+            case Date:
+            case Date32:
+                value = getLocalDate(index);
+                break;
+            case Time:
+            case Time64:
+                value = getLocalTime(index);
+                break;
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                value = getLocalDateTime(index);
+                break;
+            default:
+                value = readValue(index);
+        }
+
+        return dataTypeConverter.convertToString(value, column);
     }
 
     private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
@@ -403,52 +424,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Instant getInstant(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
-        ClickHouseDataType columnDataType = column.getDataType();
-        if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
-            columnDataType = column.getNestedColumns().get(0).getDataType();
-        }
-        switch (columnDataType) {
-            case Date:
-            case Date32:
-                LocalDate data = readValue(colName);
-                return data.atStartOfDay().toInstant(ZoneOffset.UTC);
-            case DateTime:
-            case DateTime64:
-                Object colValue = readValue(colName);
-                if (colValue instanceof LocalDateTime) {
-                    LocalDateTime dateTime = (LocalDateTime) colValue;
-                    return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
-                } else {
-                    ZonedDateTime dateTime = (ZonedDateTime) colValue;
-                    return dateTime.toInstant();
-                }
-            case Time:
-                return Instant.ofEpochSecond(getLong(colName));
-            case Time64:
-                return DataTypeUtils.instantFromTime64Integer(column.getScale(), getLong(colName));
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
-        }
+        return getInstant(getSchema().nameToColumnIndex(colName));
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
-        int colIndex = schema.nameToIndex(colName);
-        ClickHouseColumn column = schema.getColumns().get(colIndex);
-        ClickHouseDataType columnDataType = column.getDataType();
-        if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
-            columnDataType = column.getNestedColumns().get(0).getDataType();
-        }
-        switch (columnDataType) {
-            case DateTime:
-            case DateTime64:
-            case DateTime32:
-                return readValue(colName);
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
-        }
+        return getZonedDateTime(schema.nameToColumnIndex(colName));
     }
 
     @Override
@@ -672,12 +653,43 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Instant getInstant(int index) {
-        return getInstant(schema.columnIndexToName(index));
+
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch (column.getEffectiveDataType()) {
+            case Date:
+            case Date32:
+                LocalDate date = getLocalDate(index);
+                return Instant.from(date);
+            case Time:
+            case Time64:
+                LocalDateTime dt = getLocalDateTime(index);
+                return dt.toInstant(ZoneOffset.UTC);
+            case DateTime:
+            case DateTime64:
+                Object colValue = readValue(index);
+                if (colValue instanceof LocalDateTime) {
+                    LocalDateTime dateTime = (LocalDateTime) colValue;
+                    return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+                } else {
+                    ZonedDateTime dateTime = (ZonedDateTime) colValue;
+                    return dateTime.toInstant();
+                }
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
+        }
     }
 
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
-        return readValue(index);
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch (column.getEffectiveDataType()) {
+            case DateTime:
+            case DateTime64:
+            case DateTime32:
+                return readValue(index);
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
+        }
     }
 
     @Override
@@ -813,7 +825,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         switch(column.getEffectiveDataType()) {
             case Date:
             case Date32:
-                return LocalDate.ofEpochDay(getLong(index));
+                return readValue(index);
             case DateTime:
             case DateTime32:
             case DateTime64:
@@ -825,31 +837,62 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public LocalDateTime getLocalDateTime(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toLocalDateTime();
+    public LocalTime getLocalTime(String colName) {
+        return getLocalTime(schema.nameToColumnIndex(colName));
+    }
+
+    @Override
+    public LocalTime getLocalTime(int index) {
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch(column.getEffectiveDataType()) {
+            case Time:
+            case Time64:
+                LocalDateTime dt = readValue(index);
+                return dt.toLocalTime();
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                ZonedDateTime zdt = readValue(index);
+                return zdt.toLocalTime();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
         }
-        return (LocalDateTime) value;
+    }
+
+    @Override
+    public LocalDateTime getLocalDateTime(String colName) {
+        return getLocalDateTime(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public LocalDateTime getLocalDateTime(int index) {
-        return getLocalDateTime(schema.columnIndexToName(index));
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch(column.getEffectiveDataType()) {
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                return ((ZonedDateTime)readValue(index)).toLocalDateTime();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDateTime");
+        }
     }
 
     @Override
     public OffsetDateTime getOffsetDateTime(String colName) {
-        Object value = readValue(colName);
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).toOffsetDateTime();
-        }
-        return (OffsetDateTime) value;
+       return getOffsetDateTime(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public OffsetDateTime getOffsetDateTime(int index) {
-        return getOffsetDateTime(schema.columnIndexToName(index));
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch(column.getEffectiveDataType()) {
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                return ((ZonedDateTime)readValue(index)).toOffsetDateTime();
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to OffsetDateTime");
+        }
     }
 
     @Override

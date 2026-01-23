@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
@@ -179,9 +181,9 @@ public class BinaryStreamReader {
                     return (T) new EnumValue(name == null ? "<unknown>" : name, enum16Val);
                 }
                 case Date:
-                    return (T) (Integer) readUnsignedShortLE(); // days since Unix Epoch
+                    return (T) readDateAsLocalDate();
                 case Date32:
-                    return (T) (Integer) readIntLE(); // days, 0 - Unix Epoch, -1 -before, +1 - after
+                    return (T) readDate32AaLocalDate();
                 case DateTime:
                     return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:
@@ -189,9 +191,9 @@ public class BinaryStreamReader {
                 case DateTime64:
                     return convertDateTime(readDateTime64(scale, timezone), typeHint);
                 case Time:
-                    return (T) (Integer) readIntLE();
+                    return (T) readTime();
                 case Time64:
-                    return (T) (Long) (readLongLE());
+                    return (T) readTime64(scale);
                 case IntervalYear:
                 case IntervalQuarter:
                 case IntervalMonth:
@@ -967,6 +969,22 @@ public class BinaryStreamReader {
     public ZonedDateTime readDate32(TimeZone tz)
             throws IOException {
         return readDate32(input, bufferAllocator.allocate(INT32_SIZE), tz);
+    }
+
+    public LocalDate readDateAsLocalDate() throws IOException {
+        return LocalDate.ofEpochDay(readUnsignedShortLE());
+    }
+
+    public LocalDate readDate32AaLocalDate() throws IOException {
+        return LocalDate.ofEpochDay(readIntLE());
+    }
+
+    public LocalDateTime readTime() throws IOException {
+        return DataTypeUtils.localTimeFromTime64Integer(0, readIntLE());
+    }
+
+    public LocalDateTime readTime64(int precision) throws IOException {
+        return DataTypeUtils.localTimeFromTime64Integer(precision, readLongLE());
     }
 
     /**

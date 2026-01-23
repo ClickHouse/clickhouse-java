@@ -4,7 +4,11 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
@@ -138,5 +142,24 @@ public class DataTypeUtils {
         }
 
         return Instant.ofEpochSecond(value, nanoSeconds);
+    }
+
+    public static LocalDateTime localTimeFromTime64Integer(int precision, long value) {
+        int nanoSeconds = 0;
+        if (precision > 0) {
+            int factor = BinaryStreamReader.BASES[precision];
+            nanoSeconds = (int) (value % factor);
+            value /= factor;
+            if (nanoSeconds < 0) {
+                nanoSeconds += factor;
+                value--;
+            }
+            if (nanoSeconds > 0L) {
+                nanoSeconds *= BASES[9 - precision];
+            }
+
+        }
+
+        return LocalDateTime.ofEpochSecond(value, nanoSeconds, ZoneOffset.UTC);
     }
 }

@@ -37,8 +37,10 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
@@ -441,6 +443,9 @@ public class DataTypeTests extends BaseIntegrationTest {
         if (isVersionMatch("(,25.5]")) {
             return; // time64 was introduced in 25.6
         }
+
+        LocalDateTime epochZero = LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC);
+
         testVariantWith("Time", new String[]{"field Variant(Time, String)"},
                 new Object[]{
                         "30:33:30",
@@ -448,17 +453,27 @@ public class DataTypeTests extends BaseIntegrationTest {
                 },
                 new String[]{
                         "30:33:30",
-                        "360630", // Time stored as integer by default
+                        epochZero.plusHours(100).plusMinutes(10).plusSeconds(30).toString()
                 });
 
-        testVariantWith("Time64", new String[]{"field Variant(Time64, String)"},
+        testVariantWith("Time64", new String[]{"field Variant(Time64(0), String)"},
                 new Object[]{
                         "30:33:30",
                         TimeUnit.HOURS.toSeconds(100) + TimeUnit.MINUTES.toSeconds(10) + 30
                 },
                 new String[]{
                         "30:33:30",
-                        "360630",
+                        epochZero.plusHours(100).plusMinutes(10).plusSeconds(30).toString()
+                });
+
+        testVariantWith("Time64", new String[]{"field Variant(Time64, String)"},
+                new Object[]{
+                        "30:33:30",
+                        TimeUnit.HOURS.toMillis(100) + TimeUnit.MINUTES.toMillis(10) + TimeUnit.SECONDS.toMillis(30)
+                },
+                new String[]{
+                        "30:33:30",
+                        epochZero.plusHours(100).plusMinutes(10).plusSeconds(30).toString()
                 });
     }
 
@@ -691,13 +706,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         Instant maxTime64 = Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
                 123456789);
-        long maxTime64Value = maxTime64.getEpochSecond() * 1_000_000_000 + maxTime64.getNano();
         testDynamicWith("Time64",
                 new Object[]{
                         maxTime64,
                 },
                 new String[]{
-                        String.valueOf(maxTime64Value)
+                        LocalDateTime.ofInstant(maxTime64, ZoneId.of("UTC")).toString()
                 });
     }
 
@@ -851,100 +865,60 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         GenericRecord record = records.get(0);
         Assert.assertEquals(record.getInteger("o_num"), 1);
-        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999));
+        Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999)));
 
         record = records.get(1);
         Assert.assertEquals(record.getInteger("o_num"), 2);
-        Assert.assertEquals(record.getInteger("time"), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
+        Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
 
         record = records.get(2);
         Assert.assertEquals(record.getInteger("o_num"), 3);
-        Assert.assertEquals(record.getInteger("time"), 0);
+        Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), 0);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
 
         record = records.get(3);
         Assert.assertEquals(record.getInteger("o_num"), 4);
-        Assert.assertEquals(record.getInteger("time"), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+        Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(-
                 (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59)));
     }
 
-    @Test(groups = {"integration"})
-    public void testTime64() throws Exception {
+    @Test(groups = {"integration"}, dataProvider = "testTimeData")
+    public void testTime(String column, String value, LocalDateTime expectedDt) throws Exception {
         if (isVersionMatch("(,25.5]")) {
             return; // time64 was introduced in 25.6
         }
 
-        String table = "data_type_tests_time64";
-        client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDefinition(table, "o_num UInt32", "t_sec Time64(0)",  "t_ms Time64(3)", "t_us Time64(6)", "t_ns Time64(9)"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
-
-        String[][] values = new String[][] {
-                {"00:01:00.123", "00:01:00.123", "00:01:00.123456", "00:01:00.123456789"},
-                {"-00:01:00.123", "-00:01:00.123", "-00:01:00.123456", "-00:01:00.123456789"},
-                {"-999:59:59.999", "-999:59:59.999", "-999:59:59.999999", "-999:59:59.999999999"},
-                {"999:59:59.999", "999:59:59.999", "999:59:59.999999", "999:59:59.999999999"},
-        };
-
-        Long[][] expectedValues = new Long[][] {
-                {timeToSec(0, 1,0), timeToMs(0, 1,0) + 123, timeToUs(0, 1,0) + 123456, timeToNs(0, 1,0) + 123456789},
-                {-timeToSec(0, 1,0), -(timeToMs(0, 1,0) + 123), -(timeToUs(0, 1,0) + 123456), -(timeToNs(0, 1,0) + 123456789)},
-                {-timeToSec(999,59, 59), -(timeToMs(999,59, 59) + 999),
-                    -(timeToUs(999, 59, 59) + 999999), -(timeToNs(999, 59, 59) + 999999999)},
-                {timeToSec(999,59, 59), timeToMs(999,59, 59) + 999,
-                    timeToUs(999, 59, 59) + 999999, timeToNs(999, 59, 59) + 999999999},
-        };
-        
-        String[][] expectedInstantStrings = new String[][] {
-                {"1970-01-01T00:01:00Z",
-                "1970-01-01T00:01:00.123Z",
-                "1970-01-01T00:01:00.123456Z",
-                "1970-01-01T00:01:00.123456789Z"},
-
-                {"1969-12-31T23:59:00Z",
-                "1969-12-31T23:58:59.877Z",
-                "1969-12-31T23:58:59.876544Z",
-                "1969-12-31T23:58:59.876543211Z"},
-
-                {"1969-11-20T08:00:01Z",
-                "1969-11-20T08:00:00.001Z",
-                "1969-11-20T08:00:00.000001Z",
-                "1969-11-20T08:00:00.000000001Z"},
-
-
-                {"1970-02-11T15:59:59Z",
-                "1970-02-11T15:59:59.999Z",
-                "1970-02-11T15:59:59.999999Z",
-                "1970-02-11T15:59:59.999999999Z"},
-        };
-        
-        for  (int i = 0; i < values.length; i++) {
-            StringBuilder insertSQL = new StringBuilder("INSERT INTO " + table + " VALUES (" + i + ", ");
-            for (int j = 0; j < values[i].length; j++) {
-                insertSQL.append("'").append(values[i][j]).append("', ");
-            }
-            insertSQL.setLength(insertSQL.length() - 2);
-            insertSQL.append(");");
-
-            client.query(insertSQL.toString()).get().close();
-
-            List<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
-
-            GenericRecord record = records.get(0);
-            Assert.assertEquals(record.getInteger("o_num"), i);
-            for (int j = 0; j < values[i].length; j++) {
-                Assert.assertEquals(record.getLong(j + 2), expectedValues[i][j], "failed at value "  +j);
-                Instant actualInstant = record.getInstant(j + 2);
-                Assert.assertEquals(actualInstant.toString(), expectedInstantStrings[i][j], "failed at value "  +j);
-            }
-
-            client.execute("TRUNCATE TABLE " + table).get();
-        }
+        List<GenericRecord> records = client.queryAll("SELECT \'" + value + "\'::" + column);
+        LocalDateTime dt = records.get(0).getLocalDateTime(1);
+        Assert.assertEquals(dt, expectedDt);
     }
-    
+
+    @DataProvider
+    public static Object[][] testTimeData() {
+
+        return new Object[][] {
+                {"Time64", "00:01:00.123", LocalDateTime.parse("1970-01-01T00:01:00.123")},
+                {"Time64(3)","00:01:00.123", LocalDateTime.parse("1970-01-01T00:01:00.123")},
+                {"Time64(6)","00:01:00.123456", LocalDateTime.parse("1970-01-01T00:01:00.123456")},
+                {"Time64(9)","00:01:00.123456789", LocalDateTime.parse("1970-01-01T00:01:00.123456789")},
+                {"Time64","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:58:59.877")},
+                {"Time64(3)","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:58:59.877")},
+                {"Time64(6)","-00:01:00.123456", LocalDateTime.parse("1969-12-31T23:58:59.876544")},
+                {"Time64(9)","-00:01:00.123456789", LocalDateTime.parse("1969-12-31T23:58:59.876543211")},
+                {"Time64","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:00.001")},
+                {"Time64(3)","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:00.001")},
+                {"Time64(6)","-999:59:59.999999", LocalDateTime.parse("1969-11-20T08:00:00.000001")},
+                {"Time64(9)","-999:59:59.999999999", LocalDateTime.parse("1969-11-20T08:00:00.000000001")},
+                {"Time64","999:59:59.999", LocalDateTime.parse("1970-02-11T15:59:59.999")},
+                {"Time64(3)","999:59:59.999", LocalDateTime.parse("1970-02-11T15:59:59.999")},
+                {"Time64(6)","999:59:59.999999", LocalDateTime.parse("1970-02-11T15:59:59.999999")},
+                {"Time64(9)","999:59:59.999999999", LocalDateTime.parse("1970-02-11T15:59:59.999999999")},
+        };
+    }
+
     private static long timeToSec(int hours, int minutes, int seconds) {
         return TimeUnit.HOURS.toSeconds(hours) + TimeUnit.MINUTES.toSeconds(minutes) + seconds;
     }
@@ -1111,6 +1085,10 @@ public class DataTypeTests extends BaseIntegrationTest {
 
             Assert.assertThrows(ClientException.class, () -> reader.getZonedDateTime("d"));
             Assert.assertThrows(ClientException.class, () -> reader.getZonedDateTime("d32"));
+            Assert.assertThrows(ClientException.class, () -> reader.getLocalDateTime("d"));
+            Assert.assertThrows(ClientException.class, () -> reader.getLocalDateTime("d32"));
+            Assert.assertThrows(ClientException.class, () -> reader.getOffsetDateTime("d"));
+            Assert.assertThrows(ClientException.class, () -> reader.getOffsetDateTime("d32"));
 
         }
 
