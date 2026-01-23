@@ -134,7 +134,6 @@ public class ClientTests extends BaseIntegrationTest {
                          client.queryRecords("SELECT timeZone(), serverTimeZone()", querySettings).get(10, TimeUnit.SECONDS)) {
 
                 response.forEach(record -> {
-                    System.out.println(record.getString(1) + " " + record.getString(2));
                     Assert.assertEquals("Europe/Zurich", record.getString(1));
                     Assert.assertEquals("UTC", record.getString(2));
                 });
@@ -144,7 +143,7 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     public void testCustomSettings() {
         if (isCloud()) {
             return; // no custom parameters on cloud instance
@@ -260,7 +259,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -293,7 +292,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -360,7 +359,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 33); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
         }
     }
 
