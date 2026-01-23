@@ -1089,7 +1089,7 @@ public class Client implements AutoCloseable {
          * @param supplier
          * @return
          */
-        public Builder queryIdGenerator(Supplier<String> supplier) {
+        public Builder setQueryIdGenerator(Supplier<String> supplier) {
             this.queryIdGenerator = supplier;
             return this;
         }

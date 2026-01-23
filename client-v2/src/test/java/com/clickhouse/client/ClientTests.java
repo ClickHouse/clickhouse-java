@@ -42,7 +42,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -540,7 +539,7 @@ public class ClientTests extends BaseIntegrationTest {
 
         // check getting same UUID
         for (int i = 0; i < 3; i++ ) {
-            try (Client client = newClient().queryIdGenerator(constantQueryIdSupplier).build()) {
+            try (Client client = newClient().setQueryIdGenerator(constantQueryIdSupplier).build()) {
                 client.execute("SELECT * FROM unknown_table").get().close();
             } catch (ServerException ex) {
                 Assert.assertEquals(ex.getCode(), ServerException.ErrorCodes.TABLE_NOT_FOUND.getCode());
@@ -557,7 +556,7 @@ public class ClientTests extends BaseIntegrationTest {
         int requests = 3;
         final Queue<String> actualIds = new ConcurrentLinkedQueue<>();
         for (int i = 0; i < requests; i++ ) {
-            try (Client client = newClient().queryIdGenerator(queryIdGen).build()) {
+            try (Client client = newClient().setQueryIdGenerator(queryIdGen).build()) {
                 client.execute("SELECT * FROM unknown_table").get().close();
             } catch (ServerException ex) {
                 Assert.assertEquals(ex.getCode(), ServerException.ErrorCodes.TABLE_NOT_FOUND.getCode());
