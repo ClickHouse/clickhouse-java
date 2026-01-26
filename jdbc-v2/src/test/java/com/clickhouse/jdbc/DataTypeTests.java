@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -337,6 +338,25 @@ public class DataTypeTests extends JdbcIntegrationTest {
             assertEquals(rs.getObject("uuid"), uuid);
 
             assertFalse(rs.next());
+        }
+    }
+
+
+    @Test(groups = {"integration"})
+    public void testArrayOfUUID() throws Exception {
+        try (Connection connection = getJdbcConnection();
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT '2d1f626d-eb07-4c81-be3d-ac1173f0d018'::UUID f_elem, ['2d1f626d-eb07-4c81-be3d-ac1173f0d018']::Array(UUID) arr")) {
+
+            Assert.assertTrue(rs.next());
+            UUID fElem = (UUID) rs.getObject(1);
+            Array colValue = rs.getArray(2);
+            Object[] arr = (Object[]) colValue.getArray();
+            Assert.assertEquals(fElem, arr[0]);
+
+            ResultSet arrRs = colValue.getResultSet();
+            arrRs.next();
+            Assert.assertEquals(fElem, arrRs.getObject(2));
         }
     }
 
@@ -781,6 +801,54 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = {"integration"})
+    public void testArrayOfIpAddress() throws Exception {
+        try (Connection connection = getJdbcConnection();
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT ['90.176.75.97'::IPv4] addrs1, ['2001:adb8:85a3:1:2:8a2e:370:7334'::IPv6] addrs2, ['2001:adb8:85a3:1:2:8a2e:370:7334'::IPv6, null] addrs3")) {
+
+            InetAddress ipv4AddressByIp = Inet4Address.getByName("90.176.75.97");
+            InetAddress ipv6Address = Inet6Address.getByName("2001:adb8:85a3:1:2:8a2e:370:7334");
+
+            Assert.assertTrue(rs.next());
+            {
+                // IPv4
+                Array addrs1 = rs.getArray(1);
+                Object[] arr = (Object[]) addrs1.getArray();
+                Assert.assertEquals(ipv4AddressByIp, arr[0]);
+
+                ResultSet arrRs = addrs1.getResultSet();
+                arrRs.next();
+                Assert.assertEquals(ipv4AddressByIp, arrRs.getObject(2));
+            }
+
+            {
+                // IPv6
+                Array addrs2 = rs.getArray(2);
+                Object[] arr = (Object[]) addrs2.getArray();
+                Assert.assertEquals(ipv6Address, arr[0]);
+
+                ResultSet arrRs = addrs2.getResultSet();
+                arrRs.next();
+                Assert.assertEquals(ipv6Address, arrRs.getObject(2));
+            }       {
+                // IPv6
+                Array addrs3 = rs.getArray(3);
+                Assert.assertEquals(addrs3.getBaseTypeName(), "Nullable(IPv6)");
+                Object[] arr = (Object[]) addrs3.getArray();
+                Assert.assertEquals(ipv6Address, arr[0]);
+
+                ResultSet arrRs = addrs3.getResultSet();
+                arrRs.next();
+                Assert.assertEquals(ipv6Address, arrRs.getObject(2));
+                arrRs.next();
+                Assert.assertNull(arrRs.getObject(2));
+            }
+        }
+    }
+
+
     @Test(groups = { "integration" })
     public void testFloatTypes() throws SQLException {
         runQuery("CREATE TABLE test_floats (order Int8, "
@@ -1172,6 +1240,33 @@ public class DataTypeTests extends JdbcIntegrationTest {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testArrayOfMaps() throws Exception {
+        try (Connection connection = getJdbcConnection();
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT [map('a', 1, 'b', 2)::Map(String, Int32)] arr1")) {
+
+            Assert.assertTrue(rs.next());
+            {
+                // Array(Map(String, Int32))
+                Array arrMap1 = rs.getArray(1);
+                Assert.assertEquals(arrMap1.getBaseTypeName(), "Map(String, Int32)");
+                Object[] arr = (Object[]) arrMap1.getArray();
+                @SuppressWarnings("unchecked")
+                Map<String, Integer> map1 = (Map<String, Integer>) arr[0];
+                Assert.assertEquals(map1.get("a"), Integer.valueOf(1));
+                Assert.assertEquals(map1.get("b"), Integer.valueOf(2));
+
+                ResultSet arrRs = arrMap1.getResultSet();
+                arrRs.next();
+                @SuppressWarnings("unchecked")
+                Map<String, Integer> rsMap1 = (Map<String, Integer>) arrRs.getObject(2);
+                Assert.assertEquals(rsMap1.get("a"), Integer.valueOf(1));
+                Assert.assertEquals(rsMap1.get("b"), Integer.valueOf(2));
             }
         }
     }

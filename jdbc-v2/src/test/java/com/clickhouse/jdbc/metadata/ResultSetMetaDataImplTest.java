@@ -136,7 +136,7 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("select map('a', 1) as a");
                 ResultSetMetaData rsmd = rs.getMetaData();
-                assertEquals(rsmd.getColumnType(1), Types.JAVA_OBJECT);
+                assertEquals(rsmd.getColumnType(1), Types.OTHER);
                 assertEquals(rsmd.getColumnClassName(1), Object.class.getName());
             }
         }
