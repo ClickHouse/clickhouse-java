@@ -832,7 +832,9 @@ public class DataTypeTests extends JdbcIntegrationTest {
                 ResultSet arrRs = addrs2.getResultSet();
                 arrRs.next();
                 Assert.assertEquals(ipv6Address, arrRs.getObject(2));
-            }       {
+            }
+
+            {
                 // IPv6
                 Array addrs3 = rs.getArray(3);
                 Assert.assertEquals(addrs3.getBaseTypeName(), "Nullable(IPv6)");

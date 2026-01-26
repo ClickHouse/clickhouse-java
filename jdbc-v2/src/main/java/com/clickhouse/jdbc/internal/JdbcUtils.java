@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.function.Function;
 
 public class JdbcUtils {
@@ -199,6 +200,12 @@ public class JdbcUtils {
                     case MultiPolygon:
                         map.put(e.getKey(), double[][][][].class);
                         break;
+                    case UUID:
+                        map.put(e.getKey(), UUID.class);
+                        break;
+                    case IPv4:
+                    case IPv6:
+                        // should be mapped to Object because require conversion.
                     default:
                         map.put(e.getKey(), Object.class);
                 }
