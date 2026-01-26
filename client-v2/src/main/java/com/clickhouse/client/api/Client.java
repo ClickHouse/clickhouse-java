@@ -137,21 +137,18 @@ public class Client implements AutoCloseable {
     // Server context
     private String dbUser;
     private String serverVersion;
-    private Object metricsRegistry;
-    private int retries;
+    private final Object metricsRegistry;
+    private final int retries;
     private LZ4Factory lz4Factory = null;
+    private final Supplier<String> queryIdGenerator;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
-        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
-    }
-
-    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
-        // Simple initialization
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
+                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
+        this.queryIdGenerator = queryIdGenerator;
 
         // Serialization
         this.pojoSerDe = new POJOSerDe(columnToMethodMatchingStrategy);
@@ -266,6 +263,8 @@ public class Client implements AutoCloseable {
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
+        private Supplier<String> queryIdGenerator;
+
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<>();
@@ -1085,6 +1084,16 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets query id generator. Will be used when operation settings (InsertSettings, QuerySettings) do not have query id set.
+         * @param supplier
+         * @return
+         */
+        public Builder setQueryIdGenerator(Supplier<String> supplier) {
+            this.queryIdGenerator = supplier;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1143,7 +1152,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
         }
     }
 
@@ -1282,6 +1291,9 @@ public class Client implements AutoCloseable {
         final int maxRetries = retry == null ? 0 : retry;
 
         requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1328,8 +1340,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (maxRetries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1338,8 +1350,10 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + durationSince(startTime), lastException);
-        };
+
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
 
@@ -1499,6 +1513,9 @@ public class Client implements AutoCloseable {
         }
         sqlStmt.append(" FORMAT ").append(format.name());
         requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1530,8 +1547,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (retries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1548,8 +1565,9 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            LOG.warn("Insert request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-            throw (lastException == null ? new ClientException("Failed to complete insert operation") : lastException);
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1598,7 +1616,7 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru {@code settings} or in SQL query.</li>
+     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
      * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
      * </ul>
      *
@@ -1621,6 +1639,10 @@ public class Client implements AutoCloseable {
 
         if (queryParams != null) {
             requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+        }
+
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
         }
 
         Supplier<QueryResponse> responseSupplier = () -> {
@@ -1666,8 +1688,8 @@ public class Client implements AutoCloseable {
 
                     } catch (Exception e) {
                         HttpAPIClientHelper.closeQuietly(httpResponse);
-                        lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                                (i + 1), (retries + 1), durationSince(startTime)), e);
+                        String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
@@ -1676,8 +1698,9 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-                LOG.warn("Query request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-                throw (lastException == null ? new ClientException("Failed to complete query") : lastException);
+                String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -2154,5 +2177,9 @@ public class Client implements AutoCloseable {
 
     private Duration durationSince(long sinceNanos) {
         return Duration.ofNanos(System.nanoTime() - sinceNanos);
+    }
+
+    private String requestExMsg(String operation, int attempt, long operationDuration, String queryId) {
+        return operation + " request failed (attempt: " + attempt +", duration: " + operationDuration + "ms, queryId: " + queryId + ")";
     }
 }

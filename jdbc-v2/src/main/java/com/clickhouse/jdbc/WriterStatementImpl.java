@@ -116,6 +116,8 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         int updateCount = 0;
         InputStream in = new ByteArrayInputStream(out.toByteArray());
         InsertSettings settings = new InsertSettings();
+        settings.setQueryId(setLastQueryID(settings.getQueryId()));
+
         try (InsertResponse response = queryTimeout == 0 ?
                 connection.getClient().insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get()
                 : connection.getClient().insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get(queryTimeout, TimeUnit.SECONDS)) {
