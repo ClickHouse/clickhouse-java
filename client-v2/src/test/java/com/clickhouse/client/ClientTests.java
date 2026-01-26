@@ -124,10 +124,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testRawSettings() {
-        final String customSetting = isCloud() ? "SQL_setting_1" : "custom_setting_1";
-        try (Client client = newClient()
-                .setOption(customSetting, "value_1")
-                .build()) {
+        try (Client client = newClient().build()) {
 
             client.execute("SELECT 1");
 
