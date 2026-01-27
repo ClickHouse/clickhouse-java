@@ -844,9 +844,7 @@ public abstract class BaseSqlParserFacadeTest {
     @Test
     public void testAllowedTableKeywords() throws Exception {
         List<String> keywords = loadKeywords("allowed_keyword_tablenames.txt");
-        if (keywords.isEmpty()) {
-            return; // Skip if file not found
-        }
+        Assert.assertFalse(keywords.isEmpty());
         List<String> failedKeywords = new ArrayList<>();
 
         for (String keyword : keywords) {
@@ -860,7 +858,7 @@ public abstract class BaseSqlParserFacadeTest {
                 failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + ") table name check failed");
             }
 
-            // Test 2: SELECT * FROM <keyword> WHERE col = ?
+            // Test 1: SELECT * FROM <keyword> WHERE col = ?
             String sql2 = "SELECT * FROM " + keyword + " WHERE col = ?";
             ParsedPreparedStatement stmt2 = parser.parsePreparedStatement(sql2);
             if (stmt2.isHasErrors()) {
@@ -873,7 +871,7 @@ public abstract class BaseSqlParserFacadeTest {
 //            Assert.assertEquals(stmt2.getTable(), keyword, "Table name mismatch for: " + sql2);
 
 
-            // Test 5: INSERT INTO <keyword> VALUES (?)
+            // Test 2: INSERT INTO <keyword> VALUES (?)
             String sql5 = "INSERT INTO " + keyword + " VALUES (?)";
             ParsedPreparedStatement stmt5 = parser.parsePreparedStatement(sql5);
             if (stmt5.isHasErrors()) {
