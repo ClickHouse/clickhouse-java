@@ -678,6 +678,7 @@ void showStmt(): {} {
             (<DATABASE> databaseIdentifier(true))
             | LOOKAHEAD(2) (LOOKAHEAD(1) <CREATE>)? (LOOKAHEAD(1) <SETTINGS>)? <PROFILE> anyIdentifier()
             | LOOKAHEAD(2) (<DICTIONARY> tableIdentifier(true))
+            | LOOKAHEAD(2) (LOOKAHEAD(1) <CHANGED>)? <SETTINGS> { token_source.table = "settings"; }
             | LOOKAHEAD(2) ((LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true))
         )
     )
@@ -843,7 +844,7 @@ void outfilePart(): {} {
 }
 
 void settingsPart(): {} {
-    <SETTINGS> { token_source.addPosition(token); } settingExprList()
+    (LOOKAHEAD(1) <CHANGED>)? <SETTINGS> { token_source.addPosition(token); } (LOOKAHEAD(2) settingExprList())?
 }
 
 void withTotalPart(): {} {
@@ -894,7 +895,7 @@ Token aliasExpr(): { Token t = null; } {
         | LOOKAHEAD(2) formatPart()
         | LOOKAHEAD(2) settingsPart()
         | LOOKAHEAD(2) outfilePart()
-        | t = identifier()
+        | t = anyIdentifier()
     )
     { return t; }
 }
@@ -950,10 +951,12 @@ void settingExprList(): {} {
 }
 
 void settingExpr(): { String key; } {
-    identifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
+    anyIdentifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
 }
 
-// basics
+// --- Base definitions
+
+
 Token anyIdentifier(): { Token t; } {
     (
         t = <BACK_QUOTED_NAME>
@@ -961,17 +964,6 @@ Token anyIdentifier(): { Token t; } {
         | t = variable()
         | t = <IDENTIFIER>
         | t = anyKeyword()
-    )
-    { return t; }
-}
-
-Token identifier(): { Token t; } {
-    (
-        t = <BACK_QUOTED_NAME>
-        | t = <DOUBLE_QUOTED_NAME>
-        | t = variable()
-        | t = <IDENTIFIER>
-        | t = keyword()
     )
     { return t; }
 }
@@ -1045,7 +1037,7 @@ Token anyKeyword(): { Token t; } {
         | t = <MOVE> | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
         // others
-        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
+        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> | t = <CHANGED>
         | t = <CLUSTER> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
         | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INFILE> | t = <INNER> 
@@ -1063,32 +1055,11 @@ Token anyKeyword(): { Token t; } {
     { return t; }
 }
 
-Token keyword(): { Token t; } {
-    (
-        // leading keywords(except with)
-        t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
-        | t = <DETACH> | t = <DROP> | t = <EXCHANGE> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
-        | t = <MOVE>  | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
-        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
-        // others
-        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
-        | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
-        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <INFILE> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
-        | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
-        | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
-        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER> | t = <REGEXP>
-        // interval
-        | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
-        // values
-        | t = <INF> | t = <NAN> | t = <NULL>
-    )
-    { return t; }
-}
-
 // keywords
 TOKEN: {
     <ALTER    : <A> <L> <T> <E> <R>>
     | <ATTACH   : <A> <T> <T> <A> <C> <H>        >
+    | <CHANGED  : <C> <H> <A> <N> <G> <E> <D>        >
     | <CHECK    : <C> <H> <E> <C> <K>            >
     | <CREATE   : <C> <R> <E> <A> <T> <E>        >
     | <DELETE   : <D> <E> <L> <E> <T> <E>        >
