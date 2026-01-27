@@ -5,6 +5,14 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -565,6 +573,7 @@ public abstract class BaseSqlParserFacadeTest {
                 /* has result set */
                 {"SELECT * FROM test_table", 0, true},
                 {"SELECT 1 table WHERE 1 = ?", 1, true},
+                {"SELECT * FROM transaction", 0, true},
                 {"SHOW CREATE TABLE `db`.`test_table`", 0, true},
                 {"SHOW CREATE TEMPORARY TABLE `db1`.`tmp_table`", 0, true},
                 {"SHOW CREATE DICTIONARY dict1", 0, true},
@@ -765,5 +774,122 @@ public abstract class BaseSqlParserFacadeTest {
                 {"UNDROP TABLE db.tab UUID '857d-4a57-9ee0-327da5d60a90' ON CLUSTER `default`", 0, false},
 
         };
+    }
+
+    /**
+     * Reads SQL keywords from the resource file.
+     * Keywords are listed one per line, comments start with #.
+     */
+    private List<String> loadKeywords(String resourceName) throws Exception {
+        List<String> keywords = new ArrayList<>();
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourceName);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            
+            if (is == null) {
+                return keywords;
+            }
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                // Skip empty lines and comments
+                if (!line.isEmpty() && !line.startsWith("#")) {
+                    keywords.add(line);
+                }
+            }
+        }
+        return keywords;
+    }
+
+    /**
+     * Test that keywords allowed as aliases can be used as table names and aliases.
+     */
+    @Test
+    public void testKeywordAliasesAsTableNames() throws Exception {
+        List<String> keywords = loadKeywords("allowed_keyword_aliases.txt");
+        Assert.assertFalse(keywords.isEmpty(), "Keywords list should not be empty");
+
+        List<String> failedKeywords = new ArrayList<>();
+
+        for (String keyword : keywords) {
+
+            // Test 1: SELECT * FROM table AS <keyword>
+            String sql3 = "SELECT * FROM table AS " + keyword;
+            ParsedPreparedStatement stmt3 = parser.parsePreparedStatement(sql3);
+            if (stmt3.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM table AS " + keyword + ")");
+            }
+
+
+            // Test 2: SELECT * FROM table <keyword> (implicit alias)
+            String sql4 = "SELECT * FROM table " + keyword;
+            ParsedPreparedStatement stmt4 = parser.parsePreparedStatement(sql4);
+            if (stmt4.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM table " + keyword + ")");
+            }
+
+        }
+
+        // Report all failures at once
+        if (!failedKeywords.isEmpty()) {
+            String failureMessage = "The following keywords caused parsing errors:\n" +
+                    failedKeywords.stream().collect(Collectors.joining("\n"));
+            Assert.fail(failureMessage);
+        }
+    }
+
+    /**
+     * Test that keywords allowed as table names can be used as table names.
+     */
+    @Test
+    public void testAllowedTableKeywords() throws Exception {
+        List<String> keywords = loadKeywords("allowed_keyword_tablenames.txt");
+        if (keywords.isEmpty()) {
+            return; // Skip if file not found
+        }
+        List<String> failedKeywords = new ArrayList<>();
+
+        for (String keyword : keywords) {
+            // Test 1: SELECT * FROM <keyword>
+            String sql1 = "SELECT * FROM " + keyword;
+            ParsedPreparedStatement stmt1 = parser.parsePreparedStatement(sql1);
+            if (stmt1.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + ")");
+            }
+            if (!stmt1.getTable().equalsIgnoreCase(keyword)) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + ") table name check failed");
+            }
+
+            // Test 2: SELECT * FROM <keyword> WHERE col = ?
+            String sql2 = "SELECT * FROM " + keyword + " WHERE col = ?";
+            ParsedPreparedStatement stmt2 = parser.parsePreparedStatement(sql2);
+            if (stmt2.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + " WHERE col = ?)");
+            }
+            Assert.assertEquals(stmt2.getArgCount(), 1, "Should have 1 parameter for: " + sql2);
+            if (!stmt2.getTable().equalsIgnoreCase(keyword)) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + " WHERE col = ?) table name check failed");
+            }
+//            Assert.assertEquals(stmt2.getTable(), keyword, "Table name mismatch for: " + sql2);
+
+
+            // Test 5: INSERT INTO <keyword> VALUES (?)
+            String sql5 = "INSERT INTO " + keyword + " VALUES (?)";
+            ParsedPreparedStatement stmt5 = parser.parsePreparedStatement(sql5);
+            if (stmt5.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: INSERT INTO " + keyword + " VALUES (?))");
+            }
+            Assert.assertEquals(stmt5.getArgCount(), 1, "Should have 1 parameter for: " + sql5);
+            if (!stmt2.getTable().equalsIgnoreCase(keyword)) {
+                failedKeywords.add(keyword + " (test: INSERT INTO " + keyword + " VALUES (?)) table name check failed");
+            }
+        }
+
+        // Report all failures at once
+        if (!failedKeywords.isEmpty()) {
+            String failureMessage = "The following keywords caused parsing errors:\n" +
+                    failedKeywords.stream().collect(Collectors.joining("\n"));
+            Assert.fail(failureMessage);
+        }
     }
 }
