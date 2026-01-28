@@ -506,6 +506,10 @@ public interface GenericRecord {
 
     LocalDate getLocalDate(int index);
 
+    LocalTime getLocalTime(String colName);
+
+    LocalTime getLocalTime(int index);
+
     LocalDateTime getLocalDateTime(String colName);
 
     LocalDateTime getLocalDateTime(int index);

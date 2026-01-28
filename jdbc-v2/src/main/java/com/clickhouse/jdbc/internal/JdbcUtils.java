@@ -300,7 +300,7 @@ public class JdbcUtils {
         return convertObject(value, type, column);
     }
 
-    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
+    static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
