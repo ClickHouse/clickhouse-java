@@ -891,7 +891,8 @@ public class DataTypeTests extends BaseIntegrationTest {
             return; // time64 was introduced in 25.6
         }
 
-        List<GenericRecord> records = client.queryAll("SELECT \'" + value + "\'::" + column);
+        QuerySettings settings = new QuerySettings().serverSetting("allow_experimental_time_time64_type", "1");
+        List<GenericRecord> records = client.queryAll("SELECT \'" + value + "\'::" + column, settings);
         LocalDateTime dt = records.get(0).getLocalDateTime(1);
         Assert.assertEquals(dt, expectedDt);
     }
