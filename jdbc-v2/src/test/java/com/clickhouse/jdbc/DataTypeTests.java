@@ -1067,6 +1067,65 @@ public class DataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    /**
+     * Test for https://github.com/ClickHouse/clickhouse-java/issues/2723
+     * getString() on nested arrays was failing with NullPointerException due to re-entrancy bug
+     * in DataTypeConverter when converting nested arrays to string representation.
+     */
+    @Test(groups = { "integration" })
+    public void testNestedArrayToString() throws SQLException {
+        // Test 1: Simple nested array - getString on Array(Array(Int32))
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT [[1, 2, 3], [4, 5, 6]] as nested_array")) {
+                    assertTrue(rs.next());
+                    // This was throwing NullPointerException before the fix
+                    String result = rs.getString("nested_array");
+                    assertEquals(result, "[[1, 2, 3], [4, 5, 6]]");
+                }
+            }
+        }
+
+        // Test 2: Query similar to issue #2723 with splitByChar returning array
+        // The original issue was that getString() on an array column inside a CASE/WHEN
+        // would cause NPE. This test verifies that getString() works correctly on arrays.
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                String query = "SELECT " +
+                        "splitByChar('_', 'field1_field2_field3') as split_result, " +
+                        "CASE " +
+                        "    WHEN " +
+                        "         splitByChar('_', 'field1_field2_field3')[1] IN ('field1', 'field2') " +
+                        "         AND match( " +
+                        "             splitByChar('_', 'field1_field2_field3')[2], " +
+                        "             '(field1|field2|field3)' " +
+                        "         ) " +
+                        "        THEN 'Matched' " +
+                        "    ELSE 'NotMatched' " +
+                        "END AS action_to_do";
+                try (ResultSet rs = stmt.executeQuery(query)) {
+                    assertTrue(rs.next());
+                    // The key test is that getString() doesn't throw NPE on array column
+                    String splitResult = rs.getString("split_result");
+                    assertEquals(splitResult, "['field1', 'field2', 'field3']");
+                    String actionResult = rs.getString("action_to_do");
+                    assertEquals(actionResult, "Matched");
+                }
+            }
+        }
+
+        // Test 3: Deeply nested arrays - Array(Array(Array(String)))
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT [[['a', 'b'], ['c']], [['d', 'e', 'f']]] as deep_nested")) {
+                    assertTrue(rs.next());
+                    String result = rs.getString("deep_nested");
+                    assertEquals(result, "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]");
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
