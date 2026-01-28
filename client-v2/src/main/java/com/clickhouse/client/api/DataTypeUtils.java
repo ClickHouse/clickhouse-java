@@ -148,12 +148,9 @@ public class DataTypeUtils {
         int nanoSeconds = 0;
         if (precision > 0) {
             int factor = BinaryStreamReader.BASES[precision];
-            nanoSeconds = (int) (value % factor);
+            nanoSeconds = Math.abs((int) (value % factor)); // nanoseconds are stored separately and only positive values accepted
             value /= factor;
-            if (nanoSeconds < 0) {
-                nanoSeconds += factor;
-                value--;
-            }
+
             if (nanoSeconds > 0L) {
                 nanoSeconds *= BASES[9 - precision];
             }

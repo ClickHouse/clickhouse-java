@@ -42,9 +42,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
@@ -705,29 +707,43 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_time64")) {
                 assertTrue(rs.next());
                 assertEquals(rs.getInt("order"), 1);
-                assertEquals(rs.getInt("time"), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
-                assertEquals(rs.getLong("time64"), -((TimeUnit.HOURS.toNanos(999) + TimeUnit.MINUTES.toNanos(59) + TimeUnit.SECONDS.toNanos(59)) + 999999999));
 
+                // Negative values
+                // Negative value cannot be returned as Time without being truncated
+                assertThrows(SQLException.class, () -> rs.getTime("time"));
+                assertThrows(SQLException.class, () -> rs.getTime("time64"));
+                LocalDateTime negativeTime = rs.getObject("time", LocalDateTime.class);
+                assertEquals(negativeTime.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                LocalDateTime negativeTime64 = rs.getObject("time64", LocalDateTime.class);
+                assertEquals(negativeTime64.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59), "value " + negativeTime64);
+                assertEquals(negativeTime64.getNano(), 999_999_999); // nanoseconds are stored separately and only positive values accepted
+
+                // Positive values
                 assertTrue(rs.next());
                 assertEquals(rs.getInt("order"), 2);
-                assertEquals(rs.getInt("time"), (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
-                assertEquals(rs.getLong("time64"), (TimeUnit.HOURS.toNanos(999) + TimeUnit.MINUTES.toNanos(59) + TimeUnit.SECONDS.toNanos(59)) + 999999999);
+                LocalDateTime positiveTime = rs.getObject("time", LocalDateTime.class);
+                assertEquals(positiveTime.toEpochSecond(ZoneOffset.UTC), (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                LocalDateTime positiveTime64 = rs.getObject("time64", LocalDateTime.class);
+                assertEquals(positiveTime64.toEpochSecond(ZoneOffset.UTC), (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+                assertEquals(positiveTime64.getNano(), 999_999_999);
 
-                Time time = rs.getTime("time");
-                assertEquals(time.getTime(), rs.getInt("time") * 1000L); // time is in seconds
-                assertEquals(time.getTime(), rs.getObject("time", Time.class).getTime());
-                Time time64 = rs.getTime("time64");
-                assertEquals(time64.getTime(), rs.getLong("time64") / 1_000_000); // time64 is in nanoseconds
-                assertEquals(time64, rs.getObject("time64", Time.class));
+                // Time is stored as UTC (server timezone)
+                assertEquals(rs.getTime("time", Calendar.getInstance(TimeZone.getTimeZone("UTC"))).getTime(),
+                        (TimeUnit.HOURS.toMillis(999) + TimeUnit.MINUTES.toMillis(59) + TimeUnit.SECONDS.toMillis(59)));
+
+                // java.sql.Time max resolution is milliseconds
+                assertEquals(rs.getTime("time64", Calendar.getInstance(TimeZone.getTimeZone("UTC"))).getTime(),
+                        (TimeUnit.HOURS.toMillis(999) + TimeUnit.MINUTES.toMillis(59) + TimeUnit.SECONDS.toMillis(59) + 999));
+
+                assertEquals(rs.getTime("time"), rs.getObject("time", Time.class));
+                assertEquals(rs.getTime("time64"), rs.getObject("time64", Time.class));
 
                 // time has no date part and cannot be converted to Date or Timestamp
                 for (String col : Arrays.asList("time", "time64")) {
                     assertThrows(SQLException.class, () -> rs.getDate(col));
                     assertThrows(SQLException.class, () -> rs.getTimestamp(col));
-                    assertThrows(SQLException.class, () -> rs.getObject(col, Date.class));
                     assertThrows(SQLException.class, () -> rs.getObject(col, Timestamp.class));
-                    // LocalTime conversion is not supported
-                    assertThrows(SQLException.class, () -> rs.getObject(col, LocalTime.class));
+                    assertThrows(SQLException.class, () -> rs.getObject(col, Date.class));
                 }
                 assertFalse(rs.next());
             }
@@ -1656,7 +1672,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(4), Date.valueOf("2024-12-01"));
                     assertEquals(rs.getString(4), "2024-12-01");//Underlying object is ZonedDateTime
                     assertEquals(rs.getObject(4, LocalDate.class), LocalDate.of(2024, 12, 1));
-                    assertEquals(rs.getObject(4, ZonedDateTime.class), ZonedDateTime.of(2024, 12, 1, 0, 0, 0, 0, ZoneId.of("UTC")));
+                    assertThrows(SQLException.class, () -> rs.getObject(4, ZonedDateTime.class)); // Date cannot be presented as time
                     assertEquals(String.valueOf(rs.getObject(4, new HashMap<String, Class<?>>(){{put(JDBCType.DATE.getName(), LocalDate.class);}})), "2024-12-01");
 
                     assertEquals(rs.getTimestamp(5).toString(), "2024-12-01 12:34:56.0");

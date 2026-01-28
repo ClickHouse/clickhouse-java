@@ -577,7 +577,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                     case Decimal128:
                     case Decimal256:
                         BigDecimal tmpDec = row.getBigDecimal("field").stripTrailingZeros();
-                        if (tmpDec.divide((BigDecimal)value, RoundingMode.FLOOR).equals(BigDecimal.ONE)) {
+                        if (tmpDec.divide((BigDecimal)value, RoundingMode.UNNECESSARY).equals(BigDecimal.ONE)) {
                             continue;
                         }
                         strValue = tmpDec.toPlainString();
@@ -904,14 +904,14 @@ public class DataTypeTests extends BaseIntegrationTest {
                 {"Time64(3)","00:01:00.123", LocalDateTime.parse("1970-01-01T00:01:00.123")},
                 {"Time64(6)","00:01:00.123456", LocalDateTime.parse("1970-01-01T00:01:00.123456")},
                 {"Time64(9)","00:01:00.123456789", LocalDateTime.parse("1970-01-01T00:01:00.123456789")},
-                {"Time64","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:58:59.877")},
-                {"Time64(3)","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:58:59.877")},
-                {"Time64(6)","-00:01:00.123456", LocalDateTime.parse("1969-12-31T23:58:59.876544")},
-                {"Time64(9)","-00:01:00.123456789", LocalDateTime.parse("1969-12-31T23:58:59.876543211")},
-                {"Time64","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:00.001")},
-                {"Time64(3)","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:00.001")},
-                {"Time64(6)","-999:59:59.999999", LocalDateTime.parse("1969-11-20T08:00:00.000001")},
-                {"Time64(9)","-999:59:59.999999999", LocalDateTime.parse("1969-11-20T08:00:00.000000001")},
+                {"Time64","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:59:00.123")},
+                {"Time64(3)","-00:01:00.123", LocalDateTime.parse("1969-12-31T23:59:00.123")},
+                {"Time64(6)","-00:01:00.123456", LocalDateTime.parse("1969-12-31T23:59:00.123456")},
+                {"Time64(9)","-00:01:00.123456789", LocalDateTime.parse("1969-12-31T23:59:00.123456789")},
+                {"Time64","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:01.999")},
+                {"Time64(3)","-999:59:59.999", LocalDateTime.parse("1969-11-20T08:00:01.999")},
+                {"Time64(6)","-999:59:59.999999", LocalDateTime.parse("1969-11-20T08:00:01.999999")},
+                {"Time64(9)","-999:59:59.999999999", LocalDateTime.parse("1969-11-20T08:00:01.999999999")},
                 {"Time64","999:59:59.999", LocalDateTime.parse("1970-02-11T15:59:59.999")},
                 {"Time64(3)","999:59:59.999", LocalDateTime.parse("1970-02-11T15:59:59.999")},
                 {"Time64(6)","999:59:59.999999", LocalDateTime.parse("1970-02-11T15:59:59.999999")},

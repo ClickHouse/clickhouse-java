@@ -78,6 +78,9 @@ public class MapBackedRecord implements GenericRecord {
         if (converter != null) {
             Object value = readValue(colName);
             if (value == null) {
+                if (targetType == NumberConverter.NumberType.BigInteger || targetType == NumberConverter.NumberType.BigDecimal) {
+                    return null;
+                }
                 throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
                         targetType.getTypeName());
             }
@@ -142,14 +145,15 @@ public class MapBackedRecord implements GenericRecord {
             case Date:
             case Date32:
                 LocalDate date = getLocalDate(colIndex);
-                return Instant.from(date);
+                return date == null ? null : Instant.from(date);
             case Time:
             case Time64:
                 LocalDateTime time = getLocalDateTime(colName);
-                return time.toInstant(ZoneOffset.UTC);
+                return time == null ? null : time.toInstant(ZoneOffset.UTC);
             case DateTime:
             case DateTime64:
-                return getZonedDateTime(colName).toInstant();
+                ZonedDateTime zdt = getZonedDateTime(colName);
+                return zdt == null ? null : zdt.toInstant();
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
         }
@@ -161,8 +165,7 @@ public class MapBackedRecord implements GenericRecord {
         switch (column.getEffectiveDataType()) {
             case DateTime:
             case DateTime64:
-                Object colValue = readValue(column.getColumnIndex());
-                return (ZonedDateTime) colValue;
+                return readValue(column.getColumnIndex());
         }
 
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
@@ -170,7 +173,8 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Duration getDuration(String colName) {
-        return readValue(colName);
+        TemporalAmount temporalAmount = readValue(colName);
+        return temporalAmount == null ? null : Duration.from(temporalAmount);
     }
 
     @Override
@@ -180,12 +184,14 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Inet4Address getInet4Address(String colName) {
-        return InetAddressConverter.convertToIpv4(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : InetAddressConverter.convertToIpv4((java.net.InetAddress) val);
     }
 
     @Override
     public Inet6Address getInet6Address(String colName) {
-        return InetAddressConverter.convertToIpv6(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : InetAddressConverter.convertToIpv6((java.net.InetAddress) val);
     }
 
     @Override
@@ -195,28 +201,35 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(String colName) {
-        return ClickHouseGeoPointValue.of(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : ClickHouseGeoPointValue.of((double[]) val);
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(String colName) {
-        return ClickHouseGeoRingValue.of(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : ClickHouseGeoRingValue.of((double[][]) val);
     }
 
     @Override
     public ClickHouseGeoPolygonValue getGeoPolygon(String colName) {
-        return ClickHouseGeoPolygonValue.of(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : ClickHouseGeoPolygonValue.of((double[][][]) val);
     }
 
     @Override
     public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName) {
-        return ClickHouseGeoMultiPolygonValue.of(readValue(colName));
+        Object val = readValue(colName);
+        return val == null ? null : ClickHouseGeoMultiPolygonValue.of((double[][][][]) val);
     }
 
 
     @Override
     public <T> List<T> getList(String colName) {
         Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).asList();
         } else if (value instanceof List<?>) {
@@ -229,6 +242,9 @@ public class MapBackedRecord implements GenericRecord {
 
     private <T> T getPrimitiveArray(String colName) {
         BinaryStreamReader.ArrayValue array = readValue(colName);
+        if (array == null) {
+            return null;
+        }
         if (array.itemType.isPrimitive()) {
             return (T) array.array;
         } else {
@@ -273,7 +289,22 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public String[] getStringArray(String colName) {
-        return getPrimitiveArray(colName);
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+            int length = array.length;
+            if (!array.itemType.equals(String.class))
+                throw new ClientException("Not A String type.");
+            String [] values = new String[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            }
+            return values;
+        }
+        throw new ClientException("Not ArrayValue type.");
     }
 
     @Override
@@ -353,12 +384,14 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Inet4Address getInet4Address(int index) {
-        return InetAddressConverter.convertToIpv4(readValue(index));
+        Object val = readValue(index);
+        return val == null ? null : InetAddressConverter.convertToIpv4((java.net.InetAddress) val);
     }
 
     @Override
     public Inet6Address getInet6Address(int index) {
-        return InetAddressConverter.convertToIpv6(readValue(index));
+        Object val = readValue(index);
+        return val == null ? null : InetAddressConverter.convertToIpv6((java.net.InetAddress) val);
     }
 
     @Override
@@ -443,22 +476,36 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte getEnum8(String colName) {
-        return readValue(colName);
+        Object val = readValue(colName);
+        if (val == null) {
+            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to byte");
+        }
+        if (val instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue) val).byteValue();
+        }
+        return (byte) val;
     }
 
     @Override
     public byte getEnum8(int index) {
-        return readValue(index);
+        return getEnum8(schema.columnIndexToName(index));
     }
 
     @Override
     public short getEnum16(String colName) {
-        return readValue(colName);
+        Object val = readValue(colName);
+        if (val == null) {
+            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to short");
+        }
+        if (val instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue) val).shortValue();
+        }
+        return (short) val;
     }
 
     @Override
     public short getEnum16(int index) {
-        return readValue(index);
+        return getEnum16(schema.columnIndexToName(index));
     }
 
     @Override
@@ -477,14 +524,17 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime32:
             case DateTime64:
                 LocalDateTime dt = getLocalDateTime(colName);
-                return dt.toLocalDate();
+                return dt == null ? null : dt.toLocalDate();
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
+                if (value == null) {
+                    return null;
+                }
                 if (value instanceof LocalDate) {
                     return (LocalDate) value;
                 } else {
-                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalDate");
+                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalDate");
                 }
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
@@ -497,19 +547,23 @@ public class MapBackedRecord implements GenericRecord {
         switch(column.getEffectiveDataType()) {
             case Time:
             case Time64:
-                return ((LocalDateTime) getObject(colName)).toLocalTime();
+                LocalDateTime val = (LocalDateTime) getObject(colName);
+                return val == null ? null : val.toLocalTime();
             case DateTime:
             case DateTime32:
             case DateTime64:
                 LocalDateTime dt = getLocalDateTime(colName);
-                return dt.toLocalTime();
+                return dt == null ? null : dt.toLocalTime();
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
+                if (value == null) {
+                    return null;
+                }
                 if (value instanceof LocalDateTime) {
                     return ((LocalDateTime) value).toLocalTime();
                 } else {
-                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalTime");
+                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalTime");
                 }
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalTime");
@@ -532,16 +586,20 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime:
             case DateTime32:
             case DateTime64:
-                return ((ZonedDateTime)readValue(colName)).toLocalDateTime();
+                ZonedDateTime val = (ZonedDateTime) readValue(colName);
+                return val == null ? null : val.toLocalDateTime();
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
+                if (value == null) {
+                    return null;
+                }
                 if (value instanceof LocalDateTime) {
                     return (LocalDateTime) value;
                 } else if (value instanceof ZonedDateTime) {
                     return ((ZonedDateTime)value).toLocalDateTime();
                 } else {
-                    throw new ClientException("Dynamic/Variant value of " + (value == null? "null" : value.getClass()) + " cannot be converted to LocalDateTime");
+                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalDateTime");
 
                 }
             default:
@@ -563,7 +621,8 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
             case Dynamic:
             case Variant:
-                return getZonedDateTime(colName).toOffsetDateTime();
+                ZonedDateTime val = getZonedDateTime(colName);
+                return val == null ? null : val.toOffsetDateTime();
             default:
                 throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to OffsetDataTime");
         }
