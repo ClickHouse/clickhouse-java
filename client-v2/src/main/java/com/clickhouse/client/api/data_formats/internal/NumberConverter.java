@@ -1,5 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.google.common.collect.ImmutableMap;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Collections;
@@ -164,6 +166,6 @@ public class NumberConverter {
         converters.put(NumberType.Float, NumberConverter::toFloat);
         converters.put(NumberType.Double, NumberConverter::toDouble);
         converters.put(NumberType.Boolean, SerializerUtils::convertToBoolean);
-        return Collections.unmodifiableMap(converters);
+        return ImmutableMap.copyOf(converters);
     }
 }
