@@ -28,14 +28,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.GregorianCalendar;
-import java.util.Properties;
-import java.util.Random;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -220,7 +214,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSetTime() throws Exception {
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime(?)")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toTime(?)")) {
                 stmt.setTime(1, java.sql.Time.valueOf("12:34:56"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
@@ -233,11 +227,22 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSetTimestamp() throws Exception {
+        final Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3)")) {
-                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), new GregorianCalendar(TimeZone.getTimeZone("UTC")));
+                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), calendar);
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
+                    assertEquals(rs.getTimestamp(1, calendar).toString(), "2021-01-01 01:34:56.456");
+                    assertFalse(rs.next());
+                }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3)")) {
+                stmt.setObject(1, LocalDateTime.parse("2021-01-01T01:34:56").withNano((int) TimeUnit.MILLISECONDS.toNanos(456)));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getTimestamp(1).getNanos(), TimeUnit.MILLISECONDS.toNanos(456));
                     assertEquals(rs.getTimestamp(1).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
@@ -435,7 +440,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.execute("CREATE TABLE " + table + " (v1 String) Engine MergeTree ORDER BY ()");
                 stmt.execute("INSERT INTO " + table + " VALUES ('A'), ('B')");
             }
-            final Timestamp target_time = Timestamp.valueOf(LocalDateTime.now());
+            final Timestamp target_time = Timestamp.valueOf(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
             try (PreparedStatement stmt = conn.prepareStatement("WITH " +
                     " toDateTime(?) as target_time, " +
                     " (SELECT 123) as magic_number" +
@@ -886,7 +891,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
                 Assert.assertEquals(stmt.getClass(), implClass);
                 for (int bI = 0; bI < nBatches; bI++) {
-                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+                    // truncate to seconds to make fit into DateTime
+                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)));
                     stmt.setInt(2, rnd.nextInt());
                     stmt.setFloat(3, rnd.nextFloat());
                     stmt.setInt(4, rnd.nextInt());
@@ -939,10 +945,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
 
             final int nBatches = 10;
+
             try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
                 Assert.assertEquals(stmt.getClass(), PreparedStatementImpl.class);
                 for (int bI = 0; bI < nBatches; bI++) {
-                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)));
                     stmt.setInt(2, rnd.nextInt());
                     stmt.setFloat(3, rnd.nextFloat());
                     stmt.setInt(4, rnd.nextInt());
@@ -1406,7 +1413,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"}, dataProvider = "testTypeCastsDP")
+    // Disabled because implicit type casting is not a right way
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastsDP", enabled = false)
     public void testTypeCastsWithoutArgument(Object value, SQLType targetType, ClickHouseDataType expectedType) throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
@@ -1446,7 +1454,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         };
     }
 
-    @Test(groups = {"integration"}, dataProvider = "testJDBCTypeCastDP")
+    // Disabled because implicit type casting is not a right way
+    @Test(groups = {"integration"}, dataProvider = "testJDBCTypeCastDP", enabled = false)
     public void testJDBCTypeCast(Object value, int targetType, ClickHouseDataType expectedType) throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
@@ -1478,7 +1487,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         };
     }
 
-    @Test(groups = {"integration"})
+    // Disabled because implicit type casting is not a right way
+    @Test(groups = {"integration"}, enabled = false)
     public void testTypesInvalidForCast() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("select ?, toTypeName(?)")) {
@@ -1492,7 +1502,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"}, dataProvider = "testTypeCastWithScaleOrLengthDP")
+    // Disabled because implicit type casting is not a right way
+    @Test(groups = {"integration"}, dataProvider = "testTypeCastWithScaleOrLengthDP", enabled = false)
     public void testTypeCastWithScaleOrLength(Object value, SQLType targetType, Integer scaleOrLength, String expectedValue,
                                               String expectedType) throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -1622,6 +1633,173 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     ClickHouseColumn col1 = ClickHouseColumn.of("v", "Array(Array(Tuple(Int8, Int8, Int8)))");
                     assertEquals(stmt.encodeArray(array7, col1.getArrayNestedLevel(), col1.getArrayBaseColumn().getDataType()),
                             "[[],[NULL,(1,2,3),(4,5,6),()],[NULL,(7,8,9),(10,11,12)],[]]");
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Tests the "day shift" bug that can occur when timezone differences cause dates to shift by a day.
+     *
+     * The issue: java.sql.Date internally stores milliseconds since epoch at midnight in some timezone.
+     * If the driver interprets that instant using a different timezone, the date can shift.
+     *
+     * Example: "2024-01-15 00:00:00" in America/New_York (UTC-5) is "2024-01-15 05:00:00" in UTC.
+     * But "2024-01-15 00:00:00" in Pacific/Auckland (UTC+13) is "2024-01-14 11:00:00" in UTC.
+     * If not handled correctly, dates near midnight can shift to the previous or next day.
+     */
+    @Test(groups = {"integration"})
+    void testDateDayShiftWithDifferentTimezones() throws Exception {
+        String table = "test_date_day_shift";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) Engine MergeTree ORDER BY id");
+            }
+
+            // Test dates that are prone to day shift issues (near year boundaries, month boundaries)
+            String[] testDates = {
+                    "2024-01-01",  // New Year - common edge case
+                    "2024-12-31",  // Year end
+                    "2024-06-15",  // Mid-year
+                    "2024-03-10",  // Near DST transition in US
+                    "2024-11-03"   // Near DST transition in US
+            };
+
+            // Timezones with significant offsets from UTC
+            TimeZone[] timezones = {
+                    TimeZone.getTimeZone("UTC"),
+                    TimeZone.getTimeZone("America/New_York"),      // UTC-5 / UTC-4 (DST)
+                    TimeZone.getTimeZone("America/Los_Angeles"),   // UTC-8 / UTC-7 (DST)
+                    TimeZone.getTimeZone("Europe/Moscow"),         // UTC+3
+                    TimeZone.getTimeZone("Asia/Tokyo"),            // UTC+9
+                    TimeZone.getTimeZone("Pacific/Auckland")       // UTC+12 / UTC+13 (DST)
+            };
+
+            int id = 0;
+            for (String dateStr : testDates) {
+                java.sql.Date expectedDate = java.sql.Date.valueOf(dateStr);
+
+                for (TimeZone tz : timezones) {
+                    id++;
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "INSERT INTO " + table + " (id, d) VALUES (?, ?)")) {
+                        stmt.setInt(1, id);
+                        // Use Calendar to specify the timezone context for the date
+                        stmt.setDate(2, expectedDate, new GregorianCalendar(tz));
+                        stmt.executeUpdate();
+                    }
+
+                    // Verify the date was stored correctly
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "SELECT d FROM " + table + " WHERE id = ?")) {
+                        stmt.setInt(1, id);
+                        try (ResultSet rs = stmt.executeQuery()) {
+                            assertTrue(rs.next(), "Expected row for id=" + id);
+                            java.sql.Date actualDate = rs.getDate(1);
+                            assertEquals(actualDate.toString(), expectedDate.toString(),
+                                    String.format("Date mismatch for %s with timezone %s: expected %s, got %s",
+                                            dateStr, tz.getID(), expectedDate, actualDate));
+                        }
+                    }
+                }
+            }
+
+            // Cleanup
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE " + table);
+            }
+        }
+    }
+
+    /**
+     * Tests that setDate without Calendar uses the default timezone consistently.
+     * Compares behavior with and without explicit Calendar parameter.
+     */
+    @Test(groups = {"integration"})
+    void testDateWithAndWithoutCalendar() throws Exception {
+        String table = "test_date_calendar_comparison";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) Engine MergeTree ORDER BY id");
+            }
+
+            java.sql.Date testDate = java.sql.Date.valueOf("2024-06-15");
+
+            // Insert without Calendar (uses default timezone)
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (id, d) VALUES (?, ?)")) {
+                stmt.setInt(1, 1);
+                stmt.setDate(2, testDate);  // No Calendar - uses default
+                stmt.executeUpdate();
+            }
+
+            // Insert with explicit UTC Calendar
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (id, d) VALUES (?, ?)")) {
+                stmt.setInt(1, 2);
+                stmt.setDate(2, testDate, new GregorianCalendar(TimeZone.getTimeZone("UTC")));
+                stmt.executeUpdate();
+            }
+
+            // Both should retrieve the same date string
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT id, d FROM " + table + " ORDER BY id")) {
+
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+                java.sql.Date dateWithoutCalendar = rs.getDate(2);
+
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 2);
+                java.sql.Date dateWithCalendar = rs.getDate(2);
+
+                // The string representation should be the same
+                assertEquals(dateWithoutCalendar.toString(), testDate.toString(),
+                        "Date without Calendar should match original");
+                assertEquals(dateWithCalendar.toString(), testDate.toString(),
+                        "Date with Calendar should match original");
+            }
+
+            // Cleanup
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE " + table);
+            }
+        }
+    }
+
+    /**
+     * Tests edge case: dates at the boundary of a day in extreme timezones.
+     * This is where day shift bugs are most likely to manifest.
+     */
+    @Test(groups = {"integration"})
+    void testDateBoundaryEdgeCases() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            final java.sql.Date testDate = java.sql.Date.valueOf("2024-01-15");
+
+            // Test with a timezone that's far ahead of UTC (e.g., Pacific/Auckland UTC+12/+13)
+            // If there's a day shift bug, this would show as 2024-01-14 or 2024-01-16
+            TimeZone auckland = TimeZone.getTimeZone("Pacific/Auckland");
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
+                stmt.setDate(1, testDate, new GregorianCalendar(auckland));
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1).toString(), "2024-01-15",
+                            "Date should not shift even with far-ahead timezone");
+                }
+            }
+
+            // Test with a timezone that's far behind UTC (e.g., Pacific/Honolulu UTC-10)
+            TimeZone honolulu = TimeZone.getTimeZone("Pacific/Honolulu");
+            Calendar honoluluCal = new GregorianCalendar(honolulu);
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
+                stmt.setDate(1, testDate, honoluluCal);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getDate(1, honoluluCal).toString(), "2024-01-15",
+                            "Date should not shift even with far-behind timezone");
                 }
             }
         }

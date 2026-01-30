@@ -52,6 +52,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -68,11 +70,6 @@ import java.util.stream.IntStream;
 
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
-
-    public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
-            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
-    public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
-            .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
 
     private final Calendar defaultCalendar;
 
@@ -218,17 +215,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setDate(parameterIndex, x, null);
+        setDate(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setTime(parameterIndex, x, null);
+        setTime(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setTimestamp(parameterIndex, x, null);
+        setTimestamp(parameterIndex, x, defaultCalendar);
     }
 
     @Override
@@ -469,43 +466,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
-    }
-
-    protected Instant sqlDateToInstant(Date x, Calendar cal) {
-        LocalDate d = x.toLocalDate();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-        return c.toInstant();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, cal));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
-    }
-
-    protected Instant sqlTimeToInstant(Time x, Calendar cal) {
-        LocalTime t = x.toLocalTime();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(1970, Calendar.JANUARY, 1, t.getHour(), t.getMinute(), t.getSecond());
-        return c.toInstant();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, cal));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
-    }
-
-    protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
-        LocalDateTime ldt = x.toLocalDateTime();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-        return c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos());
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDateTime(x, cal));
     }
 
     @Override
@@ -783,13 +756,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof LocalDate) {
                 return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE;
             } else if (x instanceof Time) {
-                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
+                return QUOTE + DataTypeUtils.TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
             } else if (x instanceof LocalTime) {
-                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE;
+                return QUOTE + DataTypeUtils.TIME_FORMATTER.format((LocalTime) x) + QUOTE;
             } else if (x instanceof Timestamp) {
-                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
+                return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE;
+                return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format((LocalDateTime) x) + QUOTE;
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
@@ -1032,17 +1005,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     }
 
     private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
-        String encodedObject = encodeObject(x);
-        if (clickHouseDataType != null) {
-            encodedObject = "CAST (" + encodedObject + " AS " + clickHouseDataType.name();
-            if (clickHouseDataType.hasParameter()) {
-                if (scaleOrLength == null) {
-                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
-                }
-                encodedObject += "(" + scaleOrLength + ")";
-            }
-            encodedObject += ")";
-        }
-        return encodedObject;
+        return encodeObject(x);
     }
 }
