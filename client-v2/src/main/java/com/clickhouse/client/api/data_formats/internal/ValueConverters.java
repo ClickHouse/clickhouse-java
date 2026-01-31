@@ -28,6 +28,7 @@ public final class ValueConverters {
         ImmutableMap.Builder<Class<?>, Function<Object, Object>> numberConvertersBuilder = ImmutableMap.builder();
         numberConvertersBuilder.put(String.class, this::convertNumberToString);
         numberConvertersBuilder.put(Boolean.class, this::convertNumberToBoolean);
+        numberConvertersBuilder.put(boolean.class, this::convertNumberToBoolean);
         numberConvertersBuilder.put(byte.class, this::convertNumberToByte);
         numberConvertersBuilder.put(short.class, this::convertNumberToShort);
         numberConvertersBuilder.put(int.class, this::convertNumberToInt);
@@ -64,20 +65,20 @@ public final class ValueConverters {
         mapBuilder.put(BigDecimal.class, numberConverters);
 
         ImmutableMap.Builder<Class<?>, Function<Object, Object>> booleanMapBuilder = ImmutableMap.builder();
-        booleanMapBuilder.put(byte.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(short.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(int.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(long.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(float.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(double.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Byte.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Short.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Integer.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Long.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Float.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(Double.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(BigInteger.class, this::convertBooleanToNumber);
-        booleanMapBuilder.put(BigDecimal.class, this::convertBooleanToNumber);
+        booleanMapBuilder.put(byte.class, this::convertBooleanToByte);
+        booleanMapBuilder.put(short.class, this::convertBooleanToShort);
+        booleanMapBuilder.put(int.class, this::convertBooleanToInt);
+        booleanMapBuilder.put(long.class, this::convertBooleanToLong);
+        booleanMapBuilder.put(float.class, this::convertBooleanToFloat);
+        booleanMapBuilder.put(double.class, this::convertBooleanToDouble);
+        booleanMapBuilder.put(Byte.class, this::convertBooleanToByte);
+        booleanMapBuilder.put(Short.class, this::convertBooleanToShort);
+        booleanMapBuilder.put(Integer.class, this::convertBooleanToInt);
+        booleanMapBuilder.put(Long.class, this::convertBooleanToLong);
+        booleanMapBuilder.put(Float.class, this::convertBooleanToFloat);
+        booleanMapBuilder.put(Double.class, this::convertBooleanToDouble);
+        booleanMapBuilder.put(BigInteger.class, this::convertBooleanToBigInt);
+        booleanMapBuilder.put(BigDecimal.class, this::convertBooleanToBigDecimal);
         booleanMapBuilder.put(String.class, this::convertBooleanToString);
         booleanMapBuilder.put(Boolean.class, this::convertBooleanToBoolean);
         booleanMapBuilder.put(boolean.class, this::convertBooleanToBoolean);
@@ -121,6 +122,38 @@ public final class ValueConverters {
 
     public Number convertBooleanToNumber(Object value) {
         return ((Boolean) value) ? 1L : 0L;
+    }
+
+    public Byte convertBooleanToByte(Object value) {
+        return convertBooleanToNumber(value).byteValue();
+    }
+
+    public Short convertBooleanToShort(Object value) {
+        return convertBooleanToNumber(value).shortValue();
+    }
+
+    public Integer convertBooleanToInt(Object value) {
+        return convertBooleanToNumber(value).intValue();
+    }
+
+    public Long convertBooleanToLong(Object value) {
+        return convertBooleanToNumber(value).longValue();
+    }
+
+    public Float convertBooleanToFloat(Object value) {
+        return convertBooleanToNumber(value).floatValue();
+    }
+
+    public Double convertBooleanToDouble(Object value) {
+        return convertBooleanToNumber(value).doubleValue();
+    }
+
+    public BigInteger convertBooleanToBigInt(Object value) {
+        return BigInteger.valueOf(convertBooleanToNumber(value).longValue());
+    }
+
+    public BigDecimal convertBooleanToBigDecimal(Object value) {
+        return BigDecimal.valueOf(convertBooleanToNumber(value).longValue());
     }
 
     public String convertBooleanToString(Object value) {
