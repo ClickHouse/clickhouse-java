@@ -154,9 +154,16 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
                 ZonedDateTime zdt = getZonedDateTime(colName);
                 return zdt == null ? null : zdt.toInstant();
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
+            case Dynamic:
+            case Variant:
+                Object value = readValue(colName);
+                Instant instant = AbstractBinaryFormatReader.objectToInstant(value, column);
+                if (value == null || instant != null) {
+                    return instant;
+                }
+                break;
         }
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
     @Override
@@ -368,9 +375,17 @@ public class MapBackedRecord implements GenericRecord {
             case DateTime64:
             case DateTime32:
                 return readValue(index);
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
+            case Dynamic:
+            case Variant:
+                Object value = readValue(index);
+                if (value == null) {
+                    return null;
+                } else if (value instanceof ZonedDateTime) {
+                    return (ZonedDateTime) value;
+                }
+                break;
         }
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
     }
 
     @Override
@@ -529,17 +544,13 @@ public class MapBackedRecord implements GenericRecord {
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
-                if (value == null) {
-                    return null;
+                LocalDate localDate = AbstractBinaryFormatReader.objectToLocalDate(value);
+                if (value == null || localDate != null) {
+                    return localDate;
                 }
-                if (value instanceof LocalDate) {
-                    return (LocalDate) value;
-                } else {
-                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalDate");
-                }
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
+                break;
         }
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
     }
 
     @Override
@@ -558,17 +569,13 @@ public class MapBackedRecord implements GenericRecord {
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
-                if (value == null) {
-                    return null;
+                LocalTime localTime = AbstractBinaryFormatReader.objectToLocalTime(value);
+                if (value == null || localTime != null) {
+                    return localTime;
                 }
-                if (value instanceof LocalDateTime) {
-                    return ((LocalDateTime) value).toLocalTime();
-                } else {
-                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalTime");
-                }
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalTime");
+                break;
         }
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalTime");
     }
 
     @Override
@@ -592,20 +599,13 @@ public class MapBackedRecord implements GenericRecord {
             case Dynamic:
             case Variant:
                 Object value = getObject(colName);
-                if (value == null) {
-                    return null;
+                LocalDateTime localDateTime = AbstractBinaryFormatReader.objectToLocalDateTime(value);
+                if (value == null || localDateTime != null) {
+                    return localDateTime;
                 }
-                if (value instanceof LocalDateTime) {
-                    return (LocalDateTime) value;
-                } else if (value instanceof ZonedDateTime) {
-                    return ((ZonedDateTime)value).toLocalDateTime();
-                } else {
-                    throw new ClientException("Dynamic/Variant value of " + value.getClass() + " cannot be converted to LocalDateTime");
-
-                }
-            default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDateTime");
+                break;
         }
+        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDateTime");
     }
 
     @Override
