@@ -310,10 +310,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Enum16:
                 case Variant:
                 case Dynamic:
-                case Date:
-                case Date32:
-                case Time:
-                case Time64:
                     this.convertions[i] = NumberConverter.NUMBER_CONVERTERS;
                     break;
                 default:
@@ -884,7 +880,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 ZonedDateTime zdt = readValue(index);
                 return zdt == null ? null : zdt.toLocalTime();
             default:
-                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalDate");
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to LocalTime");
         }
     }
 

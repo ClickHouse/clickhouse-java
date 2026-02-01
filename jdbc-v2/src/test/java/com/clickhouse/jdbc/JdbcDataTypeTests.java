@@ -730,8 +730,8 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
                 // Negative values
                 // Negative value cannot be returned as Time without being truncated
-                assertThrows(SQLException.class, () -> rs.getTime("time"));
-                assertThrows(SQLException.class, () -> rs.getTime("time64"));
+                assertTrue(rs.getTime("time").getTime() < 0);
+                assertTrue(rs.getTime("time64").getTime() < 0);
                 LocalDateTime negativeTime = rs.getObject("time", LocalDateTime.class);
                 assertEquals(negativeTime.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
                 LocalDateTime negativeTime64 = rs.getObject("time64", LocalDateTime.class);

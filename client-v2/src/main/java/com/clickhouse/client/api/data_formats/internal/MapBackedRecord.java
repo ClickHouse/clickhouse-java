@@ -161,14 +161,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public ZonedDateTime getZonedDateTime(String colName) {
-        ClickHouseColumn column = schema.getColumnByName(colName);
-        switch (column.getEffectiveDataType()) {
-            case DateTime:
-            case DateTime64:
-                return readValue(column.getColumnIndex());
-        }
-
-        throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
+        return getZonedDateTime(schema.nameToColumnIndex(colName));
     }
 
     @Override
@@ -369,7 +362,15 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
-        return getZonedDateTime(schema.columnIndexToName(index));
+        ClickHouseColumn column = schema.getColumnByIndex(index);
+        switch (column.getEffectiveDataType()) {
+            case DateTime:
+            case DateTime64:
+            case DateTime32:
+                return readValue(index);
+            default:
+                throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to ZonedDateTime");
+        }
     }
 
     @Override

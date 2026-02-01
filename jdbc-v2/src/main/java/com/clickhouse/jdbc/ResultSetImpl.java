@@ -1060,12 +1060,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
             wasNull = false;
-
-            if (ld.getYear() != 1970 || ld.getMonth() != Month.JANUARY || ld.getDayOfMonth() != 1) {
-                final String msg = "Time value '" + ld + "' is before Epoch and cannot be returned as java.sql.Time. Use getObject() to get LocalDateTime instead.";
-                throw new SQLException(msg);
-            }
-
             Calendar c = cal != null ? cal : defaultCalendar;
             long time = ld.atZone(c.getTimeZone().toZoneId()).toEpochSecond() * 1000 + TimeUnit.NANOSECONDS.toMillis(ld.getNano());
             return new Time(time);
