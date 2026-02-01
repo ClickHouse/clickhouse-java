@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -394,8 +395,8 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                     new Field("datetime", ZonedDateTime.now()), new Field("datetime_nullable"), new Field("datetime_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]")), //DateTime
                     new Field("datetime32", ZonedDateTime.now()), new Field("datetime32_nullable"), new Field("datetime32_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]")), //DateTime
                     new Field("datetime64", ZonedDateTime.now()), new Field("datetime64_nullable"), new Field("datetime64_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]")), //DateTime64
-                    new Field("date", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date_nullable"), new Field("date_default").set(ZonedDateTime.parse("2020-01-01T00:00:00+00:00[UTC]").toEpochSecond()), //Date
-                    new Field("date32", ZonedDateTime.parse("2021-01-01T00:00:00+00:00[UTC]")), new Field("date32_nullable"), new Field("date32_default").set(ZonedDateTime.parse("2025-01-01T00:00:00+00:00[UTC]").toEpochSecond()) //Date
+                    new Field("date", LocalDate.parse("2021-01-01")), new Field("date_nullable"), new Field("date_default").set(LocalDate.parse("2020-01-01")), //Date
+                    new Field("date32", LocalDate.parse("2021-01-01")), new Field("date32_nullable"), new Field("date32_default").set(LocalDate.parse("2025-01-01")) //Date
                 }
         };
 

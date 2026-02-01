@@ -18,6 +18,7 @@ import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
 import java.sql.Time;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -335,7 +336,7 @@ public class JdbcUtils {
         return convertObject(value, type, column);
     }
 
-    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
+    static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -359,6 +360,8 @@ public class JdbcUtils {
                 return Double.parseDouble(value.toString());
             } else if (type == java.math.BigDecimal.class) {
                 return new java.math.BigDecimal(value.toString());
+            } else if (type == Duration.class && value instanceof LocalDateTime) {
+                return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
             } else if (value instanceof TemporalAccessor) {
                 TemporalAccessor temporalValue = (TemporalAccessor) value;
                 if (type == LocalDate.class) {
@@ -367,6 +370,8 @@ public class JdbcUtils {
                     return LocalDateTime.from(temporalValue);
                 } else if (type == OffsetDateTime.class) {
                     return OffsetDateTime.from(temporalValue);
+                } else if (type == LocalTime.class) {
+                    return LocalTime.from(temporalValue);
                 } else if (type == ZonedDateTime.class) {
                     return ZonedDateTime.from(temporalValue);
                 } else if (type == Instant.class) {

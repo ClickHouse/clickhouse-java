@@ -376,6 +376,16 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     }
 
     @Override
+    public LocalTime getLocalTime(String colName) {
+        return reader.getLocalTime(colName);
+    }
+
+    @Override
+    public LocalTime getLocalTime(int index) {
+        return reader.getLocalTime(index);
+    }
+
+    @Override
     public LocalDateTime getLocalDateTime(String colName) {
         return reader.getLocalDateTime(colName);
     }
