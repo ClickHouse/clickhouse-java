@@ -10,8 +10,19 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Month;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
+import java.time.temporal.TemporalUnit;
+import java.util.Calendar;
 import java.util.Properties;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 @Test(groups = {"integration"})
 public class JDBCDateTimeTests extends JdbcIntegrationTest {
@@ -44,11 +55,65 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                 Assert.assertEquals(dateFromDb, birthdate);
                 Assert.assertEquals(now.toEpochDay() - dateFromDb.toEpochDay(), -daysBeforeParty);
                 Assert.assertEquals(rs.getString(4), "Asia/Tokyo");
+
+
+                Assert.assertEquals(rs.getString(2), rs.getString(3));
+
+                java.sql.Date sqlDate = rs.getDate(2); // in local timezone
+
+                Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(TimeZone.getDefault().getRawOffset() >= 0 ? "America/Los Angeles"  : "Asia/Tokyo"));
+                java.sql.Date tzSqlDate = rs.getDate(2, tzCalendar); // Calendar tells from what timezone convert to local
+                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1);
             }
-
         }
-
-
     }
+
+    @Test(groups = {"integration"})
+    void testWalkTime() throws SQLException {
+
+        int hours = 100;
+        Duration walkTime = Duration.ZERO.plusHours(hours).plusMinutes(59).plusSeconds(59).plusMillis(300);
+        System.out.println(walkTime);
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "Asia/Tokyo");
+        props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) Engine MergeTree()");
+
+            final String walkTimeStr = DataTypeUtils.durationToTimeString(walkTime, 3);
+            System.out.println(walkTimeStr);
+            stmt.executeUpdate("INSERT INTO test_walk_time VALUES (1, '" + walkTimeStr + "')");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT id, walk_time, walk_time::String, timezone() FROM test_walk_time")) {
+                Assert.assertTrue(rs.next());
+
+                LocalTime dbTime = rs.getObject(2, LocalTime.class);
+                Assert.assertEquals(dbTime.getHour(), hours % 24); // LocalTime is only 24 hours and will truncate big hour values
+                Assert.assertEquals(dbTime.getMinute(), 59);
+                Assert.assertEquals(dbTime.getSecond(), 59);
+                Assert.assertEquals(dbTime.getNano(), TimeUnit.MILLISECONDS.toNanos(300));
+
+                LocalDateTime utDateTime = rs.getObject(2, LocalDateTime.class); // LocalDateTime covers all range
+                Assert.assertEquals(utDateTime.getYear(), 1970);
+                Assert.assertEquals(utDateTime.getMonth(), Month.JANUARY);
+                Assert.assertEquals(utDateTime.getDayOfMonth(), 1 + (hours / 24));
+
+                Assert.assertEquals(utDateTime.getHour(), walkTime.toHours() % 24); // LocalTime is only 24 hours and will truncate big hour values
+                Assert.assertEquals(utDateTime.getMinute(), 59);
+                Assert.assertEquals(utDateTime.getSecond(), 59);
+                Assert.assertEquals(utDateTime.getNano(), TimeUnit.MILLISECONDS.toNanos(300));
+
+                Duration dbDuration = rs.getObject(2, Duration.class);
+                Assert.assertEquals(dbDuration, walkTime);
+
+                java.sql.Time sqlTime = rs.getTime(2);
+                Assert.assertEquals(sqlTime.toLocalTime(), dbTime.truncatedTo(ChronoUnit.SECONDS)); // java.sql.Time accepts milliseconds but converts to LD with seconds precision.
+            }
+        }
+    }
+
 
 }
