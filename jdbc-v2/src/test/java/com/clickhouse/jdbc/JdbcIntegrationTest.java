@@ -5,12 +5,14 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Properties;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
@@ -90,5 +92,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         } catch (SQLException e) {
             return null;
         }
+    }
+
+    protected boolean isVersionMatch(String versionExpression) {
+        return ClickHouseVersion.of(getServerVersion()).check(versionExpression);
     }
 }

@@ -43,7 +43,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
-            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) Engine MergeTree()");
+            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) Engine MergeTree ORDER BY()");
 
             final String birthdateStr = birthdate.format(DataTypeUtils.DATE_FORMATTER);
             stmt.executeUpdate("INSERT INTO test_days_before_birthday_party VALUES (1, '" + birthdateStr + "')");
@@ -63,14 +63,17 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
 
                 Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(TimeZone.getDefault().getRawOffset() >= 0 ? "America/Los Angeles"  : "Asia/Tokyo"));
                 java.sql.Date tzSqlDate = rs.getDate(2, tzCalendar); // Calendar tells from what timezone convert to local
-                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1);
+                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1, "tzCalendar " + tzCalendar + " default " + Calendar.getInstance()
+                        .getTimeZone().getID());
             }
         }
     }
 
     @Test(groups = {"integration"})
     void testWalkTime() throws SQLException {
-
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
         int hours = 100;
         Duration walkTime = Duration.ZERO.plusHours(hours).plusMinutes(59).plusSeconds(59).plusMillis(300);
         System.out.println(walkTime);
@@ -78,10 +81,11 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "Asia/Tokyo");
         props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
+        props.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
-            stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) Engine MergeTree()");
+            stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) Engine MergeTree ORDER BY()");
 
             final String walkTimeStr = DataTypeUtils.durationToTimeString(walkTime, 3);
             System.out.println(walkTimeStr);
