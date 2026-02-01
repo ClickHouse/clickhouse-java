@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -57,6 +60,18 @@ public class JdbcConfiguration {
         return isIgnoreUnsupportedRequests;
     }
 
+    private static final Set<String> DRIVER_PROP_KEYS;
+    static {
+        ImmutableSet.Builder<String> driverPropertiesMapBuilder = ImmutableSet.builder();
+        for (DriverProperties prop : DriverProperties.values()) {
+            driverPropertiesMapBuilder.add(prop.getKey());
+        }
+
+        DRIVER_PROP_KEYS = driverPropertiesMapBuilder.build();
+    }
+
+    private final Supplier<String> queryIdGenerator;
+
     /**
      * Parses URL to get property and target host.
      * Properties that are passed in the {@code info} parameter will override that are set in the {@code url}.
@@ -68,6 +83,9 @@ public class JdbcConfiguration {
         this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
+
+        // queryID generator should not be set in client because query ID is used in StatementImpl to know the last one
+        this.queryIdGenerator = (Supplier<String>) props.remove(DriverProperties.QUERY_ID_GENERATOR.getKey());;
 
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
@@ -249,6 +267,12 @@ public class JdbcConfiguration {
 
         // Copy provided properties
         Map<String, String> props = new HashMap<>();
+        // Set driver properties defaults (client will do the same)
+        for (DriverProperties prop : DriverProperties.values()) {
+            if (prop.getDefaultValue() != null) {
+                props.put(prop.getKey(), prop.getDefaultValue());
+            }
+        }
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
                 props.put((String) entry.getKey(), (String) entry.getValue());
@@ -273,7 +297,12 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
             propertyInfo.description = "(User Defined)";
             propertyInfos.put(prop.getKey(), propertyInfo);
-            clientProperties.put(prop.getKey(), prop.getValue());
+
+            if (DRIVER_PROP_KEYS.contains(prop.getKey())) {
+                driverProperties.put(prop.getKey(), prop.getValue());
+            } else {
+                clientProperties.put(prop.getKey(), prop.getValue());
+            }
         }
 
         // Fill list of client properties information, add not specified properties (doesn't affect client properties)
@@ -294,11 +323,6 @@ public class JdbcConfiguration {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
             }
-
-            String value = clientProperties.get(driverProp.getKey());
-            if (value != null) {
-                driverProperties.put(driverProp.getKey(), value);
-            }
         }
 
         listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).collect(Collectors.toList());
@@ -314,6 +338,10 @@ public class JdbcConfiguration {
 
     public String getDriverProperty(String key, String defaultValue) {
         return driverProperties.getOrDefault(key, defaultValue);
+    }
+
+    public Supplier<String> getQueryIdGenerator() {
+        return queryIdGenerator;
     }
 
     public Boolean isSet(DriverProperties driverProp) {

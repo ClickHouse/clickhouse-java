@@ -261,12 +261,16 @@ public class DataTypeConverter {
         }
 
         public String convertAndReset(Object list, Appendable acc, ClickHouseColumn column) {
+            // Save current state to handle re-entrancy (nested array conversion)
+            ClickHouseColumn prevColumn = this.column;
+            Appendable prevAppendable = this.appendable;
             try {
                 setColumn(column);
                 return super.convert(list, acc);
             } finally {
-                this.column = null;
-                setAccumulator(null);
+                // Restore previous state for re-entrant calls
+                this.column = prevColumn;
+                setAccumulator(prevAppendable);
             }
         }
     }
@@ -292,12 +296,16 @@ public class DataTypeConverter {
         }
 
         public String convertAndReset(List<?> list, Appendable acc, ClickHouseColumn column) {
+            // Save current state to handle re-entrancy (nested array conversion)
+            ClickHouseColumn prevColumn = this.column;
+            Appendable prevAppendable = this.appendable;
             try {
                 setColumn(column);
                 return super.convert(list, acc);
             } finally {
-                this.column = null;
-                setAccumulator(null);
+                // Restore previous state for re-entrant calls
+                this.column = prevColumn;
+                setAccumulator(prevAppendable);
             }
         }
     }

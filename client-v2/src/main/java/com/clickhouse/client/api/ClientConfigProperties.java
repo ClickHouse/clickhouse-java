@@ -190,6 +190,12 @@ public enum ClientConfigProperties {
      */
     HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
 
+
+    /**
+     *  Prefix for custom settings. Should be aligned with server configuration.
+     *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
+     */
+    CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
@@ -232,6 +238,8 @@ public enum ClientConfigProperties {
 
     // Key used to identify default value in configuration map
     public static final String DEFAULT_KEY = "_default_";
+
+    public static final String NO_THROW_ON_UNKNOWN_CONFIG = "no_throw_on_unknown_config";
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
@@ -342,14 +350,27 @@ public enum ClientConfigProperties {
             }
         }
 
+        final String customSettingsPrefix = configMap.getOrDefault(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey(),
+                CUSTOM_SETTINGS_PREFIX.getDefaultValue());
+        if (customSettingsPrefix == null || customSettingsPrefix.isEmpty()) {
+            throw new ClientException(ClientConfigProperties.CUSTOM_SETTINGS_PREFIX.getKey() + " must be not-blank");
+        }
         for (String key : new HashSet<>(tmpMap.keySet())) {
             if (key.startsWith(HTTP_HEADER_PREFIX) || key.startsWith(SERVER_SETTING_PREFIX)) {
                 parsedConfig.put(key, tmpMap.remove(key));
+            } else if (key.startsWith(customSettingsPrefix)) {
+                parsedConfig.put(serverSetting(key), tmpMap.remove(key));
             }
         }
 
+        tmpMap.remove(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG);
         if (!tmpMap.isEmpty()) {
-            LOG.warn("Unknown and unmapped config properties: {}", tmpMap);
+            String msg = "Unknown and unmapped config properties: " + tmpMap.keySet();
+            if (configMap.containsKey(NO_THROW_ON_UNKNOWN_CONFIG)) {
+                LOG.warn(msg);
+            } else {
+                throw new ClientMisconfigurationException(msg);
+            }
         }
 
         return parsedConfig;

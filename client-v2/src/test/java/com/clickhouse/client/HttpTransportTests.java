@@ -446,7 +446,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
                 e.printStackTrace();
-                Assert.assertEquals(e.getMessage(), "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB");
+                Assert.assertTrue(e.getMessage().startsWith("Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"));
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
@@ -487,7 +487,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), code);
-                Assert.assertEquals(e.getMessage(), expectedMessage);
+                Assert.assertTrue(e.getMessage().startsWith(expectedMessage));
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);

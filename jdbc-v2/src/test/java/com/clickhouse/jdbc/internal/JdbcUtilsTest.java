@@ -2,6 +2,8 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import org.testng.Assert;
 import org.testng.annotations.*;
 
 import java.math.BigDecimal;
@@ -99,5 +101,12 @@ public class JdbcUtilsTest {
         Instant timestamp = Instant.parse("2016-06-07T21:30:00Z");
         assertEquals(JdbcUtils.convert(timestamp.atZone(ZoneId.of("UTC")), Instant.class), timestamp);
         assertEquals(JdbcUtils.convert(timestamp.atZone(ZoneId.of("UTC+7")), Instant.class), timestamp);
+    }
+
+    @Test(groups = {"unit"})
+    public void testAllDataTypesMapped() {
+        for (ClickHouseDataType dt : ClickHouseDataType.values()) {
+            Assert.assertNotNull(JdbcUtils.convertToJavaClass(dt), "Data type " + dt + " has no mapping to java class");
+        }
     }
 }

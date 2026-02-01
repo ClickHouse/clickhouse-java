@@ -93,6 +93,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -341,6 +342,7 @@ public class HttpAPIClientHelper {
 //    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
+
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -348,6 +350,8 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
+        final Header qIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final String queryId = qIdHeader == null ? "" : qIdHeader.getValue();
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         InputStream body = null;
         try {
@@ -408,10 +412,11 @@ public class HttpAPIClientHelper {
             if (msg.trim().isEmpty()) {
                 msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             }
-            return new ServerException(serverCode, "Code: " + msg, httpResponse.getCode());
+            return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
+            String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
     }
 
@@ -799,7 +804,7 @@ public class HttpAPIClientHelper {
 
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
-    public RuntimeException wrapException(String message, Exception cause) {
+    public RuntimeException wrapException(String message, Exception cause, String queryId) {
         if (cause instanceof ClientException || cause instanceof ServerException) {
             return (RuntimeException) cause;
         }
@@ -810,14 +815,18 @@ public class HttpAPIClientHelper {
                 cause instanceof ConnectException ||
                 cause instanceof UnknownHostException ||
                 cause instanceof NoRouteToHostException) {
-            return new ConnectionInitiationException(message, cause);
+            ConnectionInitiationException ex = new ConnectionInitiationException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
 
         if (cause instanceof SocketTimeoutException || cause instanceof IOException) {
-            return new DataTransferException(message, cause);
+            DataTransferException ex =  new DataTransferException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
         // if we can not identify the exception explicitly we catch as our base exception ClickHouseException
-        return new ClickHouseException(message, cause);
+        return new ClickHouseException(message, cause, queryId);
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
