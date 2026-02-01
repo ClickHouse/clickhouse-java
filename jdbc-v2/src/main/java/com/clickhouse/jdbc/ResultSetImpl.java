@@ -1061,7 +1061,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            if (ld.getYear() != 1970 && ld.getMonth() != Month.JANUARY && ld.getDayOfMonth() != 1) {
+            if (ld.getYear() != 1970 || ld.getMonth() != Month.JANUARY || ld.getDayOfMonth() != 1) {
                 final String msg = "Time value '" + ld + "' is before Epoch and cannot be returned as java.sql.Time. Use getObject() to get LocalDateTime instead.";
                 throw new SQLException(msg);
             }
