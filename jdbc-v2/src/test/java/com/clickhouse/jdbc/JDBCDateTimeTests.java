@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAmount;
 import java.time.temporal.TemporalUnit;
@@ -61,10 +62,11 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
 
                 java.sql.Date sqlDate = rs.getDate(2); // in local timezone
 
-                Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(TimeZone.getDefault().getRawOffset() >= 0 ? "America/Los Angeles"  : "Asia/Tokyo"));
+                String zoneId = TimeZone.getDefault().getRawOffset() >= 0 ? "America/Los Angeles"  : "Asia/Tokyo";
+                Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(zoneId))); // TimeZone.getTimeZone() doesn't throw exception but fallback to GMT
                 java.sql.Date tzSqlDate = rs.getDate(2, tzCalendar); // Calendar tells from what timezone convert to local
-                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1, "tzCalendar " + tzCalendar + " default " + Calendar.getInstance()
-                        .getTimeZone().getID());
+                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1,
+                        "tzCalendar " + tzCalendar + " default " + Calendar.getInstance().getTimeZone().getID());
             }
         }
     }
