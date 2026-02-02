@@ -152,12 +152,13 @@ public class MapBackedRecord implements GenericRecord {
                 return time == null ? null : time.toInstant(ZoneOffset.UTC);
             case DateTime:
             case DateTime64:
+            case DateTime32:
                 ZonedDateTime zdt = getZonedDateTime(colName);
                 return zdt == null ? null : zdt.toInstant();
             case Dynamic:
             case Variant:
                 Object value = readValue(colName);
-                Instant instant = AbstractBinaryFormatReader.objectToInstant(value, column);
+                Instant instant = AbstractBinaryFormatReader.objectToInstant(value);
                 if (value == null || instant != null) {
                     return instant;
                 }

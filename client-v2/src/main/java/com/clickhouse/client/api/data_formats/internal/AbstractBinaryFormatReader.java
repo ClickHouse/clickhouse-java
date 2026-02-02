@@ -680,10 +680,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             case DateTime:
             case DateTime64:
             case DateTime32:
+                ZonedDateTime zdt = readValue(index);
+                return zdt.toInstant();
             case Dynamic:
             case Variant:
                 Object value = readValue(index);
-                Instant instant = objectToInstant(value, column);
+                Instant instant = objectToInstant(value);
                 if (value == null || instant != null) {
                     return instant;
                 }
@@ -692,10 +694,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
     }
 
-    static Instant objectToInstant(Object value, ClickHouseColumn column) {
+    static Instant objectToInstant(Object value) {
         if (value instanceof LocalDateTime) {
             LocalDateTime dateTime = (LocalDateTime) value;
-            return dateTime.toInstant(column.getTimeZone().toZoneId().getRules().getOffset(dateTime));
+            return Instant.from(dateTime.atZone(ZoneId.of("UTC")));
         } else if (value instanceof ZonedDateTime) {
             ZonedDateTime dateTime = (ZonedDateTime) value;
             return dateTime.toInstant();

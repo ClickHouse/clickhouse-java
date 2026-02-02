@@ -10,6 +10,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -45,6 +46,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingLocalDateFromDynamic() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_local_date_from_dynamic";
         final LocalDate expectedDate = LocalDate.of(2025, 7, 15);
 
@@ -72,6 +77,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingLocalDateTimeFromDynamic() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_local_datetime_from_dynamic";
         final LocalDateTime expectedDateTime = LocalDateTime.of(2025, 7, 15, 14, 30, 45);
 
@@ -99,6 +108,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingLocalTimeFromDynamic() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return;
+        }
+
         final String table = "test_reading_local_time_from_dynamic";
         final LocalTime expectedTime = LocalTime.of(14, 30, 45, 123000000);
 
@@ -108,7 +121,8 @@ public class BaseReaderTests extends BaseIntegrationTest {
                         .serverSetting("allow_experimental_dynamic_type", "1")
                         .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
-        client.execute("INSERT INTO " + table + " VALUES (1, '14:30:45.123'::Time64(3))").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, '14:30:45.123'::Time64(3))",
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         // Test with RowBinaryWithNamesAndTypesFormatReader via query()
         try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
@@ -128,6 +142,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingZonedDateTimeFromDynamic() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_zoned_datetime_from_dynamic";
         final ZoneId zoneId = ZoneId.of("Europe/Berlin");
         final ZonedDateTime expectedZonedDateTime = ZonedDateTime.of(2025, 7, 15, 14, 30, 45, 0, zoneId);
@@ -156,6 +174,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingInstantFromDynamic() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_instant_from_dynamic";
         final Instant expectedInstant = Instant.parse("2025-07-15T12:30:45.123Z");
 
@@ -183,6 +205,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingOffsetDateTimeFromDynamic() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_offset_datetime_from_dynamic";
         final OffsetDateTime expectedOffsetDateTime = OffsetDateTime.of(2025, 7, 15, 14, 30, 45, 0, ZoneOffset.ofHours(2));
 
@@ -211,6 +237,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
     
     @Test(groups = {"integration"})
     public void testReadingLocalDateFromVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_local_date_from_variant";
         final LocalDate expectedDate = LocalDate.of(2025, 7, 15);
 
@@ -238,6 +268,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingLocalDateTimeFromVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_local_datetime_from_variant";
         final LocalDateTime expectedDateTime = LocalDateTime.of(2025, 7, 15, 14, 30, 45);
 
@@ -265,6 +299,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingLocalTimeFromVariant() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return;
+        }
+
         final String table = "test_reading_local_time_from_variant";
         final LocalTime expectedTime = LocalTime.of(14, 30, 45, 123000000);
 
@@ -274,7 +312,8 @@ public class BaseReaderTests extends BaseIntegrationTest {
                         .serverSetting("allow_experimental_variant_type", "1")
                         .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
-        client.execute("INSERT INTO " + table + " VALUES (1, '14:30:45.123'::Time64(3))").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, '14:30:45.123'::Time64(3))", (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         // Test with RowBinaryWithNamesAndTypesFormatReader via query()
         try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
@@ -294,13 +333,18 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingZonedDateTimeFromVariant() throws Exception {
+        if (isVersionMatch("(,25.3]")) {
+            return;
+        }
+
         final String table = "test_reading_zoned_datetime_from_variant";
         final ZoneId zoneId = ZoneId.of("Europe/Berlin");
         final ZonedDateTime expectedZonedDateTime = ZonedDateTime.of(2025, 7, 15, 14, 30, 45, 0, zoneId);
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "id Int32", "field Variant(DateTime64(3, 'Europe/Berlin'), String)"),
-                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")
+                        .serverSetting("allow_experimental_time_time64_type", "1")).get();
 
         client.execute("INSERT INTO " + table + " VALUES (1, '2025-07-15 14:30:45'::DateTime64(3, 'Europe/Berlin'))").get();
 
@@ -322,6 +366,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingInstantFromVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_instant_from_variant";
         final Instant expectedInstant = Instant.parse("2025-07-15T12:30:45.123Z");
 
@@ -349,6 +397,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadingOffsetDateTimeFromVariant() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
         final String table = "test_reading_offset_datetime_from_variant";
         final OffsetDateTime expectedOffsetDateTime = OffsetDateTime.of(2025, 7, 15, 14, 30, 45, 0, ZoneOffset.ofHours(2));
 
@@ -387,6 +439,10 @@ public class BaseReaderTests extends BaseIntegrationTest {
     }
 
 
+    private boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
 
     private Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
