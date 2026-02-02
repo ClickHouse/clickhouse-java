@@ -62,7 +62,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
 
                 java.sql.Date sqlDate = rs.getDate(2); // in local timezone
 
-                String zoneId = TimeZone.getDefault().getRawOffset() >= 0 ? "America/Los_Angeles"  : "Asia/Tokyo";
+                String zoneId = "Asia/Tokyo";
                 Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(zoneId))); // TimeZone.getTimeZone() doesn't throw exception but fallback to GMT
                 java.sql.Date tzSqlDate = rs.getDate(2, tzCalendar); // Calendar tells from what timezone convert to local
                 Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1,
