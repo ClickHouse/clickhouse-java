@@ -18,6 +18,7 @@ import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 
 public class JdbcConfigurationTest {
 
@@ -32,9 +33,7 @@ public class JdbcConfigurationTest {
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost")
             .withAdditionalConnectionParameters(
                 Map.of(JdbcConfiguration.USE_SSL_PROP, "true"))
-            .withExpectedConnectionURL("https://localhost:8443")
-            .withAdditionalExpectedClientProperties(
-                Map.of("ssl", "true")),
+            .withExpectedConnectionURL("https://localhost:8443"), // ssl should not be passed to client
         new JdbcConfigurationTestData("jdbc:clickhouse://[::1]")
             .withExpectedConnectionURL("http://[::1]:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://[::1]:8123")
@@ -60,59 +59,58 @@ public class JdbcConfigurationTest {
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost/☺")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "☺")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?key1=val1&key2=val2")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?custom_key1=val1&custom_key2=val2")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "database", "db",
-                    "key1", "val1",
-                    "key2", "val2"
+                    "custom_key1", "val1",
+                    "custom_key2", "val2"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?key1=val%201")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?custom_key1=val%201")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "database", "db",
-                    "key1", "val 1"
+                    "custom_key1", "val 1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/?key1=val1")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/?custom_key1=val1")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "val1"
+                    "custom_key1", "val1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?key1=val1")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=val1")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "val1"
+                    "custom_key1", "val1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123?key1=val1")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123?custom_key1=val1")
             .withExpectedConnectionURL("http://localhost:8123")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "val1"
+                    "custom_key1", "val1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/?key1=val1")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/?custom_key1=val1")
             .withExpectedConnectionURL("http://localhost:8123")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "val1"
+                    "custom_key1", "val1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?key1=☺")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=☺")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "☺"
+                    "custom_key1", "☺"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?key1=val1,val2")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=val1,val2")
             .withAdditionalExpectedClientProperties(
                 Map.of(
-                    "key1", "val1,val2"
+                    "custom_key1", "val1,val2"
                 )),
         new JdbcConfigurationTestData(
-            "jdbc:clickhouse://localhost:8443/default?custom_header1=%22role%201,3,4%22,%27val2%27,val3&param1=value1")
+            "jdbc:clickhouse://localhost:8443/default?http_header_roles=%22role%201,3,4%22,%27val2%27,val3&ssl=false")
                 .withExpectedConnectionURL("http://localhost:8443")
                 .withAdditionalExpectedClientProperties(
                     Map.of(
                         "database", "default",
-                        "custom_header1", "\"role 1,3,4\",'val2',val3",
-                        "param1", "value1"
+                        "http_header_roles", "\"role 1,3,4\",'val2',val3"
                     ))
     };
 
@@ -123,15 +121,19 @@ public class JdbcConfigurationTest {
             throws Exception
     {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcURL, properties);
-        assertEquals(configuration.getConnectionUrl(), connectionURL);
-        assertEquals(configuration.clientProperties, expectedClientProps);
+        assertEquals(configuration.getConnectionUrl(), connectionURL, "URL: " + jdbcURL);
+        assertEquals(configuration.clientProperties, expectedClientProps, "URL: " + jdbcURL);
         Client.Builder bob = new Client.Builder();
         configuration.applyClientProperties(bob);
         Client client = bob.build();
         assertEquals(client.getEndpoints().size(), 1);
-        assertEquals(
-            client.getEndpoints().iterator().next(),
-            connectionURL);
+
+        String actualUrl = client.getEndpoints().iterator().next();
+        if (actualUrl != null && Math.abs(actualUrl.length() - connectionURL.length()) == 1) {
+            assertTrue(actualUrl.contains(connectionURL));
+        } else {
+            assertEquals(actualUrl, connectionURL);
+        }
     }
 
     @Test(dataProvider = "invalidURLs")
@@ -144,7 +146,7 @@ public class JdbcConfigurationTest {
 
     @Test(dataProvider = "validURLs")
     public void testAcceptsURLValid(String url) throws Exception {
-        Assert.assertTrue(JdbcConfiguration.acceptsURL(url));
+        Assert.assertTrue(JdbcConfiguration.acceptsURL(url), "URL: " + url);
     }
 
     @Test

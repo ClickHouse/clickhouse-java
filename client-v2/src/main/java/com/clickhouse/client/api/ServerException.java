@@ -6,19 +6,20 @@ public class ServerException extends ClickHouseException {
 
     public static final int TABLE_NOT_FOUND = 60;
 
+    public static final int UNKNOWN_SETTING = 115;
+
     private final int code;
 
     private final int transportProtocolCode;
 
-    public ServerException(int code, String message) {
-        this(code, message, 500);
-    }
+    private final String queryId;
 
-    public ServerException(int code, String message, int transportProtocolCode) {
+    public ServerException(int code, String message, int transportProtocolCode, String queryId) {
         super(message);
         this.code = code;
         this.transportProtocolCode = transportProtocolCode;
         this.isRetryable = discoverIsRetryable(code, message, transportProtocolCode);
+        this.queryId = queryId;
     }
 
     /**
@@ -39,8 +40,17 @@ public class ServerException extends ClickHouseException {
         return transportProtocolCode;
     }
 
+    @Override
     public boolean isRetryable() {
-        return isRetryable;
+        return super.isRetryable();
+    }
+
+    /**
+     * Returns query ID that is returned by server in {@link com.clickhouse.client.api.http.ClickHouseHttpProto#HEADER_QUERY_ID}
+     * @return query id non-null string
+     */
+    public String getQueryId() {
+        return queryId;
     }
 
     private boolean discoverIsRetryable(int code, String message, int transportProtocolCode) {
@@ -65,5 +75,28 @@ public class ServerException extends ClickHouseException {
                 return true;
         };
         return false;
+    }
+
+    /**
+     * Not every server code is listed - only most common
+     */
+    public enum ErrorCodes {
+
+        UNKNOWN(0),
+        TABLE_NOT_FOUND(60),
+        DATABASE_NOT_FOUND(81),
+        UNKNOWN_SETTING(115),
+
+        ;
+
+        private int code;
+
+        ErrorCodes(int code) {
+            this.code = code;
+        }
+
+        public int getCode() {
+            return code;
+        }
     }
 }

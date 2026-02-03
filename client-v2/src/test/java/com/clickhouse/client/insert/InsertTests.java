@@ -778,7 +778,7 @@ public class InsertTests extends BaseIntegrationTest {
             if (item.rowId == 3) {
                 assertEquals(((ZonedDateTime) item.getNullableAny()).toLocalDateTime(), data.get(i++).getNullableAny());
             } else if (item.rowId == 5) {
-                assertEquals(((ZonedDateTime) item.getNullableAny()).toLocalDate(), data.get(i++).getNullableAny());
+                assertEquals(item.getNullableAny(), data.get(i++).getNullableAny());
             } else {
                 assertEquals(item, data.get(i++));
             }

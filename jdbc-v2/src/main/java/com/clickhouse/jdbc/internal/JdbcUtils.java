@@ -18,6 +18,7 @@ import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLType;
 import java.sql.Time;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.function.Function;
 
 public class JdbcUtils {
@@ -62,11 +64,13 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.UInt256, JDBCType.OTHER);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
+        map.put(ClickHouseDataType.BFloat16, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Bool, JDBCType.BOOLEAN);
         map.put(ClickHouseDataType.Decimal, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal32, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal64, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.Decimal128, JDBCType.DECIMAL);
+        map.put(ClickHouseDataType.Decimal256, JDBCType.DECIMAL);
         map.put(ClickHouseDataType.String, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.FixedString, JDBCType.VARCHAR);
         map.put(ClickHouseDataType.Enum, JDBCType.VARCHAR);
@@ -81,15 +85,41 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Time64, JDBCType.TIME);
         map.put(ClickHouseDataType.Array, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Nested, JDBCType.ARRAY);
-        map.put(ClickHouseDataType.Map, JDBCType.JAVA_OBJECT);
+        map.put(ClickHouseDataType.Map, JDBCType.OTHER);
         map.put(ClickHouseDataType.Point, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Ring, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Polygon, JDBCType.ARRAY);
         map.put(ClickHouseDataType.LineString, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiPolygon, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiLineString, JDBCType.ARRAY);
+        map.put(ClickHouseDataType.Geometry, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Tuple, JDBCType.OTHER);
         map.put(ClickHouseDataType.Nothing, JDBCType.OTHER);
+        map.put(ClickHouseDataType.UUID, JDBCType.OTHER);
+        map.put(ClickHouseDataType.IPv6, JDBCType.OTHER);
+        map.put(ClickHouseDataType.IPv4, JDBCType.OTHER);
+        map.put(ClickHouseDataType.IntervalNanosecond, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalMillisecond, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalMicrosecond, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalSecond, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalMinute, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalHour, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalDay, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalMonth, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalWeek, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalQuarter, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.IntervalYear, JDBCType.BIGINT);
+        map.put(ClickHouseDataType.JSON, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Object, JDBCType.OTHER);
+        map.put(ClickHouseDataType.LowCardinality, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Nullable, JDBCType.OTHER);
+        map.put(ClickHouseDataType.SimpleAggregateFunction, JDBCType.OTHER);
+        map.put(ClickHouseDataType.AggregateFunction, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Variant, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Dynamic, JDBCType.OTHER);
+        map.put(ClickHouseDataType.QBit, JDBCType.OTHER);
+
+
         return ImmutableMap.copyOf(map);
     }
 
@@ -171,6 +201,12 @@ public class JdbcUtils {
                     case MultiPolygon:
                         map.put(e.getKey(), double[][][][].class);
                         break;
+                    case UUID:
+                        map.put(e.getKey(), UUID.class);
+                        break;
+                    case IPv4:
+                    case IPv6:
+                        // should be mapped to Object because require conversion.
                     default:
                         map.put(e.getKey(), Object.class);
                 }
@@ -300,7 +336,7 @@ public class JdbcUtils {
         return convertObject(value, type, column);
     }
 
-    public static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
+    static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -324,6 +360,8 @@ public class JdbcUtils {
                 return Double.parseDouble(value.toString());
             } else if (type == java.math.BigDecimal.class) {
                 return new java.math.BigDecimal(value.toString());
+            } else if (type == Duration.class && value instanceof LocalDateTime) {
+                return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
             } else if (value instanceof TemporalAccessor) {
                 TemporalAccessor temporalValue = (TemporalAccessor) value;
                 if (type == LocalDate.class) {
@@ -332,6 +370,8 @@ public class JdbcUtils {
                     return LocalDateTime.from(temporalValue);
                 } else if (type == OffsetDateTime.class) {
                     return OffsetDateTime.from(temporalValue);
+                } else if (type == LocalTime.class) {
+                    return LocalTime.from(temporalValue);
                 } else if (type == ZonedDateTime.class) {
                     return ZonedDateTime.from(temporalValue);
                 } else if (type == Instant.class) {

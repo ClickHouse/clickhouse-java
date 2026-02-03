@@ -777,6 +777,45 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testConnectionWithSingleSegmentUrl() throws Exception {
+        if (isCloud()) {
+            return; // no need to test in cloud
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        
+        // Create database db1
+        Connection connCreate = this.getJdbcConnection();
+        connCreate.createStatement().executeUpdate("CREATE DATABASE `db1`");
+        
+        try {
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.USER.getKey(), "default");
+            properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
+
+            // Test URL with single segment "/db1" - should be parsed as database name
+            String jdbcUrl = "jdbc:clickhouse://" + server.getHost() + ":" + server.getPort() + "/db1";
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT database()")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "db1");
+            }
+
+            // Verify that queries work correctly
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+        } finally {
+            // Clean up: drop database db1
+            connCreate.createStatement().executeUpdate("DROP DATABASE `db1`");
+            connCreate.close();
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testUnwrapping() throws Exception {
         Connection conn = getJdbcConnection();
         Assert.assertTrue(conn.isWrapperFor(Connection.class));
@@ -966,5 +1005,108 @@ public class ConnectionTest extends JdbcIntegrationTest {
             //
         }
 
+    }
+
+    @Test(groups = {"integration"})
+    public void testEndpointUrlPathIsPreserved() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            // From wireshark dump as C Array - response for SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1
+            char[] selectServerInfo = {
+                    0x03, 0x04, 0x75, 0x73, 0x65, 0x72, 0x08, 0x74,
+                    0x69, 0x6d, 0x65, 0x7a, 0x6f, 0x6e, 0x65, 0x07,
+                    0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x06,
+                    0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53,
+                    0x74, 0x72, 0x69, 0x6e, 0x67, 0x06, 0x53, 0x74,
+                    0x72, 0x69, 0x6e, 0x67, 0x07, 0x64, 0x65, 0x66,
+                    0x61, 0x75, 0x6c, 0x74, 0x03, 0x55, 0x54, 0x43,
+                    0x0b, 0x32, 0x34, 0x2e, 0x33, 0x2e, 0x31, 0x2e,
+                    0x32, 0x36, 0x37, 0x32};
+
+            char[] select1Res = {
+                    0x01, 0x01, 0x31, 0x05, 0x55, 0x49, 0x6e, 0x74,
+                    0x38, 0x01};
+
+            // URL format: jdbc:clickhouse://host:port/http_path/database
+            // For /sales/db: http_path=/sales, database=db
+            // For /billing/db: http_path=/billing, database=db
+
+            // Setup stubs for sales virtual instance (path: /sales)
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/sales"))
+                    .withRequestBody(WireMock.matching(".*SELECT 1.*"))
+                    .willReturn(WireMock.ok(new String(select1Res))
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"100\", \"read_rows\": \"10\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/sales"))
+                    .withRequestBody(WireMock.equalTo("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1"))
+                    .willReturn(WireMock.ok(new String(selectServerInfo))
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            // Setup stubs for billing virtual instance (path: /billing)
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/billing"))
+                    .withRequestBody(WireMock.matching(".*SELECT 2.*"))
+                    .willReturn(WireMock.ok(new String(select1Res))
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"200\", \"read_rows\": \"20\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/billing"))
+                    .withRequestBody(WireMock.equalTo("SELECT currentUser() AS user, timezone() AS timezone, version() AS version LIMIT 1"))
+                    .willReturn(WireMock.ok(new String(selectServerInfo))
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            Properties properties = new Properties();
+            properties.put("compress", "false");
+
+            // Test sales virtual instance: /sales/db means http_path=/sales, database=db
+            String salesJdbcUrl = "jdbc:clickhouse://localhost:" + mockServer.port() + "/sales/db";
+            try (Connection conn = new ConnectionImpl(salesJdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+            }
+
+            // Test billing virtual instance: /billing/db means http_path=/billing, database=db
+            String billingJdbcUrl = "jdbc:clickhouse://localhost:" + mockServer.port() + "/billing/db";
+            try (Connection conn = new ConnectionImpl(billingJdbcUrl, properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 2")) {
+                Assert.assertTrue(rs.next());
+            }
+
+            // Verify requests were made to the correct HTTP paths (/sales and /billing, not /sales/db)
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/sales")));
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/billing")));
+
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCustomParameters() throws Exception {
+        if (isCloud()) {
+            return; // no custom settings on cloud instance
+        }
+        Properties properties = new Properties();
+        properties.put(DriverProperties.serverSetting("custom_option"), "opt1");
+
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery("SELECT getSetting('custom_option')")){
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "opt1");
+            }
+        }
     }
 }

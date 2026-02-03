@@ -21,6 +21,8 @@ import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
@@ -49,6 +51,7 @@ import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
@@ -90,11 +93,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -122,9 +127,13 @@ public class HttpAPIClientHelper {
 
     ConnPoolControl<?> poolControl;
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext) {
+    LZ4Factory lz4Factory;
+
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
+        this.lz4Factory = lz4Factory;
+        assert this.lz4Factory != null;
 
         boolean usingClientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(configuration);
         boolean usingServerCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration);
@@ -333,6 +342,7 @@ public class HttpAPIClientHelper {
 //    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
+
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -340,6 +350,8 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(ClassicHttpResponse httpResponse) {
+        final Header qIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final String queryId = qIdHeader == null ? "" : qIdHeader.getValue();
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         InputStream body = null;
         try {
@@ -400,45 +412,25 @@ public class HttpAPIClientHelper {
             if (msg.trim().isEmpty()) {
                 msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             }
-            return new ServerException(serverCode, "Code: " + msg, httpResponse.getCode());
+            return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
-            return new ServerException(serverCode, String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")", httpResponse.getCode());
+            String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
+            return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
     }
 
     private static final long POOL_VENT_TIMEOUT = 10000L;
     private final AtomicLong timeToPoolVent = new AtomicLong(0);
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig, LZ4Factory lz4Factory,
-                                              IOCallback<OutputStream> writeCallback) throws Exception {
+    private void doPoolVent() {
         if (poolControl != null && timeToPoolVent.get() < System.currentTimeMillis()) {
             timeToPoolVent.set(System.currentTimeMillis() + POOL_VENT_TIMEOUT);
             poolControl.closeExpired();
         }
+    }
 
-        if (requestConfig == null) {
-            requestConfig = Collections.emptyMap();
-        }
-        URI uri;
-        try {
-            URIBuilder uriBuilder = new URIBuilder(server.getBaseURL());
-            addQueryParams(uriBuilder, requestConfig);
-            uri = uriBuilder.normalizeSyntax().build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        HttpPost req = new HttpPost(uri);
-//        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
-        addHeaders(req, requestConfig);
-
-
-        // setting entity. wrapping if compression is enabled
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                lz4Factory,
-                requestConfig));
-
+    private HttpContext createRequestHttpContext(Map<String, Object> requestConfig) {
         HttpClientContext context = HttpClientContext.create();
         Number responseTimeout = ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getOrDefault(requestConfig);
         Number connectionReqTimeout =  ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getOrDefault(requestConfig);
@@ -448,13 +440,91 @@ public class HttpAPIClientHelper {
                 .build();
         context.setRequestConfig(reqHttpConf);
 
+        return context;
+    }
+
+    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean addParameters) {
+        URI uri;
+        try {
+            URIBuilder uriBuilder = new URIBuilder(server.getURI());
+            addRequestParams(requestConfig, uriBuilder::addParameter);
+
+            if (addParameters) {
+                addStatementParams(requestConfig, uriBuilder::addParameter);
+            }
+
+            uri = uriBuilder.optimize().build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        return uri;
+    }
+
+    private HttpPost createPostRequest(URI uri, Map<String, Object> requestConfig) {
+        HttpPost req = new HttpPost(uri);
+//        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
+        addHeaders(req, requestConfig);
+        return req;
+    }
+
+    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
+                                              String body) throws Exception {
+
+        final URI uri = createRequestURI(server, requestConfig, true);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+        final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+
+        HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+
+        return doPostRequest(requestConfig, req);
+    }
+
+    public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
+
+        requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
+
+        final URI uri = createRequestURI(server, requestConfig, false);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+
+        MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+        addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
+        multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlQuery);
+
+
+        HttpEntity httpEntity = multipartEntityBuilder.build();
+        req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
+        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+
+        return doPostRequest(requestConfig, req);
+
+
+    }
+
+    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
+                                              IOCallback<OutputStream> writeCallback) throws Exception {
+
+        final URI uri = createRequestURI(server, requestConfig, true);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        req.setEntity(wrapRequestEntity(
+                new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
+                requestConfig));
+
+        return doPostRequest(requestConfig, req);
+    }
+
+    private ClassicHttpResponse doPostRequest(Map<String, Object> requestConfig, HttpPost req) throws Exception {
+
+        doPoolVent();
+
         ClassicHttpResponse httpResponse = null;
+        HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
 
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
                     httpResponse.getCode(),
-                    lz4Factory,
                     requestConfig));
 
             if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
@@ -473,15 +543,15 @@ public class HttpAPIClientHelper {
 
         } catch (UnknownHostException e) {
             closeQuietly(httpResponse);
-            LOG.warn("Host '{}' unknown", server.getBaseURL());
+            LOG.warn("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
             closeQuietly(httpResponse);
-            LOG.warn("Failed to connect to '{}': {}", server.getBaseURL(), e.getMessage());
+            LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
             closeQuietly(httpResponse);
-            LOG.debug("Failed to execute request to '{}': {}", server.getBaseURL(), e.getMessage(), e);
+            LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
             throw e;
         }
     }
@@ -591,13 +661,9 @@ public class HttpAPIClientHelper {
         correctUserAgentHeader(req, requestConfig);
     }
 
-    private void addQueryParams(URIBuilder req, Map<String, Object> requestConfig) {
+    private void addRequestParams(Map<String, Object> requestConfig, BiConsumer<String, String> consumer) {
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
-            req.addParameter(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
-        }
-        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
-            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> req.addParameter("param_" + k, String.valueOf(v)));
+            consumer.accept(ClickHouseHttpProto.QPARAM_QUERY_ID, requestConfig.get(ClientConfigProperties.QUERY_ID.getKey()).toString());
         }
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
@@ -608,32 +674,39 @@ public class HttpAPIClientHelper {
             // enable_http_compression make server react on http header
             // for client side compression Content-Encoding should be set
             // for server side compression Accept-Encoding should be set
-            req.addParameter("enable_http_compression", "1");
+            consumer.accept("enable_http_compression", "1");
         } else {
             if (serverCompression) {
-                req.addParameter("compress", "1");
+                consumer.accept("compress", "1");
             }
             if (clientCompression) {
-                req.addParameter("decompress", "1");
+                consumer.accept("decompress", "1");
             }
         }
 
         Collection<String> sessionRoles = ClientConfigProperties.SESSION_DB_ROLES.getOrDefault(requestConfig);
         if (!(sessionRoles == null || sessionRoles.isEmpty())) {
-            sessionRoles.forEach(r -> req.addParameter(ClickHouseHttpProto.QPARAM_ROLE, r));
+            sessionRoles.forEach(r -> consumer.accept(ClickHouseHttpProto.QPARAM_ROLE, r));
         }
 
         for (String key : requestConfig.keySet()) {
             if (key.startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
                 Object val = requestConfig.get(key);
                 if (val != null) {
-                    req.addParameter(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
+                    consumer.accept(key.substring(ClientConfigProperties.SERVER_SETTING_PREFIX.length()), String.valueOf(requestConfig.get(key)));
                 }
             }
         }
     }
 
-    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+    private void addStatementParams(Map<String, Object> requestConfig, BiConsumer<String, String> consumer) {
+        if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
+            Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
+            params.forEach((k, v) -> consumer.accept("param_" + k, String.valueOf(v)));
+        }
+    }
+
+    private HttpEntity wrapRequestEntity(HttpEntity httpEntity, Map<String, Object> requestConfig) {
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
@@ -654,7 +727,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, LZ4Factory lz4Factory, Map<String, Object> requestConfig) {
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
@@ -731,7 +804,7 @@ public class HttpAPIClientHelper {
 
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
-    public RuntimeException wrapException(String message, Exception cause) {
+    public RuntimeException wrapException(String message, Exception cause, String queryId) {
         if (cause instanceof ClientException || cause instanceof ServerException) {
             return (RuntimeException) cause;
         }
@@ -742,14 +815,18 @@ public class HttpAPIClientHelper {
                 cause instanceof ConnectException ||
                 cause instanceof UnknownHostException ||
                 cause instanceof NoRouteToHostException) {
-            return new ConnectionInitiationException(message, cause);
+            ConnectionInitiationException ex = new ConnectionInitiationException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
 
         if (cause instanceof SocketTimeoutException || cause instanceof IOException) {
-            return new DataTransferException(message, cause);
+            DataTransferException ex =  new DataTransferException(message, cause);
+            ex.setQueryId(queryId);
+            return ex;
         }
         // if we can not identify the exception explicitly we catch as our base exception ClickHouseException
-        return new ClickHouseException(message, cause);
+        return new ClickHouseException(message, cause, queryId);
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {

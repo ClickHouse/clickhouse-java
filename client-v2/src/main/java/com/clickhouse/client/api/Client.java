@@ -55,7 +55,6 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -138,21 +137,18 @@ public class Client implements AutoCloseable {
     // Server context
     private String dbUser;
     private String serverVersion;
-    private Object metricsRegistry;
-    private int retries;
+    private final Object metricsRegistry;
+    private final int retries;
     private LZ4Factory lz4Factory = null;
+    private final Supplier<String> queryIdGenerator;
 
-    private Client(Set<String> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy) {
-        this(endpoints, configuration, sharedOperationExecutor, columnToMethodMatchingStrategy, null);
-    }
-
-    private Client(Set<String> endpoints, Map<String,String> configuration,
-                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy, Object metricsRegistry) {
-        // Simple initialization
+    private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
+                   ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
+                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
+        this.queryIdGenerator = queryIdGenerator;
 
         // Serialization
         this.pojoSerDe = new POJOSerDe(columnToMethodMatchingStrategy);
@@ -171,21 +167,20 @@ public class Client implements AutoCloseable {
         // Transport
         ImmutableList.Builder<Endpoint> tmpEndpoints = ImmutableList.builder();
         boolean initSslContext = false;
-        for (String ep : endpoints) {
-            try {
-                HttpEndpoint endpoint = new HttpEndpoint(ep);
-                if (endpoint.isSecure()) {
+        for (Endpoint ep : endpoints) {
+            if (ep instanceof HttpEndpoint) {
+                HttpEndpoint httpEndpoint = (HttpEndpoint) ep;
+                if (httpEndpoint.isSecure()) {
                     initSslContext = true;
                 }
-                LOG.debug("Adding endpoint: {}", endpoint);
-                tmpEndpoints.add(endpoint);
-            } catch (Exception e) {
-                throw new ClientException("Failed to add endpoint " + ep, e);
+                LOG.debug("Adding endpoint: {}", httpEndpoint);
+                tmpEndpoints.add(httpEndpoint);
+            } else {
+                throw new ClientException("Unsupported endpoint type: " + ep.getClass().getName());
             }
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext);
 
         String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
         this.retries = retry == null ? 0 : Integer.parseInt(retry);
@@ -196,6 +191,7 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -259,7 +255,7 @@ public class Client implements AutoCloseable {
 
 
     public static class Builder {
-        private Set<String> endpoints;
+        private Set<Endpoint> endpoints;
 
         // Read-only configuration
         private Map<String, String> configuration;
@@ -267,6 +263,8 @@ public class Client implements AutoCloseable {
         private ExecutorService sharedOperationExecutor = null;
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
+        private Supplier<String> queryIdGenerator;
+
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<>();
@@ -288,25 +286,41 @@ public class Client implements AutoCloseable {
          * <ul>
          *     <li>{@code http://localhost:8123}</li>
          *     <li>{@code https://localhost:8443}</li>
+         *     <li>{@code http://localhost:8123/clickhouse} (with path for reverse proxy scenarios)</li>
          * </ul>
          *
-         * @param endpoint - URL formatted string with protocol, host and port.
+         * @param endpoint - URL formatted string with protocol, host, port, and optional path.
          */
         public Builder addEndpoint(String endpoint) {
             try {
                 URL endpointURL = new URL(endpoint);
 
-                if (endpointURL.getProtocol().equalsIgnoreCase("https")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), true);
-                } else if (endpointURL.getProtocol().equalsIgnoreCase("http")) {
-                    addEndpoint(Protocol.HTTP, endpointURL.getHost(), endpointURL.getPort(), false);
-                } else {
+                String protocolStr = endpointURL.getProtocol();
+                if (!protocolStr.equalsIgnoreCase("https") &&
+                    !protocolStr.equalsIgnoreCase("http")) {
                     throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
                 }
+
+                boolean secure = protocolStr.equalsIgnoreCase("https");
+                String host = endpointURL.getHost();
+                if (host == null || host.isEmpty()) {
+                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
+                }
+
+                int port = endpointURL.getPort();
+                if (port <= 0) {
+                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
+                }
+
+                String path = endpointURL.getPath();
+                if (path == null || path.isEmpty()) {
+                    path = "/";
+                }
+
+                return addEndpoint(Protocol.HTTP, host, port, secure, path);
             } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
-            return this;
         }
 
         /**
@@ -318,15 +332,23 @@ public class Client implements AutoCloseable {
          * @param port - Endpoint port
          */
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure) {
+            return addEndpoint(protocol, host, port, secure, "/");
+        }
+
+        public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
             ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
             ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
-            if (secure) {
-                // TODO: if secure init SSL context
+            ValidationUtils.checkNotNull(basePath, "basePath");
+
+            if (protocol == Protocol.HTTP) {
+                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
+                this.endpoints.add(httpEndpoint);
+            } else {
+                throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-            String endpoint = String.format("%s%s://%s:%d", protocol.toString().toLowerCase(), secure ? "s": "", host, port);
-            this.endpoints.add(endpoint);
             return this;
+
         }
 
 
@@ -1048,6 +1070,30 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Make sending statement parameters as HTTP Form data (in the body of a request).
+         * Note: work only with Server side compression. If client compression is enabled it will be disabled
+         * for query requests with parameters. It is because each parameter is sent as part of multipart content
+         * what would require compressions of them separately.
+         *
+         * @param enable - if feature enabled
+         * @return this builder instance
+         */
+        public Builder useHttpFormDataForQuery(boolean enable) {
+            this.configuration.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), String.valueOf(enable));
+            return this;
+        }
+
+        /**
+         * Sets query id generator. Will be used when operation settings (InsertSettings, QuerySettings) do not have query id set.
+         * @param supplier
+         * @return
+         */
+        public Builder setQueryIdGenerator(Supplier<String> supplier) {
+            this.queryIdGenerator = supplier;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1106,7 +1152,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
         }
     }
 
@@ -1245,6 +1291,9 @@ public class Client implements AutoCloseable {
         final int maxRetries = retry == null ? 0 : retry;
 
         requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1254,7 +1303,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                 out -> {
                                     out.write("INSERT INTO ".getBytes());
                                     out.write(tableName.getBytes());
@@ -1291,8 +1340,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (maxRetries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1301,8 +1350,10 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            throw new ClientException("Insert request failed after attempts: " + (maxRetries + 1) + " - Duration: " + durationSince(startTime), lastException);
-        };
+
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
 
@@ -1462,6 +1513,9 @@ public class Client implements AutoCloseable {
         }
         sqlStmt.append(" FORMAT ").append(format.name());
         requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1471,7 +1525,7 @@ public class Client implements AutoCloseable {
             for (int i = 0; i <= retries; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory,
+                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
                                      out -> {
                                          writer.onOutput(out);
                                          out.close();
@@ -1493,8 +1547,8 @@ public class Client implements AutoCloseable {
                     metrics.setQueryId(queryId);
                     return new InsertResponse(metrics);
                 } catch (Exception e) {
-                    lastException = httpClientHelper.wrapException(String.format("Insert failed (Attempt: %s/%s - Duration: %s)",
-                            (i + 1), (retries + 1), durationSince(startTime)), e);
+                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
@@ -1511,8 +1565,9 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            LOG.warn("Insert request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-            throw (lastException == null ? new ClientException("Failed to complete insert operation") : lastException);
+            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            LOG.warn(errMsg);
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1561,7 +1616,7 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru {@code settings} or in SQL query.</li>
+     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
      * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
      * </ul>
      *
@@ -1582,12 +1637,15 @@ public class Client implements AutoCloseable {
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
 
-        Supplier<QueryResponse> responseSupplier;
+        if (queryParams != null) {
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+        }
 
-            if (queryParams != null) {
-                requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
-            }
-            responseSupplier = () -> {
+        if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
+            requestSettings.setQueryId(queryIdGenerator.get());
+        }
+
+        Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
                 Endpoint selectedEndpoint = getNextAliveNode();
@@ -1595,12 +1653,15 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        httpResponse =
-                                httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(), lz4Factory, output -> {
-                                    output.write(sqlQuery.getBytes(StandardCharsets.UTF_8));
-                                    output.close();
-                                });
-
+                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
+                        if (queryParams != null && useMultipart) {
+                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(), sqlQuery);
+                        } else {
+                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                                    requestSettings.getAllSettings(),
+                                    sqlQuery);
+                        }
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
@@ -1627,8 +1688,8 @@ public class Client implements AutoCloseable {
 
                     } catch (Exception e) {
                         HttpAPIClientHelper.closeQuietly(httpResponse);
-                        lastException = httpClientHelper.wrapException(String.format("Query request failed (Attempt: %s/%s - Duration: %s)",
-                                (i + 1), (retries + 1), durationSince(startTime)), e);
+                        String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
@@ -1637,8 +1698,9 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-                LOG.warn("Query request failed after attempts: {} - Duration: {}", retries + 1, durationSince(startTime));
-                throw (lastException == null ? new ClientException("Failed to complete query") : lastException);
+                String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -2040,7 +2102,7 @@ public class Client implements AutoCloseable {
      */
     @Deprecated
     public Set<String> getEndpoints() {
-        return endpoints.stream().map(Endpoint::getBaseURL).collect(Collectors.toSet());
+        return endpoints.stream().map(endpoint -> endpoint.getURI().toString()).collect(Collectors.toSet());
     }
 
     public String getUser() {
@@ -2115,5 +2177,9 @@ public class Client implements AutoCloseable {
 
     private Duration durationSince(long sinceNanos) {
         return Duration.ofNanos(System.nanoTime() - sinceNanos);
+    }
+
+    private String requestExMsg(String operation, int attempt, long operationDuration, String queryId) {
+        return operation + " request failed (attempt: " + attempt +", duration: " + operationDuration + "ms, queryId: " + queryId + ")";
     }
 }

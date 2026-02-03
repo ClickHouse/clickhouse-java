@@ -12,6 +12,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -43,7 +44,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -443,7 +446,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
                 e.printStackTrace();
-                Assert.assertEquals(e.getMessage(), "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB");
+                Assert.assertTrue(e.getMessage().startsWith("Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 97.21 MiB"));
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
@@ -484,7 +487,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), code);
-                Assert.assertEquals(e.getMessage(), expectedMessage);
+                Assert.assertTrue(e.getMessage().startsWith(expectedMessage));
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
@@ -1117,6 +1120,109 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .sslSocketSNI(node.getHost()).build()) {
             c.execute("SELECT 1");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testEndpointUrlPathIsPreserved() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort)
+                .notifier(new Slf4jNotifier(true)));
+        mockServer.start();
+
+        try {
+            // Setup stubs for two virtual ClickHouse instances behind a reverse proxy
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/sales/db"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"100\", \"read_rows\": \"10\"}")).build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/billing/db"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"200\", \"read_rows\": \"20\"}")).build());
+
+            // Test sales virtual instance
+            try (Client salesClient = new Client.Builder()
+                    .addEndpoint("http://localhost:" + serverPort + "/sales/db")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try (QueryResponse response = salesClient.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 100);
+                }
+            }
+
+            // Test billing virtual instance - also verify query parameters in URL are ignored
+            try (Client billingClient = new Client.Builder()
+                    .addEndpoint("http://localhost:" + serverPort + "/billing/db?ignored_param=value")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try (QueryResponse response = billingClient.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 200);
+                }
+
+                // Verify that ignored_param is not in the request URL
+                mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/billing/db"))
+                        .withoutQueryParam("ignored_param"));
+            }
+
+            // Verify requests were made to the correct paths
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/sales/db")));
+            mockServer.verify(WireMock.postRequestedFor(WireMock.urlPathEqualTo("/billing/db")));
+
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testMultiPartRequest() {
+        final Map<String, Object> params = new HashMap<>();
+        params.put("database_name", "system");
+        params.put("table_names",
+                DataTypeConverter.INSTANCE.arrayToString(Arrays.asList("COLLATIONS", "ENGINES"), "Array(String)"));
+
+        // Use http compression
+        try (Client client = newClient().useHttpCompression(true).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+        }
+
+        // Use http compression
+        try (Client client = newClient().useHttpCompression(false).setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true").build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+        }
+
+        // compress request
+        try (Client client = newClient()
+                .compressClientRequest(true)
+                .setOption(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), "true")
+                .useHttpCompression(true).build()) {
+            List<GenericRecord> records = client.queryAll("SELECT database, name FROM system.tables WHERE name IN {table_names:Array(String)}",
+                    params);
+
+            Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
+            Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
         }
     }
 

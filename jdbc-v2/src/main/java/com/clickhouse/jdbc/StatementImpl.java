@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
@@ -46,11 +47,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     private final boolean resultSetAutoClose;
     private int maxFieldSize;
     private boolean escapeProcessingEnabled;
+    private final Supplier<String> queryIdGenerator;
 
     private int fetchSize = 1;
 
     // settings local to a statement
     protected QuerySettings localSettings;
+
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -63,6 +66,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.resultSetAutoClose = connection.getJdbcConfig().isSet(DriverProperties.RESULTSET_AUTO_CLOSE);
         this.escapeProcessingEnabled = true;
         this.featureManager = new FeatureManager(connection.getJdbcConfig());
+        this.queryIdGenerator = connection.getJdbcConfig().getQueryIdGenerator();
     }
 
     protected void ensureOpen() throws SQLException {
@@ -128,6 +132,21 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
     }
 
+    /**
+     * Sets last queryId and returns actual query Id
+     * Accepts null
+     * @param queryId
+     * @return
+     */
+    protected String setLastQueryID(String queryId) {
+        if (queryId == null) {
+            queryId = queryIdGenerator == null ? UUID.randomUUID().toString() : queryIdGenerator.get();
+        }
+        lastQueryId = queryId;
+        LOG.debug("Query ID: {}", lastQueryId);
+        return queryId;
+    }
+
     protected ResultSetImpl executeQueryImpl(String sql, QuerySettings settings) throws SQLException {
         ensureOpen();
 
@@ -143,13 +162,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(settings, new  QuerySettings());
-        if (mergedSettings.getQueryId() == null) {
-            final String queryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(queryId);
-        }
-        lastQueryId = mergedSettings.getQueryId();
-        LOG.debug("Query ID: {}", lastQueryId);
-
+        mergedSettings.setQueryId(setLastQueryID(mergedSettings.getQueryId()));
         QueryResponse response = null;
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
@@ -206,13 +219,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
-
-        if (mergedSettings.getQueryId() == null) {
-            final String queryId = UUID.randomUUID().toString();
-            mergedSettings.setQueryId(queryId);
-        }
-        lastQueryId = mergedSettings.getQueryId();
-
+        mergedSettings.setQueryId(setLastQueryID(mergedSettings.getQueryId()));
         lastStatementSql = parseJdbcEscapeSyntax(sql);
         LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;

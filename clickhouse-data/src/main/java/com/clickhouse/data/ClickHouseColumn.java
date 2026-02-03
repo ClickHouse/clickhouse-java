@@ -80,6 +80,7 @@ public final class ClickHouseColumn implements Serializable {
 
     private ClickHouseAggregateFunction aggFuncType;
     private ClickHouseDataType dataType;
+    private ClickHouseDataType valueDataType; // in case of Simple Aggregate function it is first argument datatype
     private boolean nullable;
     private boolean hasDefault;
     private boolean lowCardinality;
@@ -376,6 +377,9 @@ public final class ClickHouseColumn implements Serializable {
             column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, nestedColumns);
             column.aggFuncType = aggFunc;
+            if (!nestedColumns.isEmpty()) {
+                column.valueDataType = nestedColumns.get(0).getDataType(); // init with first argument data type
+            }
             fixedLength = false;
             estimatedLength++;
         } else if (args.startsWith(KEYWORD_ARRAY, i)) {
@@ -768,6 +772,7 @@ public final class ClickHouseColumn implements Serializable {
             boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns, ClickHouseEnum enumConstants) {
         this.aggFuncType = null;
         this.dataType = ClickHouseChecker.nonNull(dataType, "dataType");
+        this.valueDataType = this.dataType;
 
         this.columnCount = 1;
         this.columnIndex = 0;
@@ -1173,6 +1178,17 @@ public final class ClickHouseColumn implements Serializable {
         }
 
         return value;
+    }
+
+
+    /**
+     * Returns column effective data type. In case of SimpleAggregateFunction
+     * returns type of the first column.
+     *
+     * @return ClickHouseDataType
+     */
+    public ClickHouseDataType getValueDataType() {
+        return  valueDataType;
     }
 
     @Override
