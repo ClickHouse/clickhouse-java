@@ -336,7 +336,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public String getString(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
         Object value;
-        switch (column.getEffectiveDataType()) {
+        switch (column.getValueDataType()) {
             case Date:
             case Date32:
                 value = getLocalDate(index);
@@ -668,7 +668,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public Instant getInstant(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch (column.getEffectiveDataType()) {
+        switch (column.getValueDataType()) {
             case Date:
             case Date32:
                 LocalDate date = getLocalDate(index);
@@ -708,7 +708,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch (column.getEffectiveDataType()) {
+        switch (column.getValueDataType()) {
             case DateTime:
             case DateTime64:
             case DateTime32:
@@ -864,7 +864,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDate getLocalDate(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Date:
             case Date32:
                 return readValue(index);
@@ -904,7 +904,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalTime getLocalTime(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Time:
             case Time64:
                 LocalDateTime dt = readValue(index);
@@ -943,7 +943,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public LocalDateTime getLocalDateTime(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Time:
             case Time64:
                 return readValue(index);
@@ -983,7 +983,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     @Override
     public OffsetDateTime getOffsetDateTime(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case DateTime:
             case DateTime32:
             case DateTime64:

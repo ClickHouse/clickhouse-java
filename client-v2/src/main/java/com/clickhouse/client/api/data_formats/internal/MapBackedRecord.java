@@ -1,7 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -141,7 +140,7 @@ public class MapBackedRecord implements GenericRecord {
     public Instant getInstant(String colName) {
         ClickHouseColumn column =  schema.getColumnByName(colName);
         int colIndex = column.getColumnIndex();
-        switch (column.getEffectiveDataType()) {
+        switch (column.getValueDataType()) {
             case Date:
             case Date32:
                 LocalDate date = getLocalDate(colIndex);
@@ -371,7 +370,7 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public ZonedDateTime getZonedDateTime(int index) {
         ClickHouseColumn column = schema.getColumnByIndex(index);
-        switch (column.getEffectiveDataType()) {
+        switch (column.getValueDataType()) {
             case DateTime:
             case DateTime64:
             case DateTime32:
@@ -533,7 +532,7 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public LocalDate getLocalDate(String colName) {
         ClickHouseColumn column = schema.getColumnByName(colName);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Date:
             case Date32:
                 return (LocalDate) getObject(colName);
@@ -557,7 +556,7 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public LocalTime getLocalTime(String colName) {
         ClickHouseColumn column = schema.getColumnByName(colName);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Time:
             case Time64:
                 LocalDateTime val = (LocalDateTime) getObject(colName);
@@ -587,7 +586,7 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
         ClickHouseColumn column = schema.getColumnByName(colName);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case Time:
             case Time64:
                 // Types present wide range of value so LocalDateTime let to access to actual value
@@ -617,7 +616,7 @@ public class MapBackedRecord implements GenericRecord {
     @Override
     public OffsetDateTime getOffsetDateTime(String colName) {
         ClickHouseColumn column = schema.getColumnByName(colName);
-        switch(column.getEffectiveDataType()) {
+        switch(column.getValueDataType()) {
             case DateTime:
             case DateTime32:
             case DateTime64:

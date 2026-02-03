@@ -33,11 +33,8 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Month;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collections;
@@ -1030,7 +1027,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             return new Date(c.getTimeInMillis());
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            switch (column.getEffectiveDataType()) {
+            switch (column.getValueDataType()) {
                 case Date:
                 case Date32:
                 case DateTime64:
@@ -1038,7 +1035,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 case DateTime32:
                     break;
                 default:
-                    throw new SQLException("Value of " + column.getEffectiveDataType() + " type cannot be converted to Date value");
+                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Date value");
             }
             throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
@@ -1065,7 +1062,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             return new Time(time);
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            switch (column.getEffectiveDataType()) {
+            switch (column.getValueDataType()) {
                 case Time:
                 case Time64:
                 case DateTime64:
@@ -1073,7 +1070,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 case DateTime32:
                     break;
                 default:
-                    throw new SQLException("Value of " + column.getEffectiveDataType() + " type cannot be converted to Time value");
+                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Time value");
             }
 
             throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
@@ -1104,13 +1101,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             return timestamp;
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            switch (column.getEffectiveDataType()) {
+            switch (column.getValueDataType()) {
                 case DateTime64:
                 case DateTime:
                 case DateTime32:
                     break;
                 default:
-                    throw new SQLException("Value of " + column.getEffectiveDataType() + " type cannot be converted to Timestamp value");
+                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Timestamp value");
             }
 
             throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
