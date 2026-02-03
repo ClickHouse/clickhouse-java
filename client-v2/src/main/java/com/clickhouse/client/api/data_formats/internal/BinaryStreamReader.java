@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
@@ -183,7 +182,7 @@ public class BinaryStreamReader {
                 case Date:
                     return (T) readDateAsLocalDate();
                 case Date32:
-                    return (T) readDate32AaLocalDate();
+                    return (T) readDate32AsLocalDate();
                 case DateTime:
                     return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:
@@ -975,7 +974,7 @@ public class BinaryStreamReader {
         return LocalDate.ofEpochDay(readUnsignedShortLE());
     }
 
-    public LocalDate readDate32AaLocalDate() throws IOException {
+    public LocalDate readDate32AsLocalDate() throws IOException {
         return LocalDate.ofEpochDay(readIntLE());
     }
 
