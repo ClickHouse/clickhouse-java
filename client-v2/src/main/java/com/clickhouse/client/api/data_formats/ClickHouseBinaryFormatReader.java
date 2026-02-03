@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
@@ -550,6 +551,10 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     LocalDate getLocalDate(String colName);
 
     LocalDate getLocalDate(int index);
+
+    LocalTime getLocalTime(String colName);
+
+    LocalTime getLocalTime(int index);
 
     LocalDateTime getLocalDateTime(String colName);
 
