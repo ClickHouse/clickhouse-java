@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -510,6 +511,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 return (T)array;
             } else if (value instanceof String) {
                 return (T) ((String)value).getBytes(StandardCharsets.UTF_8);
+            } else if (value instanceof InetAddress) {
+                return (T) ((InetAddress)value).getAddress();
             }
             throw new ClientException("Column is not of array type");
         } catch (ClassCastException e) {

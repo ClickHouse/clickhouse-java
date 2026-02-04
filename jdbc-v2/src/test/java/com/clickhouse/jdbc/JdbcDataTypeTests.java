@@ -878,6 +878,9 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("ipv6"), ipv6Address.getHostAddress());
                     assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
                     assertEquals(rs.getObject("ipv4_as_ipv6", Inet4Address.class), ipv4AsIpv6);
+                    assertEquals(rs.getBytes("ipv4_ip"), ipv4AddressByIp.getAddress());
+                    assertEquals(rs.getBytes("ipv6"), ipv6Address.getAddress());
+
                     assertFalse(rs.next());
                 }
             }
