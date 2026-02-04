@@ -1180,6 +1180,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
         sql.append(") as attrs ON (dt.name = attrs.c1)")
                 .append(" WHERE alias_to == ''");
+        sql.append("  ORDER BY name");
         return sql.toString();
     }
 
