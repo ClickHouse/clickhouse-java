@@ -2313,4 +2313,145 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
         };
     }
+
+    /**
+     * Tests that both Time and DateTime columns are readable as JDBC TIME type.
+     * ClickHouse added Time and Time64 support in version 25.6.
+     * On older versions DateTime types were used to emulate TIME.
+     * This test ensures compatibility for reading time values from both column types.
+     */
+    @Test(groups = { "integration" })
+    public void testTimeAndDateTimeCompatibleWithJDBCTime() throws Exception {
+        boolean hasTimeType = !ClickHouseVersion.of(getServerVersion()).check("(,25.5]");
+
+        Properties createProperties = new Properties();
+        if (hasTimeType) {
+            createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        }
+
+        // Create table with DateTime columns (always supported) and Time columns (if available)
+        String tableDDL = hasTimeType
+                ? "CREATE TABLE test_time_compat (order Int8, "
+                  + "time Time, time64 Time64(3), "
+                  + "dateTime DateTime, dateTime64 DateTime64(3) "
+                  + ") ENGINE = MergeTree ORDER BY ()"
+                : "CREATE TABLE test_time_compat (order Int8, "
+                  + "dateTime DateTime, dateTime64 DateTime64(3) "
+                  + ") ENGINE = MergeTree ORDER BY ()";
+
+        runQuery(tableDDL, createProperties);
+
+        // Insert values representing times: 12:34:56 and 23:59:59.999
+        String insertSQL = hasTimeType
+                ? "INSERT INTO test_time_compat (order, time, time64, dateTime, dateTime64) VALUES "
+                  + "(1, '12:34:56', '12:34:56.789', '1970-01-01 12:34:56', '1970-01-01 12:34:56.789'), "
+                  + "(2, '23:59:59', '23:59:59.999', '1970-01-01 23:59:59', '1970-01-01 23:59:59.999')"
+                : "INSERT INTO test_time_compat (order, dateTime, dateTime64) VALUES "
+                  + "(1, '1970-01-01 12:34:56', '1970-01-01 12:34:56.789'), "
+                  + "(2, '1970-01-01 23:59:59', '1970-01-01 23:59:59.999')";
+
+        runQuery(insertSQL, createProperties);
+
+        // Check that all columns are readable as java.sql.Time
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_time_compat ORDER BY order")) {
+                    // First row: 12:34:56
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("order"), 1);
+
+                    Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+
+                    // Test DateTime columns as Time (always available)
+                    Time dateTimeAsTime = rs.getTime("dateTime", utcCalendar);
+                    assertNotNull(dateTimeAsTime);
+                    assertEquals(getHours(dateTimeAsTime, utcCalendar), 12);
+                    assertEquals(getMinutes(dateTimeAsTime, utcCalendar), 34);
+                    assertEquals(getSeconds(dateTimeAsTime, utcCalendar), 56);
+
+                    Time dateTime64AsTime = rs.getTime("dateTime64", utcCalendar);
+                    assertNotNull(dateTime64AsTime);
+                    assertEquals(getHours(dateTime64AsTime, utcCalendar), 12);
+                    assertEquals(getMinutes(dateTime64AsTime, utcCalendar), 34);
+                    assertEquals(getSeconds(dateTime64AsTime, utcCalendar), 56);
+                    // Verify milliseconds for DateTime64
+                    assertEquals(dateTime64AsTime.getTime() % 1000, 789);
+
+                    if (hasTimeType) {
+                        // Test Time columns as Time
+                        Time timeAsTime = rs.getTime("time", utcCalendar);
+                        assertNotNull(timeAsTime);
+                        assertEquals(getHours(timeAsTime, utcCalendar), 12);
+                        assertEquals(getMinutes(timeAsTime, utcCalendar), 34);
+                        assertEquals(getSeconds(timeAsTime, utcCalendar), 56);
+
+                        Time time64AsTime = rs.getTime("time64", utcCalendar);
+                        assertNotNull(time64AsTime);
+                        assertEquals(getHours(time64AsTime, utcCalendar), 12);
+                        assertEquals(getMinutes(time64AsTime, utcCalendar), 34);
+                        assertEquals(getSeconds(time64AsTime, utcCalendar), 56);
+                        assertEquals(time64AsTime.getTime() % 1000, 789);
+
+                        // Verify Time and DateTime return equivalent time components
+                        assertEquals(getHours(timeAsTime, utcCalendar), getHours(dateTimeAsTime, utcCalendar));
+                        assertEquals(getMinutes(timeAsTime, utcCalendar), getMinutes(dateTimeAsTime, utcCalendar));
+                        assertEquals(getSeconds(timeAsTime, utcCalendar), getSeconds(dateTimeAsTime, utcCalendar));
+                    }
+
+                    // Second row: 23:59:59
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("order"), 2);
+
+                    dateTimeAsTime = rs.getTime("dateTime", utcCalendar);
+                    assertNotNull(dateTimeAsTime);
+                    assertEquals(getHours(dateTimeAsTime, utcCalendar), 23);
+                    assertEquals(getMinutes(dateTimeAsTime, utcCalendar), 59);
+                    assertEquals(getSeconds(dateTimeAsTime, utcCalendar), 59);
+
+                    dateTime64AsTime = rs.getTime("dateTime64", utcCalendar);
+                    assertNotNull(dateTime64AsTime);
+                    assertEquals(getHours(dateTime64AsTime, utcCalendar), 23);
+                    assertEquals(getMinutes(dateTime64AsTime, utcCalendar), 59);
+                    assertEquals(getSeconds(dateTime64AsTime, utcCalendar), 59);
+                    assertEquals(dateTime64AsTime.getTime() % 1000, 999);
+
+                    if (hasTimeType) {
+                        Time timeAsTime = rs.getTime("time", utcCalendar);
+                        assertNotNull(timeAsTime);
+                        assertEquals(getHours(timeAsTime, utcCalendar), 23);
+                        assertEquals(getMinutes(timeAsTime, utcCalendar), 59);
+                        assertEquals(getSeconds(timeAsTime, utcCalendar), 59);
+
+                        Time time64AsTime = rs.getTime("time64", utcCalendar);
+                        assertNotNull(time64AsTime);
+                        assertEquals(getHours(time64AsTime, utcCalendar), 23);
+                        assertEquals(getMinutes(time64AsTime, utcCalendar), 59);
+                        assertEquals(getSeconds(time64AsTime, utcCalendar), 59);
+                        assertEquals(time64AsTime.getTime() % 1000, 999);
+                    }
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    private static void assertNotNull(Object obj) {
+        Assert.assertNotNull(obj);
+    }
+
+    private static int getHours(Time time, Calendar calendar) {
+        calendar.setTime(time);
+        return calendar.get(Calendar.HOUR_OF_DAY);
+    }
+
+    private static int getMinutes(Time time, Calendar calendar) {
+        calendar.setTime(time);
+        return calendar.get(Calendar.MINUTE);
+    }
+
+    private static int getSeconds(Time time, Calendar calendar) {
+        calendar.setTime(time);
+        return calendar.get(Calendar.SECOND);
+    }
 }
