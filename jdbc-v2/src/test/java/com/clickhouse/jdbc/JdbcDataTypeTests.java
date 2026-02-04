@@ -2332,10 +2332,10 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         String tableDDL = hasTimeType
                 ? "CREATE TABLE test_time_compat (order Int8, "
                   + "time Time, time64 Time64(3), "
-                  + "dateTime DateTime, dateTime64 DateTime64(3, 'UTC') "
+                  + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
                   + ") ENGINE = MergeTree ORDER BY ()"
                 : "CREATE TABLE test_time_compat (order Int8, "
-                  + "dateTime DateTime, dateTime64 DateTime64(3, 'UTC') "
+                  + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
                   + ") ENGINE = MergeTree ORDER BY ()";
 
         runQuery(tableDDL, createProperties);
