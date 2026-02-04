@@ -1176,6 +1176,34 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testStringsUsedAsBytes() throws Exception {
+        runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
+
+        String[][] testData = {{"Hello, World!", "FixedStr"}, {"Test String 123", "ABC"}};
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_strings_as_bytes VALUES (?, ?, ?)")) {
+            for (int i = 0; i < testData.length; i++) {
+                insert.setInt(1, i + 1);
+                insert.setBytes(2, testData[i][0].getBytes("UTF-8"));
+                insert.setBytes(3, testData[i][1].getBytes("UTF-8"));
+                insert.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings_as_bytes ORDER BY order")) {
+            for (String[] expected : testData) {
+                assertTrue(rs.next());
+                assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testNestedArrays() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Array(Int32)) as value")) {

@@ -13,6 +13,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -568,5 +569,39 @@ public class JdbcUtils {
             return dst;
         }
         throw new IllegalArgumentException("Cannot convert " + array.getClass().getName() + " to an Object[]");
+    }
+
+    public static final String EMPTY_ARRAY_EXPR = "[]";
+    public static final String EMPTY_MAP_EXPR = "{}";
+    public static final String EMPTY_STRING_EXPR = "''";
+    public static final String EMPTY_TUPLE_EXPR = "()";
+
+    private static final byte[] UNHEX_PREFIX = "unhex('".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] UNHEX_SUFFIX = "')".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+
+
+    /**
+     * Converts given byte array to unhex() expression.
+     *
+     * @param bytes byte array
+     * @return non-null expression
+     */
+    public static String convertToUnhexExpression(byte[] bytes) {
+        int len = bytes != null ? bytes.length : 0;
+        if (len == 0) {
+            return EMPTY_STRING_EXPR;
+        }
+
+        int offset = UNHEX_PREFIX.length;
+        byte[] hexChars = new byte[len * 2 + offset + UNHEX_SUFFIX.length];
+        System.arraycopy(UNHEX_PREFIX, 0, hexChars, 0, offset);
+        System.arraycopy(UNHEX_SUFFIX, 0, hexChars, hexChars.length - UNHEX_SUFFIX.length, UNHEX_SUFFIX.length);
+        for (int i = 0; i < len; i++) {
+            int v = bytes[i] & 0xFF;
+            hexChars[offset++] = HEX_ARRAY[v >>> 4];
+            hexChars[offset++] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars, StandardCharsets.UTF_8);
     }
 }
