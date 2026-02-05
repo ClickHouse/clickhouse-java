@@ -1219,11 +1219,6 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    /**
-     * Test for https://github.com/ClickHouse/clickhouse-java/issues/2723
-     * getString() on nested arrays was failing with NullPointerException due to re-entrancy bug
-     * in DataTypeConverter when converting nested arrays to string representation.
-     */
     @Test(groups = { "integration" })
     public void testNestedArrayToString() throws SQLException {
         // Test 1: Simple nested array - getString on Array(Array(Int32))
@@ -1273,6 +1268,8 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     String result = rs.getString("deep_nested");
                     assertEquals(result, "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]");
+                    Array arr = rs.getArray(1);
+                    assertEquals(arr.getArray(), new String[][][] {{{"a", "b"}, {"c"}}, {{ "d", "e", "f"}}});
                 }
             }
         }
