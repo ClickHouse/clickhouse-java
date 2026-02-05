@@ -19,6 +19,7 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -1387,6 +1388,111 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             String version =  getServerVersion();
             int minorVersionOfServer = Integer.parseInt(version.split("\\.")[1]);
             assertEquals(minorVersion, minorVersionOfServer, "Minor version");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTableTypes() throws Exception {
+        final String database = getDatabase();
+
+        // Map of table name -> (schema, expected type), ordered alphabetically by type
+        java.util.Map<String, String[]> knownTables = new java.util.LinkedHashMap<>();
+        knownTables.put("test_table_types_dict", new String[]{database, "DICTIONARY"});
+        knownTables.put("test_table_types_log", new String[]{database, "LOG TABLE"});
+        knownTables.put("test_table_types_mat_view", new String[]{database, "MATERIALIZED VIEW"});
+        knownTables.put("test_table_types_memory", new String[]{database, "MEMORY TABLE"});
+        knownTables.put("test_table_types_remote", new String[]{database, "REMOTE TABLE"});
+        knownTables.put("numbers", new String[]{"system", "SYSTEM TABLE"});
+        knownTables.put("test_table_types_regular", new String[]{database, "TABLE"});
+        knownTables.put("test_table_types_view", new String[]{database, "VIEW"});
+
+        try (Connection conn = getJdbcConnection()) {
+            final DatabaseMetaData dbmd = conn.getMetaData();
+
+            try (Statement stmt = conn.createStatement()) {
+                // Regular MergeTree table
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_regular");
+                stmt.executeUpdate("CREATE TABLE test_table_types_regular (id Int32) ENGINE = MergeTree ORDER BY id");
+
+                // Source table for views
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_source");
+                stmt.executeUpdate("CREATE TABLE test_table_types_source (id Int32) ENGINE = MergeTree ORDER BY id");
+
+                // Normal view
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_view");
+                stmt.executeUpdate("CREATE VIEW test_table_types_view AS SELECT id FROM test_table_types_source");
+
+                // Materialized view
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_mat_view");
+                stmt.executeUpdate("CREATE MATERIALIZED VIEW test_table_types_mat_view ENGINE = MergeTree ORDER BY id AS SELECT id FROM test_table_types_source");
+
+                // Remote table (URL engine has empty data_paths)
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_remote");
+                stmt.executeUpdate("CREATE TABLE test_table_types_remote (id Int32) ENGINE = URL('http://localhost:8123/?query=SELECT+1', CSV)");
+
+                // Log table
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_log");
+                stmt.executeUpdate("CREATE TABLE test_table_types_log (id Int32) ENGINE = Log");
+
+                // Memory table
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_memory");
+                stmt.executeUpdate("CREATE TABLE test_table_types_memory (id Int32) ENGINE = Memory");
+
+                // Dictionary (using source table as source)
+                stmt.executeUpdate("DROP DICTIONARY IF EXISTS test_table_types_dict");
+                stmt.executeUpdate("CREATE DICTIONARY test_table_types_dict (id Int32) " +
+                        "PRIMARY KEY id SOURCE(CLICKHOUSE(TABLE 'test_table_types_source' DB '" + database + "')) " +
+                        "LAYOUT(FLAT()) LIFETIME(0)");
+
+            }
+
+            // Get all types from DatabaseMetaData and verify against expected list
+            Set<String> allTypes = new HashSet<>();
+            try (ResultSet rs = dbmd.getTableTypes()) {
+                while (rs.next()) {
+                    allTypes.add(rs.getString("TABLE_TYPE"));
+                }
+            }
+            final Set<String> expectedTypes = new HashSet<>(Arrays.asList(
+                    "DICTIONARY",
+                    "LOG TABLE",
+                    "MATERIALIZED VIEW",
+                    "MEMORY TABLE",
+                    "REMOTE TABLE",
+                    "SYSTEM TABLE",
+                    "TABLE",
+                    "TEMPORARY TABLE",  // Temporary tables are visible only in the session where they created.
+                    "VIEW"
+            ));
+            assertEquals(allTypes, expectedTypes, "Table types from getTableTypes() should match expected types");
+
+            for (java.util.Map.Entry<String, String[]> entry : knownTables.entrySet()) {
+                String tableName = entry.getKey();
+                String schema = entry.getValue()[0];
+                String expectedType = entry.getValue()[1];
+
+                // Test with no filter - table should be returned
+                try (ResultSet rs = dbmd.getTables(null, schema, tableName, null)) {
+                    assertTrue(rs.next(), tableName + " should be found with no filter");
+                    assertEquals(rs.getString("TABLE_NAME"), tableName);
+                    assertEquals(rs.getString("TABLE_TYPE"), expectedType);
+                    assertFalse(rs.next());
+                }
+
+                // Test with each type filter - table should be returned only when filter matches
+                for (String filterType : allTypes) {
+                    try (ResultSet rs = dbmd.getTables(null, schema, tableName, new String[]{filterType})) {
+                        if (filterType.equals(expectedType)) {
+                            assertTrue(rs.next(), tableName + " should be found with matching filter " + filterType);
+                            assertEquals(rs.getString("TABLE_NAME"), tableName);
+                            assertEquals(rs.getString("TABLE_TYPE"), expectedType);
+                            assertFalse(rs.next());
+                        } else {
+                            assertFalse(rs.next(), tableName + " should NOT be found with filter " + filterType);
+                        }
+                    }
+                }
+            }
         }
     }
 }
