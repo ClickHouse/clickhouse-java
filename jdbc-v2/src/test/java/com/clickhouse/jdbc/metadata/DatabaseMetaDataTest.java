@@ -248,8 +248,8 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertEquals(dbmd.supportsMultipleOpenResults(), false);
             assertEquals(dbmd.supportsGetGeneratedKeys(), false);
             assertEquals(dbmd.getResultSetHoldability(), 1);
-            assertEquals(dbmd.getJDBCMajorVersion(), 9);
-            assertEquals(dbmd.getJDBCMinorVersion(), 6);
+            assertEquals(dbmd.getJDBCMajorVersion(), 4); // Latest major version (since java 6).
+            assertEquals(dbmd.getJDBCMinorVersion(), 2); // Most supported minor version (since java 8).
             assertEquals(dbmd.getSQLStateType(), 2);
             assertEquals(dbmd.supportsStatementPooling(), false);
             assertEquals(dbmd.getRowIdLifetime(), ROWID_UNSUPPORTED);
