@@ -64,7 +64,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     static final Set<String> TABLE_TYPES = Arrays.stream(TableType.values()).map(TableType::getTypeName).collect(Collectors.toSet());
     private static final String TEMPORARY_ENGINE_PREFIX = "Temporary";
-    static final String SYSTEM_DATABASE_NAME = "system";
 
     private static final String DATABASE_PRODUCT_NAME = "ClickHouse";
     private static final String DRIVER_NAME = DATABASE_PRODUCT_NAME + " JDBC Driver";
@@ -864,8 +863,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         if (engine == null) {
             return TableType.TABLE.getTypeName();
         }
-        // Check for system tables (engines starting with "System")
-        if (engine.startsWith("System")) {
+        // Check for system tables (engines starting with "System" or "Async")
+        if (engine.startsWith("System") || engine.startsWith("Async")) {
             return TableType.SYSTEM_TABLE.getTypeName();
         }
         return ENGINE_TO_TABLE_TYPE.getOrDefault(engine, TableType.TABLE.getTypeName());
@@ -892,8 +891,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         String tableType;
         if (engine != null && engine.startsWith(TEMPORARY_ENGINE_PREFIX)) {
             tableType = TableType.TEMPORARY_TABLE.getTypeName();
-        } else if (engine != null && engine.startsWith("System")) {
-            tableType = TableType.SYSTEM_TABLE.getTypeName();;
+        } else if (engine != null && (engine.startsWith("System") || engine.startsWith("Async"))) {
+            tableType = TableType.SYSTEM_TABLE.getTypeName();
         } else {
             tableType = engineToTableType(engine);
         }
@@ -930,13 +929,13 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         
         // If TABLE type is requested, also include engines not in our map (they default to TABLE)
         if (requestedTypes.contains(TableType.TABLE.getTypeName())) {
-            filterConditions.add("(t.engine NOT IN ('" + String.join("','", ENGINE_TO_TABLE_TYPE.keySet()) + 
-                    "') AND NOT t.engine LIKE 'System%')");
+            filterConditions.add("(t.engine NOT IN ('" + String.join("','", ENGINE_TO_TABLE_TYPE.keySet()) +
+                    "') AND NOT t.engine LIKE 'System%' AND NOT t.engine LIKE 'Async%')");
         }
-        
-        // If SYSTEM TABLE is requested, include system engines
+
+        // If SYSTEM TABLE is requested, include system engines (System* and Async*)
         if (requestedTypes.contains(TableType.SYSTEM_TABLE.getTypeName())) {
-            filterConditions.add("(t.engine LIKE 'System%')");
+            filterConditions.add("(t.engine LIKE 'System%' OR t.engine LIKE 'Async%')");
         }
         
         // If TEMPORARY TABLE is requested, include temporary tables
