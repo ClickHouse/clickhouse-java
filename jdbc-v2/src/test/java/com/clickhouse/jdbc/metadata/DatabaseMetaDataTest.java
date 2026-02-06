@@ -17,6 +17,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -512,6 +513,27 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     Assert.assertEquals(tableType, DatabaseMetaDataImpl.TableType.MEMORY_TABLE.getTypeName());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testAllTableEnginesFromSystemTableEnginesAreMapped() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT name FROM system.table_engines ORDER BY name")) {
+            Set<String> mappedEngines = DatabaseMetaDataImpl.ENGINE_TO_TABLE_TYPE.keySet();
+            List<String> unmapped = new ArrayList<>();
+            while (rs.next()) {
+                String engine = rs.getString("name");
+                boolean isMapped = mappedEngines.contains(engine)
+                        || (engine != null && (engine.startsWith("System") || engine.startsWith("Async")));
+                if (!isMapped) {
+                    unmapped.add(engine);
+                }
+            }
+            assertTrue(unmapped.isEmpty(),
+                    "All table engines from system.table_engines must be mapped in DatabaseMetaDataImpl.ENGINE_TO_TABLE_TYPE "
+                            + "or handled by System/Async prefix. Unmapped engines: " + unmapped);
         }
     }
 

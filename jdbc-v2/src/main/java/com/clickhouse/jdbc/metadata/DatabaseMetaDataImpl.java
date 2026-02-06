@@ -772,7 +772,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
     // Map of ClickHouse engine names to JDBC table types
-    private static final Map<String, String> ENGINE_TO_TABLE_TYPE;
+    static final Map<String, String> ENGINE_TO_TABLE_TYPE;
     static {
         Map<String, String> map = new java.util.HashMap<>();
         
@@ -790,6 +790,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("View", TableType.VIEW.getTypeName());
         map.put("LiveView", TableType.VIEW.getTypeName());
         map.put("MaterializedView", TableType.MATERIALIZED_VIEW.getTypeName());
+        map.put("WindowView", TableType.VIEW.getTypeName());
         
         // Dictionary
         map.put("Dictionary", TableType.DICTIONARY.getTypeName());
@@ -798,9 +799,15 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("AzureBlobStorage", TableType.REMOTE_TABLE.getTypeName());
         map.put("AzureQueue", TableType.REMOTE_TABLE.getTypeName());
         map.put("COSN", TableType.REMOTE_TABLE.getTypeName());
+        map.put("ArrowFlight", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLake", TableType.REMOTE_TABLE.getTypeName());
+        map.put("DeltaLakeAzure", TableType.REMOTE_TABLE.getTypeName());
+        map.put("DeltaLakeLocal", TableType.REMOTE_TABLE.getTypeName());
+        map.put("DeltaLakeS3", TableType.REMOTE_TABLE.getTypeName());
+        map.put("Distributed", TableType.REMOTE_TABLE.getTypeName());
         map.put("FuzzJSON", TableType.REMOTE_TABLE.getTypeName());
         map.put("FuzzQuery", TableType.REMOTE_TABLE.getTypeName());
+        map.put("GCS", TableType.REMOTE_TABLE.getTypeName());
         map.put("GenerateRandom", TableType.REMOTE_TABLE.getTypeName());
         map.put("HDFS", TableType.REMOTE_TABLE.getTypeName());
         map.put("Hive", TableType.REMOTE_TABLE.getTypeName());
@@ -824,11 +831,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("S3", TableType.REMOTE_TABLE.getTypeName());
         map.put("S3Queue", TableType.REMOTE_TABLE.getTypeName());
         map.put("URL", TableType.REMOTE_TABLE.getTypeName());
-        
+        map.put("YTsaurus", TableType.REMOTE_TABLE.getTypeName());
+
         // Regular tables (MergeTree family and others)
         map.put("AggregatingMergeTree", TableType.TABLE.getTypeName());
+        map.put("Alias", TableType.TABLE.getTypeName());
+        map.put("CoalescingMergeTree", TableType.TABLE.getTypeName());
         map.put("CollapsingMergeTree", TableType.TABLE.getTypeName());
         map.put("EmbeddedRocksDB", TableType.TABLE.getTypeName());
+        map.put("Executable", TableType.TABLE.getTypeName());
+        map.put("ExecutablePool", TableType.TABLE.getTypeName());
         map.put("GraphiteMergeTree", TableType.TABLE.getTypeName());
         map.put("Join", TableType.TABLE.getTypeName());
         map.put("KeeperMap", TableType.TABLE.getTypeName());
@@ -836,6 +848,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("MergeTree", TableType.TABLE.getTypeName());
         map.put("ReplacingMergeTree", TableType.TABLE.getTypeName());
         map.put("ReplicatedAggregatingMergeTree", TableType.TABLE.getTypeName());
+        map.put("ReplicatedCoalescingMergeTree", TableType.TABLE.getTypeName());
         map.put("ReplicatedCollapsingMergeTree", TableType.TABLE.getTypeName());
         map.put("ReplicatedGraphiteMergeTree", TableType.TABLE.getTypeName());
         map.put("ReplicatedMergeTree", TableType.TABLE.getTypeName());
