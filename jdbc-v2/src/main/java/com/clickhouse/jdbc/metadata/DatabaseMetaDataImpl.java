@@ -956,7 +956,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             filterConditions.add("(t.is_temporary = 1)");
         }
 
-        String engineFilter = filterConditions.isEmpty() ? "" : "AND ( " + String.join(" OR ", filterConditions) + ")";
+        String engineFilter = filterConditions.isEmpty() ? "" : " AND ( " + String.join(" OR ", filterConditions) + ")";
         // Exclude temporary tables when not requested (they would otherwise match engine-based conditions)
         if (!requestedTypes.contains(TableType.TEMPORARY_TABLE.getTypeName())) {
             engineFilter += " AND (t.is_temporary = 0)";
