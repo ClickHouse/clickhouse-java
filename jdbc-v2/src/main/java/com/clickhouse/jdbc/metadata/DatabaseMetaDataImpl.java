@@ -930,7 +930,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         // If TABLE type is requested, also include engines not in our map (they default to TABLE)
         if (requestedTypes.contains(TableType.TABLE.getTypeName())) {
             filterConditions.add("(t.engine NOT IN ('" + String.join("','", ENGINE_TO_TABLE_TYPE.keySet()) +
-                    "') AND NOT t.engine LIKE 'System%' AND NOT t.engine LIKE 'Async%')");
+                    "') AND NOT t.engine LIKE 'System%' AND NOT t.engine LIKE 'Async%' AND t.is_temporary = 0)");
         }
 
         // If SYSTEM TABLE is requested, include system engines (System* and Async*)
@@ -943,7 +943,11 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             filterConditions.add("(t.is_temporary = 1)");
         }
 
-        String engineFilter = filterConditions.isEmpty() ? "" :  "AND ( " + String.join(" OR ", filterConditions) + ")";
+        String engineFilter = filterConditions.isEmpty() ? "" : "AND ( " + String.join(" OR ", filterConditions) + ")";
+        // Exclude temporary tables when not requested (they would otherwise match engine-based conditions)
+        if (!requestedTypes.contains(TableType.TEMPORARY_TABLE.getTypeName())) {
+            engineFilter += " AND (t.is_temporary = 0)";
+        }
 
         String sql = "SELECT " +
                  catalogPlaceholder + " AS TABLE_CAT, " +
