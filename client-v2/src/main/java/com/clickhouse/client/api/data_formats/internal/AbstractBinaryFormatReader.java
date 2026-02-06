@@ -30,6 +30,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -199,6 +201,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return true;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> T readValue(int colIndex) {
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
@@ -207,6 +210,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return (T) currentRecord[colIndex - 1];
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> T readValue(String colName) {
         return (T) currentRecord[getSchema().nameToIndex(colName)];
@@ -357,68 +361,69 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         return dataTypeConverter.convertToString(value, column);
     }
 
-    private <T> T readNumberValue(String colName, NumberConverter.NumberType targetType) {
-        int colIndex = schema.nameToIndex(colName);
+    @SuppressWarnings("unchecked")
+    private <T> T readNumberValue(int index, NumberConverter.NumberType targetType) {
+        int colIndex = index - 1;
         Function<Object, Object> converter = (Function<Object, Object>) convertions[colIndex].get(targetType);
         if (converter != null) {
-            Object value = readValue(colName);
+            Object value = readValue(index);
             if (value == null) {
                 if (targetType == NumberConverter.NumberType.BigInteger || targetType == NumberConverter.NumberType.BigDecimal) {
                     return null;
                 }
-                throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " +
+                throw new NullValueException("Column at index " + index + " has null value and it cannot be cast to " +
                         targetType.getTypeName());
             }
             return (T) converter.apply(value);
         } else {
-            throw new ClientException("Column " + colName + " " + columns[colIndex].getDataType().name() +
+            throw new ClientException("Column at index " + index + " " + columns[colIndex].getDataType().name() +
                     " cannot be converted to " + targetType.getTypeName());
         }
     }
 
     @Override
     public byte getByte(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Byte);
+        return getByte(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public short getShort(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Short);
+        return getShort(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public int getInteger(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Int);
+        return getInteger(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public long getLong(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Long);
+        return getLong(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public float getFloat(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Float);
+        return getFloat(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public double getDouble(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Double);
+        return getDouble(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public boolean getBoolean(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.Boolean);
+        return getBoolean(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public BigInteger getBigInteger(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.BigInteger);
+        return getBigInteger(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public BigDecimal getBigDecimal(String colName) {
-        return readNumberValue(colName, NumberConverter.NumberType.BigDecimal);
+        return getBigDecimal(schema.nameToColumnIndex(colName));
     }
 
     @Override
@@ -433,76 +438,60 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Duration getDuration(String colName) {
-        TemporalAmount temporalAmount = getTemporalAmount(colName);
-        return temporalAmount == null ? null : Duration.from(temporalAmount);
+        return getDuration(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public TemporalAmount getTemporalAmount(String colName) {
-        return readValue(colName);
+        return getTemporalAmount(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public Inet4Address getInet4Address(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : InetAddressConverter.convertToIpv4((java.net.InetAddress) val);
+        return getInet4Address(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public Inet6Address getInet6Address(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : InetAddressConverter.convertToIpv6((java.net.InetAddress) val);
+        return getInet6Address(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public UUID getUUID(String colName) {
-        return readValue(colName);
+        return getUUID(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : ClickHouseGeoPointValue.of((double[]) val);
+        return getGeoPoint(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : ClickHouseGeoRingValue.of((double[][]) val);
+        return getGeoRing(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public ClickHouseGeoPolygonValue getGeoPolygon(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : ClickHouseGeoPolygonValue.of((double[][][]) val);
+        return getGeoPolygon(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName) {
-        Object val = readValue(colName);
-        return val == null ? null : ClickHouseGeoMultiPolygonValue.of((double[][][][]) val);
+        return getGeoMultiPolygon(schema.nameToColumnIndex(colName));
     }
 
 
     @Override
     public <T> List<T> getList(String colName) {
-        Object value = readValue(colName);
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).asList();
-        } else if (value instanceof List<?>) {
-            return (List<T>) value;
-        } else {
-            throw new ClientException("Column is not of array type");
-        }
+        return getList(schema.nameToColumnIndex(colName));
     }
 
 
-    private <T> T getPrimitiveArray(String colName, Class<?> componentType) {
+    @SuppressWarnings("unchecked")
+    private <T> T getPrimitiveArray(int index, Class<?> componentType) {
         try {
-            Object value = readValue(colName);
+            Object value = readValue(index);
             if (value == null) {
                 return null;
             }
@@ -520,6 +509,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     Array.set(array, i, list.get(i));
                 }
                 return (T)array;
+            } else if (componentType == byte.class) {
+                if (value instanceof String) {
+                    return (T) ((String) value).getBytes(StandardCharsets.UTF_8);
+                } else if (value instanceof InetAddress) {
+                    return (T) ((InetAddress) value).getAddress();
+                }
             }
             throw new ClientException("Column is not of array type");
         } catch (ClassCastException e) {
@@ -529,85 +524,42 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public byte[] getByteArray(String colName) {
-        try {
-            return getPrimitiveArray(colName, byte.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getByteArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public int[] getIntArray(String colName) {
-        try {
-            return getPrimitiveArray(colName, int.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getIntArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public long[] getLongArray(String colName) {
-        try {
-            return getPrimitiveArray(colName,  long.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getLongArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public float[] getFloatArray(String colName) {
-        try {
-            return getPrimitiveArray(colName,  float.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getFloatArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public double[] getDoubleArray(String colName) {
-        try {
-            return getPrimitiveArray(colName,  double.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getDoubleArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public boolean[] getBooleanArray(String colName) {
-        try {
-            return getPrimitiveArray(colName,  boolean.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getBooleanArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public short[] getShortArray(String colName) {
-        try {
-            return getPrimitiveArray(colName,  short.class);
-        } catch (ClassCastException | IllegalArgumentException e) {
-            throw new ClientException("Value cannot be converted to an array of primitives", e);
-        }
+        return getShortArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public String[] getStringArray(String colName) {
-        Object value = readValue(colName);
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
-            int length = array.length;
-            if (!array.itemType.equals(String.class))
-                throw new ClientException("Not A String type.");
-            String [] values = new String[length];
-            for (int i = 0; i < length; i++) {
-                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
-            }
-            return values;
-        }
-        throw new ClientException("Not ArrayValue type.");
+        return getStringArray(schema.nameToColumnIndex(colName));
     }
 
     @Override
@@ -617,52 +569,52 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(String colName) {
-        return currentRecord[getSchema().nameToIndex(colName)] != null;
+        return hasValue(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public byte getByte(int index) {
-        return getByte(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Byte);
     }
 
     @Override
     public short getShort(int index) {
-        return getShort(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Short);
     }
 
     @Override
     public int getInteger(int index) {
-        return getInteger(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Int);
     }
 
     @Override
     public long getLong(int index) {
-        return getLong(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Long);
     }
 
     @Override
     public float getFloat(int index) {
-        return getFloat(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Float);
     }
 
     @Override
     public double getDouble(int index) {
-        return getDouble(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Double);
     }
 
     @Override
     public boolean getBoolean(int index) {
-        return getBoolean(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.Boolean);
     }
 
     @Override
     public BigInteger getBigInteger(int index) {
-        return getBigInteger(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.BigInteger);
     }
 
     @Override
     public BigDecimal getBigDecimal(int index) {
-        return getBigDecimal(schema.columnIndexToName(index));
+        return readNumberValue(index, NumberConverter.NumberType.BigDecimal);
     }
 
     @Override
@@ -728,12 +680,13 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Duration getDuration(int index) {
-        return getDuration(schema.columnIndexToName(index));
+        TemporalAmount temporalAmount = getTemporalAmount(index);
+        return temporalAmount == null ? null : Duration.from(temporalAmount);
     }
 
     @Override
     public TemporalAmount getTemporalAmount(int index) {
-        return getTemporalAmount(schema.columnIndexToName(index));
+        return readValue(index);
     }
 
     @Override
@@ -755,67 +708,124 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public ClickHouseGeoPointValue getGeoPoint(int index) {
-        return getGeoPoint(schema.columnIndexToName(index));
+        Object val = readValue(index);
+        return val == null ? null : ClickHouseGeoPointValue.of((double[]) val);
     }
 
     @Override
     public ClickHouseGeoRingValue getGeoRing(int index) {
-        return getGeoRing(schema.columnIndexToName(index));
+        Object val = readValue(index);
+        return val == null ? null : ClickHouseGeoRingValue.of((double[][]) val);
     }
 
     @Override
     public ClickHouseGeoPolygonValue getGeoPolygon(int index) {
-        return getGeoPolygon(schema.columnIndexToName(index));
+        Object val = readValue(index);
+        return val == null ? null : ClickHouseGeoPolygonValue.of((double[][][]) val);
     }
 
     @Override
     public ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index) {
-        return getGeoMultiPolygon(schema.columnIndexToName(index));
+        Object val = readValue(index);
+        return val == null ? null : ClickHouseGeoMultiPolygonValue.of((double[][][][]) val);
     }
 
     @Override
     public <T> List<T> getList(int index) {
-        return getList(schema.columnIndexToName(index));
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).asList();
+        } else if (value instanceof List<?>) {
+            return (List<T>) value;
+        } else {
+            throw new ClientException("Column is not of array type");
+        }
     }
 
     @Override
     public byte[] getByteArray(int index) {
-       return getByteArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, byte.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public int[] getIntArray(int index) {
-        return getIntArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, int.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public long[] getLongArray(int index) {
-        return  getLongArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, long.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public float[] getFloatArray(int index) {
-        return getFloatArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, float.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public double[] getDoubleArray(int index) {
-        return getDoubleArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, double.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public boolean[] getBooleanArray(int index) {
-        return getBooleanArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, boolean.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public short[] getShortArray(int index) {
-        return getShortArray(schema.columnIndexToName(index));
+        try {
+            return getPrimitiveArray(index, short.class);
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value cannot be converted to an array of primitives", e);
+        }
     }
 
     @Override
     public String[] getStringArray(int index) {
-        return getStringArray(schema.columnIndexToName(index));
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+            int length = array.length;
+            if (!array.itemType.equals(String.class))
+                throw new ClientException("Not A String type.");
+            String[] values = new String[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            }
+            return values;
+        }
+        throw new ClientException("Not ArrayValue type.");
     }
 
     @Override
@@ -825,35 +835,35 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Object[] getTuple(String colName) {
-        return readValue(colName);
+        return getTuple(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public byte getEnum8(String colName) {
-        BinaryStreamReader.EnumValue enumValue = readValue(colName);
+        return getEnum8(schema.nameToColumnIndex(colName));
+    }
+
+    @Override
+    public byte getEnum8(int index) {
+        BinaryStreamReader.EnumValue enumValue = readValue(index);
         if (enumValue == null) {
-            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to byte");
+            throw new NullValueException("Column at index " + index + " has null value and it cannot be converted to enum8 numeric value");
         }
         return enumValue.byteValue();
     }
 
     @Override
-    public byte getEnum8(int index) {
-        return getEnum8(schema.columnIndexToName(index));
-    }
-
-    @Override
     public short getEnum16(String colName) {
-        BinaryStreamReader.EnumValue enumValue = readValue(colName);
-        if (enumValue == null) {
-            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to short");
-        }
-        return enumValue.shortValue();
+        return getEnum16(schema.nameToColumnIndex(colName));
     }
 
     @Override
     public short getEnum16(int index) {
-        return getEnum16(schema.columnIndexToName(index));
+        BinaryStreamReader.EnumValue enumValue = readValue(index);
+        if (enumValue == null) {
+            throw new NullValueException("Column at index " + index + " has null value and it cannot be converted to enum16 numeric value");
+        }
+        return enumValue.shortValue();
     }
 
     @Override
@@ -1004,7 +1014,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public ClickHouseBitmap getClickHouseBitmap(String colName) {
-        return readValue(colName);
+        return getClickHouseBitmap(schema.nameToColumnIndex(colName));
     }
 
     @Override
