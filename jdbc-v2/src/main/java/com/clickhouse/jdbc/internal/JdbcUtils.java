@@ -602,6 +602,6 @@ public class JdbcUtils {
             hexChars[offset++] = HEX_ARRAY[v >>> 4];
             hexChars[offset++] = HEX_ARRAY[v & 0x0F];
         }
-        return new String(hexChars, StandardCharsets.UTF_8);
+        return new String(hexChars, StandardCharsets.US_ASCII);
     }
 }

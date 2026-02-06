@@ -509,7 +509,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     Array.set(array, i, list.get(i));
                 }
                 return (T)array;
-            } else if (componentType == byte.class || componentType == Byte.class) {
+            } else if (componentType == byte.class) {
                 if (value instanceof String) {
                     return (T) ((String) value).getBytes(StandardCharsets.UTF_8);
                 } else if (value instanceof InetAddress) {
