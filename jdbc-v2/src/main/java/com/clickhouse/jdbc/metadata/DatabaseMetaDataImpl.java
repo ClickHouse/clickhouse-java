@@ -23,13 +23,16 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
@@ -58,10 +61,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             return typeName;
         }
     }
-    public static final String[] TABLE_TYPES = new String[] {
-            "DICTIONARY", "LOG TABLE", "MATERIALIZED VIEW", "MEMORY TABLE",
-            "REMOTE TABLE", "SYSTEM TABLE", "TABLE", "TEMPORARY TABLE", "VIEW"
-    };
+
+    static final Set<String> TABLE_TYPES = Arrays.stream(TableType.values()).map(TableType::getTypeName).collect(Collectors.toSet());
+    private static final String TEMPORARY_ENGINE_PREFIX = "Temporary";
+    static final String SYSTEM_DATABASE_NAME = "system";
 
     private static final String DATABASE_PRODUCT_NAME = "ClickHouse";
     private static final String DRIVER_NAME = DATABASE_PRODUCT_NAME + " JDBC Driver";
@@ -797,11 +800,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("AzureQueue", TableType.REMOTE_TABLE.getTypeName());
         map.put("COSN", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLake", TableType.REMOTE_TABLE.getTypeName());
-        map.put("Distributed", TableType.REMOTE_TABLE.getTypeName());
-        map.put("Executable", TableType.REMOTE_TABLE.getTypeName());
-        map.put("ExecutablePool", TableType.REMOTE_TABLE.getTypeName());
-        map.put("File", TableType.REMOTE_TABLE.getTypeName());
-        map.put("FileLog", TableType.REMOTE_TABLE.getTypeName());
         map.put("FuzzJSON", TableType.REMOTE_TABLE.getTypeName());
         map.put("FuzzQuery", TableType.REMOTE_TABLE.getTypeName());
         map.put("GenerateRandom", TableType.REMOTE_TABLE.getTypeName());
@@ -815,12 +813,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("IcebergS3", TableType.REMOTE_TABLE.getTypeName());
         map.put("JDBC", TableType.REMOTE_TABLE.getTypeName());
         map.put("Kafka", TableType.REMOTE_TABLE.getTypeName());
-        map.put("Loop", TableType.REMOTE_TABLE.getTypeName());
         map.put("MaterializedPostgreSQL", TableType.REMOTE_TABLE.getTypeName());
         map.put("MongoDB", TableType.REMOTE_TABLE.getTypeName());
         map.put("MySQL", TableType.REMOTE_TABLE.getTypeName());
         map.put("NATS", TableType.REMOTE_TABLE.getTypeName());
-        map.put("Null", TableType.REMOTE_TABLE.getTypeName());
         map.put("ODBC", TableType.REMOTE_TABLE.getTypeName());
         map.put("OSS", TableType.REMOTE_TABLE.getTypeName());
         map.put("PostgreSQL", TableType.REMOTE_TABLE.getTypeName());
@@ -828,7 +824,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("Redis", TableType.REMOTE_TABLE.getTypeName());
         map.put("S3", TableType.REMOTE_TABLE.getTypeName());
         map.put("S3Queue", TableType.REMOTE_TABLE.getTypeName());
-        map.put("SQLite", TableType.REMOTE_TABLE.getTypeName());
         map.put("URL", TableType.REMOTE_TABLE.getTypeName());
         
         // Regular tables (MergeTree family and others)
@@ -849,9 +844,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("ReplicatedSummingMergeTree", TableType.TABLE.getTypeName());
         map.put("ReplicatedVersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
         map.put("SummingMergeTree", TableType.TABLE.getTypeName());
-        map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("VersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
-        
+
+        // Special
+        map.put("TimeSeries", TableType.TABLE.getTypeName());
+        map.put("Null", TableType.TABLE.getTypeName());
+        map.put("Loop", TableType.TABLE.getTypeName());
+        map.put("SQLite", TableType.TABLE.getTypeName());
+        map.put("File", TableType.TABLE.getTypeName());
+        map.put("FileLog", TableType.TABLE.getTypeName());
+
         ENGINE_TO_TABLE_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -872,22 +874,17 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     /**
      * Returns set of engines that map to any of the given table types.
      */
-    private static Set<String> getEnginesForTableTypes(String[] tableTypes) {
-        Set<String> requestedTypes = new java.util.HashSet<>(Arrays.asList(tableTypes));
-        Set<String> engines = new java.util.HashSet<>();
+    private static Set<String> getEnginesForTableTypes(Set<String> requestedTypes) {
+        Set<String> engines = new HashSet<>();
         
         for (Map.Entry<String, String> entry : ENGINE_TO_TABLE_TYPE.entrySet()) {
             if (requestedTypes.contains(entry.getValue())) {
                 engines.add(entry.getKey());
             }
         }
-        
-        // If TABLE type is requested, we need to include all engines not in the map
-        // This is handled by not filtering on engine in SQL when TABLE is requested
+
         return engines;
     }
-
-    private static final String TEMPORARY_ENGINE_PREFIX = "Temporary";
     
     private static final Consumer<Map<String, Object>> TABLE_TYPE_MUTATOR = row -> {
         String engine = (String) row.get("TABLE_TYPE");
@@ -895,6 +892,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         String tableType;
         if (engine != null && engine.startsWith(TEMPORARY_ENGINE_PREFIX)) {
             tableType = TableType.TEMPORARY_TABLE.getTypeName();
+        } else if (engine != null && engine.startsWith("System")) {
+            tableType = TableType.SYSTEM_TABLE.getTypeName();;
         } else {
             tableType = engineToTableType(engine);
         }
@@ -916,26 +915,23 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         log.debug("getTables: catalog={}, schemaPattern={}, tableNamePattern={}, types={}", catalog, schemaPattern, tableNamePattern, types);
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
         // TODO: handle useCatalogs == true and return schema catalog name
-        if (types == null || types.length == 0) {
-            types = TABLE_TYPES;
-        }
 
         // Get engines that map to the requested table types
-        Set<String> requestedTypes = new java.util.HashSet<>(Arrays.asList(types));
-        Set<String> engines = getEnginesForTableTypes(types);
+        Set<String> requestedTypes = (types == null || types.length == 0) ? TABLE_TYPES : Arrays.stream(types).collect(Collectors.toSet())  ;
+        Set<String> engines = getEnginesForTableTypes(requestedTypes);
         
         // Build engine filter conditions
-        List<String> filterConditions = new java.util.ArrayList<>();
+        List<String> filterConditions = new ArrayList<>();
         
         // Add condition for engines that map to requested types
         if (!engines.isEmpty()) {
-            filterConditions.add("(t.engine IN ('" + String.join("','", engines) + "') AND t.is_temporary = 0)");
+            filterConditions.add("(t.engine IN ('" + String.join("','", engines) + "'))");
         }
         
         // If TABLE type is requested, also include engines not in our map (they default to TABLE)
         if (requestedTypes.contains(TableType.TABLE.getTypeName())) {
             filterConditions.add("(t.engine NOT IN ('" + String.join("','", ENGINE_TO_TABLE_TYPE.keySet()) + 
-                    "') AND NOT t.engine LIKE 'System%' AND t.is_temporary = 0)");
+                    "') AND NOT t.engine LIKE 'System%')");
         }
         
         // If SYSTEM TABLE is requested, include system engines
@@ -947,9 +943,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         if (requestedTypes.contains(TableType.TEMPORARY_TABLE.getTypeName())) {
             filterConditions.add("(t.is_temporary = 1)");
         }
-        
-        // If no conditions, return empty result
-        String engineFilter = filterConditions.isEmpty() ? "1 = 0" : String.join(" OR ", filterConditions);
+
+        String engineFilter = filterConditions.isEmpty() ? "" :  "AND ( " + String.join(" OR ", filterConditions) + ")";
 
         String sql = "SELECT " +
                  catalogPlaceholder + " AS TABLE_CAT, " +
@@ -966,7 +961,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " JOIN system.databases d ON system.tables.database = system.databases.name" +
                 " WHERE t.database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
                 " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                " AND (" + engineFilter + ")";
+                engineFilter;
 
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
             return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TABLES_MUTATORS);
@@ -1008,6 +1003,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         }
     }
 
+
+    static final String TABLE_TYPES_SQL_ARRAY =  Arrays.stream(TableType.values()).map(TableType::getTypeName).collect(Collectors.joining("','"));
     /**
      * Returns name of the ClickHouse table types as the broad category (rather than engine name).
      * @return - ResultSet with one column TABLE_TYPE
@@ -1016,7 +1013,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getTableTypes() throws SQLException {
         try {
-            return connection.createStatement().executeQuery("SELECT arrayJoin(['" + String.join("','", TABLE_TYPES) + "']) AS TABLE_TYPE ORDER BY TABLE_TYPE");
+            return connection.createStatement().executeQuery("SELECT arrayJoin(['" + TABLE_TYPES_SQL_ARRAY + "']) AS TABLE_TYPE ORDER BY TABLE_TYPE");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

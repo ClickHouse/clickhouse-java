@@ -482,8 +482,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
             ResultSet rs = dbmd.getTableTypes();
-            List<String> sortedTypes = Arrays.asList(DatabaseMetaDataImpl.TABLE_TYPES);
-            Collections.sort(sortedTypes);
+            List<String> sortedTypes = Arrays.stream(DatabaseMetaDataImpl.TableType.values()).map(DatabaseMetaDataImpl.TableType::getTypeName).sorted().collect(Collectors.toList());
             for (String type: sortedTypes) {
                 assertTrue(rs.next());
                 assertEquals(rs.getString("TABLE_TYPE"), type);
