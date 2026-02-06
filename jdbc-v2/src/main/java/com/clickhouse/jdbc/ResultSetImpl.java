@@ -237,7 +237,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 return null;
             }
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%s\") encountered an exception.", columnIndex), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%d\") encountered an exception.", columnIndex),
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
     }
 

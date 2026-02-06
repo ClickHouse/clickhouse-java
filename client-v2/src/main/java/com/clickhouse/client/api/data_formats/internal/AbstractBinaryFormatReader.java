@@ -509,10 +509,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     Array.set(array, i, list.get(i));
                 }
                 return (T)array;
-            } else if (value instanceof String) {
-                return (T) ((String)value).getBytes(StandardCharsets.UTF_8);
-            } else if (value instanceof InetAddress) {
-                return (T) ((InetAddress)value).getAddress();
+            } else if (componentType == byte.class || componentType == Byte.class) {
+                if (value instanceof String) {
+                    return (T) ((String) value).getBytes(StandardCharsets.UTF_8);
+                } else if (value instanceof InetAddress) {
+                    return (T) ((InetAddress) value).getAddress();
+                }
             }
             throw new ClientException("Column is not of array type");
         } catch (ClassCastException e) {
@@ -845,7 +847,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public byte getEnum8(int index) {
         BinaryStreamReader.EnumValue enumValue = readValue(index);
         if (enumValue == null) {
-            throw new NullValueException("Column at index " + index + " has null value and it cannot be cast to byte");
+            throw new NullValueException("Column at index " + index + " has null value and it cannot be converted to enum8 numeric value");
         }
         return enumValue.byteValue();
     }
@@ -859,7 +861,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     public short getEnum16(int index) {
         BinaryStreamReader.EnumValue enumValue = readValue(index);
         if (enumValue == null) {
-            throw new NullValueException("Column at index " + index + " has null value and it cannot be cast to short");
+            throw new NullValueException("Column at index " + index + " has null value and it cannot be converted to enum16 numeric value");
         }
         return enumValue.shortValue();
     }
