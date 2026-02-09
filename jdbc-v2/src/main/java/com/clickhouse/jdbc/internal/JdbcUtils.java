@@ -604,4 +604,32 @@ public class JdbcUtils {
         }
         return new String(hexChars, StandardCharsets.US_ASCII);
     }
+
+    /**
+     * Decodes a hex string into a byte array.
+     * Each pair of characters in the input is interpreted as a hexadecimal byte value.
+     *
+     * @param hexString hex-encoded string (must have even length)
+     * @return decoded byte array, or empty array if input is null or empty
+     * @throws IllegalArgumentException if the string has odd length or contains non-hex characters
+     */
+    public static byte[] decodeHexString(String hexString) {
+        if (hexString == null || hexString.isEmpty()) {
+            return new byte[0];
+        }
+        int len = hexString.length();
+        if (len % 2 != 0) {
+            throw new IllegalArgumentException("Hex string must have even length, got " + len);
+        }
+        byte[] result = new byte[len / 2];
+        for (int i = 0; i < result.length; i++) {
+            int hi = Character.digit(hexString.charAt(i * 2), 16);
+            int lo = Character.digit(hexString.charAt(i * 2 + 1), 16);
+            if (hi == -1 || lo == -1) {
+                throw new IllegalArgumentException("Invalid hex character at index " + (hi == -1 ? i * 2 : i * 2 + 1));
+            }
+            result[i] = (byte) ((hi << 4) | lo);
+        }
+        return result;
+    }
 }
