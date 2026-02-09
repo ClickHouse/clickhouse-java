@@ -798,6 +798,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
+            } else if (x instanceof byte[]) {
+                return JdbcUtils.convertToUnhexExpression((byte[]) x);
             } else if (x instanceof java.sql.Array) {
                 com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
                 int nestedLevel = Math.max(1, array.getNestedLevel());
