@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
+import com.clickhouse.data.ClickHouseUtils;
 import java.net.URL;
 import java.sql.Date;
 import java.sql.Time;
@@ -137,7 +138,7 @@ public final class ValueConverters {
     }
 
     public boolean convertStringToBoolean(Object value) {
-        return Boolean.parseBoolean((String) value);
+        return ClickHouseUtils.parseBoolean((String) value);
     }
 
     public byte convertStringToByte(Object value) {

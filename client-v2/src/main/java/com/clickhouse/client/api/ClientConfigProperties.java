@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import com.clickhouse.data.ClickHouseUtils;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -270,6 +271,10 @@ public enum ClientConfigProperties {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Parses a string value into the configured property type.
+     * Boolean values accept "true"/"false" and "1"/"0".
+     */
     public Object parseValue(String value) {
         if (value == null) {
             return null;
@@ -280,9 +285,7 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.equals(Boolean.class)) {
-            if (value.equals("1")) return true;
-            if (value.equals("0")) return false;
-            return Boolean.parseBoolean(value);
+            return ClickHouseUtils.parseBoolean(value);
         }
 
         if (valueType.equals(Integer.class)) {

@@ -21,6 +21,20 @@ import org.testng.annotations.Test;
 
 public class ClickHouseUtilsTest {
     @Test(groups = { "unit" })
+    public void testParseBoolean() {
+        Assert.assertFalse(ClickHouseUtils.parseBoolean(null));
+
+        Assert.assertTrue(ClickHouseUtils.parseBoolean("1"));
+        Assert.assertFalse(ClickHouseUtils.parseBoolean("0"));
+
+        Assert.assertTrue(ClickHouseUtils.parseBoolean("true"));
+        Assert.assertFalse(ClickHouseUtils.parseBoolean("false"));
+
+        // unrecognized values should be parsed as false
+        Assert.assertFalse(ClickHouseUtils.parseBoolean("yes"));
+    }
+
+    @Test(groups = { "unit" })
     public void testCreateTempFile() throws IOException {
         File f = ClickHouseUtils.createTempFile(null, null);
         Assert.assertNotNull(f);
