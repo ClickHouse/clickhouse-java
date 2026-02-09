@@ -880,7 +880,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             return TableType.TABLE.getTypeName();
         }
         // Check for system tables (engines starting with "System" or "Async")
-        if (engine.startsWith("System") || engine.startsWith("Async")) {
+        if (isSystemTableEngine(engine)) {
             return TableType.SYSTEM_TABLE.getTypeName();
         }
         return ENGINE_TO_TABLE_TYPE.getOrDefault(engine, TableType.TABLE.getTypeName());
@@ -889,31 +889,32 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     /**
      * Returns set of engines that map to any of the given table types.
      */
-    private static Set<String> getEnginesForTableTypes(Set<String> requestedTypes) {
-        Set<String> engines = new HashSet<>();
-        
-        for (Map.Entry<String, String> entry : ENGINE_TO_TABLE_TYPE.entrySet()) {
-            if (requestedTypes.contains(entry.getValue())) {
-                engines.add(entry.getKey());
-            }
-        }
-
-        return engines;
+    private static Set<String> getEnginesForTableTypes(final Set<String> requestedTypes) {
+        return ENGINE_TO_TABLE_TYPE.entrySet().stream()
+                .filter(entry -> requestedTypes.contains(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
-    
+
+    public static boolean isSystemTableEngine(String engine) {
+        return engine != null && (engine.startsWith("System") || engine.startsWith("Async"));
+    }
+
+    private static final String TABLE_TYPE_COL_IN_GET_TABLES = "TABLE_TYPE";
+
     private static final Consumer<Map<String, Object>> TABLE_TYPE_MUTATOR = row -> {
-        String engine = (String) row.get("TABLE_TYPE");
+        String engine = (String) row.get(TABLE_TYPE_COL_IN_GET_TABLES);
         
         String tableType;
         if (engine != null && engine.startsWith(TEMPORARY_ENGINE_PREFIX)) {
             tableType = TableType.TEMPORARY_TABLE.getTypeName();
-        } else if (engine != null && (engine.startsWith("System") || engine.startsWith("Async"))) {
+        } else if (isSystemTableEngine(engine)) {
             tableType = TableType.SYSTEM_TABLE.getTypeName();
         } else {
             tableType = engineToTableType(engine);
         }
         
-        row.put("TABLE_TYPE", tableType);
+        row.put(TABLE_TYPE_COL_IN_GET_TABLES, tableType);
     };
 
     private static final Collection<Consumer<Map<String, Object>>> GET_TABLES_MUTATORS = Collections.singletonList(TABLE_TYPE_MUTATOR);
