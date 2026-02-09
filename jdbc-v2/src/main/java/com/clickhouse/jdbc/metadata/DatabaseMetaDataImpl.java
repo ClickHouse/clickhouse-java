@@ -14,8 +14,10 @@ import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
+import javax.xml.transform.Result;
 import java.sql.Connection;
 import java.sql.JDBCType;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -975,12 +977,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "CAST(null as Nullable(String)) AS REF_GENERATION" +
                 " FROM system.tables t" +
                 " JOIN system.databases d ON system.tables.database = system.databases.name" +
-                " WHERE t.database LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'" +
-                " AND t.name LIKE '" + (tableNamePattern == null ? "%" : tableNamePattern) + "'" +
-                engineFilter;
+                " WHERE t.database LIKE ?" +
+                " AND t.name LIKE ?"
+                + engineFilter;
 
-        try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
-            return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TABLES_MUTATORS);
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, (schemaPattern == null ? "%" : schemaPattern));
+            stmt.setString(2, (tableNamePattern == null ? "%" : tableNamePattern));
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TABLES_MUTATORS);
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1020,7 +1026,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
 
-    static final String TABLE_TYPES_SQL_ARRAY =  Arrays.stream(TableType.values()).map(TableType::getTypeName).collect(Collectors.joining("','"));
+    static final List<String> TABLE_TYPES_SQL_ARRAY =   Arrays.stream(TableType.values()).map(TableType::getTypeName).collect(Collectors.toList());
     /**
      * Returns name of the ClickHouse table types as the broad category (rather than engine name).
      * @return - ResultSet with one column TABLE_TYPE
@@ -1028,8 +1034,11 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
      */
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        try {
-            return connection.createStatement().executeQuery("SELECT arrayJoin(['" + TABLE_TYPES_SQL_ARRAY + "']) AS TABLE_TYPE ORDER BY TABLE_TYPE");
+        try (PreparedStatement stmt = connection.prepareStatement("SELECT arrayJoin(?) AS TABLE_TYPE ORDER BY TABLE_TYPE")) {
+            stmt.setObject(1, TABLE_TYPES_SQL_ARRAY);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
