@@ -800,17 +800,13 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         // Remote/External tables
         map.put("AzureBlobStorage", TableType.REMOTE_TABLE.getTypeName());
         map.put("AzureQueue", TableType.REMOTE_TABLE.getTypeName());
-        map.put("COSN", TableType.REMOTE_TABLE.getTypeName());
         map.put("ArrowFlight", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLake", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLakeAzure", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLakeLocal", TableType.REMOTE_TABLE.getTypeName());
         map.put("DeltaLakeS3", TableType.REMOTE_TABLE.getTypeName());
         map.put("Distributed", TableType.REMOTE_TABLE.getTypeName());
-        map.put("FuzzJSON", TableType.REMOTE_TABLE.getTypeName());
-        map.put("FuzzQuery", TableType.REMOTE_TABLE.getTypeName());
         map.put("GCS", TableType.REMOTE_TABLE.getTypeName());
-        map.put("GenerateRandom", TableType.REMOTE_TABLE.getTypeName());
         map.put("HDFS", TableType.REMOTE_TABLE.getTypeName());
         map.put("Hive", TableType.REMOTE_TABLE.getTypeName());
         map.put("Hudi", TableType.REMOTE_TABLE.getTypeName());
@@ -859,6 +855,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("ReplicatedVersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
         map.put("SummingMergeTree", TableType.TABLE.getTypeName());
         map.put("VersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
+        map.put("COSN", TableType.TABLE.getTypeName());
 
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
@@ -867,6 +864,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("SQLite", TableType.TABLE.getTypeName());
         map.put("File", TableType.TABLE.getTypeName());
         map.put("FileLog", TableType.TABLE.getTypeName());
+        map.put("GenerateRandom", TableType.TABLE.getTypeName());
+        map.put("FuzzJSON", TableType.TABLE.getTypeName());
+        map.put("FuzzQuery", TableType.TABLE.getTypeName());
+
 
         ENGINE_TO_TABLE_TYPE = Collections.unmodifiableMap(map);
     }
