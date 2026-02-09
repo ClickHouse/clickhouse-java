@@ -40,7 +40,6 @@ import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -878,6 +877,9 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("ipv6"), ipv6Address.getHostAddress());
                     assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
                     assertEquals(rs.getObject("ipv4_as_ipv6", Inet4Address.class), ipv4AsIpv6);
+                    assertEquals(rs.getBytes("ipv4_ip"), ipv4AddressByIp.getAddress());
+                    assertEquals(rs.getBytes("ipv6"), ipv6Address.getAddress());
+
                     assertFalse(rs.next());
                 }
             }
@@ -1172,6 +1174,34 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertFalse(rs.next());
                 }
             }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testStringsUsedAsBytes() throws Exception {
+        runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
+
+        String[][] testData = {{"Hello, World!", "FixedStr"}, {"Test String 123", "ABC"}};
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_strings_as_bytes VALUES (?, ?, ?)")) {
+            for (int i = 0; i < testData.length; i++) {
+                insert.setInt(1, i + 1);
+                insert.setBytes(2, testData[i][0].getBytes("UTF-8"));
+                insert.setBytes(3, testData[i][1].getBytes("UTF-8"));
+                insert.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings_as_bytes ORDER BY order")) {
+            for (String[] expected : testData) {
+                assertTrue(rs.next());
+                assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
+            }
+            assertFalse(rs.next());
         }
     }
 
@@ -2312,5 +2342,105 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 {"{\"level1\": {\"level2\": {\"level3\": {\"level4\": \"value\"}}}}", map7}, // deep nested objects
 
         };
+    }
+
+    /**
+     * Tests that both Time and DateTime columns are readable as JDBC TIME type.
+     * ClickHouse added Time and Time64 support in version 25.6.
+     * On older versions DateTime types were used to emulate TIME.
+     * This test ensures compatibility for reading time values from both column types.
+     */
+    @Test(groups = { "integration" })
+    public void testTimeAndDateTimeCompatibleWithJDBCTime() throws Exception {
+        boolean hasTimeType = !ClickHouseVersion.of(getServerVersion()).check("(,25.5]");
+
+        Properties createProperties = new Properties();
+        if (hasTimeType) {
+            createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        }
+
+        // Create table with DateTime columns (always supported) and Time columns (if available)
+        String tableDDL = hasTimeType
+                ? "CREATE TABLE test_time_compat (order Int8, "
+                  + "time Time, time64 Time64(3), "
+                  + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
+                  + ") ENGINE = MergeTree ORDER BY ()"
+                : "CREATE TABLE test_time_compat (order Int8, "
+                  + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
+                  + ") ENGINE = MergeTree ORDER BY ()";
+
+        runQuery(tableDDL, createProperties);
+
+        // Insert values representing times: 12:34:56 and 23:59:59.999
+        String insertSQL = hasTimeType
+                ? "INSERT INTO test_time_compat (order, time, time64, dateTime, dateTime64) VALUES "
+                  + "(1, '12:34:56', '12:34:56.789', '1970-01-01 12:34:56', '1970-01-01 12:34:56.789'), "
+                  + "(2, '23:59:59', '23:59:59.999', '1970-01-01 23:59:59', '1970-01-01 23:59:59.999')"
+                : "INSERT INTO test_time_compat (order, dateTime, dateTime64) VALUES "
+                  + "(1, '1970-01-01 12:34:56', '1970-01-01 12:34:56.789'), "
+                  + "(2, '1970-01-01 23:59:59', '1970-01-01 23:59:59.999')";
+
+        runQuery(insertSQL, createProperties);
+
+        // Expected values for each row: [order, year, month, day, hours, minutes, seconds, milliseconds]
+        // Note: month is 1-based (1 = January)
+        int[][] expectedValues = {
+            {1, 1970, 1, 1, 12, 34, 56, 789},
+            {2, 1970, 1, 1, 23, 59, 59, 999}
+        };
+
+        Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+
+        // Check that all columns are readable as java.sql.Time and verify date components
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_time_compat ORDER BY order")) {
+                    for (int[] expected : expectedValues) {
+                        assertTrue(rs.next());
+                        assertEquals(rs.getInt("order"), expected[0]);
+
+                        // Test DateTime columns as Time (always available)
+                        verifyTimeValue(rs.getTime("dateTime", utcCalendar), expected[4], expected[5], expected[6], 0, utcCalendar);
+                        verifyTimeValue(rs.getTime("dateTime64", utcCalendar), expected[4], expected[5], expected[6], expected[7], utcCalendar);
+
+                        // Verify date components for DateTime columns
+                        verifyDateValue(rs.getDate("dateTime", utcCalendar), expected[1], expected[2], expected[3], utcCalendar);
+                        verifyDateValue(rs.getDate("dateTime64", utcCalendar), expected[1], expected[2], expected[3], utcCalendar);
+
+                        if (hasTimeType) {
+                            // Test Time columns as Time
+                            verifyTimeValue(rs.getTime("time", utcCalendar), expected[4], expected[5], expected[6], 0, utcCalendar);
+                            verifyTimeValue(rs.getTime("time64", utcCalendar), expected[4], expected[5], expected[6], expected[7], utcCalendar);
+                        }
+                    }
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    private static void assertNotNull(Object obj) {
+        Assert.assertNotNull(obj);
+    }
+
+    private static void verifyTimeValue(Time time, int expectedHours, int expectedMinutes, 
+                                       int expectedSeconds, int expectedMillis, Calendar calendar) {
+        assertNotNull(time);
+        calendar.setTime(time);
+        assertEquals(calendar.get(Calendar.HOUR_OF_DAY), expectedHours);
+        assertEquals(calendar.get(Calendar.MINUTE), expectedMinutes);
+        assertEquals(calendar.get(Calendar.SECOND), expectedSeconds);
+        if (expectedMillis > 0) {
+            assertEquals(time.getTime() % 1000, expectedMillis);
+        }
+    }
+
+    private static void verifyDateValue(Date date, int expectedYear, int expectedMonth, 
+                                       int expectedDay, Calendar calendar) {
+        assertNotNull(date);
+        calendar.setTime(date);
+        assertEquals(calendar.get(Calendar.YEAR), expectedYear);
+        assertEquals(calendar.get(Calendar.MONTH) + 1, expectedMonth); // Calendar.MONTH is 0-based, convert to 1-based
+        assertEquals(calendar.get(Calendar.DAY_OF_MONTH), expectedDay);
     }
 }

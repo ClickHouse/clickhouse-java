@@ -32,6 +32,9 @@ import java.util.function.Consumer;
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
 
+    private static final int JDBC_SPEC_MAJOR_VERSION = 4;
+    private static final int JDBC_SPEC_MINOR_VERSION = 2;
+
     public enum TableType {
         DICTIONARY("DICTIONARY"),
         LOG_TABLE("LOG TABLE"),
@@ -1180,6 +1183,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
         sql.append(") as attrs ON (dt.name = attrs.c1)")
                 .append(" WHERE alias_to == ''");
+        sql.append("  ORDER BY name");
         return sql.toString();
     }
 
@@ -1409,12 +1413,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return Driver.getDriverMajorVersion();
+        return JDBC_SPEC_MAJOR_VERSION;
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return Driver.getDriverMinorVersion();
+        return JDBC_SPEC_MINOR_VERSION;
     }
 
     @Override

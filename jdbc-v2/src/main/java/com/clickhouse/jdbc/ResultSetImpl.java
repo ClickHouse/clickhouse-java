@@ -230,7 +230,19 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        return getBytes(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getByteArray(columnIndex);
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%d\") encountered an exception.", columnIndex),
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
     }
 
     @Override
@@ -409,18 +421,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
-        checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getByteArray(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getBytes(getSchema().nameToColumnIndex(columnLabel));
     }
 
     @Override

@@ -6,12 +6,14 @@ import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
 import org.testng.annotations.*;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.zip.CRC32;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
@@ -108,5 +110,36 @@ public class JdbcUtilsTest {
         for (ClickHouseDataType dt : ClickHouseDataType.values()) {
             Assert.assertNotNull(JdbcUtils.convertToJavaClass(dt), "Data type " + dt + " has no mapping to java class");
         }
+    }
+
+    @Test(groups = {"unit"})
+    public void testConvertToUnhexExpression() throws Exception {
+        // Load binary file from test resources
+        byte[] originalBytes;
+        try (InputStream is = getClass().getResourceAsStream("/ch_logo.png")) {
+            Assert.assertNotNull(is, "ch_logo.png not found in test resources");
+            originalBytes = is.readAllBytes();
+        }
+
+        // Calculate checksum of original bytes
+        CRC32 originalChecksum = new CRC32();
+        originalChecksum.update(originalBytes);
+        long expectedChecksum = originalChecksum.getValue();
+
+        // Convert to unhex expression
+        String unhexExpr = JdbcUtils.convertToUnhexExpression(originalBytes);
+        Assert.assertTrue(unhexExpr.startsWith("unhex('"), "Expression should start with unhex('");
+        Assert.assertTrue(unhexExpr.endsWith("')"), "Expression should end with ')");
+
+        // Extract hex string and decode back to bytes
+        String hexString = unhexExpr.substring("unhex('".length(), unhexExpr.length() - "')".length());
+        assertEquals(hexString.length(), originalBytes.length * 2, "Hex string length should be twice the byte array length");
+
+        byte[] decodedBytes = JdbcUtils.decodeHexString(hexString);
+
+        // Verify checksum of decoded bytes matches original
+        CRC32 decodedChecksum = new CRC32();
+        decodedChecksum.update(decodedBytes);
+        assertEquals(decodedChecksum.getValue(), expectedChecksum, "Checksum of decoded bytes should match original");
     }
 }
