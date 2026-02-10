@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -173,14 +174,31 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public Duration getDuration(String colName) {
-        TemporalAmount temporalAmount = readValue(colName);
-        return temporalAmount == null ? null : Duration.from(temporalAmount);
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
+        } else if (value instanceof TemporalAmount) {
+            return Duration.from((TemporalAmount)value);
+        }
+        throw new ClientException("Column " + colName + " cannot be converted to Duration");
     }
 
     @Override
     public TemporalAmount getTemporalAmount(String colName) {
-        return readValue(colName);
-    }
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
+        } else if (value instanceof TemporalAmount) {
+            return (TemporalAmount) value;
+        }
+
+        throw new ClientException("Column " + colName + " cannot be converted to TemporalAmount");    }
 
     @Override
     public Inet4Address getInet4Address(String colName) {
