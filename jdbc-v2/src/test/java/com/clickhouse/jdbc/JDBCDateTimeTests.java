@@ -3,14 +3,18 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
+import java.sql.JDBCType;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.sql.Statement;
-import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,8 +22,6 @@ import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
 import java.util.Calendar;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -27,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 
 @Test(groups = {"integration"})
 public class JDBCDateTimeTests extends JdbcIntegrationTest {
-
 
 
     @Test(groups = {"integration"})
@@ -121,5 +122,65 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    void testEventTimestamp() throws SQLException {
+
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.serverSetting("session_timezone"), "America/Los_Angeles");
+        try (Connection conn = getJdbcConnection(config)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS test_events_with_timestamp");
+                stmt.execute("CREATE TABLE test_events_with_timestamp ( " +
+                        "id Int32, " +
+                        "utc_ts DateTime64(9, 'UTC'), " + // local datetime will be written as UTC
+                        "ts_wo_tz DateTime64(9), " +
+                        ") Engine MergeTree order by ()");
+
+
+            }
+
+            LocalDateTime nowLDT = LocalDateTime.now();
+            Timestamp nowTs = Timestamp.valueOf(nowLDT);
+
+            Object[][] dataset = new Object[][]{
+                    {1, nowTs, nowTs},
+                    {2, nowLDT, nowLDT}
+            };
+
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_events_with_timestamp VALUES (?, ?, ?)")) {
+                for (Object[] row : dataset) {
+                    for (int colI = 1; colI <= dataset[0].length; colI++) {
+                        stmt.setObject(colI, row[colI - 1]);
+                    }
+                    stmt.addBatch();
+                }
+
+                stmt.executeBatch();
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM test_events_with_timestamp ORDER BY id")) {
+
+                int id = 0;
+                while (rs.next()) {
+                    for (int i = 2; i <= dataset[0].length; i++) { // date time column start with second one
+                        Object expected = dataset[id][i - 1];
+                        String failMsg = " ts do not match id = " + id + ", col = " + i;
+                        if (expected instanceof Timestamp) {
+                            Assert.assertEquals(rs.getTimestamp(i), dataset[id][i - 1], failMsg);
+                        } else {
+                            Assert.assertEquals(rs.getObject(i, expected.getClass()), expected, failMsg);
+                        }
+                    }
+                    ++id;
+                    Assert.assertEquals(rs.getInt(1), id);
+                }
+
+                Assert.assertEquals(id, dataset.length);
+            }
+        }
+    }
 
 }
