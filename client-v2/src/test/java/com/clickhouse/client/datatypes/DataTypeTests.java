@@ -35,6 +35,7 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -868,22 +869,26 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(record.getInteger("o_num"), 1);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999)));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999));
 
         record = records.get(1);
         Assert.assertEquals(record.getInteger("o_num"), 2);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999).plusMinutes(59).plusSeconds(59));
 
         record = records.get(2);
         Assert.assertEquals(record.getInteger("o_num"), 3);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), 0);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(0));
 
         record = records.get(3);
         Assert.assertEquals(record.getInteger("o_num"), 4);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(-
                 (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59)));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999).plusMinutes(59).plusSeconds(59).negated());
     }
 
     @Test(groups = {"integration"}, dataProvider = "testTimeData")
