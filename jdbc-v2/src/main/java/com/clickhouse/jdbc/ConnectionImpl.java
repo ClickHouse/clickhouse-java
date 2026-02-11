@@ -62,6 +62,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private QuerySettings defaultQuerySettings;
     private boolean readOnly;
     private int holdability;
+    private TimeZone serverTimezone;
 
     private final DatabaseMetaDataImpl metadata;
     protected Calendar defaultCalendar;
@@ -111,12 +112,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 // we cannot operate without timezone
                 this.client.loadServerInfo();
             }
+            this.serverTimezone = TimeZone.getTimeZone(this.client.getServerTimeZone());
             this.schema = client.getDefaultDatabase();
 
             setDefaultQuerySettings(new QuerySettings()
                     .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                     .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0"));
-
+            this.defaultCalendar = Calendar.getInstance();
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
 
             this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
@@ -139,12 +141,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public void setDefaultQuerySettings(QuerySettings settings) {
         this.defaultQuerySettings = settings;
-        ZoneId effectiveTimeZone = client.getEffectiveTimeZone(this.defaultQuerySettings.getAllSettings());
-        this.defaultCalendar = Calendar.getInstance(TimeZone.getTimeZone(effectiveTimeZone));
     }
 
     public Calendar getDefaultCalendar() {
         return defaultCalendar;
+    }
+
+    public TimeZone getServerTimezone() {
+        return serverTimezone;
     }
 
     public String getServerVersion() throws SQLException {

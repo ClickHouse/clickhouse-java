@@ -2119,6 +2119,10 @@ public class Client implements AutoCloseable {
         return tz == null ? null : tz.getID();
     }
 
+    /**
+     * Returns effective timezone. Procedure merges client and request configuration and select session_timezone over
+     * server timezone. However not every function is affected by session_timezone.
+     */
     public ZoneId getEffectiveTimeZone(Map<String, Object> reqConfig) {
         boolean useServerTz = ClientConfigProperties.USE_SERVER_TIMEZONE.getOrDefault(this.configuration, reqConfig);
         String sessionTz = (String) this.configuration.getOrDefault(ServerSettings.ConfigProperties.SESSION_TZ_SETTING,

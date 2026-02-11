@@ -16,11 +16,13 @@ import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Properties;
@@ -124,63 +126,111 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     void testEventTimestamp() throws SQLException {
-
-        Properties config = new Properties();
-//        config.setProperty(ClientConfigProperties.serverSetting("session_timezone"), "America/Los_Angeles");
-        try (Connection conn = getJdbcConnection(config)) {
+        try (Connection conn = getJdbcConnection()) {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS test_events_with_timestamp");
                 stmt.execute("CREATE TABLE test_events_with_timestamp ( " +
                         "id Int32, " +
-                        "utc_ts DateTime64(9, 'UTC'), " + // local datetime will be written as UTC
-                        "ts_wo_tz DateTime64(9), " +
+                        "ts DateTime64(9, 'UTC'), " + // local datetime will be written as UTC
+                        "ts_alt DateTime64(9), " +
                         ") Engine MergeTree order by ()");
 
 
             }
+        }
 
-            LocalDateTime nowLDT = LocalDateTime.now();
-            Timestamp nowTs = Timestamp.valueOf(nowLDT);
+        {
+            final Properties config = new Properties();
+            String sessionTimezone = "Asia/Tokyo";
+            config.setProperty(ServerSettings.ConfigProperties.SESSION_TZ_SETTING, sessionTimezone);
 
-            Object[][] dataset = new Object[][]{
-                    {1, nowTs, nowTs},
-                    {2, nowLDT, nowLDT}
-            };
+            try (Connection conn = getJdbcConnection(config)) {
+                Instant utcTime = Instant.parse("2026-01-08T23:59:59Z");
+                Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                System.out.println("utcTime instant: " + utcTime);
 
+                try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_events_with_timestamp VALUES (?, ?, ?)");
+                     Statement stmt2 = conn.createStatement()) {
 
-            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_events_with_timestamp VALUES (?, ?, ?)")) {
-                for (Object[] row : dataset) {
-                    for (int colI = 1; colI <= dataset[0].length; colI++) {
-                        stmt.setObject(colI, row[colI - 1]);
+                    stmt.setInt(1, 1);
+                    stmt.setTimestamp(2, Timestamp.from(utcTime), utcCalendar); // utc ts string
+                    stmt.setTimestamp(3, Timestamp.from(utcTime)); // America/Los_Angeles ts
+
+                    stmt.execute();
+
+                    try (ResultSet rs = stmt2.executeQuery("SELECT * " +
+                            " , timezone() tz" +
+                            " FROM test_events_with_timestamp ORDER BY id")) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getString("tz"), sessionTimezone);
+
+                        Timestamp ts = rs.getTimestamp("ts");
+                        System.out.println("ts: " + ts);
+                        Timestamp tsAlt = rs.getTimestamp("ts_alt");
+                        System.out.println("tsAlt: " + tsAlt);
+
+                        // No session_timezone effect because column defines timezone
+                        ZonedDateTime zTs = rs.getObject("ts", ZonedDateTime.class);
+                        Assert.assertEquals(zTs, ZonedDateTime.parse("2026-01-08T23:59:59Z[UTC]"));
+                        System.out.println(zTs);
+
+                        ZonedDateTime zTsAlt = rs.getObject("ts_alt", ZonedDateTime.class);
+                        System.out.println(zTsAlt);
                     }
-                    stmt.addBatch();
                 }
 
-                stmt.executeBatch();
-            }
-
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT * FROM test_events_with_timestamp ORDER BY id")) {
-
-                int id = 0;
-                while (rs.next()) {
-                    for (int i = 2; i <= dataset[0].length; i++) { // date time column start with second one
-                        Object expected = dataset[id][i - 1];
-                        String failMsg = " ts do not match id = " + id + ", col = " + i;
-                        if (expected instanceof Timestamp) {
-                            Assert.assertEquals(rs.getTimestamp(i), dataset[id][i - 1], failMsg);
-                        } else {
-                            Assert.assertEquals(rs.getObject(i, expected.getClass()), expected, failMsg);
-                        }
-                    }
-                    ++id;
-                    Assert.assertEquals(rs.getInt(1), id);
-                }
-
-                Assert.assertEquals(id, dataset.length);
             }
         }
+
+        // UTC session
+        {
+            final Properties config = new Properties();
+            String sessionTimezone = "UTC";
+            config.setProperty(ServerSettings.ConfigProperties.SESSION_TZ_SETTING, sessionTimezone);
+
+            try (Connection conn = getJdbcConnection(config)) {
+                Instant utcTime = Instant.parse("2026-01-08T23:59:59Z");
+                Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                System.out.println("utcTime instant: " + utcTime);
+
+                try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_events_with_timestamp VALUES (?, ?, ?)");
+                     Statement stmt2 = conn.createStatement()) {
+
+                    stmt.setInt(1, 1);
+                    stmt.setTimestamp(2, Timestamp.from(utcTime), utcCalendar); // utc ts string
+                    stmt.setTimestamp(3, Timestamp.from(utcTime)); // America/Los_Angeles ts
+
+                    stmt.execute();
+
+                    try (ResultSet rs = stmt2.executeQuery("SELECT * " +
+                            " , timezone() tz" +
+                            " FROM test_events_with_timestamp ORDER BY id")) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getString("tz"), sessionTimezone);
+
+                        // Check previous session result
+                        Timestamp ts = rs.getTimestamp("ts");
+                        System.out.println("ts: " + ts);
+                        Timestamp tsAlt = rs.getTimestamp("ts_alt");
+                        System.out.println("tsAlt: " + tsAlt);
+
+                        // No session_timezone effect because column defines timezone
+                        ZonedDateTime zTs = rs.getObject("ts", ZonedDateTime.class);
+                        Assert.assertEquals(zTs, ZonedDateTime.parse("2026-01-08T23:59:59Z[UTC]"));
+                        System.out.println(zTs);
+
+                        ZonedDateTime zTsAlt = rs.getObject("ts_alt", ZonedDateTime.class);
+                        System.out.println(zTsAlt);
+
+
+                    }
+                }
+
+            }
+        }
+
     }
+
 
 }

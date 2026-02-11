@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -75,6 +76,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
 
     private final Calendar defaultCalendar;
+    private final TimeZone serverTimezone;
 
     private final String originalSql;
     private final String[] values; // temp value holder (set can be called > once)
@@ -96,7 +98,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         this.parsedPreparedStatement = parsedStatement;
         this.argCount = parsedStatement.getArgCount();
 
-        this.defaultCalendar = connection.defaultCalendar;
+        this.defaultCalendar = connection.getDefaultCalendar();
+        this.serverTimezone = connection.getServerTimezone();
         this.values = new String[argCount];
         this.parameterMetaData = new ParameterMetaDataImpl(this.values.length);
 
@@ -504,8 +507,11 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         if (cal == null) {
             cal = defaultCalendar;
         }
+
+        ZonedDateTime utcTimestamp = x.toInstant().atZone(cal.getTimeZone().toZoneId()).withZoneSameInstant(serverTimezone.toZoneId());
+
         // Timestamp is instant that should be represented as formatted date-time string in Calendar timezone
-        return DataTypeUtils.TIME_WITH_NANOS_FORMATTER.format(x.toInstant().atZone(cal.getTimeZone().toZoneId()));
+        return QUOTE + DataTypeUtils.DATETIME_FORMATTER.format(utcTimestamp) + QUOTE;
     }
 
     protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
