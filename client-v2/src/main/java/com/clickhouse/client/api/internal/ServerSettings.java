@@ -1,6 +1,8 @@
 package com.clickhouse.client.api.internal;
 
 
+import com.clickhouse.client.api.ClientConfigProperties;
+
 /**
  * Incomplete list of server side settings.
  * This class is not intended to list all possible settings, but only those that are commonly used.
@@ -40,4 +42,11 @@ public final class ServerSettings {
     public static final String ASYNC_INSERT = "async_insert";
 
     public static final String WAIT_ASYNC_INSERT = "wait_for_async_insert";
+
+    public static final String SESSION_TIMEZONE = "session_timezone";
+
+    public static class ConfigProperties {
+
+        public static final String SESSION_TZ_SETTING= ClientConfigProperties.serverSetting(ServerSettings.SESSION_TIMEZONE);
+    }
 }

@@ -497,7 +497,15 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
+        values[parameterIndex - 1] = timestampSQLExpression(x, cal);
+    }
+
+    protected String timestampSQLExpression(Timestamp x, Calendar cal) throws SQLException {
+        if (cal == null) {
+            cal = defaultCalendar;
+        }
+        // Timestamp is instant that should be represented as formatted date-time string in Calendar timezone
+        return DataTypeUtils.TIME_WITH_NANOS_FORMATTER.format(x.toInstant().atZone(cal.getTimeZone().toZoneId()));
     }
 
     protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {

@@ -7,6 +7,9 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import java.time.zone.ZoneRulesException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -323,6 +326,16 @@ public enum ClientConfigProperties {
         return (T) configMap.getOrDefault(getKey(), getDefObjVal());
     }
 
+    @SuppressWarnings("unchecked")
+    public <T> T getOrDefault(Map<String, Object> config1, Map<String, Object> config2) {
+        Object c2 = config2.get(getKey());
+        if (c2 != null) {
+            return (T) c2;
+        } else {
+            return getOrDefault(config1);
+        }
+    }
+
     public <T> void applyIfSet(Map<String, Object> configMap, Consumer<T> consumer) {
         T value = (T) configMap.get(getKey());
         if  (value != null) {
@@ -461,4 +474,22 @@ public enum ClientConfigProperties {
         }
         return hintMapping;
     }
+//
+//    public static ZoneId getEffectiveTimeZone(Map<String, String> config) {
+//        String serverTimezone = config.getOrDefault(SERVER_TIMEZONE.getKey(), SERVER_TIMEZONE.getDefObjVal());
+//        String userTimezone = config.getOrDefault(USE_TIMEZONE.getKey(), USE_TIMEZONE.getDefObjVal());
+//        String
+//        boolean useServerTimezone = Boolean.parseBoolean(config.getOrDefault(USE_SERVER_TIMEZONE.getKey(), USE_SERVER_TIMEZONE.getDefObjVal()));
+//
+//        try {
+//            if (useServerTimezone && serverTimezone != null) {
+//                return ZoneId.of(serverTimezone);
+//            } else if (userTimezone != null) {
+//                return ZoneId.of(userTimezone);
+//            }
+//        } catch (DateTimeException e) {
+//            throw new ClientMisconfigurationException("Invalid timezone specified in SERVER_TIMEZONE or USE_TIMEZONE property", e);
+//        }
+//        throw new ClientMisconfigurationException("Invalid timezone configuration. Check how SERVER_TIMEZONE, USE_TIMEZONE and USE_SERVER_TIMEZONE properties are set");
+//    }
 }

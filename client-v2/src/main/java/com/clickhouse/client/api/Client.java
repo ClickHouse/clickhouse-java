@@ -18,6 +18,7 @@ import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
@@ -2116,6 +2117,26 @@ public class Client implements AutoCloseable {
     public String getServerTimeZone() {
         TimeZone tz = (TimeZone) this.configuration.get(ClientConfigProperties.SERVER_TIMEZONE.getKey());
         return tz == null ? null : tz.getID();
+    }
+
+    public ZoneId getEffectiveTimeZone(Map<String, Object> reqConfig) {
+        boolean useServerTz = ClientConfigProperties.USE_SERVER_TIMEZONE.getOrDefault(this.configuration, reqConfig);
+        String sessionTz = (String) this.configuration.getOrDefault(ServerSettings.ConfigProperties.SESSION_TZ_SETTING,
+                reqConfig.get(ServerSettings.ConfigProperties.SESSION_TZ_SETTING));
+        if (useServerTz && sessionTz == null) {
+            TimeZone serverTz = ClientConfigProperties.SERVER_TIMEZONE.getOrDefault(this.configuration, reqConfig);
+            return serverTz.toZoneId();
+        } else if (useServerTz) {
+            return ZoneId.of(sessionTz);
+        } else if (sessionTz == null) {
+            TimeZone userTz = ClientConfigProperties.USE_TIMEZONE.getOrDefault(this.configuration, reqConfig);
+            if (userTz != null) {
+                return userTz.toZoneId();
+            }
+            throw new ClientMisconfigurationException("USER_SERVER_TIMEZONE set to 'false' in client or operation settings but USE_TIMEZONE is not set");
+        }
+
+        throw new ClientMisconfigurationException("USER_SERVER_TIMEZONE set to 'false' in client or operation settings but 'session_timezone' is set");
     }
 
     public String getClientVersion() {

@@ -35,6 +35,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Collections;
@@ -42,6 +43,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.Executor;
 
 public class ConnectionImpl implements Connection, JdbcV2Wrapper {
@@ -62,7 +64,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private int holdability;
 
     private final DatabaseMetaDataImpl metadata;
-    protected final Calendar defaultCalendar;
+    protected Calendar defaultCalendar;
 
     private final SqlParserFacade sqlParser;
 
@@ -110,13 +112,12 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 this.client.loadServerInfo();
             }
             this.schema = client.getDefaultDatabase();
-            this.defaultQuerySettings = new QuerySettings()
+
+            setDefaultQuerySettings(new QuerySettings()
                     .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
+                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0"));
 
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
-            this.defaultCalendar = Calendar.getInstance();
-
 
             this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
                     DriverProperties.SQL_PARSER.getDefaultValue()));
@@ -138,6 +139,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     public void setDefaultQuerySettings(QuerySettings settings) {
         this.defaultQuerySettings = settings;
+        ZoneId effectiveTimeZone = client.getEffectiveTimeZone(this.defaultQuerySettings.getAllSettings());
+        this.defaultCalendar = Calendar.getInstance(TimeZone.getTimeZone(effectiveTimeZone));
     }
 
     public Calendar getDefaultCalendar() {

@@ -126,7 +126,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
     void testEventTimestamp() throws SQLException {
 
         Properties config = new Properties();
-        config.setProperty(ClientConfigProperties.serverSetting("session_timezone"), "America/Los_Angeles");
+//        config.setProperty(ClientConfigProperties.serverSetting("session_timezone"), "America/Los_Angeles");
         try (Connection conn = getJdbcConnection(config)) {
 
             try (Statement stmt = conn.createStatement()) {

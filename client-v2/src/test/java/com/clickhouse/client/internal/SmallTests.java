@@ -2,11 +2,15 @@ package com.clickhouse.client.internal;
 
 import org.testng.annotations.Test;
 
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -15,35 +19,31 @@ import java.util.concurrent.TimeUnit;
 public class SmallTests {
 
 
+
     @Test
-    public void testInstantVsLocalTime() {
+    public void testTimestamp() {
 
-        // Date
-        LocalDate longBeforeEpoch = LocalDate.ofEpochDay(-47482);
-        LocalDate beforeEpoch = LocalDate.ofEpochDay(-1);
-        LocalDate epoch = LocalDate.ofEpochDay(0);
-        LocalDate dateMaxValue = LocalDate.ofEpochDay(65535);
-        LocalDate date32MaxValue = LocalDate.ofEpochDay(47482);
+        Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        utcCal.set(2016, 6 - 1, 8, 11, 00, 00);
+        Calendar local = Calendar.getInstance();
+        local.set(2016, 6 - 1, 8, 11, 00, 00);
 
-        System.out.println(longBeforeEpoch);
-        System.out.println(beforeEpoch);
-        System.out.println(epoch);
-        System.out.println(date32MaxValue);
-        System.out.println(dateMaxValue);
 
-        System.out.println();
+        Timestamp utcTs = new Timestamp(utcCal.getTimeInMillis());
+        Timestamp localTs = new Timestamp(local.getTimeInMillis());
 
-        // Time
+        printTimestamp(utcTs, "utcTs");
+        printTimestamp(localTs, "localTs");
+        printTimestamp(Timestamp.valueOf(LocalDateTime.now()), "nowTs");
 
-        LocalDateTime beforeEpochTime = LocalDateTime.ofEpochSecond(-999, 0, ZoneOffset.UTC);
-        LocalDateTime epochTime = LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC);
-        LocalDateTime maxTime = LocalDateTime.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59,
-                123999999, ZoneOffset.UTC);
 
-        System.out.println(beforeEpochTime);
-        System.out.println("before time: " + (beforeEpochTime.getSecond()));
-        System.out.println(epochTime);
-        System.out.println(maxTime);
-        System.out.println(maxTime.getDayOfYear());
+    }
+
+    private void printTimestamp(Timestamp ts, String name) {
+        System.out.println("----------------");
+        System.out.println(name + ": " + ts);
+        System.out.println(name + ".toLocalDateTime: " + ts.toLocalDateTime());
+        System.out.println(name + ".toInstant: " + ts.toInstant());
+        System.out.println(name + ".getTime: " + ts.getTime());
     }
 }
