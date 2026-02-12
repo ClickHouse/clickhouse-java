@@ -1094,12 +1094,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.set(zdt.getYear(), zdt.getMonthValue() - 1, zdt.getDayOfMonth(), zdt.getHour(), zdt.getMinute(),
-                    zdt.getSecond());
-            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
-            timestamp.setNanos(zdt.getNano());
-            return timestamp;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            return Timestamp.from(zdt.withZoneSameInstant(cal.getTimeZone().toZoneId()).toInstant());
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
             switch (column.getValueDataType()) {
