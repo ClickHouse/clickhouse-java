@@ -78,4 +78,12 @@ public class InsertResponse implements AutoCloseable {
     public String getQueryId() {
         return operationMetrics.getQueryId();
     }
+
+    /**
+     * Alias for {@link OperationMetrics#getServerDisplayName()}
+     * @return server display name from the response header
+     */
+    public String getServerDisplayName() {
+        return operationMetrics.getServerDisplayName();
+    }
 }

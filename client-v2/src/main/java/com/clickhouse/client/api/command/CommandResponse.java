@@ -72,6 +72,14 @@ public class CommandResponse implements AutoCloseable {
         return response.getServerTime();
     }
 
+    /**
+     * Alias for {@link OperationMetrics#getServerDisplayName()}
+     * @return server display name from the response header
+     */
+    public String getServerDisplayName() {
+        return response.getServerDisplayName();
+    }
+
     @Override
     public void close() throws Exception {
         response.close();

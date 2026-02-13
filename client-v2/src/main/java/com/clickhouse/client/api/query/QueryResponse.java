@@ -150,6 +150,14 @@ public class QueryResponse implements AutoCloseable {
         return operationMetrics.getQueryId();
     }
 
+    /**
+     * Alias for {@link OperationMetrics#getServerDisplayName()}
+     * @return server display name from the response header
+     */
+    public String getServerDisplayName() {
+        return operationMetrics.getServerDisplayName();
+    }
+
     public TimeZone getTimeZone() {
         return settings.getOption(ClientConfigProperties.SERVER_TIMEZONE.getKey()) == null
                 ? null
