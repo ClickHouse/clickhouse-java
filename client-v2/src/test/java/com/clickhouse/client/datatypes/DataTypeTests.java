@@ -6,11 +6,9 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -34,19 +32,13 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Connection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1143,6 +1135,147 @@ public class DataTypeTests extends BaseIntegrationTest {
                 Assert.assertEquals(reader.getLocalDate("d32_max"), maxDate32);
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testNestedArrays_dp")
+    public void testNestedArrays(String columnDef, String insertValues, String[] expectedStrValues, 
+                                 String[] expectedListValues) throws Exception {
+        final String table = "test_nested_arrays";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", columnDef)).get();
+
+        client.execute("INSERT INTO " + table + " VALUES " + insertValues).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), expectedStrValues.length);
+
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowId");
+            
+            // Check getString() - includes quotes for string values
+            String actualValue = record.getString("arr");
+            Assert.assertEquals(actualValue, expectedStrValues[rowId - 1], 
+                    "getString() mismatch at row " + rowId + " for " + columnDef);
+            
+            // Check getObject() - should return an ArrayValue
+            Object objValue = record.getObject("arr");
+            Assert.assertNotNull(objValue, "getObject() returned null at row " + rowId);
+            Assert.assertTrue(objValue instanceof BinaryStreamReader.ArrayValue,
+                    "getObject() should return ArrayValue at row " + rowId + ", got: " + objValue.getClass().getName());
+            BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) objValue;
+            Assert.assertEquals(arrayValue.asList().toString(), expectedListValues[rowId - 1],
+                    "getObject().asList() mismatch at row " + rowId + " for " + columnDef);
+            
+            // Check getList() - should return a List representation (no quotes for strings)
+            List<?> listValue = record.getList("arr");
+            Assert.assertNotNull(listValue, "getList() returned null at row " + rowId);
+            Assert.assertEquals(listValue.toString(), expectedListValues[rowId - 1],
+                    "getList() mismatch at row " + rowId + " for " + columnDef);
+        }
+    }
+
+    @DataProvider
+    public Object[][] testNestedArrays_dp() {
+        return new Object[][] {
+                // 2D arrays of integers - Array(Array(Int32))
+                {
+                        "arr Array(Array(Int32))",
+                        "(1, [[1, 2], [3, 4]]), (2, [[5, 6, 7]]), (3, [[]]), (4, [[8], [], [9, 10]]), " +
+                        "(5, [[11]]), (6, [[12, 13], [14, 15]]), (7, [[100, 200]]), (8, [[16]]), (9, [[17, 18]]), (10, [[19, 20, 21]])",
+                        new String[] {
+                                "[[1, 2], [3, 4]]", "[[5, 6, 7]]", "[[]]", "[[8], [], [9, 10]]",
+                                "[[11]]", "[[12, 13], [14, 15]]", "[[100, 200]]", "[[16]]", "[[17, 18]]", "[[19, 20, 21]]"
+                        },
+                        new String[] {
+                                "[[1, 2], [3, 4]]", "[[5, 6, 7]]", "[[]]", "[[8], [], [9, 10]]",
+                                "[[11]]", "[[12, 13], [14, 15]]", "[[100, 200]]", "[[16]]", "[[17, 18]]", "[[19, 20, 21]]"
+                        }
+                },
+                // 2D arrays of strings - Array(Array(String))
+                {
+                        "arr Array(Array(String))",
+                        "(1, [['a', 'b'], ['c', 'd']]), (2, [['hello', 'world']]), (3, [[]]), (4, [['x'], [], ['y', 'z']]), " +
+                        "(5, [['test']]), (6, [['foo', 'bar']]), (7, [['single']]), (8, [['alpha', 'beta']]), (9, [['one']]), (10, [['end']])",
+                        new String[] {  // getString() format - with quotes
+                                "[['a', 'b'], ['c', 'd']]", "[['hello', 'world']]", "[[]]", "[['x'], [], ['y', 'z']]",
+                                "[['test']]", "[['foo', 'bar']]", "[['single']]", "[['alpha', 'beta']]", "[['one']]", "[['end']]"
+                        },
+                        new String[] {  // getList() format - no quotes
+                                "[[a, b], [c, d]]", "[[hello, world]]", "[[]]", "[[x], [], [y, z]]",
+                                "[[test]]", "[[foo, bar]]", "[[single]]", "[[alpha, beta]]", "[[one]]", "[[end]]"
+                        }
+                },
+                // 3D arrays of integers - Array(Array(Array(Int32)))
+                {
+                        "arr Array(Array(Array(Int32)))",
+                        "(1, [[[1, 2], [3]]]), (2, [[[4], [5, 6]], [[7]]]), (3, [[[]]]), (4, [[[8, 9]]]), " +
+                        "(5, [[[10], [11, 12]]]), (6, [[[13]]]), (7, [[[14, 15], [16]]]), (8, [[[17]]]), (9, [[[18, 19]]]), (10, [[[]]])",
+                        new String[] {
+                                "[[[1, 2], [3]]]", "[[[4], [5, 6]], [[7]]]", "[[[]]]", "[[[8, 9]]]",
+                                "[[[10], [11, 12]]]", "[[[13]]]", "[[[14, 15], [16]]]", "[[[17]]]", "[[[18, 19]]]", "[[[]]]"
+                        },
+                        new String[] {
+                                "[[[1, 2], [3]]]", "[[[4], [5, 6]], [[7]]]", "[[[]]]", "[[[8, 9]]]",
+                                "[[[10], [11, 12]]]", "[[[13]]]", "[[[14, 15], [16]]]", "[[[17]]]", "[[[18, 19]]]", "[[[]]]"
+                        }
+                },
+                // 2D arrays of floats - Array(Array(Float64))
+                {
+                        "arr Array(Array(Float64))",
+                        "(1, [[1.1, 2.2], [3.3]]), (2, [[4.4]]), (3, [[5.5, 6.6, 7.7]]), (4, [[]]), " +
+                        "(5, [[8.8]]), (6, [[9.9, 10.1]]), (7, [[11.2]]), (8, [[12.3, 13.4]]), (9, [[14.5]]), (10, [[15.6, 16.7]])",
+                        new String[] {
+                                "[[1.1, 2.2], [3.3]]", "[[4.4]]", "[[5.5, 6.6, 7.7]]", "[[]]",
+                                "[[8.8]]", "[[9.9, 10.1]]", "[[11.2]]", "[[12.3, 13.4]]", "[[14.5]]", "[[15.6, 16.7]]"
+                        },
+                        new String[] {
+                                "[[1.1, 2.2], [3.3]]", "[[4.4]]", "[[5.5, 6.6, 7.7]]", "[[]]",
+                                "[[8.8]]", "[[9.9, 10.1]]", "[[11.2]]", "[[12.3, 13.4]]", "[[14.5]]", "[[15.6, 16.7]]"
+                        }
+                },
+                // 3D arrays of strings - Array(Array(Array(String)))
+                {
+                        "arr Array(Array(Array(String)))",
+                        "(1, [[['a', 'b']]]), (2, [[['c'], ['d', 'e']]]), (3, [[[]]]), (4, [[['f']]]), " +
+                        "(5, [[['g', 'h']]]), (6, [[['i']]]), (7, [[['a', 'b'], ['c']], [['d', 'e', 'f']]]), (8, [[[]]]), (9, [[['m']]]), (10, [[['n', 'o']]])",
+                        new String[] {  // getString() format - with quotes
+                                "[[['a', 'b']]]", "[[['c'], ['d', 'e']]]", "[[[]]]", "[[['f']]]",
+                                "[[['g', 'h']]]", "[[['i']]]", "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]", "[[[]]]", "[[['m']]]", "[[['n', 'o']]]"
+                        },
+                        new String[] {  // getList() format - no quotes
+                                "[[[a, b]]]", "[[[c], [d, e]]]", "[[[]]]", "[[[f]]]",
+                                "[[[g, h]]]", "[[[i]]]", "[[[a, b], [c]], [[d, e, f]]]", "[[[]]]", "[[[m]]]", "[[[n, o]]]"
+                        }
+                },
+                // 2D arrays of nullable integers - Array(Array(Nullable(Int32)))
+                {
+                        "arr Array(Array(Nullable(Int32)))",
+                        "(1, [[1, NULL, 2]]), (2, [[NULL]]), (3, [[3, 4, NULL]]), (4, [[]]), " +
+                        "(5, [[NULL, NULL]]), (6, [[5]]), (7, [[6, NULL]]), (8, [[NULL, 7]]), (9, [[8, 9]]), (10, [[NULL]])",
+                        new String[] {
+                                "[[1, NULL, 2]]", "[[NULL]]", "[[3, 4, NULL]]", "[[]]",
+                                "[[NULL, NULL]]", "[[5]]", "[[6, NULL]]", "[[NULL, 7]]", "[[8, 9]]", "[[NULL]]"
+                        },
+                        new String[] {
+                                "[[1, null, 2]]", "[[null]]", "[[3, 4, null]]", "[[]]",
+                                "[[null, null]]", "[[5]]", "[[6, null]]", "[[null, 7]]", "[[8, 9]]", "[[null]]"
+                        }
+                },
+                // 4D arrays of integers - Array(Array(Array(Array(Int32))))
+                {
+                        "arr Array(Array(Array(Array(Int32))))",
+                        "(1, [[[[1, 2]]]]), (2, [[[[3], [4, 5]]]]), (3, [[[[]]]]), (4, [[[[6]]]]), " +
+                        "(5, [[[[7, 8]]]]), (6, [[[[9]]]]), (7, [[[[10, 11]]]]), (8, [[[[]]]]), (9, [[[[12]]]]), (10, [[[[13, 14]]]])",
+                        new String[] {
+                                "[[[[1, 2]]]]", "[[[[3], [4, 5]]]]", "[[[[]]]]", "[[[[6]]]]",
+                                "[[[[7, 8]]]]", "[[[[9]]]]", "[[[[10, 11]]]]", "[[[[]]]]", "[[[[12]]]]", "[[[[13, 14]]]]"
+                        },
+                        new String[] {
+                                "[[[[1, 2]]]]", "[[[[3], [4, 5]]]]", "[[[[]]]]", "[[[[6]]]]",
+                                "[[[[7, 8]]]]", "[[[[9]]]]", "[[[[10, 11]]]]", "[[[[]]]]", "[[[[12]]]]", "[[[[13, 14]]]]"
+                        }
+                }
+        };
     }
 
     public static String tableDefinition(String table, String... columns) {

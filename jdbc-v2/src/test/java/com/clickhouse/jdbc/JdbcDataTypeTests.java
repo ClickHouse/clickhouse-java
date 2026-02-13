@@ -877,6 +877,9 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertEquals(rs.getString("ipv6"), ipv6Address.getHostAddress());
                     assertEquals(rs.getObject("ipv4_as_ipv6"), ipv4AsIpv6);
                     assertEquals(rs.getObject("ipv4_as_ipv6", Inet4Address.class), ipv4AsIpv6);
+                    assertEquals(rs.getBytes("ipv4_ip"), ipv4AddressByIp.getAddress());
+                    assertEquals(rs.getBytes("ipv6"), ipv6Address.getAddress());
+
                     assertFalse(rs.next());
                 }
             }
@@ -1175,6 +1178,34 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testStringsUsedAsBytes() throws Exception {
+        runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
+
+        String[][] testData = {{"Hello, World!", "FixedStr"}, {"Test String 123", "ABC"}};
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_strings_as_bytes VALUES (?, ?, ?)")) {
+            for (int i = 0; i < testData.length; i++) {
+                insert.setInt(1, i + 1);
+                insert.setBytes(2, testData[i][0].getBytes("UTF-8"));
+                insert.setBytes(3, testData[i][1].getBytes("UTF-8"));
+                insert.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_strings_as_bytes ORDER BY order")) {
+            for (String[] expected : testData) {
+                assertTrue(rs.next());
+                assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testNestedArrays() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Array(Int32)) as value")) {
@@ -1219,11 +1250,6 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    /**
-     * Test for https://github.com/ClickHouse/clickhouse-java/issues/2723
-     * getString() on nested arrays was failing with NullPointerException due to re-entrancy bug
-     * in DataTypeConverter when converting nested arrays to string representation.
-     */
     @Test(groups = { "integration" })
     public void testNestedArrayToString() throws SQLException {
         // Test 1: Simple nested array - getString on Array(Array(Int32))
@@ -1273,6 +1299,8 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     String result = rs.getString("deep_nested");
                     assertEquals(result, "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]");
+                    Array arr = rs.getArray(1);
+                    assertTrue(Arrays.deepEquals((String[][][])arr.getArray(), new String[][][] {{{"a", "b"}, {"c"}}, {{ "d", "e", "f"}}}));
                 }
             }
         }

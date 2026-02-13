@@ -13,6 +13,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -407,12 +408,15 @@ public class JdbcUtils {
             return null;
         }
 
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
+        }
+
         int[] arrayDimensions = new int[dimensions];
         arrayDimensions[0] = values.size();
         T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
         Stack<ArrayProcessingCursor> stack = new Stack<>();
-        stack.push(new ArrayProcessingCursor(convertedValues, values,  values.size()));
-
+        stack.push(new ArrayProcessingCursor(convertedValues, values,  values.size(), dimensions));
         while (!stack.isEmpty()) {
             ArrayProcessingCursor cursor = stack.pop();
 
@@ -422,10 +426,14 @@ public class JdbcUtils {
                     continue; // no need to set null value
                 } else  if (value instanceof List<?>) {
                     List<?> srcList = (List<?>) value;
-                    arrayDimensions = new int[Math.max(dimensions - stack.size() - 1, 1)];
+                    int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
+                    arrayDimensions = new int[depth];
                     arrayDimensions[0] = srcList.size();
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
-                    stack.push(new ArrayProcessingCursor(targetArray, value,  srcList.size()));
+                    stack.push(new ArrayProcessingCursor(targetArray, value,  srcList.size(), depth));
                     java.lang.reflect.Array.set(cursor.targetArray, i, targetArray);
                 } else {
                     java.lang.reflect.Array.set(cursor.targetArray, i, convert(value, type));
@@ -450,11 +458,15 @@ public class JdbcUtils {
             return null;
         }
 
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
+        }
+
         int[] arrayDimensions = new int[dimensions];
         arrayDimensions[0] = java.lang.reflect.Array.getLength(values);
         T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
         Stack<ArrayProcessingCursor> stack = new Stack<>();
-        stack.push(new ArrayProcessingCursor(convertedValues, values,  arrayDimensions[0]));
+        stack.push(new ArrayProcessingCursor(convertedValues, values,  arrayDimensions[0], dimensions));
 
         while (!stack.isEmpty()) {
             ArrayProcessingCursor cursor = stack.pop();
@@ -464,10 +476,14 @@ public class JdbcUtils {
                 if (value == null) {
                     continue; // no need to set null value
                 } else  if (value.getClass().isArray()) {
-                    arrayDimensions = new int[Math.max(dimensions - stack.size() - 1, 1)];
+                    int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
+                    arrayDimensions = new int[depth];
                     arrayDimensions[0] = java.lang.reflect.Array.getLength(value);
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
-                    stack.push(new ArrayProcessingCursor(targetArray, value,  arrayDimensions[0]));
+                    stack.push(new ArrayProcessingCursor(targetArray, value,  arrayDimensions[0], depth));
                     java.lang.reflect.Array.set(cursor.targetArray, i, targetArray);
                 } else {
                     java.lang.reflect.Array.set(cursor.targetArray, i, convert(value, type));
@@ -482,10 +498,12 @@ public class JdbcUtils {
         private final Object targetArray;
         private final int size;
         private final Function<Integer, Object> valueGetter;
+        private final int depth;
 
-        public  ArrayProcessingCursor(Object targetArray, Object srcArray, int size) {
+        public  ArrayProcessingCursor(Object targetArray, Object srcArray, int size, int depth) {
             this.targetArray = targetArray;
             this.size = size;
+            this.depth = depth;
             if (srcArray instanceof List<?>) {
                 List<?> list = (List<?>)  srcArray;
                 this.valueGetter = list::get;
@@ -568,5 +586,67 @@ public class JdbcUtils {
             return dst;
         }
         throw new IllegalArgumentException("Cannot convert " + array.getClass().getName() + " to an Object[]");
+    }
+
+    public static final String EMPTY_ARRAY_EXPR = "[]";
+    public static final String EMPTY_MAP_EXPR = "{}";
+    public static final String EMPTY_STRING_EXPR = "''";
+    public static final String EMPTY_TUPLE_EXPR = "()";
+
+    private static final byte[] UNHEX_PREFIX = "unhex('".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] UNHEX_SUFFIX = "')".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+
+
+    /**
+     * Converts given byte array to unhex() expression.
+     *
+     * @param bytes byte array
+     * @return non-null expression
+     */
+    public static String convertToUnhexExpression(byte[] bytes) {
+        int len = bytes != null ? bytes.length : 0;
+        if (len == 0) {
+            return EMPTY_STRING_EXPR;
+        }
+
+        int offset = UNHEX_PREFIX.length;
+        byte[] hexChars = new byte[len * 2 + offset + UNHEX_SUFFIX.length];
+        System.arraycopy(UNHEX_PREFIX, 0, hexChars, 0, offset);
+        System.arraycopy(UNHEX_SUFFIX, 0, hexChars, hexChars.length - UNHEX_SUFFIX.length, UNHEX_SUFFIX.length);
+        for (int i = 0; i < len; i++) {
+            int v = bytes[i] & 0xFF;
+            hexChars[offset++] = HEX_ARRAY[v >>> 4];
+            hexChars[offset++] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars, StandardCharsets.US_ASCII);
+    }
+
+    /**
+     * Decodes a hex string into a byte array.
+     * Each pair of characters in the input is interpreted as a hexadecimal byte value.
+     *
+     * @param hexString hex-encoded string (must have even length)
+     * @return decoded byte array, or empty array if input is null or empty
+     * @throws IllegalArgumentException if the string has odd length or contains non-hex characters
+     */
+    public static byte[] decodeHexString(String hexString) {
+        if (hexString == null || hexString.isEmpty()) {
+            return new byte[0];
+        }
+        int len = hexString.length();
+        if (len % 2 != 0) {
+            throw new IllegalArgumentException("Hex string must have even length, got " + len);
+        }
+        byte[] result = new byte[len / 2];
+        for (int i = 0; i < result.length; i++) {
+            int hi = Character.digit(hexString.charAt(i * 2), 16);
+            int lo = Character.digit(hexString.charAt(i * 2 + 1), 16);
+            if (hi == -1 || lo == -1) {
+                throw new IllegalArgumentException("Invalid hex character at index " + (hi == -1 ? i * 2 : i * 2 + 1));
+            }
+            result[i] = (byte) ((hi << 4) | lo);
+        }
+        return result;
     }
 }
