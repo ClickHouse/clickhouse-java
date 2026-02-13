@@ -395,7 +395,7 @@ public class InsertTests extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
-        final String new_database = "new_database";
+        final String new_database = client.getDefaultDatabase() +  "_new_database";
         final String createDatabaseSQL = "CREATE DATABASE " + new_database;
         final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
                                  " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
