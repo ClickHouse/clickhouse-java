@@ -407,6 +407,10 @@ public class JdbcUtils {
             return null;
         }
 
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
+        }
+
         int[] arrayDimensions = new int[dimensions];
         arrayDimensions[0] = values.size();
         T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
@@ -448,6 +452,10 @@ public class JdbcUtils {
     public static <T> T[] convertArray(Object values, Class<T> type, int dimensions) throws SQLException {
         if (values == null) {
             return null;
+        }
+
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
         }
 
         int[] arrayDimensions = new int[dimensions];

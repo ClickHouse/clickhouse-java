@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.testng.Assert.assertEquals;
@@ -65,6 +66,8 @@ public class JdbcUtilsTest {
                 new String[][] { new String[] {"1", "2", "3"}, new String[] {"4", "5", "6"} });
 
         assertNull(JdbcUtils.convertArray(null, Integer.class, 1));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertArray(new Object[0], String.class, 0 ));
     }
 
 
@@ -79,6 +82,8 @@ public class JdbcUtilsTest {
         assertEquals(dst[2], src.get(2));
 
         assertNull(JdbcUtils.convertList(null, Integer.class, 1));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertList(Collections.emptyList(), String.class, 0));
     }
 
 
