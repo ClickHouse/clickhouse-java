@@ -408,12 +408,15 @@ public class JdbcUtils {
             return null;
         }
 
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
+        }
+
         int[] arrayDimensions = new int[dimensions];
         arrayDimensions[0] = values.size();
         T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
         Stack<ArrayProcessingCursor> stack = new Stack<>();
-        stack.push(new ArrayProcessingCursor(convertedValues, values,  values.size()));
-
+        stack.push(new ArrayProcessingCursor(convertedValues, values,  values.size(), dimensions));
         while (!stack.isEmpty()) {
             ArrayProcessingCursor cursor = stack.pop();
 
@@ -423,10 +426,14 @@ public class JdbcUtils {
                     continue; // no need to set null value
                 } else  if (value instanceof List<?>) {
                     List<?> srcList = (List<?>) value;
-                    arrayDimensions = new int[Math.max(dimensions - stack.size() - 1, 1)];
+                    int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
+                    arrayDimensions = new int[depth];
                     arrayDimensions[0] = srcList.size();
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
-                    stack.push(new ArrayProcessingCursor(targetArray, value,  srcList.size()));
+                    stack.push(new ArrayProcessingCursor(targetArray, value,  srcList.size(), depth));
                     java.lang.reflect.Array.set(cursor.targetArray, i, targetArray);
                 } else {
                     java.lang.reflect.Array.set(cursor.targetArray, i, convert(value, type));
@@ -451,11 +458,15 @@ public class JdbcUtils {
             return null;
         }
 
+        if (dimensions <= 0) {
+            throw new IllegalArgumentException("Cannot convert list to array with less then 1D");
+        }
+
         int[] arrayDimensions = new int[dimensions];
         arrayDimensions[0] = java.lang.reflect.Array.getLength(values);
         T[] convertedValues = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
         Stack<ArrayProcessingCursor> stack = new Stack<>();
-        stack.push(new ArrayProcessingCursor(convertedValues, values,  arrayDimensions[0]));
+        stack.push(new ArrayProcessingCursor(convertedValues, values,  arrayDimensions[0], dimensions));
 
         while (!stack.isEmpty()) {
             ArrayProcessingCursor cursor = stack.pop();
@@ -465,10 +476,14 @@ public class JdbcUtils {
                 if (value == null) {
                     continue; // no need to set null value
                 } else  if (value.getClass().isArray()) {
-                    arrayDimensions = new int[Math.max(dimensions - stack.size() - 1, 1)];
+                    int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
+                    arrayDimensions = new int[depth];
                     arrayDimensions[0] = java.lang.reflect.Array.getLength(value);
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
-                    stack.push(new ArrayProcessingCursor(targetArray, value,  arrayDimensions[0]));
+                    stack.push(new ArrayProcessingCursor(targetArray, value,  arrayDimensions[0], depth));
                     java.lang.reflect.Array.set(cursor.targetArray, i, targetArray);
                 } else {
                     java.lang.reflect.Array.set(cursor.targetArray, i, convert(value, type));
@@ -483,10 +498,12 @@ public class JdbcUtils {
         private final Object targetArray;
         private final int size;
         private final Function<Integer, Object> valueGetter;
+        private final int depth;
 
-        public  ArrayProcessingCursor(Object targetArray, Object srcArray, int size) {
+        public  ArrayProcessingCursor(Object targetArray, Object srcArray, int size, int depth) {
             this.targetArray = targetArray;
             this.size = size;
+            this.depth = depth;
             if (srcArray instanceof List<?>) {
                 List<?> list = (List<?>)  srcArray;
                 this.valueGetter = list::get;
