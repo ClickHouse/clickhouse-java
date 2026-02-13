@@ -6,11 +6,9 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -34,19 +32,13 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Connection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1152,8 +1144,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute(tableDefinition(table, "rowId Int32", columnDef)).get();
 
-        String insertSQL = "INSERT INTO " + table + " VALUES " + insertValues;
-        try (QueryResponse response = client.query(insertSQL).get()) {}
+        client.execute("INSERT INTO " + table + " VALUES " + insertValues).get().close();
 
         List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
         Assert.assertEquals(records.size(), expectedStrValues.length);

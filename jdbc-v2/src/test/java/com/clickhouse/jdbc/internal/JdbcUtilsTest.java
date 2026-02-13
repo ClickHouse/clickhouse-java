@@ -4,7 +4,8 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
-import org.testng.annotations.*;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -68,6 +69,7 @@ public class JdbcUtilsTest {
         assertNull(JdbcUtils.convertArray(null, Integer.class, 1));
 
         Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertArray(new Object[0], String.class, 0 ));
+        Assert.assertThrows(IllegalStateException.class, () -> JdbcUtils.convertArray(new Object[] { new Object[] { 1, 2, 3}}, String.class, 1 ));
     }
 
 
@@ -84,6 +86,7 @@ public class JdbcUtilsTest {
         assertNull(JdbcUtils.convertList(null, Integer.class, 1));
 
         Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertList(Collections.emptyList(), String.class, 0));
+        Assert.assertThrows(IllegalStateException.class, () -> JdbcUtils.convertList(Arrays.asList(Collections.singletonList(1)), String.class, 1));
     }
 
 

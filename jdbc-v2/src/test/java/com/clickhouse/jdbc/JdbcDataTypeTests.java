@@ -1269,7 +1269,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     String result = rs.getString("deep_nested");
                     assertEquals(result, "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]");
                     Array arr = rs.getArray(1);
-                    assertEquals(arr.getArray(), new String[][][] {{{"a", "b"}, {"c"}}, {{ "d", "e", "f"}}});
+                    assertTrue(Arrays.deepEquals((String[][][])arr.getArray(), new String[][][] {{{"a", "b"}, {"c"}}, {{ "d", "e", "f"}}}));
                 }
             }
         }

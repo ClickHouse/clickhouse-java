@@ -426,6 +426,9 @@ public class JdbcUtils {
                 } else  if (value instanceof List<?>) {
                     List<?> srcList = (List<?>) value;
                     int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
                     arrayDimensions = new int[depth];
                     arrayDimensions[0] = srcList.size();
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
@@ -473,6 +476,9 @@ public class JdbcUtils {
                     continue; // no need to set null value
                 } else  if (value.getClass().isArray()) {
                     int depth = cursor.depth - 1;
+                    if (depth <= 0) {
+                        throw new IllegalStateException("There is a child array at depth 0 where it is not expected");
+                    }
                     arrayDimensions = new int[depth];
                     arrayDimensions[0] = java.lang.reflect.Array.getLength(value);
                     T[] targetArray = (T[]) java.lang.reflect.Array.newInstance(type, arrayDimensions);
