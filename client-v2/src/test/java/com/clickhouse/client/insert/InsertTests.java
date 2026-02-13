@@ -396,32 +396,36 @@ public class InsertTests extends BaseIntegrationTest {
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
         final String new_database = client.getDefaultDatabase() +  "_new_database";
-        final String createDatabaseSQL = "CREATE DATABASE " + new_database;
+        final String createDatabaseSQL = "CREATE IF NOT EXISTS DATABASE " + new_database;
         final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
                                  " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
         final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database;
 
-        client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-        client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-        client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        try {
+            client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
 
-        InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
-            .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
-            .setQueryId(String.valueOf(UUID.randomUUID()))
-            .setDatabase(new_database);
+            InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
+                    .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
+                    .setQueryId(String.valueOf(UUID.randomUUID()))
+                    .setDatabase(new_database);
 
-        ByteArrayOutputStream data = new ByteArrayOutputStream();
-        PrintWriter writer = new PrintWriter(data);
-        for (int i = 0; i < 1000; i++) {
-            writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+            ByteArrayOutputStream data = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(data);
+            for (int i = 0; i < 1000; i++) {
+                writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
+            }
+            writer.flush();
+            InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
+                    ClickHouseFormat.TSV, insertSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            assertEquals((int) response.getWrittenRows(), 1000);
+
+            List<GenericRecord> records = client.queryAll("SELECT * FROM " + new_database + "." + tableName);
+            assertEquals(records.size(), 1000);
+        } finally {
+            client.execute(dropDatabaseSQL);
         }
-        writer.flush();
-        InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
-            ClickHouseFormat.TSV, insertSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals((int)response.getWrittenRows(), 1000 );
-
-        List<GenericRecord> records = client.queryAll("SELECT * FROM " + new_database + "." + tableName);
-        assertEquals(records.size(), 1000);
     }
 
     @Test(groups = {"integration"}, dataProviderClass = InsertTests.class, dataProvider = "logCommentDataProvider")
