@@ -872,6 +872,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     /**
      * Converts engine name to table type. Returns TABLE as default for unknown engines.
+     * Unknown engines are mapped to table to let user get them anyway.
      */
     private static String engineToTableType(String engine) {
         if (engine == null) {
