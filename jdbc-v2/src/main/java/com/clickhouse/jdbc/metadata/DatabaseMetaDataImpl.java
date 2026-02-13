@@ -854,6 +854,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("SummingMergeTree", TableType.TABLE.getTypeName());
         map.put("VersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
         map.put("COSN", TableType.TABLE.getTypeName());
+        map.put("SharedAggregatingMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedCoalescingMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedCollapsingMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedGraphiteMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedJoin", TableType.TABLE.getTypeName());
+        map.put("SharedMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedReplacingMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedSet", TableType.TABLE.getTypeName());
+        map.put("SharedSummingMergeTree", TableType.TABLE.getTypeName());
+        map.put("SharedVersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
 
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());

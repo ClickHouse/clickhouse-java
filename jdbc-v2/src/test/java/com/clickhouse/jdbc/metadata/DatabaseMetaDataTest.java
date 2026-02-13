@@ -1452,12 +1452,19 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 stmt.executeUpdate("CREATE TABLE test_table_types_remote (id Int32) ENGINE = URL('http://localhost:8123/?query=SELECT+1', CSV)");
 
                 // Log table
-                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_log");
-                stmt.executeUpdate("CREATE TABLE test_table_types_log (id Int32) ENGINE = Log");
+                if (!isCloud()) {
+                    // not supported by cloud https://clickhouse.com/docs/engines/table-engines/log-family
+                    stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_log");
+                    stmt.executeUpdate("CREATE TABLE test_table_types_log (id Int32) ENGINE = Log");
+                }
+
 
                 // Memory table
-                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_memory");
-                stmt.executeUpdate("CREATE TABLE test_table_types_memory (id Int32) ENGINE = Memory");
+                if (!isCloud()) {
+                    // memory table is not replicated across cluster so need persistent connection - useless with http protocol
+                    stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_memory");
+                    stmt.executeUpdate("CREATE TABLE test_table_types_memory (id Int32) ENGINE = Memory");
+                }
 
                 // Dictionary (using source table as source)
                 stmt.executeUpdate("DROP DICTIONARY IF EXISTS test_table_types_dict");
