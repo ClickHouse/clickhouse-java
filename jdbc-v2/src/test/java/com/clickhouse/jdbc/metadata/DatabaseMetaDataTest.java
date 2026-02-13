@@ -1419,13 +1419,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         // Map of table name -> (schema, expected type), ordered alphabetically by type
         java.util.Map<String, String[]> knownTables = new java.util.LinkedHashMap<>();
         knownTables.put("test_table_types_dict", new String[]{database, "DICTIONARY"});
-        knownTables.put("test_table_types_log", new String[]{database, "LOG TABLE"});
         knownTables.put("test_table_types_mat_view", new String[]{database, "MATERIALIZED VIEW"});
-        knownTables.put("test_table_types_memory", new String[]{database, "MEMORY TABLE"});
         knownTables.put("test_table_types_remote", new String[]{database, "REMOTE TABLE"});
         knownTables.put("numbers", new String[]{"system", "SYSTEM TABLE"});
         knownTables.put("test_table_types_regular", new String[]{database, "TABLE"});
         knownTables.put("test_table_types_view", new String[]{database, "VIEW"});
+        if (!isCloud()) {
+            knownTables.put("test_table_types_log", new String[]{database, "LOG TABLE"});
+            knownTables.put("test_table_types_memory", new String[]{database, "MEMORY TABLE"});
+        }
 
         try (Connection conn = getJdbcConnection()) {
             final DatabaseMetaData dbmd = conn.getMetaData();
