@@ -646,7 +646,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 executorService.shutdown();
                 executorService.awaitTermination(20, TimeUnit.SECONDS);
                 Assert.assertTrue(conn.isClosed());
-                Assert.assertFalse(conn.isValid(5000));
+                Assert.assertFalse(conn.isValid(5));
                 conn.close();
 
             }
@@ -666,7 +666,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 fail("Exception expected");
             } catch (Exception e) {
                 Assert.assertFalse(conn.isClosed());
-                Assert.assertTrue(conn.isValid(5000));
+                Assert.assertTrue(conn.isValid(5));
             }
         }
 
