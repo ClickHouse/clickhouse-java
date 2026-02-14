@@ -16,7 +16,6 @@ public class OperationMetrics {
 
     public Map<String, Metric> metrics = new HashMap<>();
     private String queryId;
-    private String serverDisplayName;
 
     private final ClientStatisticsHolder clientStatistics;
 
@@ -56,19 +55,10 @@ public class OperationMetrics {
         this.queryId = queryId;
     }
 
-    public String getServerDisplayName() {
-        return serverDisplayName;
-    }
-
-    public void setServerDisplayName(String serverDisplayName) {
-        this.serverDisplayName = serverDisplayName;
-    }
-
     @Override
     public String toString() {
         return "OperationStatistics{" +
                 "\"queryId\"=\"" + queryId + "\", " +
-                "\"serverDisplayName\"=\"" + serverDisplayName + "\", " +
                 "\"metrics\"=" + metrics +
                 '}';
     }
