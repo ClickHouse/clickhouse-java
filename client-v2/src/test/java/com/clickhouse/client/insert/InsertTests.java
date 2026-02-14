@@ -396,7 +396,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
         final String new_database = client.getDefaultDatabase() +  "_new_database";
-        final String createDatabaseSQL = "CREATE IF NOT EXISTS DATABASE " + new_database;
+        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database;
         final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
                                  " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
         final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database;
