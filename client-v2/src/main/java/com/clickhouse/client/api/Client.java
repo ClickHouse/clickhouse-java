@@ -1338,7 +1338,7 @@ public class Client implements AutoCloseable {
                     String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics);
+                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1545,7 +1545,7 @@ public class Client implements AutoCloseable {
                     String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
                     metrics.operationComplete();
                     metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics);
+                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1684,7 +1684,8 @@ public class Client implements AutoCloseable {
                             responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
                         }
 
-                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics);
+                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics,
+                                HttpAPIClientHelper.collectResponseHeaders(httpResponse));
 
                     } catch (Exception e) {
                         HttpAPIClientHelper.closeQuietly(httpResponse);

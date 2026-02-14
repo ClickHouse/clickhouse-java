@@ -1,13 +1,23 @@
 package com.clickhouse.client.api.insert;
 
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 
+import java.util.Collections;
+import java.util.Map;
+
 public class InsertResponse implements AutoCloseable {
     private OperationMetrics operationMetrics;
+    private final Map<String, String> responseHeaders;
 
     public InsertResponse(OperationMetrics metrics) {
+        this(metrics, Collections.emptyMap());
+    }
+
+    public InsertResponse(OperationMetrics metrics, Map<String, String> responseHeaders) {
         this.operationMetrics = metrics;
+        this.responseHeaders = responseHeaders;
     }
 
     @Override
@@ -77,5 +87,24 @@ public class InsertResponse implements AutoCloseable {
      */
     public String getQueryId() {
         return operationMetrics.getQueryId();
+    }
+
+    /**
+     * Returns the value of {@code X-ClickHouse-Server-Display-Name} response header.
+     *
+     * @return server display name or {@code null} if not present
+     */
+    public String getServerDisplayName() {
+        return responseHeaders.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME);
+    }
+
+    /**
+     * Returns all collected response headers as an unmodifiable map.
+     * Only whitelisted ClickHouse headers are included.
+     *
+     * @return map of header name to header value
+     */
+    public Map<String, String> getResponseHeaders() {
+        return responseHeaders;
     }
 }

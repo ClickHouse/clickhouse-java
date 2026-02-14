@@ -10,6 +10,8 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
 
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.Map;
 import java.util.TimeZone;
 
 /**
@@ -35,12 +37,20 @@ public class QueryResponse implements AutoCloseable {
 
     private ClassicHttpResponse httpResponse;
 
+    private final Map<String, String> responseHeaders;
+
     public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, QuerySettings settings,
                          OperationMetrics operationMetrics) {
+        this(response, format, settings, operationMetrics, Collections.emptyMap());
+    }
+
+    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, QuerySettings settings,
+                         OperationMetrics operationMetrics, Map<String, String> responseHeaders) {
         this.httpResponse = response;
         this.format = format;
         this.operationMetrics = operationMetrics;
         this.settings = settings;
+        this.responseHeaders = responseHeaders;
 
         Header tzHeader = response.getFirstHeader(ClickHouseHttpProto.HEADER_TIMEZONE);
         if (tzHeader != null) {
@@ -148,6 +158,25 @@ public class QueryResponse implements AutoCloseable {
      */
     public String getQueryId() {
         return operationMetrics.getQueryId();
+    }
+
+    /**
+     * Returns the value of {@code X-ClickHouse-Server-Display-Name} response header.
+     *
+     * @return server display name or {@code null} if not present
+     */
+    public String getServerDisplayName() {
+        return responseHeaders.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME);
+    }
+
+    /**
+     * Returns all collected response headers as an unmodifiable map.
+     * Only whitelisted ClickHouse headers are included.
+     *
+     * @return map of header name to header value
+     */
+    public Map<String, String> getResponseHeaders() {
+        return responseHeaders;
     }
 
     public TimeZone getTimeZone() {
