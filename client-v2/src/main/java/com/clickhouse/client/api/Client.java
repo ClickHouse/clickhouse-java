@@ -1704,6 +1704,7 @@ public class Client implements AutoCloseable {
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
+
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
