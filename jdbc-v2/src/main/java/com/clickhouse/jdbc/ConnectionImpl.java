@@ -474,6 +474,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             throw new SQLException("Timeout must be >= 0", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
         if (isClosed()) {
+            System.out.println("Connection is closed");
             return false;
         }
         return timeout == 0
