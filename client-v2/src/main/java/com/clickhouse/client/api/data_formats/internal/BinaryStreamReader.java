@@ -752,6 +752,21 @@ public class BinaryStreamReader {
                 return (Object[]) array;
             }
         }
+
+        /**
+         * Returns array of objects, recursively converting nested ArrayValue elements to Object[].
+         * This is useful for nested arrays (e.g. Array(Array(Int64))) where elements are ArrayValue instances.
+         *
+         * @return Object[] with nested ArrayValue elements converted to Object[]
+         */
+        public Object[] toObjectArray() {
+            Object[] result = new Object[length];
+            for (int i = 0; i < length; i++) {
+                Object item = get(i);
+                result[i] = (item instanceof ArrayValue) ? ((ArrayValue) item).toObjectArray() : item;
+            }
+            return result;
+        }
     }
 
     public static class EnumValue extends Number {
