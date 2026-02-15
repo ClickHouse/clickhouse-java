@@ -3,6 +3,8 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLexer;
+import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLightParser;
+import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLightParserListener;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlParser;
@@ -399,6 +401,33 @@ public abstract class SqlParserFacade {
                     parsedStatement.appendParameter(ctx.JDBC_PARAM_PLACEHOLDER().getSymbol().getStartIndex());
                 }
             }
+        }
+    }
+
+    private static class ANTLR4LightParser extends SqlParserFacade {
+
+        @Override
+        public ParsedStatement parsedStatement(String sql) {
+            return null;
+        }
+
+        @Override
+        public ParsedPreparedStatement parsePreparedStatement(String sql) {
+            return null;
+        }
+
+
+        protected ClickHouseLightParser parseSQL(String sql, ClickHouseLightParserListener listener) {
+            CharStream charStream = CharStreams.fromString(sql);
+            ClickHouseLexer lexer = new ClickHouseLexer(charStream);
+            ClickHouseLightParser parser = new ClickHouseLightParser(new CommonTokenStream(lexer));
+            parser.removeErrorListeners();
+            parser.addErrorListener(new ANTLR4Parser.ParserErrorListener());
+
+            ClickHouseLightParser.QueryStmtContext parseTree = parser.queryStmt();
+            IterativeParseTreeWalker.DEFAULT.walk(listener, parseTree);
+
+            return parser;
         }
     }
 
