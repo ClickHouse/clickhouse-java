@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
@@ -80,7 +81,8 @@ public class JdbcConfiguration {
      */
     public JdbcConfiguration(String url, Properties info) throws SQLException {
         final Properties props = info == null ? new Properties() : info;
-        this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
+        this.disableFrameworkDetection = ClickHouseUtils.parseBoolean(
+            props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
 
@@ -92,8 +94,10 @@ public class JdbcConfiguration {
         initProperties(urlProperties, props);
 
         // after initializing all properties - set final connection URL
-        boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
-        boolean useSSLUrlProperties = Boolean.parseBoolean(urlProperties.getOrDefault(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSLInfo = ClickHouseUtils.parseBoolean(
+            props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
+        boolean useSSLUrlProperties = ClickHouseUtils.parseBoolean(
+            urlProperties.getOrDefault(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
         boolean useSSL = useSSLInfo || useSSLUrlProperties;
         String bearerToken = props.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
         if (bearerToken != null) {
@@ -101,7 +105,8 @@ public class JdbcConfiguration {
         }
 
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
-        this.isIgnoreUnsupportedRequests = Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
+        this.isIgnoreUnsupportedRequests = ClickHouseUtils.parseBoolean(
+            getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
     }
 
     /**
@@ -346,7 +351,7 @@ public class JdbcConfiguration {
 
     public Boolean isSet(DriverProperties driverProp) {
         String v = driverProperties.getOrDefault(driverProp.getKey(), driverProp.getDefaultValue());
-        return Boolean.parseBoolean(v);
+        return ClickHouseUtils.parseBoolean(v);
     }
 
     public Client.Builder applyClientProperties(Client.Builder builder) {
@@ -374,7 +379,7 @@ public class JdbcConfiguration {
 
     public boolean isFlagSet(DriverProperties prop) {
         String value = driverProperties.getOrDefault(prop.getKey(), prop.getDefaultValue());
-        return Boolean.parseBoolean(value);
+        return ClickHouseUtils.parseBoolean(value);
     }
 
     private Map<ClickHouseDataType, Class<?>> defaultTypeHintMapping() {
