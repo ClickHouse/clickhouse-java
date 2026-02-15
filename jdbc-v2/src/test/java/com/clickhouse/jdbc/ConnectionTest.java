@@ -636,18 +636,18 @@ public class ConnectionTest extends JdbcIntegrationTest {
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(null, 1000));
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), -1));
 
-            int timeout = 10;
+            int timeout = (int) TimeUnit.SECONDS.toMillis(1);
             ExecutorService executorService = Executors.newSingleThreadExecutor();
-            conn.setNetworkTimeout(executorService, timeout);
+            conn.setNetworkTimeout(executorService, timeout); // timeout in ms
             Assert.assertEquals(conn.getNetworkTimeout(), timeout);
             Statement stmt = conn.createStatement();
             try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
                 fail("Exception expected");
             } catch (Exception e) {
                 executorService.shutdown();
-                executorService.awaitTermination(20, TimeUnit.SECONDS);
+                executorService.awaitTermination(5, TimeUnit.SECONDS);
                 Assert.assertTrue(conn.isClosed());
-                Assert.assertFalse(conn.isValid(5));
+                Assert.assertFalse(conn.isValid(5)); // timeout in seconds
                 conn.close();
 
             }
@@ -665,21 +665,22 @@ public class ConnectionTest extends JdbcIntegrationTest {
     public void testHandlingTimeoutWithoutTimeoutIsSet() throws Exception {
         System.out.println("testHandlingTimeoutWithoutTimeoutIsSet ---- ");
 
+        int timeout = (int) TimeUnit.SECONDS.toMillis(1);
         Properties connConfig = new Properties();
-        connConfig.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), "10");
+        connConfig.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), String.valueOf(timeout)); // in ms
         try (Connection conn = getJdbcConnection(connConfig)) {
             Statement stmt = conn.createStatement();
             try (ResultSet rs = stmt.executeQuery("SELECT sleepEachRow(1) FROM system.numbers LIMIT 2")) {
                 fail("Exception expected");
             } catch (Exception e) {
                 Assert.assertFalse(conn.isClosed());
-                Assert.assertTrue(conn.isValid(5));
+                Assert.assertTrue(conn.isValid(5)); // in seconds
             }
         }
 
         try (Connection conn = getJdbcConnection(connConfig)) {
             ExecutorService executorService = Executors.newSingleThreadExecutor();
-            conn.setNetworkTimeout(executorService, 10);
+            conn.setNetworkTimeout(executorService, timeout); // ms
             try (Statement stmt1 = conn.createStatement(); Statement stmt2 = conn.createStatement()) {
                 ScheduledExecutorService stmtExecutor = Executors.newScheduledThreadPool(2);
                 long t1 = System.currentTimeMillis();
