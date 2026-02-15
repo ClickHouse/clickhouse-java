@@ -413,16 +413,17 @@ public class InsertTests extends BaseIntegrationTest {
 
             ByteArrayOutputStream data = new ByteArrayOutputStream();
             PrintWriter writer = new PrintWriter(data);
-            for (int i = 0; i < 1000; i++) {
+            final int rows = 1000;
+            for (int i = 0; i < rows; i++) {
                 writer.printf("%d\t%s\t%s\t%d\t%s\n", i, "2021-01-01 00:00:00", "name" + i, i, "p2");
             }
             writer.flush();
             InsertResponse response = client.insert(tableName, new ByteArrayInputStream(data.toByteArray()),
                     ClickHouseFormat.TSV, insertSettings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-            assertEquals((int) response.getWrittenRows(), 1000);
+            assertEquals((int) response.getWrittenRows(), rows);
 
             List<GenericRecord> records = client.queryAll("SELECT * FROM " + new_database + "." + tableName);
-            assertEquals(records.size(), 1000);
+            assertEquals(records.size(), rows);
         } finally {
             client.execute(dropDatabaseSQL);
         }
