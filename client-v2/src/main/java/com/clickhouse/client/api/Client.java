@@ -1178,7 +1178,6 @@ public class Client implements AutoCloseable {
                 return true;
             }
         } catch (Exception e) {
-            e.printStackTrace();
             LOG.debug("Failed to connect to the server (Duration: {})", durationSince(startTime), e);
             return false;
         }

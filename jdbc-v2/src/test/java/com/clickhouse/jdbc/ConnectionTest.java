@@ -631,7 +631,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testNetworkTimeoutCausesConnectionClosure() throws Exception {
-        System.out.println("testNetworkTimeoutCausesConnectionClosure ---- ");
         try (Connection conn = this.getJdbcConnection()) {
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(null, 1000));
             Assert.assertThrows(SQLException.class, () -> conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), -1));
@@ -658,13 +657,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Assert.assertTrue(e.getMessage().contains("closed"));
             }
         }
-        System.out.println("testNetworkTimeoutCausesConnectionClosure ---- ");
     }
 
     @Test(groups = {"integration"})
     public void testHandlingTimeoutWithoutTimeoutIsSet() throws Exception {
-        System.out.println("testHandlingTimeoutWithoutTimeoutIsSet ---- ");
-
         int timeout = (int) TimeUnit.SECONDS.toMillis(1);
         Properties connConfig = new Properties();
         connConfig.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), String.valueOf(timeout)); // in ms
@@ -692,7 +688,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 stmtExecutor.awaitTermination(10, TimeUnit.SECONDS);
             }
         }
-        System.out.println("testHandlingTimeoutWithoutTimeoutIsSet ---- ");
     }
 
     @Test(groups = { "integration" })
