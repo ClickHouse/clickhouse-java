@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Downloaded drivers (can be re-downloaded)
+drivers/
+
+# OS files
+.DS_Store
+Thumbs.db
