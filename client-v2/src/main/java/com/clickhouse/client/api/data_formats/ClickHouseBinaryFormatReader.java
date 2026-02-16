@@ -309,6 +309,16 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     String[] getStringArray(String colName);
 
     /**
+     * Reads column with name {@code colName} as an array of objects. Works for any array element type
+     * including non-primitive types like DateTime, Enum, UInt64 (BigInteger), FixedString, etc.
+     * For nested arrays, inner ArrayValue elements are recursively converted to Object[].
+     *
+     * @param colName - column name
+     * @return array of objects or null if value is null
+     */
+    Object[] getObjectArray(String colName);
+
+    /**
      * Reads column with name `colName` as a string.
      *
      * @param index
@@ -535,6 +545,16 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     short [] getShortArray(int index);
 
     String[] getStringArray(int index);
+
+    /**
+     * Reads column at the specified index as an array of objects. Works for any array element type
+     * including non-primitive types like DateTime, Enum, UInt64 (BigInteger), FixedString, etc.
+     * For nested arrays, inner ArrayValue elements are recursively converted to Object[].
+     *
+     * @param index - column index (1-based)
+     * @return array of objects or null if value is null
+     */
+    Object[] getObjectArray(int index);
 
     Object[] getTuple(int index);
 

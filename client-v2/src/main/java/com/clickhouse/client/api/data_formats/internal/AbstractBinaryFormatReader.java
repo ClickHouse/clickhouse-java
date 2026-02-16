@@ -563,6 +563,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public Object[] getObjectArray(String colName) {
+        return getObjectArray(schema.nameToColumnIndex(colName));
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord[colIndex - 1] != null;
     }
@@ -817,15 +822,34 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (value instanceof BinaryStreamReader.ArrayValue) {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
             int length = array.length;
-            if (!array.itemType.equals(String.class))
-                throw new ClientException("Not A String type.");
             String[] values = new String[length];
-            for (int i = 0; i < length; i++) {
-                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            if (array.itemType.equals(String.class)) {
+                for (int i = 0; i < length; i++) {
+                    values[i] = (String) array.get(i);
+                }
+            } else {
+                for (int i = 0; i < length; i++) {
+                    Object item = array.get(i);
+                    values[i] = item == null ? null : item.toString();
+                }
             }
             return values;
         }
-        throw new ClientException("Not ArrayValue type.");
+        throw new ClientException("Column is not of array type");
+    }
+
+    @Override
+    public Object[] getObjectArray(int index) {
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).toObjectArray();
+        } else if (value instanceof List<?>) {
+            return ((List<?>) value).toArray(new Object[0]);
+        }
+        throw new ClientException("Column is not of array type");
     }
 
     @Override
