@@ -79,7 +79,8 @@ public class RowBinaryTest extends BaseIntegrationTest {
                     "enum_arr Array(Enum8('abc' = 1, 'cde' = 2)), " +
                     "dt_arr Array(DateTime('UTC')), " +
                     "fstr_arr Array(FixedString(4)), " +
-                    "str_arr Array(String)" +
+                    "str_arr Array(String), " +
+                    "int_arr Array(Int32)" +
                     ") ENGINE = MergeTree() ORDER BY tuple()");
 
             client.execute("INSERT INTO " + table + " VALUES (" +
@@ -87,7 +88,8 @@ public class RowBinaryTest extends BaseIntegrationTest {
                     "['abc', 'cde'], " +
                     "['2030-10-09 08:07:06', '2031-10-09 08:07:06'], " +
                     "['abcd', 'efgh'], " +
-                    "['hello', 'world'])");
+                    "['hello', 'world'], " +
+                    "[100, 200, 65536])");
 
             QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
             TableSchema schema = client.getTableSchema(table);
@@ -111,7 +113,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
                 Assert.assertEquals(enumArr[0].toString(), "abc");
                 Assert.assertEquals(enumArr[1].toString(), "cde");
 
-                // Array(Enum8) -> String[] via getStringArray (sugar)
+                // Array(Enum8) -> String[] via getStringArray
                 String[] enumStrings = reader.getStringArray("enum_arr");
                 Assert.assertEquals(enumStrings, new String[]{"abc", "cde"});
 
@@ -144,6 +146,10 @@ public class RowBinaryTest extends BaseIntegrationTest {
                 // getStringArray should also work for FixedString arrays
                 String[] fstrStrings = reader.getStringArray("fstr_arr");
                 Assert.assertEquals(fstrStrings, new String[]{"abcd", "efgh"});
+
+                // Array(Int32)
+                Object[] intArrObj = reader.getObjectArray("int_arr");
+                Assert.assertEquals(intArrObj, new Integer[]{100, 200, 65536});
 
                 Assert.assertNull(reader.next(), "Expected only one row");
             }

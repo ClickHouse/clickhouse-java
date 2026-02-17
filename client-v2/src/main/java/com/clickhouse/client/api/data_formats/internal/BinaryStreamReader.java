@@ -767,6 +767,8 @@ public class BinaryStreamReader {
             }
             return result;
         }
+
+
     }
 
     public static class EnumValue extends Number {
@@ -798,6 +800,10 @@ public class BinaryStreamReader {
         @Override
         public double doubleValue() {
             return value;
+        }
+
+        public String getName() {
+            return name;
         }
 
         @Override

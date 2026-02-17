@@ -568,11 +568,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
-    public Object getArray(String colName) {
-        return getArray(schema.nameToColumnIndex(colName));
-    }
-
-    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord[colIndex - 1] != null;
     }
@@ -828,6 +823,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
             if (array.itemType == String.class) {
                 return (String[]) array.getArray();
+            } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
+                BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
+                return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);
             } else {
                 throw new ClientException("Not an array of strings");
             }
@@ -843,20 +841,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).toObjectArray();
-        } else if (value instanceof List<?>) {
-            return ((List<?>) value).toArray(new Object[0]);
-        }
-        throw new ClientException("Column is not of array type");
-    }
-
-    @Override
-    public Object getArray(int index) {
-        Object value = readValue(index);
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof BinaryStreamReader.ArrayValue) {
-            return ((BinaryStreamReader.ArrayValue) value).getArray();
         } else if (value instanceof List<?>) {
             return ((List<?>) value).toArray(new Object[0]);
         }

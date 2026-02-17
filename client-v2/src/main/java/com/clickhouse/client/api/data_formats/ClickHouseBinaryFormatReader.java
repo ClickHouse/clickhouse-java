@@ -307,15 +307,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      * @param colName - column name
      * @return array of objects, or {@code null} if the value is null
      */
-    Object[] getObjectArray(String colName);
-
-    /**
-     * @see #getArray(int)
-     * @param colName - column name
-     * @return Object - array value for the column.
-     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
-     */
-    Object getArray(String colName);
+    <T> T getObjectArray(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -578,23 +570,14 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     /**
      * Returns the value of the specified column as an {@code Object[]}. Suitable for multidimensional Array columns.
      * Nested arrays are recursively converted to {@code Object[]}.
+     * Note: result is not cached so avoid repetitive calls on same column.
      *
+     * @param <T> - type of array like {@code Object[], Integer[][]}
      * @param index - column index (1-based)
      * @return array of objects, or {@code null} if the value is null
      * @throws com.clickhouse.client.api.ClientException if the column is not an array type
      */
-    Object[] getObjectArray(int index);
-
-    /**
-     * Returns reference to an array value of corresponding column. This method works for
-     * any multidimensional array values. However, it requires type cast so check column type.
-     * This method doesn't do a conversion between types.
-     *
-     * @param index column index
-     * @return Object - array value for the column.
-     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
-     */
-    Object getArray(int index);
+    <T> T getObjectArray(int index);
 
     Object[] getTuple(int index);
 
