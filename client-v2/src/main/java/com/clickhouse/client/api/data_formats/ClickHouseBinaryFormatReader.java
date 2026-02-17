@@ -307,7 +307,7 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      * @param colName - column name
      * @return array of objects, or {@code null} if the value is null
      */
-    <T> T getObjectArray(String colName);
+    Object[] getObjectArray(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -572,12 +572,11 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      * Nested arrays are recursively converted to {@code Object[]}.
      * Note: result is not cached so avoid repetitive calls on same column.
      *
-     * @param <T> - type of array like {@code Object[], Integer[][]}
      * @param index - column index (1-based)
      * @return array of objects, or {@code null} if the value is null
      * @throws com.clickhouse.client.api.ClientException if the column is not an array type
      */
-    <T> T getObjectArray(int index);
+    Object[] getObjectArray(int index);
 
     Object[] getTuple(int index);
 

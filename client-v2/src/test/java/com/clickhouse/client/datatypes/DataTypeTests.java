@@ -1466,6 +1466,63 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(((Object[]) arr3dInner[0]).length, 0);
     }
 
+    @Test(groups = {"integration"})
+    public void testGetStringArrayAndGetObjectArrayWhenValueIsList() throws Exception {
+        final String table = "test_get_string_array_and_object_array_when_value_is_list";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (" +
+                "rowId Int32, " +
+                "str_arr Array(String), " +
+                "arr2d Array(Array(Int32))" +
+                ") Engine = MergeTree ORDER BY rowId").get();
+
+        client.execute("INSERT INTO " + table + " VALUES " +
+                "(1, ['hello', 'world'], [[1, 2], [3]])").get();
+
+        try (Client listClient = newClient()
+                .typeHintMapping(Collections.singletonMap(ClickHouseDataType.Array, Object.class))
+                .build()) {
+            // Reader path: arrays are decoded as List due to Array -> Object type hint mapping.
+            try (QueryResponse response = listClient.query("SELECT * FROM " + table).get()) {
+                ClickHouseBinaryFormatReader reader = listClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+
+                Object[] strObjectArr = reader.getObjectArray("str_arr");
+                Assert.assertNotNull(strObjectArr);
+                Assert.assertEquals(strObjectArr, new Object[] {"hello", "world"});
+
+                Object[] arr2dObjectArr = reader.getObjectArray("arr2d");
+                Assert.assertNotNull(arr2dObjectArr);
+                Assert.assertEquals(arr2dObjectArr.length, 2);
+                Assert.assertTrue(arr2dObjectArr[0] instanceof List<?>);
+                Assert.assertTrue(arr2dObjectArr[1] instanceof List<?>);
+                Assert.assertEquals((List<?>) arr2dObjectArr[0], Arrays.asList(1, 2));
+                Assert.assertEquals((List<?>) arr2dObjectArr[1], Collections.singletonList(3));
+
+                Assert.expectThrows(ClientException.class, () -> reader.getStringArray("str_arr"));
+            }
+
+            // queryAll path (MapBackedRecord): also list-backed values.
+            List<GenericRecord> records = listClient.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+            Assert.assertEquals(records.size(), 1);
+
+            GenericRecord row = records.get(0);
+            Object[] strObjectArr = row.getObjectArray("str_arr");
+            Assert.assertNotNull(strObjectArr);
+            Assert.assertEquals(strObjectArr, new Object[] {"hello", "world"});
+
+            Object[] arr2dObjectArr = row.getObjectArray("arr2d");
+            Assert.assertNotNull(arr2dObjectArr);
+            Assert.assertEquals(arr2dObjectArr.length, 2);
+            Assert.assertTrue(arr2dObjectArr[0] instanceof List<?>);
+            Assert.assertTrue(arr2dObjectArr[1] instanceof List<?>);
+            Assert.assertEquals((List<?>) arr2dObjectArr[0], Arrays.asList(1, 2));
+            Assert.assertEquals((List<?>) arr2dObjectArr[1], Collections.singletonList(3));
+
+            Assert.expectThrows(ClientException.class, () -> row.getStringArray("str_arr"));
+        }
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE " + table + " ( ");
