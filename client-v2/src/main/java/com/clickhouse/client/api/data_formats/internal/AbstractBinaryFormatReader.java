@@ -568,6 +568,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     }
 
     @Override
+    public Object getArray(String colName) {
+        return getArray(schema.nameToColumnIndex(colName));
+    }
+
+    @Override
     public boolean hasValue(int colIndex) {
         return currentRecord[colIndex - 1] != null;
     }
@@ -821,19 +826,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
-            int length = array.length;
-            String[] values = new String[length];
-            if (array.itemType.equals(String.class)) {
-                for (int i = 0; i < length; i++) {
-                    values[i] = (String) array.get(i);
-                }
+            if (array.itemType == String.class) {
+                return (String[]) array.getArray();
             } else {
-                for (int i = 0; i < length; i++) {
-                    Object item = array.get(i);
-                    values[i] = item == null ? null : item.toString();
-                }
+                throw new ClientException("Not an array of strings");
             }
-            return values;
         }
         throw new ClientException("Column is not of array type");
     }
@@ -846,6 +843,20 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return ((BinaryStreamReader.ArrayValue) value).toObjectArray();
+        } else if (value instanceof List<?>) {
+            return ((List<?>) value).toArray(new Object[0]);
+        }
+        throw new ClientException("Column is not of array type");
+    }
+
+    @Override
+    public Object getArray(int index) {
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).getArray();
         } else if (value instanceof List<?>) {
             return ((List<?>) value).toArray(new Object[0]);
         }

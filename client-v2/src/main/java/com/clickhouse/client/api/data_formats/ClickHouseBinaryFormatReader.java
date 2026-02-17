@@ -310,6 +310,14 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     Object[] getObjectArray(String colName);
 
     /**
+     * @see #getArray(int)
+     * @param colName - column name
+     * @return Object - array value for the column.
+     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
+     */
+    Object getArray(String colName);
+
+    /**
      * Reads column with name `colName` as a string.
      *
      * @param index
@@ -576,6 +584,17 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
      * @throws com.clickhouse.client.api.ClientException if the column is not an array type
      */
     Object[] getObjectArray(int index);
+
+    /**
+     * Returns reference to an array value of corresponding column. This method works for
+     * any multidimensional array values. However, it requires type cast so check column type.
+     * This method doesn't do a conversion between types.
+     *
+     * @param index column index
+     * @return Object - array value for the column.
+     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
+     */
+    Object getArray(int index);
 
     Object[] getTuple(int index);
 
