@@ -248,11 +248,18 @@ public interface GenericRecord {
 
     short[] getShortArray(String colName);
 
+    /**
+     * Returns string array for columns {@code Array(String)}.
+     * This method doesn't make a conversion of other types to string.
+     *
+     * @param colName - column name
+     * @return String[]
+     */
     String[] getStringArray(String colName);
 
     /**
      * Reads column with name `colName` as an array of objects. Works for any array element type
-     * including non-primitive types like DateTime, Enum, UInt64 (BigInteger), FixedString, etc.
+     * including non-primitive types like DateTime, Enum, UInt64 (BigInteger), etc.
      * For nested arrays, inner ArrayValue elements are recursively converted to Object[].
      *
      * @param colName - column name

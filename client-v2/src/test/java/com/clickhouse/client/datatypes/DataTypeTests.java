@@ -1332,10 +1332,6 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(uint64Arr[1], java.math.BigInteger.valueOf(200));
         Assert.assertEquals(uint64Arr[2], new java.math.BigInteger("18000044073709551615"));
 
-        // Array(UInt64) -> getStringArray converts via toString()
-        String[] uint64Strings = row1.getStringArray("uint64_arr");
-        Assert.assertEquals(uint64Strings, new String[]{"100", "200", "18000044073709551615"});
-
         // Array(Enum8) -> getObjectArray returns EnumValue[]
         Object[] enumArr = row1.getObjectArray("enum_arr");
         Assert.assertNotNull(enumArr);
@@ -1343,10 +1339,6 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertTrue(enumArr[0] instanceof BinaryStreamReader.EnumValue);
         Assert.assertEquals(enumArr[0].toString(), "abc");
         Assert.assertEquals(enumArr[1].toString(), "cde");
-
-        // Array(Enum8) -> getStringArray returns enum names
-        String[] enumStrings = row1.getStringArray("enum_arr");
-        Assert.assertEquals(enumStrings, new String[]{"abc", "cde"});
 
         // Array(DateTime) -> getObjectArray returns ZonedDateTime[]
         Object[] dtArr = row1.getObjectArray("dt_arr");

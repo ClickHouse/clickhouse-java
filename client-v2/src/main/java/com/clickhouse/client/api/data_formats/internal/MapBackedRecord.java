@@ -25,6 +25,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -295,19 +296,14 @@ public class MapBackedRecord implements GenericRecord {
         }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
-            int length = array.length;
-            String[] values = new String[length];
-            if (array.itemType.equals(String.class)) {
-                for (int i = 0; i < length; i++) {
-                    values[i] = (String) array.get(i);
-                }
+            if (array.itemType == String.class) {
+                return (String[]) array.getArray();
+            } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
+                BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
+                return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);
             } else {
-                for (int i = 0; i < length; i++) {
-                    Object item = array.get(i);
-                    values[i] = item == null ? null : item.toString();
-                }
+                throw new ClientException("Not an array of strings");
             }
-            return values;
         }
         throw new ClientException("Column is not of array type");
     }
@@ -482,7 +478,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public String[] getStringArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getStringArray(schema.columnIndexToName(index));
     }
 
     @Override
