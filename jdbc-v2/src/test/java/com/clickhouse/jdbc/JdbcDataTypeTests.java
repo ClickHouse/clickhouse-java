@@ -33,6 +33,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -1250,11 +1251,6 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
-    /**
-     * Test for https://github.com/ClickHouse/clickhouse-java/issues/2723
-     * getString() on nested arrays was failing with NullPointerException due to re-entrancy bug
-     * in DataTypeConverter when converting nested arrays to string representation.
-     */
     @Test(groups = { "integration" })
     public void testNestedArrayToString() throws SQLException {
         // Test 1: Simple nested array - getString on Array(Array(Int32))
@@ -1304,6 +1300,8 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     String result = rs.getString("deep_nested");
                     assertEquals(result, "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]");
+                    Array arr = rs.getArray(1);
+                    assertTrue(Arrays.deepEquals((String[][][])arr.getArray(), new String[][][] {{{"a", "b"}, {"c"}}, {{ "d", "e", "f"}}}));
                 }
             }
         }
@@ -1625,6 +1623,25 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                             new Object[] {(byte) int8, (short) int16, int32, int64, int128, int256});
 
                     assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTupleType() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Tuple(String, Int32, Date)")) {
+                Object[] arr = new Object[]{"test", 123, LocalDate.parse("2026-03-02")};
+                Struct tuple = conn.createStruct("Tuple(String, Int32, Date)", arr);
+                Array tupleArr = conn.createArrayOf("Array(Tuple(String, Int32, Date))", arr);
+                stmt.setObject(1, tuple);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    rs.next();
+                    Array dbTuple = rs.getArray(1);
+                    Assert.assertEquals(dbTuple, tupleArr);
+                    Object tupleObjArr = rs.getObject(1);
+                    Assert.assertEquals(tupleObjArr, arr);
                 }
             }
         }

@@ -95,6 +95,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -750,6 +752,31 @@ public class HttpAPIClientHelper {
 
     public static int getHeaderInt(Header header, int defaultValue) {
         return getHeaderVal(header, defaultValue, Integer::parseInt);
+    }
+
+    private static final Set<String> RESPONSE_HEADER_WHITELIST = new HashSet<>(Arrays.asList(
+            ClickHouseHttpProto.HEADER_QUERY_ID,
+            ClickHouseHttpProto.HEADER_SRV_SUMMARY,
+            ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME,
+            ClickHouseHttpProto.HEADER_DATABASE,
+            ClickHouseHttpProto.HEADER_DB_USER
+    ));
+
+    /**
+     * Collects whitelisted response headers from an HTTP response into a map.
+     *
+     * @param response the HTTP response
+     * @return unmodifiable map of header name to header value for whitelisted headers present in the response
+     */
+    public static Map<String, String> collectResponseHeaders(ClassicHttpResponse response) {
+        Map<String, String> headers = new HashMap<>();
+        for (String name : RESPONSE_HEADER_WHITELIST) {
+            Header header = response.getFirstHeader(name);
+            if (header != null) {
+                headers.put(name, header.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(headers);
     }
 
     public static String getHeaderVal(Header header, String defaultValue) {
