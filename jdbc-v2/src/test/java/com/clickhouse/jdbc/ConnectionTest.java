@@ -394,7 +394,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
                 Array arrayValue = conn.createArrayOf("Tuple(String, Int8)", srcArray );
                 assertEquals(arrayValue.getBaseTypeName(), baseType);
-                assertEquals(arrayValue.getBaseType(), JDBCType.OTHER.getVendorTypeNumber());
+                assertEquals(arrayValue.getBaseType(), JDBCType.STRUCT.getVendorTypeNumber());
                 assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(null));
                 assertThrows(SQLFeatureNotSupportedException.class, () -> arrayValue.getArray(0, 1, null));
 
