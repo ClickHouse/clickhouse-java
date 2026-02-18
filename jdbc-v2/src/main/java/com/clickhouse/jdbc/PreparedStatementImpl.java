@@ -134,7 +134,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             compiledSql.replace(p, p+1, val);
             posOffset += val.length() - 1;
         }
-        System.out.println(compiledSql.toString());
         return compiledSql.toString();
     }
 
