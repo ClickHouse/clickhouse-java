@@ -12,8 +12,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -23,8 +21,6 @@ import java.time.Month;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
 import java.util.Calendar;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -32,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 
 @Test(groups = {"integration"})
 public class JDBCDateTimeTests extends JdbcIntegrationTest {
-
 
 
     @Test(groups = {"integration"})
@@ -43,7 +38,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         LocalDate birthdate = now.plusDays(daysBeforeParty);
         Instant birthdateInstant = birthdate.atStartOfDay(ZoneOffset.systemDefault()).toInstant();
 
-        Object[] dataset = new Object[] {
+        Object[] dataset = new Object[]{
                 birthdate,
                 java.sql.Date.valueOf(birthdate),
                 birthdate.format(DataTypeUtils.DATE_FORMATTER)
@@ -56,7 +51,6 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) Engine MergeTree ORDER BY()");
-
 
 
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_days_before_birthday_party VALUES (?, ?)")) {
@@ -139,7 +133,6 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
             stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) Engine MergeTree ORDER BY()");
 
             final String walkTimeStr = DataTypeUtils.durationToTimeString(walkTime, 3);
-            System.out.println(walkTimeStr);
             stmt.executeUpdate("INSERT INTO test_walk_time VALUES (1, '" + walkTimeStr + "')");
 
             try (ResultSet rs = stmt.executeQuery("SELECT id, walk_time, walk_time::String, timezone() FROM test_walk_time")) {
@@ -170,5 +163,68 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    void testLapsTime() throws Exception {
+        if (isVersionMatch("(,25.5]")) {
+            return; // time64 was introduced in 25.6
+        }
 
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.executeUpdate("CREATE TABLE test_laps_time (racerId Int32, lapId Int32, lapTime Time64(3)) Engine MergeTree ORDER BY()");
+
+            Object[][] dataset = new Object[][]{
+                    {
+                            Duration.of(10, ChronoUnit.SECONDS).plusMillis(123).plusMinutes(1),
+                            Duration.of(8, ChronoUnit.SECONDS).plusMillis(456).plusMinutes(1),
+                    },
+                    {
+                            LocalTime.of(0, 3, 50),
+                            LocalTime.of(0, 3, 59),
+                    },
+                    {
+                            Duration.of(-100, ChronoUnit.HOURS),
+                            Duration.of(-100, ChronoUnit.HOURS),
+                    }
+            };
+
+            try (PreparedStatement p = conn.prepareStatement("INSERT INTO test_laps_time VALUES (?, ?, ?)")) {
+                int racerId = 1;
+
+                for (Object[] row : dataset) {
+                    int lapId = 1;
+                    for (Object time : row) {
+                        p.setInt(1, racerId);
+                        p.setInt(2, lapId++);
+                        p.setObject(3, time);
+
+                        p.addBatch();
+                    }
+                    racerId++;
+                }
+
+                p.executeBatch();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_laps_time ORDER BY racerId, lapId")) {
+
+                int racerId = 1;
+
+                for (Object[] row : dataset) {
+                    int lapId = 1;
+                    for (Object time : row) {
+                        rs.next();
+                        Assert.assertEquals(rs.getInt(1), racerId);
+                        Assert.assertEquals(rs.getInt(2), lapId++);
+                        Object value = rs.getObject(3, time.getClass());
+                        Assert.assertEquals(rs.getObject(3, time.getClass()), time);
+                    }
+                    racerId++;
+                }
+            }
+        }
+    }
 }

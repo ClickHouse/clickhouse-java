@@ -42,6 +42,8 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -253,27 +255,31 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         ensureOpen();
-        // targetSQLType is only of JDBCType
-        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), null);
+
+        isValidForTargetType(x, targetSqlType);
+        values[parameterIndex-1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        // targetSQLType is only of JDBCType
-        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), scaleOrLength);
+
+        isValidForTargetType(x, targetSqlType);
+        values[parameterIndex-1] = encodeObject(x, (long) scaleOrLength);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
         ensureOpen();
-        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), null);
+
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
+        values[parameterIndex-1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), scaleOrLength);
+        values[parameterIndex-1] = encodeObject(x, (long) scaleOrLength);
     }
 
     @Override
@@ -763,6 +769,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return encodeObject(((ZonedDateTime) x).toInstant());
             } else if (x instanceof Instant) {
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
+            } else if (x instanceof Duration) {
+                return QUOTE + DataTypeUtils.durationToTimeString((Duration) x, 9) + QUOTE;
             } else if (x instanceof InetAddress) {
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
             } else if (x instanceof byte[]) {
@@ -973,34 +981,36 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-    private ClickHouseDataType jdbcType2ClickHouseDataType(JDBCType type) throws SQLException{
-        ClickHouseDataType clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
-        if (clickHouseDataType == null) {
-            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+    private void isValidForTargetType(Object value, int targetType) throws SQLException {
+        if (value == null) {
+            return; // NULL is handled in encoding and server checks if value can be NULL
         }
 
-        return clickHouseDataType;
-    }
+        Class<?> vClass = value.getClass();
 
-    private ClickHouseDataType sqlType2ClickHouseDataType(SQLType type) throws SQLException {
-        ClickHouseDataType clickHouseDataType = null;
-        if (type instanceof JDBCType) {
-            clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
-        } else  if (type instanceof ClickHouseDataType) {
-            clickHouseDataType = (ClickHouseDataType) type;
-            if (JdbcUtils.INVALID_TARGET_TYPES.contains(clickHouseDataType)) {
-                throw new  SQLException("Type " + clickHouseDataType + " cannot be used as target type here because requires additional parameters and API doesn't have a way to pass them. ");
-            }
+        // Here we validate only specific types
+        switch (targetType) {
+            case Types.DATE:
+                if (vClass == LocalDate.class || vClass == java.sql.Date.class) {
+                    return;
+                }
+                break;
+            case Types.TIME:
+            case Types.TIME_WITH_TIMEZONE:
+                if (vClass == LocalTime.class || vClass == java.sql.Time.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class) {
+                    return;
+                }
+                break;
+            case Types.TIMESTAMP:
+            case Types.TIMESTAMP_WITH_TIMEZONE:
+                if (vClass == Timestamp.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class) {
+                    return;
+                }
+                break;
+            default:
+                return;
         }
 
-        if (clickHouseDataType == null) {
-            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
-        }
-
-        return clickHouseDataType;
-    }
-
-    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
-        return encodeObject(x);
+        throw new SQLException("Cannot convert value of type " + value.getClass() + " to SQL type " + JDBCType.valueOf(targetType));
     }
 }
