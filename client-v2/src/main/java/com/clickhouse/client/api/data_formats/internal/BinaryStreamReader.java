@@ -604,15 +604,14 @@ public class BinaryStreamReader {
      */
     public ArrayValue readArray(ClickHouseColumn column) throws IOException {
         int len = readVarInt(input);
-        if (len == 0) {
-            return new ArrayValue(Object.class, 0);
-        }
 
         ArrayValue array;
         ClickHouseColumn itemTypeColumn = column.getNestedColumns().get(0);
-        if (column.getArrayNestedLevel() == 1) {
+        if (len == 0) {
+            Class<?> itemClass = itemTypeColumn.getDataType().getPrimitiveClass();
+            array = new ArrayValue(itemClass == null ? Object.class : itemClass, 0);
+        } else if (column.getArrayNestedLevel() == 1) {
             array = readArrayItem(itemTypeColumn, len);
-
         } else {
             array = new ArrayValue(ArrayValue.class, len);
             for (int i = 0; i < len; i++) {
@@ -645,6 +644,10 @@ public class BinaryStreamReader {
                 itemClass = long.class;
             } else if (firstValue instanceof Boolean) {
                 itemClass = boolean.class;
+            } else if (firstValue instanceof Float) {
+                itemClass = float.class;
+            } else if (firstValue instanceof Double) {
+                itemClass = double.class;
             }
 
             array = new ArrayValue(itemClass, len);
