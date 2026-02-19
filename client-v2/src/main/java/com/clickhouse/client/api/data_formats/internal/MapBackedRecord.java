@@ -25,6 +25,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -295,16 +296,16 @@ public class MapBackedRecord implements GenericRecord {
         }
         if (value instanceof BinaryStreamReader.ArrayValue) {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
-            int length = array.length;
-            if (!array.itemType.equals(String.class))
-                throw new ClientException("Not A String type.");
-            String [] values = new String[length];
-            for (int i = 0; i < length; i++) {
-                values[i] = (String)((BinaryStreamReader.ArrayValue) value).get(i);
+            if (array.itemType == String.class) {
+                return (String[]) array.getArray();
+            } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
+                BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
+                return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);
+            } else {
+                throw new ClientException("Not an array of strings");
             }
-            return values;
         }
-        throw new ClientException("Not ArrayValue type.");
+        throw new ClientException("Column is not of array type");
     }
 
     @Override
@@ -477,7 +478,26 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public String[] getStringArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getStringArray(schema.columnIndexToName(index));
+    }
+
+    @Override
+    public Object[] getObjectArray(String colName) {
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return ((BinaryStreamReader.ArrayValue) value).toObjectArray();
+        } else if (value instanceof List<?>) {
+            return ((List<?>) value).toArray(new Object[0]);
+        }
+        throw new ClientException("Column is not of array type");
+    }
+
+    @Override
+    public Object[] getObjectArray(int index) {
+        return getObjectArray(schema.columnIndexToName(index));
     }
 
     @Override

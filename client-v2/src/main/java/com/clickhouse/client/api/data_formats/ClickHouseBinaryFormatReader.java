@@ -240,73 +240,74 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getList(int)
      * @param colName - column name
-     * @return
+     * @return list of values, or {@code null} if the value is null
      */
     <T> List<T> getList(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getByteArray(int)
      * @param colName - column name
-     * @return
+     * @return array of bytes, or {@code null} if the value is null
      */
     byte[] getByteArray(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getIntArray(int)
      * @param colName - column name
-     * @return
+     * @return array of int values, or {@code null} if the value is null
      */
     int[] getIntArray(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getLongArray(int)
      * @param colName - column name
-     * @return
+     * @return array of long values, or {@code null} if the value is null
      */
     long[] getLongArray(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getFloatArray(int)
      * @param colName - column name
-     * @return
+     * @return array of float values, or {@code null} if the value is null
      */
     float[] getFloatArray(String colName);
 
     /**
-     * Reads column with name `colName` as a string.
-     *
+     * @see #getDoubleArray(int)
      * @param colName - column name
-     * @return
+     * @return array of double values, or {@code null} if the value is null
      */
     double[] getDoubleArray(String colName);
 
     /**
-     *
-     * @param colName
-     * @return
+     * @see #getBooleanArray(int)
+     * @param colName - column name
+     * @return array of boolean values, or {@code null} if the value is null
      */
     boolean[] getBooleanArray(String colName);
 
     /**
-     *
-     * @param colName
-     * @return
+     * @see #getShortArray(int)
+     * @param colName - column name
+     * @return array of short values, or {@code null} if the value is null
      */
     short[] getShortArray(String colName);
 
     /**
-     *
-     * @param colName
-     * @return
+     * @see #getStringArray(int)
+     * @param colName - column name
+     * @return array of string values, or {@code null} if the value is null
      */
     String[] getStringArray(String colName);
+
+    /**
+     * @see #getObjectArray(int)
+     * @param colName - column name
+     * @return array of objects, or {@code null} if the value is null
+     */
+    Object[] getObjectArray(String colName);
 
     /**
      * Reads column with name `colName` as a string.
@@ -483,58 +484,99 @@ public interface ClickHouseBinaryFormatReader extends AutoCloseable {
     ClickHouseGeoMultiPolygonValue getGeoMultiPolygon(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as a {@link List}. Suitable for reading Array columns of any type.
+     * <p>For nested arrays (e.g. {@code Array(Array(Int64))}), returns a {@code List<List<Long>>}.
+     * For nullable arrays (e.g. {@code Array(Nullable(Int32))}), list elements may be {@code null}.</p>
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return list of values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
      */
     <T> List<T> getList(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as a {@code byte[]}. Suitable for 1D Array columns only.
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return array of bytes, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a byte array
      */
     byte[] getByteArray(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as an {@code int[]}. Suitable for 1D Array columns only.
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return array of int values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to an int array
      */
     int[] getIntArray(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as a {@code long[]}. Suitable for 1D Array columns only.
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return array of long values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a long array
      */
     long[] getLongArray(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as a {@code float[]}. Suitable for 1D Array columns only.
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return array of float values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a float array
      */
     float[] getFloatArray(int index);
 
     /**
-     * Reads column with name `colName` as a string.
+     * Returns the value of the specified column as a {@code double[]}. Suitable for 1D Array columns only.
      *
-     * @param index - column name
-     * @return
+     * @param index - column index (1-based)
+     * @return array of double values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a double array
      */
     double[] getDoubleArray(int index);
 
+    /**
+     * Returns the value of the specified column as a {@code boolean[]}. Suitable for 1D Array columns only.
+     *
+     * @param index - column index (1-based)
+     * @return array of boolean values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a boolean array
+     */
     boolean[] getBooleanArray(int index);
 
-    short [] getShortArray(int index);
+    /**
+     * Returns the value of the specified column as a {@code short[]}. Suitable for 1D Array columns only.
+     *
+     * @param index - column index (1-based)
+     * @return array of short values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the value cannot be converted to a short array
+     */
+    short[] getShortArray(int index);
 
+    /**
+     * Returns the value of the specified column as a {@code String[]}. Suitable for 1D Array columns only.
+     * Cannot be used for none string element types.
+     *
+     * @param index - column index (1-based)
+     * @return array of string values, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
+     */
     String[] getStringArray(int index);
+
+    /**
+     * Returns the value of the specified column as an {@code Object[]}. Suitable for multidimensional Array columns.
+     * Nested arrays are recursively converted to {@code Object[]}.
+     * Note: result is not cached so avoid repetitive calls on same column.
+     *
+     * @param index - column index (1-based)
+     * @return array of objects, or {@code null} if the value is null
+     * @throws com.clickhouse.client.api.ClientException if the column is not an array type
+     */
+    Object[] getObjectArray(int index);
 
     Object[] getTuple(int index);
 
