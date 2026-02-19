@@ -379,19 +379,19 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, DataTypeUtils.toLocalDate(x, cal));
+        writer.setValue(parameterIndex, DataTypeUtils.toLocalDate(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, DataTypeUtils.toLocalTime(x, cal));
+        writer.setValue(parameterIndex, DataTypeUtils.toLocalTime(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setDateTime(parameterIndex, DataTypeUtils.toLocalDateTime(x, cal));
+        writer.setDateTime(parameterIndex, DataTypeUtils.toLocalDateTime(x, cal.getTimeZone()));
     }
 
     @Override

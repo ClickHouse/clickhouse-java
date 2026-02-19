@@ -356,7 +356,7 @@ public class DetachedResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testDateTypes() throws SQLException {
+    public void testDateTimeTypes() throws SQLException {
         runQuery("CREATE TABLE detached_rs_test_dates (order Int8, "
                 + "date Date, date32 Date32, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +

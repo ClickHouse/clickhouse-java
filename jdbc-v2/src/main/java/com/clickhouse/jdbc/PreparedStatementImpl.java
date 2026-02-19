@@ -460,19 +460,19 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, cal));
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, cal));
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDateTime(x, cal));
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDateTime(x, cal.getTimeZone()));
     }
 
     @Override

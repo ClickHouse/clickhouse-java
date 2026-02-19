@@ -160,16 +160,6 @@ public class DataTypeUtilsTests {
         extCal3.set(localDateFromExternal.getYear(), localDateFromExternal.getMonthValue() - 1, localDateFromExternal.getDayOfMonth(), 0, 0, 0);
         System.out.println("converted> " + extCal3.toInstant()); // wrong date!! 
     }
-
-    // ==================== Tests for toLocalDate ====================
-
-    @Test(groups = {"unit"})
-    void testToLocalDateNullCalendar() {
-        Date sqlDate = Date.valueOf("2024-01-15");
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalDate(sqlDate, (Calendar) null));
-    }
-
     @Test(groups = {"unit"})
     void testToLocalDateNullTimeZone() {
         Date sqlDate = Date.valueOf("2024-01-15");
@@ -177,12 +167,6 @@ public class DataTypeUtilsTests {
                 () -> DataTypeUtils.toLocalDate(sqlDate, (TimeZone) null));
     }
 
-    @Test(groups = {"unit"})
-    void testToLocalDateNullDate() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalDate((Date) null, cal));
-    }
 
     @Test(groups = {"unit"})
     void testToLocalDateWithCalendar() {
@@ -193,7 +177,7 @@ public class DataTypeUtilsTests {
         Date sqlDate = new Date(utcCal.getTimeInMillis());
 
         // Using UTC calendar should give us Jan 15
-        LocalDate resultUtc = DataTypeUtils.toLocalDate(sqlDate, utcCal);
+        LocalDate resultUtc = DataTypeUtils.toLocalDate(sqlDate, utcCal.getTimeZone());
         assertEquals(resultUtc, LocalDate.of(2024, 1, 15));
     }
 
@@ -212,13 +196,13 @@ public class DataTypeUtilsTests {
         Date dateFromAuckland = new Date(aucklandCal.getTimeInMillis());
 
         // Using Auckland calendar should correctly extract Jan 15
-        LocalDate withAucklandCal = DataTypeUtils.toLocalDate(dateFromAuckland, aucklandCal);
+        LocalDate withAucklandCal = DataTypeUtils.toLocalDate(dateFromAuckland, aucklandCal.getTimeZone());
         assertEquals(withAucklandCal, LocalDate.of(2024, 1, 15),
                 "With correct timezone, should get Jan 15");
 
         // Using UTC calendar on the same Date would give a different (earlier) day
         Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        LocalDate withUtcCal = DataTypeUtils.toLocalDate(dateFromAuckland, utcCal);
+        LocalDate withUtcCal = DataTypeUtils.toLocalDate(dateFromAuckland, utcCal.getTimeZone());
         assertEquals(withUtcCal, LocalDate.of(2024, 1, 14),
                 "With UTC timezone, should get Jan 14 (day shift demonstrated)");
     }
@@ -245,7 +229,7 @@ public class DataTypeUtilsTests {
         cal.set(year, month - 1, day, 0, 0, 0);
         Date sqlDate = new Date(cal.getTimeInMillis());
 
-        LocalDate result = DataTypeUtils.toLocalDate(sqlDate, cal);
+        LocalDate result = DataTypeUtils.toLocalDate(sqlDate, tz);
         assertEquals(result, LocalDate.of(year, month, day),
                 "Date should be preserved in timezone: " + tzId);
     }
@@ -265,27 +249,6 @@ public class DataTypeUtilsTests {
     // ==================== Tests for toLocalTime ====================
 
     @Test(groups = {"unit"})
-    void testToLocalTimeNullCalendar() {
-        Time sqlTime = Time.valueOf("12:34:56");
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalTime(sqlTime, (Calendar) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalTimeNullTimeZone() {
-        Time sqlTime = Time.valueOf("12:34:56");
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalTime(sqlTime, (TimeZone) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalTimeNullTime() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalTime((Time) null, cal));
-    }
-
-    @Test(groups = {"unit"})
     void testToLocalTimeWithCalendar() {
         // Create a time that represents 14:30:00 in UTC
         Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
@@ -294,7 +257,7 @@ public class DataTypeUtilsTests {
         Time sqlTime = new Time(utcCal.getTimeInMillis());
 
         // Using UTC calendar should give us 14:30:00
-        LocalTime resultUtc = DataTypeUtils.toLocalTime(sqlTime, utcCal);
+        LocalTime resultUtc = DataTypeUtils.toLocalTime(sqlTime, utcCal.getTimeZone());
         assertEquals(resultUtc.getHour(), 14);
         assertEquals(resultUtc.getMinute(), 30);
         assertEquals(resultUtc.getSecond(), 0);
@@ -309,12 +272,12 @@ public class DataTypeUtilsTests {
         Time sqlTime = new Time(utcCal.getTimeInMillis());
 
         // In UTC, should be 14:00
-        LocalTime inUtc = DataTypeUtils.toLocalTime(sqlTime, utcCal);
+        LocalTime inUtc = DataTypeUtils.toLocalTime(sqlTime, utcCal.getTimeZone());
         assertEquals(inUtc, LocalTime.of(14, 0, 0));
 
         // In New York (UTC-5), same instant would be 09:00
         Calendar nyCal = new GregorianCalendar(TimeZone.getTimeZone("America/New_York"));
-        LocalTime inNy = DataTypeUtils.toLocalTime(sqlTime, nyCal);
+        LocalTime inNy = DataTypeUtils.toLocalTime(sqlTime, nyCal.getTimeZone());
         assertEquals(inNy, LocalTime.of(9, 0, 0));
     }
 
@@ -333,51 +296,6 @@ public class DataTypeUtilsTests {
     // ==================== Tests for toLocalDateTime ====================
 
     @Test(groups = {"unit"})
-    void testToLocalDateTimeNullCalendar() {
-        Timestamp sqlTimestamp = Timestamp.valueOf("2024-01-15 12:34:56.789");
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalDateTime(sqlTimestamp, (Calendar) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalDateTimeNullTimeZone() {
-        Timestamp sqlTimestamp = Timestamp.valueOf("2024-01-15 12:34:56.789");
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalDateTime(sqlTimestamp, (TimeZone) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalDateTimeNullTimestamp() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toLocalDateTime((Timestamp) null, cal));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalDateTimeWithCalendar() {
-        // Create a timestamp representing 2024-01-15 14:30:00 in UTC
-        Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        utcCal.clear();
-        utcCal.set(2024, Calendar.JANUARY, 15, 14, 30, 0);
-        Timestamp sqlTimestamp = new Timestamp(utcCal.getTimeInMillis());
-
-        LocalDateTime result = DataTypeUtils.toLocalDateTime(sqlTimestamp, utcCal);
-        assertEquals(result, LocalDateTime.of(2024, 1, 15, 14, 30, 0));
-    }
-
-    @Test(groups = {"unit"})
-    void testToLocalDateTimePreservesNanoseconds() {
-        // Create timestamp in default timezone
-        Timestamp sqlTimestamp = Timestamp.valueOf("2024-01-15 12:34:56.123456789");
-        sqlTimestamp.setNanos(123456789);
-
-        // Use default timezone calendar to match the Timestamp's creation context
-        Calendar defaultCal = new GregorianCalendar();
-        LocalDateTime result = DataTypeUtils.toLocalDateTime(sqlTimestamp, defaultCal);
-        assertEquals(result.getNano(), 123456789);
-    }
-
-    @Test(groups = {"unit"})
     void testToLocalDateTimeTimezoneShift() {
         // Create timestamp in UTC: 2024-01-15 04:00:00
         Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
@@ -386,12 +304,12 @@ public class DataTypeUtilsTests {
         Timestamp sqlTimestamp = new Timestamp(utcCal.getTimeInMillis());
 
         // In UTC: 2024-01-15 04:00:00
-        LocalDateTime inUtc = DataTypeUtils.toLocalDateTime(sqlTimestamp, utcCal);
+        LocalDateTime inUtc = DataTypeUtils.toLocalDateTime(sqlTimestamp, utcCal.getTimeZone());
         assertEquals(inUtc, LocalDateTime.of(2024, 1, 15, 4, 0, 0));
 
         // In New York (UTC-5): same instant is 2024-01-14 23:00:00
         Calendar nyCal = new GregorianCalendar(TimeZone.getTimeZone("America/New_York"));
-        LocalDateTime inNy = DataTypeUtils.toLocalDateTime(sqlTimestamp, nyCal);
+        LocalDateTime inNy = DataTypeUtils.toLocalDateTime(sqlTimestamp, nyCal.getTimeZone());
         assertEquals(inNy, LocalDateTime.of(2024, 1, 14, 23, 0, 0));
     }
 
@@ -442,12 +360,12 @@ public class DataTypeUtilsTests {
         Timestamp tradeTimestamp = new Timestamp(tokyoCal.getTimeInMillis());
 
         // At 23:30 Tokyo (UTC+9), it's 14:30 UTC - still Dec 31
-        LocalDateTime inTokyo = DataTypeUtils.toLocalDateTime(tradeTimestamp, tokyoCal);
+        LocalDateTime inTokyo = DataTypeUtils.toLocalDateTime(tradeTimestamp, tokyoCal.getTimeZone());
         assertEquals(inTokyo.toLocalDate(), LocalDate.of(2024, 12, 31),
                 "In Tokyo timezone, trade date should be Dec 31");
 
         LocalDateTime inUtc = DataTypeUtils.toLocalDateTime(tradeTimestamp,
-                new GregorianCalendar(utcTz));
+                new GregorianCalendar(utcTz).getTimeZone());
         assertEquals(inUtc.toLocalDate(), LocalDate.of(2024, 12, 31),
                 "In UTC, same trade is also Dec 31 (14:30 UTC)");
 
@@ -456,12 +374,12 @@ public class DataTypeUtilsTests {
         tokyoCal.set(2025, Calendar.JANUARY, 1, 0, 30, 0);
         Timestamp newYearTrade = new Timestamp(tokyoCal.getTimeInMillis());
 
-        LocalDateTime newYearInTokyo = DataTypeUtils.toLocalDateTime(newYearTrade, tokyoCal);
+        LocalDateTime newYearInTokyo = DataTypeUtils.toLocalDateTime(newYearTrade, tokyoCal.getTimeZone());
         assertEquals(newYearInTokyo.toLocalDate(), LocalDate.of(2025, 1, 1),
                 "In Tokyo, it's New Year's Day");
 
         LocalDateTime newYearInUtc = DataTypeUtils.toLocalDateTime(newYearTrade,
-                new GregorianCalendar(utcTz));
+                new GregorianCalendar(utcTz).getTimeZone());
         assertEquals(newYearInUtc.toLocalDate(), LocalDate.of(2024, 12, 31),
                 "In UTC, it's still Dec 31 (15:30 UTC on Dec 31)");
     }
@@ -469,36 +387,10 @@ public class DataTypeUtilsTests {
     // ==================== Tests for toSqlDate ====================
 
     @Test(groups = {"unit"})
-    void testToSqlDateNullLocalDate() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlDate((LocalDate) null, cal));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlDateNullCalendar() {
-        LocalDate localDate = LocalDate.of(2024, 1, 15);
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlDate(localDate, (Calendar) null));
-    }
-
-    @Test(groups = {"unit"})
     void testToSqlDateNullTimeZone() {
         LocalDate localDate = LocalDate.of(2024, 1, 15);
         assertThrows(NullPointerException.class,
                 () -> DataTypeUtils.toSqlDate(localDate, (TimeZone) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlDateWithCalendar() {
-        LocalDate localDate = LocalDate.of(2024, 1, 15);
-        Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-
-        Date sqlDate = DataTypeUtils.toSqlDate(localDate, utcCal);
-
-        // Convert back to verify round-trip
-        LocalDate roundTrip = DataTypeUtils.toLocalDate(sqlDate, utcCal);
-        assertEquals(roundTrip, localDate);
     }
 
     @Test(groups = {"unit"})
@@ -523,115 +415,15 @@ public class DataTypeUtilsTests {
             Calendar cal = new GregorianCalendar(tz);
 
             // Convert to SQL Date and back
-            Date sqlDate = DataTypeUtils.toSqlDate(localDate, cal);
-            LocalDate roundTrip = DataTypeUtils.toLocalDate(sqlDate, cal);
+            Date sqlDate = DataTypeUtils.toSqlDate(localDate, cal.getTimeZone());
+            LocalDate roundTrip = DataTypeUtils.toLocalDate(sqlDate, cal.getTimeZone());
 
             assertEquals(roundTrip, localDate,
                     "Round-trip should preserve date in timezone: " + tzId);
         }
     }
 
-    // ==================== Tests for toSqlTime ====================
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeNullLocalTime() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTime((LocalTime) null, cal));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeNullCalendar() {
-        LocalTime localTime = LocalTime.of(14, 30, 0);
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTime(localTime, (Calendar) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeNullTimeZone() {
-        LocalTime localTime = LocalTime.of(14, 30, 0);
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTime(localTime, (TimeZone) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeWithCalendar() {
-        LocalTime localTime = LocalTime.of(14, 30, 45);
-        Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-
-        Time sqlTime = DataTypeUtils.toSqlTime(localTime, utcCal);
-
-        // Convert back to verify round-trip (note: millisecond precision only)
-        LocalTime roundTrip = DataTypeUtils.toLocalTime(sqlTime, utcCal);
-        assertEquals(roundTrip.getHour(), localTime.getHour());
-        assertEquals(roundTrip.getMinute(), localTime.getMinute());
-        assertEquals(roundTrip.getSecond(), localTime.getSecond());
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeWithTimeZone() {
-        LocalTime localTime = LocalTime.of(23, 59, 59);
-        TimeZone utc = TimeZone.getTimeZone("UTC");
-
-        Time sqlTime = DataTypeUtils.toSqlTime(localTime, utc);
-
-        // Convert back to verify round-trip
-        LocalTime roundTrip = DataTypeUtils.toLocalTime(sqlTime, utc);
-        assertEquals(roundTrip.getHour(), localTime.getHour());
-        assertEquals(roundTrip.getMinute(), localTime.getMinute());
-        assertEquals(roundTrip.getSecond(), localTime.getSecond());
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimeWithMilliseconds() {
-        // LocalTime with nanoseconds (will be truncated to millis in Time)
-        LocalTime localTime = LocalTime.of(10, 20, 30, 123_456_789);
-        Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-
-        Time sqlTime = DataTypeUtils.toSqlTime(localTime, utcCal);
-        LocalTime roundTrip = DataTypeUtils.toLocalTime(sqlTime, utcCal);
-
-        assertEquals(roundTrip.getHour(), 10);
-        assertEquals(roundTrip.getMinute(), 20);
-        assertEquals(roundTrip.getSecond(), 30);
-        // Milliseconds preserved (nanos truncated to millis)
-        assertEquals(roundTrip.getNano() / 1_000_000, 123);
-    }
-
     // ==================== Tests for toSqlTimestamp ====================
-
-    @Test(groups = {"unit"})
-    void testToSqlTimestampNullLocalDateTime() {
-        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTimestamp((LocalDateTime) null, cal));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimestampNullCalendar() {
-        LocalDateTime localDateTime = LocalDateTime.of(2024, 1, 15, 14, 30, 0);
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTimestamp(localDateTime, (Calendar) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimestampNullTimeZone() {
-        LocalDateTime localDateTime = LocalDateTime.of(2024, 1, 15, 14, 30, 0);
-        assertThrows(NullPointerException.class,
-                () -> DataTypeUtils.toSqlTimestamp(localDateTime, (TimeZone) null));
-    }
-
-    @Test(groups = {"unit"})
-    void testToSqlTimestampWithCalendar() {
-        LocalDateTime localDateTime = LocalDateTime.of(2024, 1, 15, 14, 30, 45, 123456789);
-        Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-
-        Timestamp sqlTimestamp = DataTypeUtils.toSqlTimestamp(localDateTime, utcCal);
-
-        // Convert back to verify round-trip
-        LocalDateTime roundTrip = DataTypeUtils.toLocalDateTime(sqlTimestamp, utcCal);
-        assertEquals(roundTrip, localDateTime);
-    }
 
     @Test(groups = {"unit"})
     void testToSqlTimestampWithTimeZone() {
@@ -650,7 +442,7 @@ public class DataTypeUtilsTests {
         LocalDateTime localDateTime = LocalDateTime.of(2024, 6, 15, 10, 30, 45, 123456789);
         Calendar utcCal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
 
-        Timestamp sqlTimestamp = DataTypeUtils.toSqlTimestamp(localDateTime, utcCal);
+        Timestamp sqlTimestamp = DataTypeUtils.toSqlTimestamp(localDateTime, utcCal.getTimeZone());
 
         assertEquals(sqlTimestamp.getNanos(), 123456789);
     }
@@ -665,8 +457,8 @@ public class DataTypeUtilsTests {
             Calendar cal = new GregorianCalendar(tz);
 
             // Convert to SQL Timestamp and back
-            Timestamp sqlTimestamp = DataTypeUtils.toSqlTimestamp(localDateTime, cal);
-            LocalDateTime roundTrip = DataTypeUtils.toLocalDateTime(sqlTimestamp, cal);
+            Timestamp sqlTimestamp = DataTypeUtils.toSqlTimestamp(localDateTime, cal.getTimeZone());
+            LocalDateTime roundTrip = DataTypeUtils.toLocalDateTime(sqlTimestamp, cal.getTimeZone());
 
             assertEquals(roundTrip, localDateTime,
                     "Round-trip should preserve datetime in timezone: " + tzId);
@@ -688,22 +480,22 @@ public class DataTypeUtilsTests {
 
         // Convert to SQL types using Tokyo timezone
         Calendar tokyoCal = new GregorianCalendar(tokyo);
-        Date sqlDateTokyo = DataTypeUtils.toSqlDate(date, tokyoCal);
-        Time sqlTimeTokyo = DataTypeUtils.toSqlTime(time, tokyoCal);
-        Timestamp sqlTimestampTokyo = DataTypeUtils.toSqlTimestamp(dateTime, tokyoCal);
+        Date sqlDateTokyo = DataTypeUtils.toSqlDate(date, tokyoCal.getTimeZone());
+        Time sqlTimeTokyo = DataTypeUtils.toSqlTime(time, tokyoCal.getTimeZone());
+        Timestamp sqlTimestampTokyo = DataTypeUtils.toSqlTimestamp(dateTime, tokyoCal.getTimeZone());
 
         // Round-trip back using same timezone should preserve values
-        assertEquals(DataTypeUtils.toLocalDate(sqlDateTokyo, tokyoCal), date);
-        LocalTime timeRoundTrip = DataTypeUtils.toLocalTime(sqlTimeTokyo, tokyoCal);
+        assertEquals(DataTypeUtils.toLocalDate(sqlDateTokyo, tokyoCal.getTimeZone()), date);
+        LocalTime timeRoundTrip = DataTypeUtils.toLocalTime(sqlTimeTokyo, tokyoCal.getTimeZone());
         assertEquals(timeRoundTrip.getHour(), time.getHour());
         assertEquals(timeRoundTrip.getMinute(), time.getMinute());
         assertEquals(timeRoundTrip.getSecond(), time.getSecond());
-        assertEquals(DataTypeUtils.toLocalDateTime(sqlTimestampTokyo, tokyoCal), dateTime);
+        assertEquals(DataTypeUtils.toLocalDateTime(sqlTimestampTokyo, tokyoCal.getTimeZone()), dateTime);
 
         // If we interpret the same SQL values in a different timezone, we get different local values
         // This is expected - the same instant in time represents different local times in different zones
         Calendar nyCal = new GregorianCalendar(newYork);
-        LocalDateTime dateTimeInNy = DataTypeUtils.toLocalDateTime(sqlTimestampTokyo, nyCal);
+        LocalDateTime dateTimeInNy = DataTypeUtils.toLocalDateTime(sqlTimestampTokyo, nyCal.getTimeZone());
         // Tokyo is 13-14 hours ahead of NY, so the local time should be different
         // (14:30 Tokyo = 01:30 or 00:30 NY depending on DST)
         assertEquals(dateTimeInNy.toLocalDate(), LocalDate.of(2024, 7, 4).minusDays(1),

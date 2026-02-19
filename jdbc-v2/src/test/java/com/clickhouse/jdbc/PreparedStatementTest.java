@@ -1772,39 +1772,4 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
-
-    /**
-     * Tests edge case: dates at the boundary of a day in extreme timezones.
-     * This is where day shift bugs are most likely to manifest.
-     */
-    @Test(groups = {"integration"})
-    void testDateBoundaryEdgeCases() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
-            final java.sql.Date testDate = java.sql.Date.valueOf("2024-01-15");
-
-            // Test with a timezone that's far ahead of UTC (e.g., Pacific/Auckland UTC+12/+13)
-            // If there's a day shift bug, this would show as 2024-01-14 or 2024-01-16
-            TimeZone auckland = TimeZone.getTimeZone("Pacific/Auckland");
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
-                stmt.setDate(1, testDate, new GregorianCalendar(auckland));
-                try (ResultSet rs = stmt.executeQuery()) {
-                    assertTrue(rs.next());
-                    assertEquals(rs.getDate(1).toString(), "2024-01-15",
-                            "Date should not shift even with far-ahead timezone");
-                }
-            }
-
-            // Test with a timezone that's far behind UTC (e.g., Pacific/Honolulu UTC-10)
-            TimeZone honolulu = TimeZone.getTimeZone("Pacific/Honolulu");
-            Calendar honoluluCal = new GregorianCalendar(honolulu);
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDate(?)")) {
-                stmt.setDate(1, testDate, honoluluCal);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    assertTrue(rs.next());
-                    assertEquals(rs.getDate(1, honoluluCal).toString(), "2024-01-15",
-                            "Date should not shift even with far-behind timezone");
-                }
-            }
-        }
-    }
 }

@@ -1021,6 +1021,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
+
             LocalDate ld = reader.getLocalDate(columnLabel);
             if (ld == null) {
                 wasNull = true;
@@ -1028,9 +1029,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            Calendar c = cal != null ? cal : defaultCalendar;
-            long time = ld.atStartOfDay(c.getTimeZone().toZoneId()).toEpochSecond() * 1000;
-            return new Date(time);
+            return DataTypeUtils.toSqlDate(ld, cal.getTimeZone());
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
             switch (column.getValueDataType()) {
@@ -1094,7 +1093,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(), cal);
+            return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(), cal.getTimeZone());
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByIndex(columnIndex);
             switch (column.getValueDataType()) {

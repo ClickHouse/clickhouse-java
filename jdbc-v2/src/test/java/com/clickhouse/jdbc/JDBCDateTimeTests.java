@@ -7,16 +7,21 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAmount;
 import java.time.temporal.TemporalUnit;
@@ -36,6 +41,13 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         LocalDate now = LocalDate.now();
         int daysBeforeParty = 10;
         LocalDate birthdate = now.plusDays(daysBeforeParty);
+        Instant birthdateInstant = birthdate.atStartOfDay(ZoneOffset.systemDefault()).toInstant();
+
+        Object[] dataset = new Object[] {
+                birthdate,
+                java.sql.Date.valueOf(birthdate),
+                birthdate.format(DataTypeUtils.DATE_FORMATTER)
+        };
 
 
         Properties props = new Properties();
@@ -43,36 +55,73 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
-
             stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) Engine MergeTree ORDER BY()");
 
-            final String birthdateStr = birthdate.format(DataTypeUtils.DATE_FORMATTER);
-            stmt.executeUpdate("INSERT INTO test_days_before_birthday_party VALUES (1, '" + birthdateStr + "')");
-
-            try (ResultSet rs = stmt.executeQuery("SELECT id, birthdate, birthdate::String, timezone() FROM test_days_before_birthday_party")) {
-                Assert.assertTrue(rs.next());
-
-                LocalDate dateFromDb = rs.getObject(2, LocalDate.class);
-                Assert.assertEquals(dateFromDb, birthdate);
-                Assert.assertEquals(now.toEpochDay() - dateFromDb.toEpochDay(), -daysBeforeParty);
-                Assert.assertEquals(rs.getString(4), "Asia/Tokyo");
 
 
-                Assert.assertEquals(rs.getString(2), rs.getString(3));
+            try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_days_before_birthday_party VALUES (?, ?)")) {
+                for (int i = 0; i < dataset.length; i++) {
+                    ps.setInt(1, i + 1);
+                    ps.setObject(2, dataset[i]);
+                    ps.addBatch();
+                }
 
-                java.sql.Date sqlDate = rs.getDate(2); // in local timezone
+                ps.executeBatch();
+            }
 
-                String zoneId = "Asia/Tokyo";
-                Calendar tzCalendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(zoneId))); // TimeZone.getTimeZone() doesn't throw exception but fallback to GMT
-                java.sql.Date tzSqlDate = rs.getDate(2, tzCalendar); // Calendar tells from what timezone convert to local
-                Assert.assertEquals(Math.abs(sqlDate.toLocalDate().toEpochDay() - tzSqlDate.toLocalDate().toEpochDay()), 1,
-                        "tzCalendar " + tzCalendar + " default " + Calendar.getInstance().getTimeZone().getID());
+            try (ResultSet rs = stmt.executeQuery("SELECT id, birthdate, birthdate::String, timezone() FROM test_days_before_birthday_party ORDER BY id")) {
+
+                for (int i = 0; i < dataset.length; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), i + 1);
+
+                    java.sql.Date sqlDate = rs.getDate(2);
+//                    Instant sqlDateInstant = sqlDate.toInstant(); // throws "operation not supported". why then getTime() ok?!
+                    long sqlDateTime = sqlDate.getTime();
+                    Assert.assertEquals(sqlDateTime, birthdateInstant.toEpochMilli());
+
+                    LocalDate ld = rs.getObject(2, LocalDate.class);
+                    Assert.assertEquals(ld, birthdate);
+                    String dateStr = rs.getObject(2, String.class);
+                    Assert.assertEquals(dateStr, birthdate.format(DataTypeUtils.DATE_FORMATTER));
+                }
             }
         }
     }
 
     @Test(groups = {"integration"})
-    void testWalkTime() throws SQLException {
+    void testDateWithTimezone() throws Exception {
+
+        // 2026-02-01 Midnight in Tokyo as utc timestamp
+        long utcTsForDayInTokyo = (1769904000000L) - TimeUnit.HOURS.toMillis(9);
+        java.sql.Date dateInTokyo = new Date(utcTsForDayInTokyo);
+
+        java.sql.Date dateToWrite = Date.valueOf("2026-02-01"); // local date
+        Calendar tokyoCal = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("Asia/Tokyo")));
+
+        LocalDate ldInTokyo = DataTypeUtils.toLocalDate(dateToWrite, tokyoCal.getTimeZone());
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement p = conn.prepareStatement("SELECT toDate(?)")) {
+                p.setDate(1, dateToWrite);
+                try (ResultSet rs = p.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+
+                    // Application MUST use calendar of the same timezone as it for write.
+                    java.sql.Date dataFromDb = rs.getDate(1, tokyoCal);
+
+                    // dateToWrite is local date before conversion to Tokyo date.
+                    Assert.assertEquals(dataFromDb, dateInTokyo);
+                    Assert.assertEquals(dataFromDb.getTime(), utcTsForDayInTokyo);
+
+                    Assert.assertEquals(rs.getObject(1, LocalDate.class), ldInTokyo);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testWalkTime() throws Exception {
         if (isVersionMatch("(,25.5]")) {
             return; // time64 was introduced in 25.6
         }
