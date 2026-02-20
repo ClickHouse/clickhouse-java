@@ -478,7 +478,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDateTime(x, cal.getTimeZone()));
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, cal.getTimeZone()));
     }
 
     @Override
@@ -762,13 +762,13 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Timestamp) {
                 return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format((LocalDateTime) x) + QUOTE;
+                return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((LocalDateTime) x, defaultCalendar.getTimeZone()) + ")";
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
                 return encodeObject(((ZonedDateTime) x).toInstant());
             } else if (x instanceof Instant) {
-                return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
+                return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((Instant) x) + ")";
             } else if (x instanceof Duration) {
                 return QUOTE + DataTypeUtils.durationToTimeString((Duration) x, 9) + QUOTE;
             } else if (x instanceof InetAddress) {

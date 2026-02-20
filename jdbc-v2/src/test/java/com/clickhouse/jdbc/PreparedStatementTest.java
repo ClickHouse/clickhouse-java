@@ -24,9 +24,11 @@ import java.sql.SQLType;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -234,10 +236,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         final Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3)")) {
-                stmt.setTimestamp(1, java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456"), calendar);
+                Timestamp tsToWrite = java.sql.Timestamp.valueOf("2021-01-01 01:34:56.456");
+                ZonedDateTime tsSeenInCalendarTz = ZonedDateTime.ofInstant(tsToWrite.toInstant(), calendar.getTimeZone().toZoneId());
+                stmt.setTimestamp(1, tsToWrite, calendar);
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTimestamp(1, calendar).toString(), "2021-01-01 01:34:56.456");
+
+                    assertEquals(rs.getObject(1, ZonedDateTime.class), tsSeenInCalendarTz);
+                    Timestamp dbTimestamp = rs.getTimestamp(1, calendar);
+                    assertEquals(dbTimestamp.toInstant(), tsSeenInCalendarTz.toInstant());
+//                    assertEquals(rs.getTimestamp(1, calendar).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
             }

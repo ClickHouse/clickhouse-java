@@ -3,10 +3,11 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseDataType;
 
-import java.time.Duration;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,11 +18,9 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
-import java.util.Calendar;
 import java.util.Objects;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 import static com.clickhouse.client.api.data_formats.internal.BinaryStreamReader.BASES;
 
@@ -292,6 +291,13 @@ public class DataTypeUtils {
         return LocalDateTime.ofInstant(sqlTimestamp.toInstant(), zoneId);
     }
 
+    public static ZonedDateTime toZonedDateTime(Timestamp x, TimeZone timeZone) {
+
+
+
+        return x.toLocalDateTime().atZone(timeZone.toZoneId());
+    }
+
     // ==================== LocalDate/LocalTime/LocalDateTime to SQL types ====================
 
     /**
@@ -358,5 +364,40 @@ public class DataTypeUtils {
         // Timestamp.from() may lose nanosecond precision, so set it explicitly
         timestamp.setNanos(localDateTime.getNano());
         return timestamp;
+    }
+
+    private static final BigInteger NANOS_IN_SECOND = BigInteger.valueOf(1_000_000_000L);
+
+    // Max value of epoch second that can be converted to nanosecond without overflow (and fine to add Integer.MAX nanoseconds)
+    // Used to avoid BigInteger on small numbers
+    private static final long MAX_EPOCH_SECONDS_WITHOUT_OVERFLOW = (Long.MAX_VALUE - Integer.MAX_VALUE) / 1_000_000_000L;
+
+    public static String toUnixTimestampString(long seconds, int nanos) {
+        if (seconds <= MAX_EPOCH_SECONDS_WITHOUT_OVERFLOW) {
+            return String.valueOf(TimeUnit.SECONDS.toNanos(seconds) + nanos);
+        } else {
+            return BigInteger.valueOf(seconds).multiply(NANOS_IN_SECOND).add(BigInteger.valueOf(nanos)).toString();
+        }
+    }
+
+    /**
+     * Returns Unix Timestamp in nanoseconds as string
+     *
+     * @param localTs - LocalDateTime timestamp
+     * @param localTz - local timezone (useful to override default)
+     * @return String value.
+     */
+    public static String toUnixTimestampString(LocalDateTime localTs, TimeZone localTz) {
+        return toUnixTimestampString(localTs.toEpochSecond(localTz.toZoneId().getRules().getOffset(localTs)), localTs.getNano());
+    }
+
+    /**
+     * Returns Unix Timestamp in nanoseconds as string
+     *
+     * @param instant - instant to convert
+     * @return String value.
+     */
+    public static String toUnixTimestampString(Instant instant) {
+        return toUnixTimestampString(instant.getEpochSecond(), instant.getNano());
     }
 }
