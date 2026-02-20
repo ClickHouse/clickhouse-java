@@ -37,6 +37,12 @@ public final class ServerSettings {
 
     public static final String RESULT_OVERFLOW_MODE_BREAK  = "break";
 
+    /**
+     * Maximum query execution time in seconds on server. 0 means no limit.
+     * If query is not finished in this time then server will send an exception.
+     */
+    public static final String MAX_EXECUTION_TIME = "max_execution_time";
+
     public static final String ASYNC_INSERT = "async_insert";
 
     public static final String WAIT_ASYNC_INSERT = "wait_for_async_insert";
