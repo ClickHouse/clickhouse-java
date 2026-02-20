@@ -472,7 +472,7 @@ public class DataTypeUtilsTests {
     void testRoundTripConversionsWithDifferentTimezones() {
         // Original values
         LocalDate date = LocalDate.of(2024, 7, 4);
-        LocalTime time = LocalTime.of(14, 30, 45, 123000000);
+        LocalTime time = LocalTime.of(3, 30, 45, 123000000);
         LocalDateTime dateTime = LocalDateTime.of(date, time);
 
         TimeZone tokyo = TimeZone.getTimeZone("Asia/Tokyo");
@@ -497,7 +497,7 @@ public class DataTypeUtilsTests {
         Calendar nyCal = new GregorianCalendar(newYork);
         LocalDateTime dateTimeInNy = DataTypeUtils.toLocalDateTime(sqlTimestampTokyo, nyCal.getTimeZone());
         // Tokyo is 13-14 hours ahead of NY, so the local time should be different
-        // (14:30 Tokyo = 01:30 or 00:30 NY depending on DST)
+        // (03:30 Tokyo = 14:30 NY previous day during EDT)
         assertEquals(dateTimeInNy.toLocalDate(), LocalDate.of(2024, 7, 4).minusDays(1),
                 "Same instant should be previous day in New York");
     }
