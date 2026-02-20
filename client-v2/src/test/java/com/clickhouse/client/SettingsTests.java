@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -81,8 +82,11 @@ public class SettingsTests {
 
         {
             final QuerySettings settings = new QuerySettings();
-            settings.setMaxExecutionTime(10000);
-            Assert.assertEquals(settings.getMaxExecutionTime(), 10000);
+            int val = 10000;
+            settings.setMaxExecutionTime(val);
+            Assert.assertEquals(settings.getMaxExecutionTime(), val);
+            Assert.assertEquals(settings.getAllSettings().get(
+                    ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME)), String.valueOf(val));
         }
 
         {

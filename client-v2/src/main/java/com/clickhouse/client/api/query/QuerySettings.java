@@ -117,12 +117,14 @@ public class QuerySettings {
      * If query is not finished in this time then server will send an exception.
      */
     public QuerySettings setMaxExecutionTime(Integer maxExecutionTime) {
-        settings.setOption("max_execution_time", maxExecutionTime);
+        serverSetting(ServerSettings.MAX_EXECUTION_TIME, String.valueOf(maxExecutionTime));
         return this;
     }
 
     public Integer getMaxExecutionTime() {
-        return (Integer) settings.getOption("max_execution_time");
+        String val = (String) settings.getOption(
+                ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME));
+        return val == null ? null : Integer.valueOf(val);
     }
 
     /**

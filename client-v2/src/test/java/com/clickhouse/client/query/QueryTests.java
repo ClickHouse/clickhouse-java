@@ -8,7 +8,6 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -59,10 +58,10 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2149,6 +2148,26 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(record.getString("test_duplicate_column_names2.name"), "another name");
             Assert.assertEquals(record.getString(1), "some name");
             Assert.assertEquals(record.getString(2), "another name");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testMaxExecutionTime() throws Exception {
+        try (Client localClient = newClient()
+                .setSocketTimeout(10, ChronoUnit.SECONDS)
+                .build()) {
+
+            QuerySettings settings = new QuerySettings().setMaxExecutionTime(1);
+
+            localClient.query("SELECT sleep(2)", settings).get(10, TimeUnit.SECONDS);
+            Assert.fail("Expected ServerException due to max_execution_time");
+        } catch (ServerException e) {
+            Assert.assertEquals(e.getCode(), 159, "Expected TIMEOUT_EXCEEDED error code");
+        } catch (ExecutionException e) {
+            Assert.assertTrue(e.getCause() instanceof ServerException,
+                    "Expected cause to be ServerException but was: " + e.getCause().getClass().getName());
+            ServerException se = (ServerException) e.getCause();
+            Assert.assertEquals(se.getCode(), 159, "Expected TIMEOUT_EXCEEDED error code");
         }
     }
 }
