@@ -58,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,7 +68,7 @@ import java.util.stream.IntStream;
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
-    private final Calendar defaultCalendar;
+    protected final Calendar defaultCalendar;
 
     private final String originalSql;
     private final String[] values; // temp value holder (set can be called > once)
@@ -279,6 +280,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
         values[parameterIndex-1] = encodeObject(x, (long) scaleOrLength);
     }
 
@@ -466,19 +468,22 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, cal.getTimeZone()));
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, tz));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, cal.getTimeZone()));
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, tz));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, cal.getTimeZone()));
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
     }
 
     @Override
@@ -1003,7 +1008,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 break;
             case Types.TIMESTAMP:
             case Types.TIMESTAMP_WITH_TIMEZONE:
-                if (vClass == Timestamp.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class) {
+                if (vClass == Timestamp.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class || vClass == OffsetDateTime.class) {
                     return;
                 }
                 break;

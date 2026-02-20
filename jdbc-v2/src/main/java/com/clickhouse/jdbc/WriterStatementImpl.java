@@ -48,14 +48,12 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     private ByteArrayOutputStream out;
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
-    private final Calendar defaultCalendar;
 
     public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema,
                                ParsedPreparedStatement parsedStatement)
             throws SQLException {
         super(connection, originalSql, parsedStatement);
 
-        this.defaultCalendar = connection.getDefaultCalendar();
         if (parsedStatement.getInsertColumns() != null) {
             List<ClickHouseColumn> insertColumns = new ArrayList<>();
             for (String column : parsedStatement.getInsertColumns()) {
