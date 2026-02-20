@@ -291,11 +291,27 @@ public class DataTypeUtils {
         return LocalDateTime.ofInstant(sqlTimestamp.toInstant(), zoneId);
     }
 
-    public static ZonedDateTime toZonedDateTime(Timestamp x, TimeZone timeZone) {
+    /**
+     * Converts a {@link java.sql.Timestamp} to {@link ZonedDateTime} by expressing
+     * the timestamp's instant in the specified timezone.
+     *
+     * <p>The underlying instant is preserved — only the timezone context changes.
+     * This matches the JDBC {@code setTimestamp(int, Timestamp, Calendar)} contract
+     * where the Calendar's timezone is used to interpret the Timestamp's absolute
+     * point in time.</p>
+     *
+     * <p>Note: This method preserves nanosecond precision from the Timestamp.</p>
+     *
+     * @param sqlTimestamp the java.sql.Timestamp to convert
+     * @param timeZone the timezone to express the instant in
+     * @return the ZonedDateTime representing the same instant in the specified timezone
+     * @throws NullPointerException if sqlTimestamp or timeZone is null
+     */
+    public static ZonedDateTime toZonedDateTime(Timestamp sqlTimestamp, TimeZone timeZone) {
+        Objects.requireNonNull(sqlTimestamp, "sqlTimestamp must not be null");
+        Objects.requireNonNull(timeZone, "timeZone must not be null");
 
-
-
-        return x.toLocalDateTime().atZone(timeZone.toZoneId());
+        return sqlTimestamp.toInstant().atZone(timeZone.toZoneId());
     }
 
     // ==================== LocalDate/LocalTime/LocalDateTime to SQL types ====================

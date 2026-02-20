@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -245,17 +246,22 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertEquals(rs.getObject(1, ZonedDateTime.class), tsSeenInCalendarTz);
                     Timestamp dbTimestamp = rs.getTimestamp(1, calendar);
                     assertEquals(dbTimestamp.toInstant(), tsSeenInCalendarTz.toInstant());
-//                    assertEquals(rs.getTimestamp(1, calendar).toString(), "2021-01-01 01:34:56.456");
                     assertFalse(rs.next());
                 }
             }
 
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3)")) {
-                stmt.setObject(1, LocalDateTime.parse("2021-01-01T01:34:56").withNano((int) TimeUnit.MILLISECONDS.toNanos(456)));
+            String localTimezone = TimeZone.getDefault().getID();
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT toDateTime64(?, 3, ?)")) {
+                LocalDateTime localTs = LocalDateTime.parse("2021-01-01T01:34:56").withNano((int) TimeUnit.MILLISECONDS.toNanos(456));
+                stmt.setObject(1, localTs);
+                stmt.setString(2, localTimezone);
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getTimestamp(1).getNanos(), TimeUnit.MILLISECONDS.toNanos(456));
-                    assertEquals(rs.getTimestamp(1).toString(), "2021-01-01 01:34:56.456");
+
+                    assertEquals(rs.getObject(1, LocalDateTime.class), localTs);
+                    Timestamp dbTimestamp = rs.getTimestamp(1);
+
+                    assertEquals(dbTimestamp.getTime(), localTs.toInstant(ZoneId.systemDefault().getRules().getOffset(localTs)).toEpochMilli());
                     assertFalse(rs.next());
                 }
             }
