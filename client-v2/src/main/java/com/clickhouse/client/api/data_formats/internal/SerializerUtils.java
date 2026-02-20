@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseAggregateFunction;
@@ -817,7 +818,7 @@ public class SerializerUtils {
         } else if (value instanceof Number) {
             return ((Number) value).longValue() != 0;
         } else if (value instanceof String) {
-            return Boolean.parseBoolean((String) value);
+            return ClickHouseUtils.parseBoolean((String) value);
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Boolean");
         }
