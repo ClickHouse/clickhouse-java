@@ -763,7 +763,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Time) {
                 return QUOTE + DataTypeUtils.TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
             } else if (x instanceof LocalTime) {
-                return QUOTE + DataTypeUtils.TIME_FORMATTER.format((LocalTime) x) + QUOTE;
+                return QUOTE + DataTypeUtils.TIME_WITH_NANOS_FORMATTER.format((LocalTime) x) + QUOTE;
             } else if (x instanceof Timestamp) {
                 return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {

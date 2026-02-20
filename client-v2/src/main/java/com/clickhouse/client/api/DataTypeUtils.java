@@ -48,7 +48,9 @@ public class DataTypeUtils {
         .appendFraction(ChronoField.NANO_OF_SECOND, 9, 9, true)
         .toFormatter();
 
-    public static final DateTimeFormatter TIME_WITH_NANOS_FORMATTER = INSTANT_FORMATTER;
+    public static final DateTimeFormatter TIME_WITH_NANOS_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .toFormatter();;
 
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
