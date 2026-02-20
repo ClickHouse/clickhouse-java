@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
@@ -1656,17 +1657,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-
-    /**
-     * Tests the "day shift" bug that can occur when timezone differences cause dates to shift by a day.
-     *
-     * The issue: java.sql.Date internally stores milliseconds since epoch at midnight in some timezone.
-     * If the driver interprets that instant using a different timezone, the date can shift.
-     *
-     * Example: "2024-01-15 00:00:00" in America/New_York (UTC-5) is "2024-01-15 05:00:00" in UTC.
-     * But "2024-01-15 00:00:00" in Pacific/Auckland (UTC+13) is "2024-01-14 11:00:00" in UTC.
-     * If not handled correctly, dates near midnight can shift to the previous or next day.
-     */
     @Test(groups = {"integration"})
     void testDateDayShiftWithDifferentTimezones() throws Exception {
         String table = "test_date_day_shift";
@@ -1697,15 +1687,18 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             int id = 0;
             for (String dateStr : testDates) {
-                java.sql.Date expectedDate = java.sql.Date.valueOf(dateStr);
-
+                LocalDate localDate = LocalDate.parse(dateStr);
+                java.sql.Date inputDate = java.sql.Date.valueOf(localDate);
                 for (TimeZone tz : timezones) {
                     id++;
+                    Calendar calendar = new GregorianCalendar(tz);
+                    LocalDate expectedLocalDate = DataTypeUtils.toLocalDate(inputDate, calendar.getTimeZone());
+                    java.sql.Date expectedDate = DataTypeUtils.toSqlDate(expectedLocalDate, calendar.getTimeZone());
                     try (PreparedStatement stmt = conn.prepareStatement(
                             "INSERT INTO " + table + " (id, d) VALUES (?, ?)")) {
                         stmt.setInt(1, id);
                         // Use Calendar to specify the timezone context for the date
-                        stmt.setDate(2, expectedDate, new GregorianCalendar(tz));
+                        stmt.setDate(2, inputDate, calendar);
                         stmt.executeUpdate();
                     }
 
@@ -1715,10 +1708,15 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                         stmt.setInt(1, id);
                         try (ResultSet rs = stmt.executeQuery()) {
                             assertTrue(rs.next(), "Expected row for id=" + id);
-                            java.sql.Date actualDate = rs.getDate(1);
-                            assertEquals(actualDate.toString(), expectedDate.toString(),
+                            java.sql.Date actualDate = rs.getDate(1, calendar);
+                            LocalDate actualLocalDate = rs.getObject(1, LocalDate.class);
+                            assertEquals(actualDate.getTime(), expectedDate.getTime());
+                            assertEquals(DataTypeUtils.toLocalDate(actualDate, calendar.getTimeZone()), expectedLocalDate,
                                     String.format("Date mismatch for %s with timezone %s: expected %s, got %s",
-                                            dateStr, tz.getID(), expectedDate, actualDate));
+                                            dateStr, tz.getID(), expectedLocalDate, DataTypeUtils.toLocalDate(actualDate, calendar.getTimeZone())));
+                            assertEquals(actualLocalDate, expectedLocalDate,
+                                    String.format("LocalDate mismatch for %s with timezone %s: expected %s, got %s",
+                                            dateStr, tz.getID(), expectedLocalDate, actualLocalDate));
                         }
                     }
                 }
