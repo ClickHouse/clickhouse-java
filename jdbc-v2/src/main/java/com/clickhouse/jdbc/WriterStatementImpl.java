@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -204,17 +205,17 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setDate(parameterIndex, x, null);
+        setDate(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setTime(parameterIndex, x, null);
+        setTime(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setTimestamp(parameterIndex, x, null);
+        setTimestamp(parameterIndex, x, defaultCalendar);
     }
 
     @Override
@@ -376,19 +377,19 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, sqlDateToInstant(x, cal));
+        writer.setValue(parameterIndex, DataTypeUtils.toLocalDate(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setValue(parameterIndex, sqlTimeToInstant(x, cal));
+        writer.setValue(parameterIndex, DataTypeUtils.toLocalTime(x, cal.getTimeZone()));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        writer.setDateTime(parameterIndex, sqlTimestampToZDT(x, cal));
+        writer.setDateTime(parameterIndex, DataTypeUtils.toLocalDateTime(x, cal.getTimeZone()));
     }
 
     @Override

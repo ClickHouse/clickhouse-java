@@ -42,16 +42,14 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -60,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -69,12 +68,7 @@ import java.util.stream.IntStream;
 public class PreparedStatementImpl extends StatementImpl implements PreparedStatement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(PreparedStatementImpl.class);
 
-    public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
-            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
-    public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
-            .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
-
-    private final Calendar defaultCalendar;
+    protected final Calendar defaultCalendar;
 
     private final String originalSql;
     private final String[] values; // temp value holder (set can be called > once)
@@ -218,17 +212,17 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setDate(parameterIndex, x, null);
+        setDate(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setTime(parameterIndex, x, null);
+        setTime(parameterIndex, x, defaultCalendar);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setTimestamp(parameterIndex, x, null);
+        setTimestamp(parameterIndex, x, defaultCalendar);
     }
 
     @Override
@@ -262,27 +256,32 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         ensureOpen();
-        // targetSQLType is only of JDBCType
-        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), null);
+
+        isValidForTargetType(x, targetSqlType);
+        values[parameterIndex-1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        // targetSQLType is only of JDBCType
-        values[parameterIndex-1] = encodeObject(x, jdbcType2ClickHouseDataType(JDBCType.valueOf(targetSqlType)), scaleOrLength);
+
+        isValidForTargetType(x, targetSqlType);
+        values[parameterIndex-1] = encodeObject(x, (long) scaleOrLength);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
         ensureOpen();
-        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), null);
+
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
+        values[parameterIndex-1] = encodeObject(x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        values[parameterIndex-1] = encodeObject(x, sqlType2ClickHouseDataType(targetSqlType), scaleOrLength);
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
+        values[parameterIndex-1] = encodeObject(x, (long) scaleOrLength);
     }
 
     @Override
@@ -469,43 +468,22 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlDateToInstant(x, cal));
-    }
-
-    protected Instant sqlDateToInstant(Date x, Calendar cal) {
-        LocalDate d = x.toLocalDate();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
-        return c.toInstant();
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalDate(x, tz));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimeToInstant(x, cal));
-    }
-
-    protected Instant sqlTimeToInstant(Time x, Calendar cal) {
-        LocalTime t = x.toLocalTime();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(1970, Calendar.JANUARY, 1, t.getHour(), t.getMinute(), t.getSecond());
-        return c.toInstant();
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toLocalTime(x, tz));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         ensureOpen();
-        values[parameterIndex - 1] = encodeObject(sqlTimestampToZDT(x, cal));
-    }
-
-    protected ZonedDateTime sqlTimestampToZDT(Timestamp x, Calendar cal) {
-        LocalDateTime ldt = x.toLocalDateTime();
-        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-        c.clear();
-        c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-        return c.toInstant().atZone(ZoneId.of("UTC")).withNano(x.getNanos());
+        TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
     }
 
     @Override
@@ -783,19 +761,21 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof LocalDate) {
                 return QUOTE + DataTypeUtils.DATE_FORMATTER.format((LocalDate) x) + QUOTE;
             } else if (x instanceof Time) {
-                return QUOTE + TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
+                return QUOTE + DataTypeUtils.TIME_FORMATTER.format(((Time) x).toLocalTime()) + QUOTE;
             } else if (x instanceof LocalTime) {
-                return QUOTE + TIME_FORMATTER.format((LocalTime) x) + QUOTE;
+                return QUOTE + DataTypeUtils.TIME_WITH_NANOS_FORMATTER.format((LocalTime) x) + QUOTE;
             } else if (x instanceof Timestamp) {
-                return QUOTE + DATETIME_FORMATTER.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
+                return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return QUOTE + DATETIME_FORMATTER.format((LocalDateTime) x) + QUOTE;
+                return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((LocalDateTime) x, defaultCalendar.getTimeZone()) + ")";
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {
                 return encodeObject(((ZonedDateTime) x).toInstant());
             } else if (x instanceof Instant) {
-                return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
+                return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((Instant) x) + ")";
+            } else if (x instanceof Duration) {
+                return QUOTE + DataTypeUtils.durationToTimeString((Duration) x, 9) + QUOTE;
             } else if (x instanceof InetAddress) {
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
             } else if (x instanceof byte[]) {
@@ -1006,45 +986,36 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-    private ClickHouseDataType jdbcType2ClickHouseDataType(JDBCType type) throws SQLException{
-        ClickHouseDataType clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
-        if (clickHouseDataType == null) {
-            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
+    private void isValidForTargetType(Object value, int targetType) throws SQLException {
+        if (value == null) {
+            return; // NULL is handled in encoding and server checks if value can be NULL
         }
 
-        return clickHouseDataType;
-    }
+        Class<?> vClass = value.getClass();
 
-    private ClickHouseDataType sqlType2ClickHouseDataType(SQLType type) throws SQLException {
-        ClickHouseDataType clickHouseDataType = null;
-        if (type instanceof JDBCType) {
-            clickHouseDataType = JdbcUtils.SQL_TO_CLICKHOUSE_TYPE_MAP.get(type);
-        } else  if (type instanceof ClickHouseDataType) {
-            clickHouseDataType = (ClickHouseDataType) type;
-            if (JdbcUtils.INVALID_TARGET_TYPES.contains(clickHouseDataType)) {
-                throw new  SQLException("Type " + clickHouseDataType + " cannot be used as target type here because requires additional parameters and API doesn't have a way to pass them. ");
-            }
-        }
-
-        if (clickHouseDataType == null) {
-            throw new SQLException("Cannot convert " + type + " to a ClickHouse one. Consider using java.sql.JDBCType or com.clickhouse.data.ClickHouseDataType");
-        }
-
-        return clickHouseDataType;
-    }
-
-    private String encodeObject(Object x, ClickHouseDataType clickHouseDataType, Integer scaleOrLength) throws SQLException {
-        String encodedObject = encodeObject(x);
-        if (clickHouseDataType != null) {
-            encodedObject = "CAST (" + encodedObject + " AS " + clickHouseDataType.name();
-            if (clickHouseDataType.hasParameter()) {
-                if (scaleOrLength == null) {
-                    throw new SQLException("Target type " + clickHouseDataType + " requires a parameter");
+        // Here we validate only specific types
+        switch (targetType) {
+            case Types.DATE:
+                if (vClass == LocalDate.class || vClass == java.sql.Date.class) {
+                    return;
                 }
-                encodedObject += "(" + scaleOrLength + ")";
-            }
-            encodedObject += ")";
+                break;
+            case Types.TIME:
+            case Types.TIME_WITH_TIMEZONE:
+                if (vClass == LocalTime.class || vClass == java.sql.Time.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class) {
+                    return;
+                }
+                break;
+            case Types.TIMESTAMP:
+            case Types.TIMESTAMP_WITH_TIMEZONE:
+                if (vClass == Timestamp.class || vClass == LocalDateTime.class || vClass == ZonedDateTime.class || vClass == OffsetDateTime.class) {
+                    return;
+                }
+                break;
+            default:
+                return;
         }
-        return encodedObject;
+
+        throw new SQLException("Cannot convert value of type " + value.getClass() + " to SQL type " + JDBCType.valueOf(targetType));
     }
 }

@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.MapUtils;
@@ -685,13 +686,31 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Duration getDuration(int index) {
-        TemporalAmount temporalAmount = getTemporalAmount(index);
-        return temporalAmount == null ? null : Duration.from(temporalAmount);
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
+        } else if (value instanceof TemporalAmount) {
+            return Duration.from((TemporalAmount)value);
+        }
+        throw new ClientException("Column at index " + index + " cannot be converted to Duration");
     }
 
     @Override
     public TemporalAmount getTemporalAmount(int index) {
-        return readValue(index);
+        Object value = readValue(index);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
+        } else if (value instanceof TemporalAmount) {
+            return (TemporalAmount) value;
+        }
+
+        throw new ClientException("Column at index " + index + " cannot be converted to TemporalAmount");
     }
 
     @Override

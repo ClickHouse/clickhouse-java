@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.Connection;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -860,22 +862,26 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(record.getInteger("o_num"), 1);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999)));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999));
 
         record = records.get(1);
         Assert.assertEquals(record.getInteger("o_num"), 2);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999).plusMinutes(59).plusSeconds(59));
 
         record = records.get(2);
         Assert.assertEquals(record.getInteger("o_num"), 3);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), 0);
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(0));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(0));
 
         record = records.get(3);
         Assert.assertEquals(record.getInteger("o_num"), 4);
         Assert.assertEquals(record.getLocalDateTime("time").toEpochSecond(ZoneOffset.UTC), - (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
         Assert.assertEquals(record.getInstant("time"), Instant.ofEpochSecond(-
                 (TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59)));
+        Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999).plusMinutes(59).plusSeconds(59).negated());
     }
 
     @Test(groups = {"integration"}, dataProvider = "testTimeData")
@@ -1138,7 +1144,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "testNestedArrays_dp")
-    public void testNestedArrays(String columnDef, String insertValues, String[] expectedStrValues, 
+    public void testNestedArrays(String columnDef, String insertValues, String[] expectedStrValues,
                                  String[] expectedListValues) throws Exception {
         final String table = "test_nested_arrays";
         client.execute("DROP TABLE IF EXISTS " + table).get();
@@ -1151,12 +1157,12 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         for (GenericRecord record : records) {
             int rowId = record.getInteger("rowId");
-            
+
             // Check getString() - includes quotes for string values
             String actualValue = record.getString("arr");
-            Assert.assertEquals(actualValue, expectedStrValues[rowId - 1], 
+            Assert.assertEquals(actualValue, expectedStrValues[rowId - 1],
                     "getString() mismatch at row " + rowId + " for " + columnDef);
-            
+
             // Check getObject() - should return an ArrayValue
             Object objValue = record.getObject("arr");
             Assert.assertNotNull(objValue, "getObject() returned null at row " + rowId);
@@ -1165,7 +1171,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) objValue;
             Assert.assertEquals(arrayValue.asList().toString(), expectedListValues[rowId - 1],
                     "getObject().asList() mismatch at row " + rowId + " for " + columnDef);
-            
+
             // Check getList() - should return a List representation (no quotes for strings)
             List<?> listValue = record.getList("arr");
             Assert.assertNotNull(listValue, "getList() returned null at row " + rowId);

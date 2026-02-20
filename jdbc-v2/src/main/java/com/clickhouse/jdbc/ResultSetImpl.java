@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -33,8 +34,13 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collections;
@@ -244,17 +250,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        return getDate(columnIndex, null);
+        return getDate(columnIndex, defaultCalendar);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return getTime(columnIndex, null);
+        return getTime(columnIndex, defaultCalendar);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(columnIndex, null);
+        return getTimestamp(columnIndex, defaultCalendar);
     }
 
     @Override
@@ -423,17 +429,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
-        return getDate(columnLabel, null);
+        return getDate(columnLabel, defaultCalendar);
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
-        return getTime(columnLabel, null);
+        return getTime(columnLabel, defaultCalendar);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        return getTimestamp(columnLabel, null);
+        return getTimestamp(columnLabel, defaultCalendar);
     }
 
     @Override
@@ -1015,6 +1021,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
+
             LocalDate ld = reader.getLocalDate(columnLabel);
             if (ld == null) {
                 wasNull = true;
@@ -1022,10 +1029,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.clear();
-            c.set(ld.getYear(), ld.getMonthValue() - 1, ld.getDayOfMonth(), 0, 0, 0);
-            return new Date(c.getTimeInMillis());
+            return DataTypeUtils.toSqlDate(ld, cal.getTimeZone());
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
             switch (column.getValueDataType()) {
@@ -1080,28 +1084,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return getTimestamp(columnIndexToName(columnIndex), cal);
-    }
-
-    @Override
-    public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
-            ZonedDateTime zdt = reader.getZonedDateTime(columnLabel);
+            ZonedDateTime zdt = reader.getZonedDateTime(columnIndex);
             if (zdt == null) {
                 wasNull = true;
                 return null;
             }
             wasNull = false;
 
-            Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-            c.set(zdt.getYear(), zdt.getMonthValue() - 1, zdt.getDayOfMonth(), zdt.getHour(), zdt.getMinute(),
-                    zdt.getSecond());
-            Timestamp timestamp = new Timestamp(c.getTimeInMillis());
-            timestamp.setNanos(zdt.getNano());
-            return timestamp;
+            return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(), cal.getTimeZone());
         } catch (Exception e) {
-            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
+            ClickHouseColumn column = getSchema().getColumnByIndex(columnIndex);
             switch (column.getValueDataType()) {
                 case DateTime64:
                 case DateTime:
@@ -1111,8 +1105,15 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Timestamp value");
             }
 
-            throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnIndex),
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
+
+    }
+
+    @Override
+    public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
+        return getTimestamp(getSchema().nameToColumnIndex(columnLabel), cal);
     }
 
     @Override
