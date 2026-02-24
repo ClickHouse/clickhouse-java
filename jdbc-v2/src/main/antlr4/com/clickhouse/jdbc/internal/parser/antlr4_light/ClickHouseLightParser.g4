@@ -79,7 +79,7 @@ restOfQuery
 // Table and column identifiers
 
 tableIdentifier
-    : (identifier DOT)? identifier
+    : identifier (DOT identifier)*
     ;
 
 nestedIdentifier

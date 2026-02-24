@@ -460,8 +460,107 @@ public abstract class SqlParserFacade {
             }
             stmt.setTable(tableName);
 
+            if (stmt.isInsert()) {
+                parseInsertDataClause(sql, stmt);
+            }
+
             parseParameters(sql, stmt);
             return stmt;
+        }
+
+        private static void parseInsertDataClause(String sql, ParsedPreparedStatement stmt) {
+            int len = sql.length();
+            boolean seenInsert = false;
+            int i = 0;
+            while (i < len) {
+                char ch = sql.charAt(i);
+                if (ClickHouseUtils.isQuote(ch)) {
+                    i = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
+                    continue;
+                }
+                if (i + 1 < len) {
+                    char nextCh = sql.charAt(i + 1);
+                    if ((ch == '-' && nextCh == '-') || ch == '#') {
+                        i = ClickHouseUtils.skipSingleLineComment(sql, i + 2, len);
+                        continue;
+                    }
+                    if (ch == '/' && nextCh == '*') {
+                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
+                        continue;
+                    }
+                }
+
+                if (Character.isLetter(ch)) {
+                    int start = i;
+                    i++;
+                    while (i < len && (Character.isLetterOrDigit(sql.charAt(i)) || sql.charAt(i) == '_')) {
+                        i++;
+                    }
+
+                    String token = sql.substring(start, i).toUpperCase(Locale.ROOT);
+                    if (!seenInsert) {
+                        if ("INSERT".equals(token)) {
+                            seenInsert = true;
+                        }
+                        continue;
+                    }
+
+                    if ("VALUES".equals(token)) {
+                        stmt.setAssignValuesGroups(countValuesGroups(sql, i));
+                        return;
+                    }
+
+                    if ("SELECT".equals(token)) {
+                        stmt.setInsertWithSelect(true);
+                        return;
+                    }
+                    continue;
+                }
+
+                i++;
+            }
+        }
+
+        private static int countValuesGroups(String sql, int startIdx) {
+            int len = sql.length();
+            int groups = 0;
+            int depth = 0;
+            int i = startIdx;
+            while (i < len) {
+                char ch = sql.charAt(i);
+                if (ClickHouseUtils.isQuote(ch)) {
+                    i = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
+                    continue;
+                }
+                if (i + 1 < len) {
+                    char nextCh = sql.charAt(i + 1);
+                    if ((ch == '-' && nextCh == '-') || ch == '#') {
+                        i = ClickHouseUtils.skipSingleLineComment(sql, i + 2, len);
+                        continue;
+                    }
+                    if (ch == '/' && nextCh == '*') {
+                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
+                        continue;
+                    }
+                }
+
+                if (ch == ';' && depth == 0) {
+                    break;
+                }
+
+                if (ch == '(') {
+                    if (depth == 0) {
+                        groups++;
+                    }
+                    depth++;
+                } else if (ch == ')' && depth > 0) {
+                    depth--;
+                }
+
+                i++;
+            }
+
+            return groups;
         }
 
         protected ClickHouseLightParser parseSQL(String sql, ClickHouseLightParserListener listener) {
@@ -581,11 +680,17 @@ public abstract class SqlParserFacade {
                 }
 
                 List<ClickHouseLightParser.IdentifierContext> identifiers = tableIdentifier.identifier();
+                if (identifiers.isEmpty()) {
+                    return;
+                }
+
                 if (identifiers.size() == 1) {
-                    stmt.setTable(SQLUtils.unquoteIdentifier(identifiers.get(0).getText()));
-                } else if (identifiers.size() == 2) {
-                    stmt.setDatabase(SQLUtils.unquoteIdentifier(identifiers.get(0).getText()));
-                    stmt.setTable(SQLUtils.unquoteIdentifier(identifiers.get(1).getText()));
+                    stmt.setTable(ClickHouseSqlUtils.unescape(identifiers.get(0).getText()));
+                } else {
+                    stmt.setDatabase(identifiers.subList(0, identifiers.size() - 1).stream()
+                            .map(id -> ClickHouseSqlUtils.unescape(id.getText()))
+                            .collect(Collectors.joining(".")));
+                    stmt.setTable(ClickHouseSqlUtils.unescape(identifiers.get(identifiers.size() - 1).getText()));
                 }
 
                 ClickHouseLightParser.ColumnsClauseContext columnsClause = ctx.columnsClause();
