@@ -19,9 +19,7 @@ options {
 queryStmt
     : insertStmt SEMICOLON? EOF   # InsertQueryStmt
     | setStmt SEMICOLON? EOF      # SetQueryStmt
-    | selectStmt SEMICOLON? EOF   # SelectQueryStmt
-    | showStmt SEMICOLON? EOF     # ShowQueryStmt
-    | explainStmt SEMICOLON? EOF  # ExplainQueryStmt
+    | useStmt SEMICOLON? EOF      # UseQueryStmt
     | otherStmt SEMICOLON? EOF    # OtherQueryStmt
     ;
 
@@ -46,6 +44,12 @@ setStmt
     : SET settingExprList
     ;
 
+// USE - fully parsed
+
+useStmt
+    : USE identifier
+    ;
+
 settingExprList
     : settingExpr (COMMA settingExpr)*
     ;
@@ -54,28 +58,16 @@ settingExpr
     : identifier EQ_SINGLE (literal | JDBC_PARAM_PLACEHOLDER)
     ;
 
-// SELECT (including WITH ... SELECT for CTEs) - detect verb, accept rest
-
-selectStmt
-    : (WITH | SELECT) restOfQuery
-    ;
-
-// SHOW - detect verb, accept rest
-
-showStmt
-    : SHOW restOfQuery
-    ;
-
-// EXPLAIN - detect verb, accept rest
-
-explainStmt
-    : EXPLAIN restOfQuery
-    ;
-
-// Any other statement - accept all tokens
+// Any other statement - capture first verb if present, accept rest
 
 otherStmt
-    : ~SEMICOLON+
+    : statementVerb restOfQuery # OtherWithVerbStmt
+    | restOfQuery               # OtherNoVerbStmt
+    ;
+
+statementVerb
+    : keyword
+    | IDENTIFIER
     ;
 
 // Consume all remaining non-semicolon tokens

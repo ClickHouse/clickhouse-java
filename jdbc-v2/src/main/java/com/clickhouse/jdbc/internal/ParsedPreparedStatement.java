@@ -38,6 +38,8 @@ public final class ParsedPreparedStatement {
 
     private int assignValuesGroups = 0;
 
+    private String statementVerb;
+
     public void setHasResultSet(boolean hasResultSet) {
         this.hasResultSet = hasResultSet;
     }
@@ -148,6 +150,14 @@ public final class ParsedPreparedStatement {
 
     public void setHasErrors(boolean hasErrors) {
         this.hasErrors = hasErrors;
+    }
+
+    public String getStatementVerb() {
+        return statementVerb;
+    }
+
+    public void setStatementVerb(String statementVerb) {
+        this.statementVerb = statementVerb;
     }
 
     void appendParameter(int startIndex) {
