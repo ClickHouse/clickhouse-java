@@ -460,119 +460,8 @@ public abstract class SqlParserFacade {
             }
             stmt.setTable(tableName);
 
-            if (stmt.isInsert()) {
-                parseInsertDataClause(sql, stmt);
-            }
-
             parseParameters(sql, stmt);
             return stmt;
-        }
-
-        private static void parseInsertDataClause(String sql, ParsedPreparedStatement stmt) {
-            int len = sql.length();
-            boolean seenInsert = false;
-            int i = 0;
-            while (i < len) {
-                char ch = sql.charAt(i);
-                if (ClickHouseUtils.isQuote(ch)) {
-                    i = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
-                    continue;
-                }
-                if (i + 1 < len) {
-                    char nextCh = sql.charAt(i + 1);
-                    if ((ch == '-' && nextCh == '-') || ch == '#') {
-                        i = ClickHouseUtils.skipSingleLineComment(sql, i + 2, len);
-                        continue;
-                    }
-                    if (ch == '/' && nextCh == '*') {
-                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
-                        continue;
-                    }
-                }
-
-                if (Character.isLetter(ch)) {
-                    int start = i;
-                    i++;
-                    while (i < len && (Character.isLetterOrDigit(sql.charAt(i)) || sql.charAt(i) == '_')) {
-                        i++;
-                    }
-
-                    String token = sql.substring(start, i).toUpperCase(Locale.ROOT);
-                    if (!seenInsert) {
-                        if ("INSERT".equals(token)) {
-                            seenInsert = true;
-                        }
-                        continue;
-                    }
-
-                    if ("VALUES".equals(token)) {
-                        parseValuesClause(sql, i, stmt);
-                        return;
-                    }
-
-                    if ("SELECT".equals(token)) {
-                        stmt.setInsertWithSelect(true);
-                        return;
-                    }
-                    continue;
-                }
-
-                i++;
-            }
-        }
-
-        private static void parseValuesClause(String sql, int startIdx, ParsedPreparedStatement stmt) {
-            int len = sql.length();
-            int groups = 0;
-            int depth = 0;
-            int valuesStart = -1;
-            int valuesStop = -1;
-            int i = startIdx;
-            while (i < len) {
-                char ch = sql.charAt(i);
-                if (ClickHouseUtils.isQuote(ch)) {
-                    i = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
-                    continue;
-                }
-                if (i + 1 < len) {
-                    char nextCh = sql.charAt(i + 1);
-                    if ((ch == '-' && nextCh == '-') || ch == '#') {
-                        i = ClickHouseUtils.skipSingleLineComment(sql, i + 2, len);
-                        continue;
-                    }
-                    if (ch == '/' && nextCh == '*') {
-                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
-                        continue;
-                    }
-                }
-
-                if (ch == ';' && depth == 0) {
-                    break;
-                }
-
-                if (ch == '(') {
-                    if (depth == 0) {
-                        groups++;
-                        if (valuesStart < 0) {
-                            valuesStart = i;
-                        }
-                    }
-                    depth++;
-                } else if (ch == ')' && depth > 0) {
-                    if (depth == 1) {
-                        valuesStop = i;
-                    }
-                    depth--;
-                }
-
-                i++;
-            }
-
-            stmt.setAssignValuesGroups(groups);
-            if (valuesStart >= 0 && valuesStop >= valuesStart) {
-                stmt.setAssignValuesListStartPosition(valuesStart);
-                stmt.setAssignValuesListStopPosition(valuesStop);
-            }
         }
 
         protected ClickHouseLightParser parseSQL(String sql, ClickHouseLightParserListener listener) {
@@ -685,6 +574,11 @@ public abstract class SqlParserFacade {
             }
 
             @Override
+            public void enterInsertFunctionStmt(ClickHouseLightParser.InsertFunctionStmtContext ctx) {
+                super.enterInsertFunctionStmt(ctx);
+            }
+
+            @Override
             public void enterInsertTableStmt(ClickHouseLightParser.InsertTableStmtContext ctx) {
                 ClickHouseLightParser.TableIdentifierContext tableIdentifier = ctx.tableIdentifier();
                 if (tableIdentifier == null) {
@@ -713,6 +607,31 @@ public abstract class SqlParserFacade {
                         insertColumns[i] = columns.get(i).getText();
                     }
                     stmt.setInsertColumns(insertColumns);
+                }
+            }
+
+            @Override
+            public void enterDataClauseSelect(ClickHouseLightParser.DataClauseSelectContext ctx) {
+                stmt.setInsertWithSelect(true);
+            }
+
+            @Override
+            public void enterDataClauseValues(ClickHouseLightParser.DataClauseValuesContext ctx) {
+                stmt.setAssignValuesGroups(ctx.assignmentValues().size());
+            }
+
+            @Override
+            public void enterAssignmentValues(ClickHouseLightParser.AssignmentValuesContext ctx) {
+                int currentStart = stmt.getAssignValuesListStartPosition();
+                int currentStop = stmt.getAssignValuesListStopPosition();
+                int start = ctx.getStart().getStartIndex();
+                int stop = ctx.getStop().getStopIndex();
+
+                if (currentStart < 0 || start < currentStart) {
+                    stmt.setAssignValuesListStartPosition(start);
+                }
+                if (currentStop < 0 || stop > currentStop) {
+                    stmt.setAssignValuesListStopPosition(stop);
                 }
             }
         }

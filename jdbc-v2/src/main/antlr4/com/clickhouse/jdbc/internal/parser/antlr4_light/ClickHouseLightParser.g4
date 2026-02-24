@@ -26,8 +26,8 @@ queryStmt
 // INSERT - parse table identifier and optional column list, accept rest
 
 insertStmt
-    : INSERT INTO FUNCTION identifier LPAREN functionArgs RPAREN columnsClause? restOfQuery # InsertFunctionStmt
-    | INSERT INTO TABLE? tableIdentifier columnsClause? restOfQuery                         # InsertTableStmt
+    : INSERT INTO TABLE? tableIdentifier columnsClause? dataClause restOfQuery  # InsertTableStmt
+    | INSERT INTO FUNCTION identifier LPAREN functionArgs RPAREN columnsClause? dataClause restOfQuery # InsertFunctionStmt
     ;
 
 columnsClause
@@ -36,6 +36,23 @@ columnsClause
 
 functionArgs
     : (LPAREN functionArgs RPAREN | ~(LPAREN | RPAREN))*
+    ;
+
+dataClause
+    : FORMAT identifier                                 # DataClauseFormat
+    | VALUES assignmentValues (COMMA assignmentValues)* # DataClauseValues
+    | (WITH | SELECT) restOfQuery                       # DataClauseSelect
+    ;
+
+assignmentValues
+    : LPAREN assignmentValue? (COMMA assignmentValue)* RPAREN
+    ;
+
+assignmentValue
+    : literal   # InsertRawValue
+    | JDBC_PARAM_PLACEHOLDER     # InsertParameter
+    | identifier functionArgs # InsertParameterFuncExpr
+    | LPAREN? .* RPAREN? # InserParameterExpr
     ;
 
 // SET - fully parsed
