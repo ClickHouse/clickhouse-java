@@ -2,13 +2,11 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.apache.hc.client5.http.utils.URIUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

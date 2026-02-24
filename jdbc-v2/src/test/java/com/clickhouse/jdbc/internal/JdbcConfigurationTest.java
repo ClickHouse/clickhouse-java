@@ -2,7 +2,6 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-
 import com.clickhouse.jdbc.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -31,8 +30,6 @@ public class JdbcConfigurationTest {
                 .withExpectedConnectionURL("http://unknown-host.local:8443"),
         new JdbcConfigurationTestData("jdbc:clickhouse:http://localhost:8443")
                 .withExpectedConnectionURL("http://localhost:8443"),
-        new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost:8123")
-            .withExpectedConnectionURL("https://localhost:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost:8123")
             .withExpectedConnectionURL("https://localhost:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8443")
