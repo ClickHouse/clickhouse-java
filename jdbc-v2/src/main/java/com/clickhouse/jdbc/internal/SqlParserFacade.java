@@ -506,7 +506,7 @@ public abstract class SqlParserFacade {
                     }
 
                     if ("VALUES".equals(token)) {
-                        stmt.setAssignValuesGroups(countValuesGroups(sql, i));
+                        parseValuesClause(sql, i, stmt);
                         return;
                     }
 
@@ -521,10 +521,12 @@ public abstract class SqlParserFacade {
             }
         }
 
-        private static int countValuesGroups(String sql, int startIdx) {
+        private static void parseValuesClause(String sql, int startIdx, ParsedPreparedStatement stmt) {
             int len = sql.length();
             int groups = 0;
             int depth = 0;
+            int valuesStart = -1;
+            int valuesStop = -1;
             int i = startIdx;
             while (i < len) {
                 char ch = sql.charAt(i);
@@ -551,16 +553,26 @@ public abstract class SqlParserFacade {
                 if (ch == '(') {
                     if (depth == 0) {
                         groups++;
+                        if (valuesStart < 0) {
+                            valuesStart = i;
+                        }
                     }
                     depth++;
                 } else if (ch == ')' && depth > 0) {
+                    if (depth == 1) {
+                        valuesStop = i;
+                    }
                     depth--;
                 }
 
                 i++;
             }
 
-            return groups;
+            stmt.setAssignValuesGroups(groups);
+            if (valuesStart >= 0 && valuesStop >= valuesStart) {
+                stmt.setAssignValuesListStartPosition(valuesStart);
+                stmt.setAssignValuesListStopPosition(valuesStop);
+            }
         }
 
         protected ClickHouseLightParser parseSQL(String sql, ClickHouseLightParserListener listener) {
